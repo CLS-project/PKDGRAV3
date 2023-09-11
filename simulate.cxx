@@ -709,11 +709,6 @@ int MSR::ValidateParameters() {
         }
     }
 
-    /* Make sure that parallel read and write are sane */
-    int nThreads = mdlThreads(mdl);
-    if (param.nParaRead  > nThreads) param.nParaRead  = nThreads;
-    if (param.nParaWrite > nThreads) param.nParaWrite = nThreads;
-
     if (parameters.get_bFindGroups() && !prmSpecified(prm,"dTau")) {
         fprintf(stderr, "ERROR: you must specify dTau when FOF is to be run\n");
         return 0;

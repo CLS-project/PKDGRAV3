@@ -439,11 +439,33 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     return std::make_pair(pout.nSizeParticle,pout.nSizeNode);
 }
 
+/// @brief Return the number of threads to use for parallel reading/writing
+/// @param bParallel True if parallel reading/writing is enabled
+/// @param nParallel number of threads to use for parallel reading/writing
+/// @return Actual number of threads to use for parallel reading/writing
+int64_t MSR::parallel_count(bool bParallel,int64_t nParallel) {
+    if (!bParallel) return 1; // Parallel reading/writing is disabled, use 1 thread
+    else if (nParallel<1) return nThreads; // Use maximum number of threads
+    else return std::min(nParallel,int64_t(nThreads)); // Use specified number of threads (if less than maximum)
+}
+
+/// @brief Return the number of threads to use for parallel reading
+/// @return Number of threads to use for parallel reading
+int64_t MSR::parallel_read_count() {
+    return parallel_count(parameters.get_bParaRead(),parameters.get_nParaRead());
+}
+
+/// @brief Return the number of threads to use for parallel writing
+/// @return Number of threads to use for parallel writing
+int64_t MSR::parallel_write_count() {
+    return parallel_count(parameters.get_bParaWrite(),parameters.get_nParaWrite());
+}
+
 void MSR::stat_files(std::vector<uint64_t> &counts,const std::string &filename_template, uint64_t element_size) {
     ServiceFileSizes::input hdr;
 
     strncpy(hdr.filename,filename_template.c_str(),sizeof(hdr.filename));
-    hdr.nSimultaneous = hdr.nTotalActive = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    hdr.nSimultaneous = hdr.nTotalActive = parallel_read_count();
     hdr.iReaderWriter = 0;
     hdr.nElementSize = 1;
 
@@ -484,7 +506,7 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
     hdr->iBeg = 0;
     hdr->iEnd = hdr->nElements;
     strncpy(hdr->io.filename,filename_template.c_str(),sizeof(hdr->io.filename));
-    hdr->io.nSimultaneous = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    hdr->io.nSimultaneous = parallel_read_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
     mdl->RunService(PST_RESTORE,msg);
@@ -671,7 +693,7 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     auto filename = BuildCpName(iStep,".chk");
     assert(filename.size() < sizeof(in.achOutFile));
     strcpy(in.achOutFile,filename.c_str());
-    in.nProcessors = param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite);
+    in.nProcessors = parallel_write_count();
     if (csm->val.bComove) {
         double dExp = csmTime2Exp(csm,dTime);
         msrprintf("Writing checkpoint for Step: %d Time:%g Redshift:%g\n",
@@ -835,18 +857,6 @@ void MSR::Initialize() {
     param.bRestart = 0;
     prmAddParam(prm,"bRestart",0,&param.bRestart,sizeof(int),"restart",
                 "restart from checkpoint");
-    param.bParaRead = 1;
-    prmAddParam(prm,"bParaRead",0,&param.bParaRead,sizeof(int),"par",
-                "enable/disable parallel reading of files = +par");
-    param.bParaWrite = 0;
-    prmAddParam(prm,"bParaWrite",0,&param.bParaWrite,sizeof(int),"paw",
-                "enable/disable parallel writing of files = +paw");
-    param.nParaRead = 0;
-    prmAddParam(prm,"nParaRead",1,&param.nParaRead,sizeof(int),"npar",
-                "number of threads to read with during parallel read = 0 (unlimited)");
-    param.nParaWrite = 0;
-    prmAddParam(prm,"nParaWrite",1,&param.nParaWrite,sizeof(int),"npaw",
-                "number of threads to write with during parallel write = 0 (unlimited)");
     param.bDoDensity = 1;
     prmAddParam(prm,"bDoDensity",0,&param.bDoDensity,sizeof(int),
                 "den","enable/disable density outputs = +den");
@@ -1925,10 +1935,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp,"\n# bPeriodic: %d",param.bPeriodic);
     fprintf(fp," bComove: %d",csm->val.bComove);
     fprintf(fp,"\n# bRestart: %d",param.bRestart);
-    fprintf(fp," bParaRead: %d",param.bParaRead);
-    fprintf(fp," nParaRead: %d",param.nParaRead);
-    fprintf(fp," bParaWrite: %d",param.bParaWrite);
-    fprintf(fp," nParaWrite: %d",param.nParaWrite);
     fprintf(fp," bStandard: %d",param.bStandard);
     fprintf(fp," iCompress: %d",param.iCompress);
     fprintf(fp," bHDF5: %d",param.bHDF5);
@@ -2292,14 +2298,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     MSR::MakePath(param.achDataSubPath,pszFileName,in.achOutFile);
 
     in.bStandard = param.bStandard;
-    /*
-    ** If bParaWrite is 0, then we write serially; if it is 1, then we write
-    ** in parallel using all available threads, otherwise we write in parallel
-    ** using the specified number of threads.  The latter option will reduce
-    ** the total amount of simultaneous I/O for file systems that cannot
-    ** handle it.
-    */
-    nProcessors = param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite);
+    nProcessors = parallel_write_count();
     in.iIndex = 0;
 
     in.dTime = dTime;
@@ -2396,14 +2395,7 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
     */
     MSR::MakePath(param.achDataSubPath,pszFileName.c_str(),achOutFile);
 
-    /*
-    ** If bParaWrite is 0, then we write serially; if it is 1, then we write
-    ** in parallel using all available threads, otherwise we write in parallel
-    ** using the specified number of threads.  The latter option will reduce
-    ** the total amount of simultaneous I/O for file systems that cannot
-    ** handle it.
-    */
-    nProcessors = param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite);
+    nProcessors = parallel_write_count();
 
     if (csm->val.bComove) {
         dExp = csmTime2Exp(csm,dTime);
@@ -2413,17 +2405,13 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
         dExp = dTime;
         dvFac = 1.0;
     }
-    if ( !param.bParaWrite ) {
+    if ( nProcessors==1 ) {
         msrprintf("Writing %s in %s format serially ...\n",
                   achOutFile, (param.bHDF5?"HDF5":"Tipsy"));
     }
     else {
-        if ( param.nParaWrite > 1 )
-            msrprintf("Writing %s in %s format in parallel (but limited to %d processors) ...\n",
-                      achOutFile, (param.bHDF5?"HDF5":"Tipsy"), nProcessors);
-        else
-            msrprintf("Writing %s in %s format in parallel ...\n",
-                      achOutFile, (param.bHDF5?"HDF5":"Tipsy"));
+        msrprintf("Writing %s in %s format in parallel (but limited to %d processors) ...\n",
+                  achOutFile, (param.bHDF5?"HDF5":"Tipsy"), nProcessors);
     }
 
     if (csm->val.bComove)
@@ -2947,7 +2935,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
         return;
     }
 
-    if (param.bParaWrite && iFileType>1) {
+    if (parallel_write_count()>1 && iFileType>1) {
         struct inCompressASCII in;
         struct outCompressASCII out;
         struct inWriteASCII inWrite;
@@ -4695,7 +4683,7 @@ void MSR::HopWrite(const char *fname) {
     out.iPartner = -1;
     out.nPartner = -1;
     out.iProcessor = 0;
-    out.nProcessor = param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite);
+    out.nProcessor = parallel_write_count();
     strcpy(out.achOutFile,fname);
     pstOutput(pst,&out,sizeof(out),NULL,0);
     TimerStop(TIMER_IO);
@@ -5149,7 +5137,7 @@ double MSR::Read(const std::string &achInFile) {
     nBH   = fioGetN(fio,FIO_SPECIES_BH);
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
-    read->nProcessors = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    read->nProcessors = parallel_read_count();
 
     if (!fioGetAttr(fio,HDF5_HEADER_G, "NumFilesPerSnapshot",FIO_TYPE_UINT32,&j)) j = 1;
     printf("Reading %" PRIu64 " particles from %d file%s using %d processor%s\n",
@@ -5174,15 +5162,8 @@ double MSR::Read(const std::string &achInFile) {
 
     SetDerivedParameters();
     read->dTuFac = dTuFac;
-    /*
-    ** If bParaRead is 0, then we read serially; if it is 1, then we read
-    ** in parallel using all available threads, otherwise we read in parallel
-    ** using the specified number of threads.  The latter option will reduce
-    ** the total amount of simultaneous I/O for file systems that cannot
-    ** handle it.
-    */
 
-    if (param.bParaRead) {
+    if (read->nProcessors > 1) {
         fioClose(fio);
         pstReadFile(pst,read,sizeof(struct inReadFile)+nBytes,NULL,0);
     }
@@ -5365,7 +5346,7 @@ void MSR::OutputPk(int iStep,double dTime) {
     z = 1/a - 1;
     if (param.iDeltakInterval && (iStep % param.iDeltakInterval == 0) && z < param.dDeltakRedshift) {
         auto filename = BuildName(iStep,".deltak");
-        OutputGrid(filename.c_str(),true,0,param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite));
+        OutputGrid(filename.c_str(),true,0,parallel_write_count());
     }
 }
 
@@ -6236,7 +6217,7 @@ void MSR::RsHaloLoadIds(const std::string &filename_template,bool bAppend) {
     printf("Scanning Rockstar halo binary files...\n");
     ServiceRsHaloCount::input hdr;
     strncpy(hdr.filename,filename_template.c_str(),sizeof(hdr.filename));
-    hdr.nSimultaneous = hdr.nTotalActive = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    hdr.nSimultaneous = hdr.nTotalActive = parallel_read_count();
     hdr.iReaderWriter = 0;
     hdr.nElementSize = 1;
     auto out = new ServiceFileSizes::output[ServiceFileSizes::max_files];
@@ -6281,7 +6262,7 @@ void MSR::RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &fil
     hdr->iBeg = 0;
     hdr->iEnd = hdr->nElements;
     strncpy(hdr->io.filename,filename_template.c_str(),sizeof(hdr->io.filename));
-    hdr->io.nSimultaneous = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    hdr->io.nSimultaneous = parallel_read_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
     printf("Loading %" PRIu64 " particle IDs from %d files\n",hdr->nElements,hdr->nFiles);
@@ -6308,7 +6289,7 @@ void MSR::RsLoadIds(const std::string &filename_template,bool bAppend) {
 void MSR::RsSaveIds(const std::string &filename_template) {
     ServiceRsSaveIds::input hdr;
     strncpy(hdr.io.filename,filename_template.c_str(),sizeof(hdr.io.filename));
-    hdr.io.nSimultaneous = param.bParaWrite==0?1:param.nParaWrite<=1 ? nThreads:param.nParaWrite;
+    hdr.io.nSimultaneous = parallel_write_count();
     hdr.io.nSegment = hdr.io.iThread = 0; // setup later
     hdr.io.iReaderWriter = 0;
     printf("Saving particle IDS\n");
@@ -6344,7 +6325,7 @@ void MSR::RsExtract(const char *filename_template) {
     };
     auto hdr = static_cast<ServiceRsExtract::header *>(msg.data(0));
     strncpy(hdr->io.filename,filename_template,sizeof(hdr->io.filename));
-    hdr->io.nSimultaneous = param.bParaWrite==0?1:param.nParaWrite<=1 ? nThreads:param.nParaWrite;
+    hdr->io.nSimultaneous = parallel_write_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
 

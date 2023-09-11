@@ -102,7 +102,11 @@ public:
         bAnalysis=true;
         parameter_overrides = over;
     }
+private:
+    int64_t parallel_count(bool bParallel,int64_t nParallel);
 protected:
+    int64_t parallel_read_count();
+    int64_t parallel_write_count();
     void stat_files(std::vector<uint64_t> &counts,const std::string &filename_template, uint64_t element_size);
     void Restore(const std::string &filename,int nSizeParticle);
 
@@ -252,7 +256,6 @@ public:
         double sec;
         double acc;
     } ti[TOTAL_TIMERS];
-
 
 #ifdef COOLING
     struct cooling_function_data *cooling;
@@ -483,7 +486,6 @@ protected:
     void BHStep(double dTime, double dDelta);
 #endif
 
-
     void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
     void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
@@ -516,8 +518,6 @@ protected:
         int iKickRung,  /* Gravity on all rungs from iRung
                         to iKickRung */
         int iAdjust);       /* Do an adjust? */
-
-
 
     void CalcDistance(const double *dCenter, double dRadius );
     void CalcCOM(const double *dCenter, double dRadius,

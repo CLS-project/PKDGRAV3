@@ -28,10 +28,6 @@ struct parameters {
     ** Parameters for PKDGRAV.
     */
     int bRestart;
-    int bParaRead;
-    int bParaWrite;
-    int nParaRead;
-    int nParaWrite;
     int bStandard;
     int iCompress;
     int bHDF5;
