@@ -38,11 +38,11 @@ protected:
 
     bool has(const char *name) const;
 
-    template<typename T> T get(const char *name);
-    template<typename T> T get(const char *name, PyObject *v);
-    template<typename T,int N> blitz::TinyVector<T,N> get(const char *name);
+    template<typename T> T get(const char *name) const;
+    template<typename T> T get(const char *name, PyObject *v) const;
+    template<typename T,int N> blitz::TinyVector<T,N> get(const char *name) const;
     template<typename T, typename std::enable_if<std::is_pointer<T>::value, int>::type = 0>
-    void get(const char *name, T buffer, std::size_t size);
+    void get(const char *name, T buffer, std::size_t size) const;
 
 public:
     template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_signed<T>::value && !std::is_same<T, bool>::value, int>::type = 0>
@@ -170,15 +170,15 @@ public:
 
 };
 
-template<> PyObject    *pyrameters::get<PyObject *>(const char *name);
-template<> double       pyrameters::get<double>(const char *name, PyObject *v);
-template<> double       pyrameters::get<double>(const char *name);
-template<> std::int64_t pyrameters::get<std::int64_t>(const char *name, PyObject *v);
-template<> std::int64_t pyrameters::get<std::int64_t>(const char *name);
-template<> std::string_view pyrameters::get<std::string_view>(const char *name, PyObject *v);
-template<> std::string_view pyrameters::get<std::string_view>(const char *name);
-template<> bool         pyrameters::get<bool>(const char *name);
-template<> void         pyrameters::get<char *>(const char *name, char *buffer, std::size_t size);
+template<> PyObject    *pyrameters::get<PyObject *>(const char *name) const;
+template<> double       pyrameters::get<double>(const char *name, PyObject *v) const;
+template<> double       pyrameters::get<double>(const char *name) const;
+template<> std::int64_t pyrameters::get<std::int64_t>(const char *name, PyObject *v) const;
+template<> std::int64_t pyrameters::get<std::int64_t>(const char *name) const;
+template<> std::string_view pyrameters::get<std::string_view>(const char *name, PyObject *v) const;
+template<> std::string_view pyrameters::get<std::string_view>(const char *name) const;
+template<> bool         pyrameters::get<bool>(const char *name) const;
+template<> void         pyrameters::get<char *>(const char *name, char *buffer, std::size_t size) const;
 
 template<> void pyrameters::set_dynamic(const char *name, float         value);
 template<> void pyrameters::set_dynamic(const char *name, double        value);

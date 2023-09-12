@@ -197,7 +197,7 @@ bool pyrameters::ppy2prm(PRM prm) {
     return bOK;
 }
 
-template<> PyObject *pyrameters::get<PyObject *>(const char *name) {
+template<> PyObject *pyrameters::get<PyObject *>(const char *name) const {
     auto v = PyObject_GetAttrString(arguments_, name);
     if (!v) throw std::domain_error(name);
     if (PyCallable_Check(v)) {
@@ -211,12 +211,12 @@ template<> PyObject *pyrameters::get<PyObject *>(const char *name) {
     return v;
 }
 
-template<> double pyrameters::get<double>(const char *name, PyObject *v) {
+template<> double pyrameters::get<double>(const char *name, PyObject *v) const {
     if (PyFloat_Check(v)) return PyFloat_AsDouble(v);
     else if (PyLong_Check(v)) return PyLong_AsLong(v);
     else throw std::domain_error(name);
 }
-template<> double pyrameters::get<double>(const char *name) {
+template<> double pyrameters::get<double>(const char *name) const {
     double result;
     auto v = get<PyObject *>(name);
     result = get<double>(name,v);
@@ -224,12 +224,12 @@ template<> double pyrameters::get<double>(const char *name) {
     return result;
 }
 
-template<> std::int64_t pyrameters::get<std::int64_t>(const char *name, PyObject *v) {
+template<> std::int64_t pyrameters::get<std::int64_t>(const char *name, PyObject *v) const {
     if (PyLong_Check(v)) return PyLong_AsLong(v);
     else if (PyFloat_Check(v)) return static_cast<std::int64_t>(PyFloat_AsDouble(v));
     else throw std::domain_error(name);
 }
-template<> std::int64_t pyrameters::get<std::int64_t>(const char *name) {
+template<> std::int64_t pyrameters::get<std::int64_t>(const char *name) const {
     std::int64_t result;
     auto v = get<PyObject *>(name);
     result = get<std::int64_t>(name,v);
@@ -237,21 +237,21 @@ template<> std::int64_t pyrameters::get<std::int64_t>(const char *name) {
     return result;
 }
 
-template<> std::string_view pyrameters::get<std::string_view>(const char *name, PyObject *v) {
+template<> std::string_view pyrameters::get<std::string_view>(const char *name, PyObject *v) const {
     if (!PyUnicode_Check(v)) throw std::domain_error(name);     // must be a string
     Py_ssize_t length;
     auto c_string = PyUnicode_AsUTF8AndSize(v,&length);         // convert to a UTF8 string
     if (c_string == nullptr) throw std::domain_error(name);     // must be a string
     return std::string_view(c_string,length);                   // return as a string_view
 }
-template<> std::string_view pyrameters::get<std::string_view>(const char *name) {
+template<> std::string_view pyrameters::get<std::string_view>(const char *name) const {
     auto v = get<PyObject *>(name);                             // get the parameter object
     auto result = get<std::string_view>(name,v);                // get as a string_view
     Py_DECREF(v);                                               // safe as long as we don't update the parameter
     return result;
 }
 
-template<> bool pyrameters::get<bool>(const char *name) {
+template<> bool pyrameters::get<bool>(const char *name) const {
     bool result = false;
     auto v = get<PyObject *>(name);
     result = PyObject_IsTrue(v)>0;

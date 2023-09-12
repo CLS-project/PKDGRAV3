@@ -44,9 +44,9 @@ def emit_proto(section,parameters_h,parameters_pxi):
           # name = f'get<PyObject*>(str_{k})'
           c_type = f'{item_type},{len(default)}'
           i_type = f'TinyVector[{item_type},BLITZ{len(default)}]'
-      print(f'    auto get_{k:{w}}() {{ return get<{c_type}>({name}); }}',file=parameters_h)
+      print(f'    auto get_{k:{w}}() const {{ return get<{c_type}>({name}); }}',file=parameters_h)
       print(f'        {i_type:<7} get_{k}()',file=parameters_pxi)
-      print(f'    bool has_{k:{w}}() {{ return has(str_{k}); }}',file=parameters_h)
+      print(f'    bool has_{k:{w}}() const {{ return has(str_{k}); }}',file=parameters_h)
       print(f'        bool    has_{k}()',file=parameters_pxi)
       print(f'    void set_{k:{w}}({c_type} value) {{ set<{c_type}>({name},value); }}',file=parameters_h)
       print(f'        void    set_{k}({i_type} value)',file=parameters_pxi)
