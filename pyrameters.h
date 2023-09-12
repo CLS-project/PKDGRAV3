@@ -19,7 +19,7 @@
 #define PYRAMETERS_H
 #include <Python.h>
 #include <stdexcept>
-#include <string>
+#include <string_view>
 #include <cstdint>
 #include "blitz/array.h"
 
@@ -73,9 +73,9 @@ public:
         PyObject_SetAttrString(arguments_,name,py_object);
         Py_DECREF(py_object);
     }
-    template<typename T, typename std::enable_if<std::is_same<T, std::string>::value, int>::type = 0>
+    template<typename T, typename std::enable_if<std::is_same<T, std::string_view>::value, int>::type = 0>
     void set(const char *name, T const &value) {
-        set(name,value.c_str());
+        set(name,value.data());
     }
     template<typename T, typename std::enable_if<std::is_same<T, PyObject *>::value, int>::type = 0>
     void set(const char *name, T value) {
@@ -175,8 +175,8 @@ template<> double       pyrameters::get<double>(const char *name, PyObject *v);
 template<> double       pyrameters::get<double>(const char *name);
 template<> std::int64_t pyrameters::get<std::int64_t>(const char *name, PyObject *v);
 template<> std::int64_t pyrameters::get<std::int64_t>(const char *name);
-template<> std::string  pyrameters::get<std::string>(const char *name, PyObject *v);
-template<> std::string  pyrameters::get<std::string>(const char *name);
+template<> std::string_view pyrameters::get<std::string_view>(const char *name, PyObject *v);
+template<> std::string_view pyrameters::get<std::string_view>(const char *name);
 template<> bool         pyrameters::get<bool>(const char *name);
 template<> void         pyrameters::get<char *>(const char *name, char *buffer, std::size_t size);
 

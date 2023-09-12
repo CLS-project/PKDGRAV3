@@ -237,21 +237,17 @@ template<> std::int64_t pyrameters::get<std::int64_t>(const char *name) {
     return result;
 }
 
-template<> std::string pyrameters::get<std::string>(const char *name, PyObject *v) {
-    std::string result;
-    if (PyUnicode_Check(v)) {
-        auto ascii = PyUnicode_AsASCIIString(v);
-        result = PyBytes_AsString(ascii);
-        Py_DECREF(ascii);
-    }
-    else throw std::domain_error(name);
-    return result;
+template<> std::string_view pyrameters::get<std::string_view>(const char *name, PyObject *v) {
+    if (!PyUnicode_Check(v)) throw std::domain_error(name);     // must be a string
+    Py_ssize_t length;
+    auto c_string = PyUnicode_AsUTF8AndSize(v,&length);         // convert to a UTF8 string
+    if (c_string == nullptr) throw std::domain_error(name);     // must be a string
+    return std::string_view(c_string,length);                   // return as a string_view
 }
-template<> std::string pyrameters::get<std::string>(const char *name) {
-    std::string result;
-    auto v = get<PyObject *>(name);
-    result = get<std::string>(name,v);
-    Py_DECREF(v);
+template<> std::string_view pyrameters::get<std::string_view>(const char *name) {
+    auto v = get<PyObject *>(name);                             // get the parameter object
+    auto result = get<std::string_view>(name,v);                // get as a string_view
+    Py_DECREF(v);                                               // safe as long as we don't update the parameter
     return result;
 }
 
@@ -261,17 +257,6 @@ template<> bool pyrameters::get<bool>(const char *name) {
     result = PyObject_IsTrue(v)>0;
     Py_DECREF(v);
     return result;
-}
-
-template<> void pyrameters::get(const char *name, char *buffer, std::size_t size) {
-    auto v = this->get<PyObject *>(name);
-    if (PyUnicode_Check(v)) {
-        auto ascii = PyUnicode_AsASCIIString(v);
-        auto result = PyBytes_AsString(ascii);
-        strncpy(buffer,result,size);
-        Py_DECREF(ascii);
-    }
-    else throw std::domain_error(name);
 }
 
 template<> void pyrameters::set_dynamic(const char *name, double value) {
