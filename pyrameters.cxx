@@ -263,6 +263,17 @@ template<> bool pyrameters::get<bool>(const char *name) {
     return result;
 }
 
+template<> void pyrameters::get(const char *name, char *buffer, std::size_t size) {
+    auto v = this->get<PyObject *>(name);
+    if (PyUnicode_Check(v)) {
+        auto ascii = PyUnicode_AsASCIIString(v);
+        auto result = PyBytes_AsString(ascii);
+        strncpy(buffer,result,size);
+        Py_DECREF(ascii);
+    }
+    else throw std::domain_error(name);
+}
+
 template<> void pyrameters::set_dynamic(const char *name, double value) {
     auto o = PyFloat_FromDouble(value);
     if (o) {

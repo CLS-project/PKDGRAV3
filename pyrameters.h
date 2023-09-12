@@ -41,25 +41,46 @@ protected:
     template<typename T> T get(const char *name);
     template<typename T> T get(const char *name, PyObject *v);
     template<typename T,int N> blitz::TinyVector<T,N> get(const char *name);
+    template<typename T, typename std::enable_if<std::is_pointer<T>::value, int>::type = 0>
+    void get(const char *name, T buffer, std::size_t size);
 
 public:
     template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_signed<T>::value && !std::is_same<T, bool>::value, int>::type = 0>
     void set(const char *name, T value) {
-        PyObject_SetAttrString(arguments_,name,PyLong_FromSsize_t(value));
+        PyObject *py_object = PyLong_FromSsize_t(value);
+        PyObject_SetAttrString(arguments_,name,py_object);
+        Py_DECREF(py_object);
     }
     template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_unsigned<T>::value && !std::is_same<T, bool>::value, int>::type = 0>
     void set(const char *name, T value) {
-        PyObject_SetAttrString(arguments_,name,PyLong_FromSize_t(value));
+        PyObject *py_object = PyLong_FromSize_t(value);
+        PyObject_SetAttrString(arguments_,name,py_object);
+        Py_DECREF(py_object);
     }
     template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
     void set(const char *name, T value) {
-        PyObject_SetAttrString(arguments_,name,PyFloat_FromDouble(value));
+        PyObject *py_object = PyFloat_FromDouble(value);
+        PyObject_SetAttrString(arguments_,name,py_object);
+        Py_DECREF(py_object);
     }
     template<typename T, typename std::enable_if<std::is_same<T, bool>::value, int>::type = 0>
     void set(const char *name, T value) {
         PyObject_SetAttrString(arguments_,name,value ? Py_True : Py_False);
     }
-
+    template<typename T, typename std::enable_if<std::is_same<T, const char *>::value, int>::type = 0>
+    void set(const char *name, T value) {
+        PyObject *py_object = PyUnicode_FromString(value);
+        PyObject_SetAttrString(arguments_,name,py_object);
+        Py_DECREF(py_object);
+    }
+    template<typename T, typename std::enable_if<std::is_same<T, std::string>::value, int>::type = 0>
+    void set(const char *name, T const &value) {
+        set(name,value.c_str());
+    }
+    template<typename T, typename std::enable_if<std::is_same<T, PyObject *>::value, int>::type = 0>
+    void set(const char *name, T value) {
+        PyObject_SetAttrString(arguments_,name,value);
+    }
 public:
 
     virtual ~pyrameters() {
@@ -157,6 +178,7 @@ template<> std::int64_t pyrameters::get<std::int64_t>(const char *name);
 template<> std::string  pyrameters::get<std::string>(const char *name, PyObject *v);
 template<> std::string  pyrameters::get<std::string>(const char *name);
 template<> bool         pyrameters::get<bool>(const char *name);
+template<> void         pyrameters::get<char *>(const char *name, char *buffer, std::size_t size);
 
 template<> void pyrameters::set_dynamic(const char *name, float         value);
 template<> void pyrameters::set_dynamic(const char *name, double        value);
