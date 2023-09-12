@@ -22,6 +22,7 @@
 #include <signal.h>
 #include <time.h>
 #include <vector>
+#include <string_view>
 #include <Python.h>
 
 #include "param.h"
@@ -107,7 +108,7 @@ private:
 protected:
     int64_t parallel_read_count();
     int64_t parallel_write_count();
-    void stat_files(std::vector<uint64_t> &counts,const std::string &filename_template, uint64_t element_size);
+    void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
     void Restore(const std::string &filename,int nSizeParticle);
 
 public:
@@ -120,7 +121,7 @@ public:
                  double dEcosmo,double dUOld, double dTimeOld,
                  std::vector<PARTCLASS> &aClasses,
                  PyObject *arguments,PyObject *specified);
-    double Read(const std::string &achInFile);
+    double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
     void OutArray(const char *pszFile,int iType,int iFileType);
@@ -325,8 +326,8 @@ protected:
     double getVfactor(double dTime);
     bool getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps);
 
-    const char *OutName() const {
-        return param.achOutName;
+    auto OutName() const {
+        return parameters.get_achOutName();
     }
     //int Steps()           const { return param.nSteps; }
     int LogInterval()     const {

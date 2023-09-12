@@ -178,10 +178,9 @@ static const char *timer_names[TOTAL_TIMERS] = {
 static_assert(sizeof(timer_names) / sizeof(timer_names[0]) == TOTAL_TIMERS);
 
 void MSR::TimerHeader() {
-    char achFile[PST_FILENAME_SIZE];
-    snprintf(achFile,sizeof(achFile),"%s.timing",OutName());
-    FILE *fpLog = NULL;
-    fpLog = fopen(achFile,"a");
+    std::string achFile(OutName());
+    achFile += ".timing";
+    auto fpLog = fopen(achFile.c_str(),"a");
     fprintf(fpLog,"# Step");
     for (int iTimer=0; iTimer<TOTAL_TIMERS; iTimer++) {
         fprintf(fpLog," %s", timer_names[iTimer] );
@@ -191,10 +190,9 @@ void MSR::TimerHeader() {
 }
 
 void MSR::TimerDump(int iStep) {
-    char achFile[PST_FILENAME_SIZE];
-    snprintf(achFile,sizeof(achFile),"%s.timing",OutName());
-    FILE *fpLog = NULL;
-    fpLog = fopen(achFile,"a");
+    std::string achFile(OutName());
+    achFile += ".timing";
+    auto fpLog = fopen(achFile.c_str(),"a");
 
     fprintf(fpLog,"%d", iStep);
     for (int iTimer=0; iTimer<TOTAL_TIMERS; iTimer++) {
@@ -305,25 +303,25 @@ uint64_t MSR::getMemoryModel() {
         if (!param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
     }
     if (param.bDoDensity)       mMemoryModel |= PKD_MODEL_DENSITY;
-    if (param.bMemIntegerPosition) mMemoryModel |= PKD_MODEL_INTEGER_POS;
-    if (param.bMemUnordered&&param.bNewKDK) mMemoryModel |= PKD_MODEL_UNORDERED;
-    if (param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
-    if (param.bMemAcceleration || param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
-    if (param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
-    if (param.bMemPotential || param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
+    if (parameters.get_bMemIntegerPosition()) mMemoryModel |= PKD_MODEL_INTEGER_POS;
+    if (parameters.get_bMemUnordered()&&param.bNewKDK) mMemoryModel |= PKD_MODEL_UNORDERED;
+    if (parameters.get_bMemParticleID())   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
+    if (parameters.get_bMemAcceleration() || param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
+    if (parameters.get_bMemVelocity())     mMemoryModel |= PKD_MODEL_VELOCITY;
+    if (parameters.get_bMemPotential() || param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
     if (param.bFindHopGroups)   mMemoryModel |= PKD_MODEL_GROUPS | PKD_MODEL_DENSITY | PKD_MODEL_BALL;
-    if (param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
-    if (param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
-    if (param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
-    if (param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
+    if (parameters.get_bMemGroups())       mMemoryModel |= PKD_MODEL_GROUPS;
+    if (parameters.get_bMemMass())         mMemoryModel |= PKD_MODEL_MASS;
+    if (parameters.get_bMemSoft())         mMemoryModel |= PKD_MODEL_SOFTENING;
+    if (parameters.get_bMemVelSmooth())    mMemoryModel |= PKD_MODEL_VELSMOOTH;
 
-    if (param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
-    if (param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;
-    if (param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
-    if (param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
+    if (parameters.get_bMemNodeAcceleration()) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
+    if (parameters.get_bMemNodeVelocity())     mMemoryModel |= PKD_MODEL_NODE_VEL;
+    if (parameters.get_bMemNodeMoment())       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
+    if (parameters.get_bMemNodeSphBounds())    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
 
-    if (param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
-    if (param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
+    if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
+    if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
     if (param.bDoGas && !NewSPH())  mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
@@ -333,7 +331,7 @@ uint64_t MSR::getMemoryModel() {
     mMemoryModel |= PKD_MODEL_BH;
 #endif
 
-    if (param.bMemBall)             mMemoryModel |= PKD_MODEL_BALL;
+    if (parameters.get_bMemBall())             mMemoryModel |= PKD_MODEL_BALL;
 
     return mMemoryModel;
 }
@@ -356,7 +354,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
     printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
-           param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
+           parameters.get_bMemIntegerPosition() ? " INTEGER_POSITION" : " DOUBLE_POSITION",
            SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
            SHOW(GROUPS),SHOW(MASS),SHOW(DENSITY),
            SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),SHOW(NEW_SPH),
@@ -374,7 +372,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     if (param.iPkInterval    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
     if (param.bGravStep      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (param.bDoGas         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (param.bMemBall       && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (parameters.get_bMemBall() && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (param.bDoDensity     && ps.nEphemeralBytes < 12) ps.nEphemeralBytes = 12;
 #ifdef BLACKHOLES
     if (ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
@@ -461,10 +459,10 @@ int64_t MSR::parallel_write_count() {
     return parallel_count(parameters.get_bParaWrite(),parameters.get_nParaWrite());
 }
 
-void MSR::stat_files(std::vector<uint64_t> &counts,const std::string &filename_template, uint64_t element_size) {
+void MSR::stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size) {
     ServiceFileSizes::input hdr;
 
-    strncpy(hdr.filename,filename_template.c_str(),sizeof(hdr.filename));
+    strncpy(hdr.filename,filename_template.data(),sizeof(hdr.filename));
     hdr.nSimultaneous = hdr.nTotalActive = parallel_read_count();
     hdr.iReaderWriter = 0;
     hdr.nElementSize = 1;
@@ -557,7 +555,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     mMemoryModel = getMemoryModel();
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
     if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
-    auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,param.nMemEphemeral);
+    auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     Restore(baseName,nSizeParticle);
     pstSetClasses(pst,aClasses.data(),aClasses.size()*sizeof(PARTCLASS),NULL,0);
@@ -860,12 +858,6 @@ void MSR::Initialize() {
     param.bDoDensity = 1;
     prmAddParam(prm,"bDoDensity",0,&param.bDoDensity,sizeof(int),
                 "den","enable/disable density outputs = +den");
-    param.nBucket = 16;
-    prmAddParam(prm,"nBucket",1,&param.nBucket,sizeof(int),"b",
-                "<max number of particles in a bucket> = 16");
-    param.nGroup = 64;
-    prmAddParam(prm,"nGroup",1,&param.nGroup,sizeof(int),"grp",
-                "<max number of particles in a group> = 64");
     param.iStartStep = 0;
     prmAddParam(prm,"iStartStep",1,&param.iStartStep,
                 sizeof(int),"nstart","<initial step numbering> = 0");
@@ -984,12 +976,6 @@ void MSR::Initialize() {
     param.dzPeriod = 1.0;
     prmAddParam(prm,"dzPeriod",2,&param.dzPeriod,sizeof(double),"Lz",
                 "<periodic box length in z-dimension> = 1.0");
-    param.achInFile[0] = 0;
-    prmAddParam(prm,"achInFile",3,param.achInFile,256,"I",
-                "<input file name> (file in TIPSY binary format)");
-    strcpy(param.achOutName,"pkdgrav");
-    prmAddParam(prm,"achOutName",3,param.achOutName,256,"o",
-                "<output name for snapshots and logfile> = \"pkdgrav\"");
     strcpy(param.achOutPath,"");
     prmAddParam(prm,"achOutPath",3,param.achOutPath,256,"op",
                 "<output path for snapshots and logfile> = \"\"");
@@ -1080,21 +1066,6 @@ void MSR::Initialize() {
     param.nSmooth = 64;
     prmAddParam(prm,"nSmooth",1,&param.nSmooth,sizeof(int),"s",
                 "<number of particles to smooth over> = 64");
-    param.bStandard = 1;
-    prmAddParam(prm,"bStandard",0,&param.bStandard,sizeof(int),"std",
-                "output in standard TIPSY binary format = -std");
-    param.iCompress = 0;
-    prmAddParam(prm,"iCompress",1,&param.iCompress,sizeof(int),NULL,
-                "compression format, 0=none, 1=gzip, 2=bzip2");
-    param.bHDF5 = 0;
-    prmAddParam(prm,"bHDF5",0,&param.bHDF5,sizeof(int),"hdf5",
-                "output in HDF5 format = -hdf5");
-    param.bDoublePos = 0;
-    prmAddParam(prm,"bDoublePos",0,&param.bDoublePos,sizeof(int),"dp",
-                "input/output double precision positions (standard format only) = -dp");
-    param.bDoubleVel = 0;
-    prmAddParam(prm,"bDoubleVel",0,&param.bDoubleVel,sizeof(int),"dv",
-                "input/output double precision velocities (standard format only) = -dv");
     param.bLightCone = 0;
     prmAddParam(prm,"bLightCone",0,&param.bLightCone,sizeof(int),"lc",
                 "output light cone data = -lc");
@@ -1200,9 +1171,6 @@ void MSR::Initialize() {
     csm->val.classData.bClass = 0;
     prmAddParam(prm,"bClass",0,&csm->val.classData.bClass,
                 sizeof(int),"class","<Enable/disable the use of CLASS> = -class");
-    param.achClassFilename[0] = 0;
-    prmAddParam(prm, "achClassFilename", 3, param.achClassFilename,
-                256, "class_filename", "<Name of hdf5 file containing the CLASS data> -class_filename");
     param.achLinSpecies[0] = 0;
     prmAddParam(prm, "achLinSpecies", 3, param.achLinSpecies,
                 128, "lin_species",
@@ -1211,9 +1179,6 @@ void MSR::Initialize() {
     prmAddParam(prm, "achPkSpecies", 3, param.achPkSpecies,
                 128, "pk_species",
                 "<plus-separated string of P(k) linear species, e.g. \"ncdm[0]+g\"> -pk_species");
-    param.achTfFile[0] = 0;
-    prmAddParam(prm,"achTfFile",3,param.achTfFile,256,"tf",
-                "<transfer file name> (file in CMBFAST format)");
     param.bICgas = 0;
     prmAddParam(prm,"bICgas",0,&param.bICgas,
                 sizeof(int),"ICgas","<Enable/disable gas in the ICs> = 0");
@@ -1223,65 +1188,6 @@ void MSR::Initialize() {
     param.bWriteIC = 0;
     prmAddParam(prm,"bWriteIC",0,&param.bWriteIC,
                 sizeof(int),"wic","<Write IC after generating> = 0");
-
-    /* Memory models */
-    param.nMemEphemeral = 0;
-    prmAddParam(prm,"nMemEphemeral",4,&param.nMemEphemeral,
-                sizeof(param.nMemEphemeral),"ephemeral","<minimum size of emphemeral> = 0");
-    param.bMemIntegerPosition = 0;
-    prmAddParam(prm,"bMemIntegerPosition",0,&param.bMemIntegerPosition,
-                sizeof(int),"integer","<Particles have integerized positions> = -integer");
-    param.bMemUnordered = 0;
-    prmAddParam(prm,"bMemUnordered",0,&param.bMemUnordered,
-                sizeof(int),"unordered","<Particles have no specific order> = -unordered");
-    param.bMemParticleID = 0;
-    prmAddParam(prm,"bMemParticleID",0,&param.bMemParticleID,
-                sizeof(int),"pid","<Particles have a unique identifier> = -pid");
-    param.bMemAcceleration = 0;
-    prmAddParam(prm,"bMemAcceleration",0,&param.bMemAcceleration,
-                sizeof(int),"Ma","<Particles have acceleration> = -Ma");
-    param.bMemVelocity = 0;
-    prmAddParam(prm,"bMemVelocity",0,&param.bMemVelocity,
-                sizeof(int),"Mv","<Particles have velocity> = -Mv");
-    param.bMemPotential = 0;
-    prmAddParam(prm,"bMemPotential",0,&param.bMemPotential,
-                sizeof(int),"Mp","<Particles have potential> = -Mp");
-    param.bMemGroups = 0;
-    prmAddParam(prm,"bMemGroups",0,&param.bMemGroups,
-                sizeof(int),"Mg","<Particles support group finding> = -Mg");
-    param.bMemMass = 0;
-    prmAddParam(prm,"bMemMass",0,&param.bMemMass,
-                sizeof(int),"Mm","<Particles have individual masses> = -Mm");
-    param.bMemSoft = 0;
-    prmAddParam(prm,"bMemSoft",0,&param.bMemSoft,
-                sizeof(int),"Ms","<Particles have individual softening> = -Ms");
-    param.bMemVelSmooth = 0;
-    prmAddParam(prm,"bMemVelSmooth",0,&param.bMemVelSmooth,
-                sizeof(int),"Mvs","<Particles support velocity smoothing> = -Mvs");
-    param.bMemNodeMoment = 0;
-    prmAddParam(prm,"bMemNodeMoment",0,&param.bMemNodeMoment,
-                sizeof(int),"MNm","<Tree nodes support multipole moments> = 0");
-    param.bMemNodeAcceleration = 0;
-    prmAddParam(prm,"bMemNodeAcceleration",0,&param.bMemNodeAcceleration,
-                sizeof(int),"MNa","<Tree nodes support acceleration (for bGravStep)> = 0");
-    param.bMemNodeVelocity = 0;
-    prmAddParam(prm,"bMemNodeVelocity",0,&param.bMemNodeVelocity,
-                sizeof(int),"MNv","<Tree nodes support velocity (for iTimeStepCrit = 1)> = 0");
-    param.bMemNodeSphBounds = 0;
-    prmAddParam(prm,"bMemNodeSphBounds",0,&param.bMemNodeSphBounds,
-                sizeof(int),"MNsph","<Tree nodes support fast-gas bounds> = 0");
-
-    param.bMemNodeBnd = 1;
-    /*prmAddParam(prm,"bMemNodeBnd",1,&param.bMemNodeBnd,
-      sizeof(int),"MNbnd","<Tree nodes support 3D bounds> = 1");*/
-
-    param.bMemNodeVBnd = 0;
-    prmAddParam(prm,"bMemNodeVBnd",0,&param.bMemNodeVBnd,
-                sizeof(int),"MNvbnd","<Tree nodes support velocity bounds> = 0");
-
-    param.bMemBall = 0;
-    prmAddParam(prm,"bMemBall",0,&param.bMemBall,
-                sizeof(int),"MBall","<Particles have ball> = 0");
 
     /* Gas Parameters */
     param.bDoGas = 0;
@@ -1935,11 +1841,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp,"\n# bPeriodic: %d",param.bPeriodic);
     fprintf(fp," bComove: %d",csm->val.bComove);
     fprintf(fp,"\n# bRestart: %d",param.bRestart);
-    fprintf(fp," bStandard: %d",param.bStandard);
-    fprintf(fp," iCompress: %d",param.iCompress);
-    fprintf(fp," bHDF5: %d",param.bHDF5);
-    fprintf(fp," nBucket: %d",param.nBucket);
-    fprintf(fp," nGroup: %d",param.nGroup);
     fprintf(fp,"\n# iOutInterval: %d",param.iOutInterval);
     fprintf(fp," iCheckInterval: %d",param.iCheckInterval);
     fprintf(fp," iLogInterval: %d",param.iLogInterval);
@@ -2055,8 +1956,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," wa: %g",csm->val.wa);
     fprintf(fp," dOmegaRad: %g",csm->val.dOmegaRad);
     fprintf(fp," dOmegab: %g",csm->val.dOmegab);
-    fprintf(fp,"\n# achInFile: %s",param.achInFile);
-    fprintf(fp,"\n# achOutName: %s",param.achOutName);
     fprintf(fp,"\n# achOutPath: %s",param.achOutPath);
     fprintf(fp,"\n# achIoPath: %s",param.achIoPath);
     fprintf(fp,"\n# achDataSubPath: %s",param.achDataSubPath);
@@ -2098,7 +1997,7 @@ int MSR::GetLock() {
     if (!bOverwrite && (fp = fopen(achFile,"r"))) {
         if (fscanf(fp,"%s",achTmp) != 1) achTmp[0] = '\0';
         (void) fclose(fp);
-        if (!strcmp(param.achOutName,achTmp)) {
+        if (parameters.get_achOutName() == achTmp) {
             (void) printf("ABORT: %s detected.\nPlease ensure data is safe to "
                           "overwrite. Delete lockfile and try again.\n",achFile);
             return 0;
@@ -2114,7 +2013,7 @@ int MSR::GetLock() {
             return 0;
         }
     }
-    (void) fprintf(fp,"%s",param.achOutName);
+    (void) fprintf(fp,"%s",parameters.get_achOutName().data());
     (void) fclose(fp);
     return 1;
 }
@@ -2297,7 +2196,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     */
     MSR::MakePath(param.achDataSubPath,pszFileName,in.achOutFile);
 
-    in.bStandard = param.bStandard;
+    in.bStandard = parameters.get_bStandard();
     nProcessors = parallel_write_count();
     in.iIndex = 0;
 
@@ -2338,16 +2237,16 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     in.nStar = nStar;
     in.nBH = nBH;
 
-    in.bHDF5 = param.bHDF5;
+    in.bHDF5 = parameters.get_bHDF5();
     in.mFlags = FIO_FLAG_POTENTIAL | FIO_FLAG_DENSITY
                 | (bDouble?FIO_FLAG_CHECKPOINT:0)
-                | (param.bDoublePos?FIO_FLAG_DOUBLE_POS:0)
-                | (param.bDoubleVel?FIO_FLAG_DOUBLE_VEL:0)
-                | (param.bMemParticleID?FIO_FLAG_ID:0)
-                | (param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
-                | (param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
+                | (parameters.get_bDoublePos()?FIO_FLAG_DOUBLE_POS:0)
+                | (parameters.get_bDoubleVel()?FIO_FLAG_DOUBLE_VEL:0)
+                | (parameters.get_bMemParticleID()?FIO_FLAG_ID:0)
+                | (parameters.get_bMemMass()?0:FIO_FLAG_COMPRESS_MASS)
+                | (parameters.get_bMemSoft()?0:FIO_FLAG_COMPRESS_SOFT);
 
-    if (!param.bHDF5 && strstr(in.achOutFile,"&I")==0) {
+    if (!in.bHDF5 && strstr(in.achOutFile,"&I")==0) {
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,
@@ -2396,6 +2295,7 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
     MSR::MakePath(param.achDataSubPath,pszFileName.c_str(),achOutFile);
 
     nProcessors = parallel_write_count();
+    auto bHDF5 = parameters.get_bHDF5();
 
     if (csm->val.bComove) {
         dExp = csmTime2Exp(csm,dTime);
@@ -2407,11 +2307,11 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
     }
     if ( nProcessors==1 ) {
         msrprintf("Writing %s in %s format serially ...\n",
-                  achOutFile, (param.bHDF5?"HDF5":"Tipsy"));
+                  achOutFile, (bHDF5?"HDF5":"Tipsy"));
     }
     else {
         msrprintf("Writing %s in %s format in parallel (but limited to %d processors) ...\n",
-                  achOutFile, (param.bHDF5?"HDF5":"Tipsy"), nProcessors);
+                  achOutFile, (bHDF5?"HDF5":"Tipsy"), nProcessors);
     }
 
     if (csm->val.bComove)
@@ -2692,8 +2592,8 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     pDistribTop->uRoot = uRoot;
     pDistribTop->allocateMemory = 1;
 
-    in.nBucket = param.nBucket;
-    in.nGroup = param.nGroup;
+    in.nBucket = parameters.get_nBucket();
+    in.nGroup = parameters.get_nGroup();
     in.uRoot = uRoot;
     in.utRoot = utRoot;
     in.ddHonHLimit = ddHonHLimit;
@@ -2847,7 +2747,7 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
 }
 
 void MSR::Reorder() {
-    if (!param.bMemUnordered) {
+    if (!parameters.get_bMemUnordered()) {
         double sec,dsec;
 
         msrprintf("Ordering...\n");
@@ -3005,14 +2905,14 @@ void MSR::OutArray(const char *pszFile,int iType,int iFileType) {
     OutASCII(pszFile,iType,1,iFileType);
 }
 void MSR::OutArray(const char *pszFile,int iType) {
-    OutArray(pszFile,iType,param.iCompress);
+    OutArray(pszFile,iType,parameters.get_iCompress());
 }
 
 void MSR::OutVector(const char *pszFile,int iType,int iFileType) {
     OutASCII(pszFile,iType,3,iFileType);
 }
 void MSR::OutVector(const char *pszFile,int iType) {
-    OutVector(pszFile,iType,param.iCompress);
+    OutVector(pszFile,iType,parameters.get_iCompress());
 }
 
 void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
@@ -3037,7 +2937,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->bMeshlessHydro = param.bMeshlessHydro;
     smf->bIterativeSmoothingLength = param.bIterativeSmoothingLength;
     smf->bUpdateBall = bUpdateBall;
-    smf->nBucket = param.nBucket;
+    smf->nBucket = parameters.get_nBucket();
     smf->dCFLacc = param.dCFLacc;
     smf->dConstGamma = param.dConstGamma;
     smf->dhMinOverSoft = param.dhMinOverSoft;
@@ -3577,10 +3477,9 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
     if (!param.bOutFineStatistics)
         return;
     if (dTime==-1) {
-        char achFile[PST_FILENAME_SIZE];
-        /* Initialization */
-        snprintf(achFile,sizeof(achFile),"%s.finelog",OutName());
-        fpFineLog = fopen(achFile,"a");
+        std::string achFile(OutName());
+        achFile += ".finelog";
+        fpFineLog = fopen(achFile.c_str(),"a");
         assert(fpFineLog != NULL);
         setbuf(fpFineLog,(char *) NULL); /* no buffering */
 
@@ -3898,7 +3797,7 @@ void MSR::UpdateRung(uint8_t uRung) {
     int iTempRung,iOutMaxRung;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
-    if (param.bMemUnordered&&param.bNewKDK) return;
+    if (parameters.get_bMemUnordered()&&param.bNewKDK) return;
 
     in.uRungLo = uRung;
     in.uRungHi = MaxRung();
@@ -4782,7 +4681,7 @@ void MSR::Hop(double dTime, double dDelta) {
     struct inHopGravity inGravity;
     inGravity.dTime = dTime;
     inGravity.bPeriodic = parameters.get_bPeriodic();
-    inGravity.nGroup = param.nGroup;
+    inGravity.nGroup = parameters.get_nGroup();
     inGravity.dEwCut = param.dEwCut;
     inGravity.dEwhCut = param.dEwhCut;
     inGravity.uRungLo = 0;
@@ -4793,8 +4692,8 @@ void MSR::Hop(double dTime, double dDelta) {
     do {
         sec = MSR::Time();
         struct inHopTreeBuild inTreeBuild;
-        inTreeBuild.nBucket = param.nBucket;
-        inTreeBuild.nGroup = param.nGroup;
+        inTreeBuild.nBucket = parameters.get_nBucket();
+        inTreeBuild.nGroup = parameters.get_nGroup();
         pstHopTreeBuild(pst,&inTreeBuild,sizeof(inTreeBuild),NULL,0);
         dsec = MSR::Time() - sec;
         if (parameters.get_bVStep())
@@ -4852,7 +4751,7 @@ void MSR::NewFof(double dTau,int nMinMembers) {
     in.nMinMembers = nMinMembers;
     in.bPeriodic = parameters.get_bPeriodic();
     in.nReplicas = in.bPeriodic ? parameters.get_nReplicas() : 0;
-    in.nBucket = param.nBucket;
+    in.nBucket = parameters.get_nBucket();
 
     if (parameters.get_bVStep()) {
         printf("Running FoF with fixed linking length %g\n", dTau );
@@ -4953,7 +4852,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.nGrid = nGrid;
     in.b2LPT = parameters.get_b2LPT();
     in.bICgas = param.bICgas;
-    in.nBucket = param.nBucket;
+    in.nBucket = parameters.get_nBucket();
     in.dInitialT = param.dInitialT;
     in.dInitialH = param.dInitialH;
 #ifdef HAVE_HELIUM
@@ -4999,7 +4898,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     else {
         nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
     }
-    InitializePStore(nSpecies,getMemoryModel(),param.nMemEphemeral); // We now need a bit of cosmology to set the maximum lightcone depth here.
+    InitializePStore(nSpecies,getMemoryModel(),parameters.get_nMemEphemeral()); // We now need a bit of cosmology to set the maximum lightcone depth here.
     InitCosmology(csm);
 
     in.dBaryonFraction = csm->val.dOmegab/csm->val.dOmega0;
@@ -5023,14 +4922,15 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
 
     /* Read the transfer function */
     in.nTf = 0;
-    if (prmSpecified(prm,"achTfFile")) {
-        FILE *fp = fopen(param.achTfFile,"r");
+    if (parameters.has_achTfFile()) {
+        auto achTfFile = parameters.get_achTfFile();
+        FILE *fp = fopen(achTfFile.data(),"r");
         char buffer[256];
 
         if (parameters.get_bVStart())
-            printf("Reading transfer function from %s\n", param.achTfFile);
+            printf("Reading transfer function from %s\n", achTfFile.data());
         if (fp == NULL) {
-            perror(param.achTfFile);
+            perror(achTfFile.data());
             Exit(1);
         }
         while (fgets(buffer,sizeof(buffer),fp)) {
@@ -5076,7 +4976,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
 }
 #endif
 
-double MSR::Read(const std::string &achInFile) {
+double MSR::Read(std::string_view achInFile) {
     double dTime,dExpansion;
     FIO fio;
     int j;
@@ -5094,7 +4994,7 @@ double MSR::Read(const std::string &achInFile) {
     auto read = new (buffer.get()) inReadFile;
 
     /* Add Data Subpath for local and non-local names. */
-    MSR::MakePath(param.achDataSubPath,achInFile.c_str(),achFilename);
+    MSR::MakePath(param.achDataSubPath,achInFile.data(),achFilename);
     fio = fioOpen(achFilename,csm->val.dOmega0,csm->val.dOmegab);
     if (fio==NULL) {
         fprintf(stderr,"ERROR: unable to open input file\n");
@@ -5155,7 +5055,7 @@ double MSR::Read(const std::string &achInFile) {
     read->nNodeEnd = N - 1;
 
     for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
-    InitializePStore(nSpecies,mMemoryModel,param.nMemEphemeral);
+    InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     read->dOmega0 = csm->val.dOmega0;
     read->dOmegab = csm->val.dOmegab;
@@ -5804,8 +5704,8 @@ void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPH
     pDistribTop->uRoot = uRoot;
     pDistribTop->allocateMemory = 0;
 
-    in.nBucket = param.nBucket;
-    in.nGroup = param.nGroup;
+    in.nBucket = parameters.get_nBucket();
+    in.nGroup = parameters.get_nGroup();
     in.uRoot = uRoot;
     in.utRoot = utRoot;
     in.ddHonHLimit = ddHonHLimit;

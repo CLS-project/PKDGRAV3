@@ -28,11 +28,6 @@ struct parameters {
     ** Parameters for PKDGRAV.
     */
     int bRestart;
-    int bStandard;
-    int iCompress;
-    int bHDF5;
-    int bDoublePos;
-    int bDoubleVel;
     int bGravStep;
     int bEpsAccStep;
     int bAccelStep; /* true if bEpsAccStep */
@@ -45,8 +40,6 @@ struct parameters {
     int bDoRungOutput;
     int bDoRungDestOutput;
     int bDoGravity;
-    int nBucket;
-    int nGroup;
     int iOutInterval;
     int iFofInterval;
     int iCheckInterval;
@@ -130,15 +123,11 @@ struct parameters {
     double dPreFacRhoLoc;
     double dEccFacMax;
     double dRedTo;
-    char achInFile[256];
-    char achOutName[256];
     char achOutPath[256];
     char achIoPath[256];
     char achCheckpointPath[256];
     char achDataSubPath[256];
     char achOutTimes[256];
-    char achTfFile[256];
-    char achClassFilename[256];
     char achLinSpecies[256];
     char achPkSpecies[256];
     double dFracDualTree;
@@ -332,28 +321,6 @@ struct parameters {
     int iDeltakInterval;
     double dDeltakRedshift;
 #endif
-
-    /*
-    ** Memory models.  Other parameters can force these to be set.
-    */
-    uint64_t nMemEphemeral;
-    int bMemIntegerPosition;
-    int bMemUnordered;
-    int bMemParticleID;
-    int bMemAcceleration;
-    int bMemVelocity;
-    int bMemPotential;
-    int bMemGroups;
-    int bMemMass;
-    int bMemSoft;
-    int bMemVelSmooth;
-    int bMemNodeMoment;
-    int bMemNodeAcceleration;
-    int bMemNodeVelocity;
-    int bMemNodeSphBounds;
-    int bMemNodeBnd;
-    int bMemNodeVBnd;
-    int bMemBall;
 };
 
 #endif

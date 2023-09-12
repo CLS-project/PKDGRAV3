@@ -40,8 +40,8 @@ double MSR::LoadOrGenerateIC() {
     }
 
     /* Read in a binary file */
-    else if ( param.achInFile[0] ) {
-        dTime = Read(param.achInFile); /* May change nSteps/dDelta */
+    else if ( parameters.has_achInFile() ) {
+        dTime = Read(parameters.get_achInFile()); /* May change nSteps/dDelta */
     }
     else {
         printf("No input file specified\n");
@@ -499,8 +499,8 @@ int MSR::ValidateParameters() {
     /*
     ** CUDA likes a larger group size
     */
-    if ( (mdl->isCudaActive() || mdl->isMetalActive()) && !prmSpecified(prm,"nGroup") && param.nGroup<256)
-        param.nGroup = 256;
+    if ( (mdl->isCudaActive() || mdl->isMetalActive()) && !parameters.has_nGroup() && parameters.get_nGroup()<256)
+        parameters.set_nGroup(256);
 
 #ifndef USE_HDF5
     if (param.bHDF5) {
@@ -525,7 +525,7 @@ int MSR::ValidateParameters() {
         return 0;
     }
     if ( parameters.get_nGrid() ) {
-        if (param.achInFile[0]) {
+        if (parameters.has_achInFile()) {
             puts("ERROR: do not specify an input file when generating IC");
             return 0;
         }
@@ -650,7 +650,7 @@ int MSR::ValidateParameters() {
     /*
     ** At the moment, integer positions are only really safe in periodic boxes!Wr
     */
-    if (param.bMemIntegerPosition && (!parameters.get_bPeriodic()||param.dxPeriod!=1.0||param.dyPeriod!=1.0||param.dzPeriod!=1.0)) {
+    if (parameters.get_bMemIntegerPosition() && (!parameters.get_bPeriodic()||param.dxPeriod!=1.0||param.dyPeriod!=1.0||param.dzPeriod!=1.0)) {
         fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
                 "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
     }
@@ -659,7 +659,7 @@ int MSR::ValidateParameters() {
     ** Check if fast gas boundaries are needed.
     */
     if (param.bDoGas && !NewSPH()) {
-        param.bMemNodeSphBounds = 1;
+        parameters.set_bMemNodeSphBounds(1);
     }
     /*
     ** Check timestepping and gravity combinations.
@@ -668,15 +668,15 @@ int MSR::ValidateParameters() {
     if (param.bEpsAccStep) param.bAccelStep = 1;
     if (param.bDoGravity) {
         /* Potential is optional, but the default for gravity */
-        if (!prmSpecified(prm,"bMemPotential")) param.bMemPotential = 1;
+        if (!parameters.has_bMemPotential()) parameters.set_bMemPotential(1);
         if (param.iMaxRung < 1) {
             param.iMaxRung = 0;
             if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
             /*
             ** For single stepping we don't need fancy timestepping variables.
             */
-            param.bMemNodeAcceleration = 0;
-            param.bMemNodeVelocity = 0;
+            parameters.set_bMemNodeAcceleration(0);
+            parameters.set_bMemNodeVelocity(0);
         }
         else {
             if ((param.bAccelStep || param.bDensityStep) && param.bGravStep) {
@@ -697,14 +697,14 @@ int MSR::ValidateParameters() {
             ** Set the needed memory model based on the chosen timestepping method.
             */
             if (param.bGravStep) {
-                param.bMemNodeAcceleration = 1;
+                parameters.set_bMemNodeAcceleration(1);
                 if (param.iTimeStepCrit == 1) {
-                    param.bMemNodeVelocity = 1;
+                    parameters.set_bMemNodeVelocity(1);
                 }
             }
             else {
-                param.bMemNodeAcceleration = 0;
-                param.bMemNodeVelocity = 0;
+                parameters.set_bMemNodeAcceleration(0);
+                parameters.set_bMemNodeVelocity(0);
             }
         }
     }
@@ -722,7 +722,8 @@ int MSR::ValidateParameters() {
         int nLinear = parseSpeciesNames(aLinear,achLinSpecies);
         int nPower = parseSpeciesNames(aPower,achPkSpecies);
         if (!prmSpecified(prm,"dOmega0")) csm->val.dOmega0 = 0.0;
-        csmClassRead(csm, param.achClassFilename, parameters.get_dBoxSize(), parameters.get_h(), nLinear, aLinear, nPower, aPower);
+        auto achClassFilename = parameters.get_achClassFilename();
+        csmClassRead(csm, achClassFilename.data(), parameters.get_dBoxSize(), parameters.get_h(), nLinear, aLinear, nPower, aPower);
         free(achLinSpecies);
         free(achPkSpecies);
         csmClassGslInitialize(csm);
