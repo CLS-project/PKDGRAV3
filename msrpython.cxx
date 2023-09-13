@@ -29,7 +29,6 @@
 #define MASTER_MODULE_NAME "MASTER"
 #define MASTER_TYPE_NAME "MSR"
 
-
 /******************************************************************************\
 *   Flush stdout and stderr
 \******************************************************************************/
@@ -75,7 +74,6 @@ static struct PyModuleDef msrModule = {
     NULL, // Slots
     NULL, NULL, NULL
 };
-
 
 /******************************************************************************\
 *   Ephemeral OBJECT Instance
@@ -359,7 +357,6 @@ static int run_script(MSRINSTANCE *self,const char *filename) {
     return 0;
 }
 
-
 static PyObject *
 ppy_msr_load_checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
@@ -601,7 +598,8 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     SPHOptions SPHoptions = initializeSPHOptions(msr->param,msr->csm,dTime);
     SPHoptions.doGravity = msr->param.bDoGravity;
     uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,bKickClose,bKickOpen,bEwald,
-                                    msr->param.bGravStep, msr->param.nPartRhoLoc, msr->param.iTimeStepCrit, SPHoptions);
+                                    msr->parameters.get_bGravStep(), msr->parameters.get_nPartRhoLoc(),
+                                    msr->parameters.get_iTimeStepCrit(), SPHoptions);
     return Py_BuildValue("i", uRungMax);
 }
 
@@ -782,7 +780,6 @@ ppy_msr_add_linear_signal(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     self->msr->AddLinearSignal(target,seed,L,a,fixed,phase);
     Py_RETURN_NONE;
 }
-
 
 static PyObject *
 ppy_msr_grid_bin_k(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
@@ -1414,7 +1411,6 @@ static PyObject *initModuleMSR(void) {
     return msr_module;
 }
 
-
 /******************************************************************************\
 *   Analysis callback
 \******************************************************************************/
@@ -1508,7 +1504,6 @@ int MSR::Python(int argc, char *argv[]) {
     auto globals = PyModule_GetDict(main_module);
     auto locals = globals;
     PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
-
 
     if (!PyImport_ImportModule("checkpoint")) {
         PyErr_Print();

@@ -302,14 +302,14 @@ uint64_t MSR::getMemoryModel() {
         mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
         if (!param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
     }
-    if (param.bDoDensity)       mMemoryModel |= PKD_MODEL_DENSITY;
+    if (parameters.get_bDoDensity())       mMemoryModel |= PKD_MODEL_DENSITY;
     if (parameters.get_bMemIntegerPosition()) mMemoryModel |= PKD_MODEL_INTEGER_POS;
     if (parameters.get_bMemUnordered()&&param.bNewKDK) mMemoryModel |= PKD_MODEL_UNORDERED;
     if (parameters.get_bMemParticleID())   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (parameters.get_bMemAcceleration() || param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (parameters.get_bMemVelocity())     mMemoryModel |= PKD_MODEL_VELOCITY;
     if (parameters.get_bMemPotential() || param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
-    if (param.bFindHopGroups)   mMemoryModel |= PKD_MODEL_GROUPS | PKD_MODEL_DENSITY | PKD_MODEL_BALL;
+    if (parameters.get_bFindHopGroups())   mMemoryModel |= PKD_MODEL_GROUPS | PKD_MODEL_DENSITY | PKD_MODEL_BALL;
     if (parameters.get_bMemGroups())       mMemoryModel |= PKD_MODEL_GROUPS;
     if (parameters.get_bMemMass())         mMemoryModel |= PKD_MODEL_MASS;
     if (parameters.get_bMemSoft())         mMemoryModel |= PKD_MODEL_SOFTENING;
@@ -322,7 +322,7 @@ uint64_t MSR::getMemoryModel() {
 
     if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
-    if (param.bDoGas && !NewSPH())  mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
+    if (parameters.get_bDoGas() && !NewSPH())  mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
@@ -367,13 +367,13 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
 
     /* Various features require more or less ephemeral storage */
     ps.nEphemeralBytes = nEphemeral;
-    if (param.iFofInterval   && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
-    if (param.bFindHopGroups && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (param.iPkInterval    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
-    if (param.bGravStep      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (param.bDoGas         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (parameters.get_bFindGroups()    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
+    if (parameters.get_bFindHopGroups() && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (parameters.get_iPkInterval()    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
+    if (parameters.get_bGravStep()      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (parameters.get_bDoGas()         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (parameters.get_bMemBall() && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (param.bDoDensity     && ps.nEphemeralBytes < 12) ps.nEphemeralBytes = 12;
+    if (parameters.get_bDoDensity()     && ps.nEphemeralBytes < 12) ps.nEphemeralBytes = 12;
 #ifdef BLACKHOLES
     if (ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
 #endif
@@ -540,7 +540,6 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     if (parameters.get_bVStart())
         printf("Restoring from checkpoint\n");
     TimerStart(TIMER_IO);
-    param.bRestart = 1;
 
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
@@ -553,7 +552,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     nSpecies[FIO_SPECIES_BH]   = nBH;
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
-    if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
+    if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
     if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
@@ -614,7 +613,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     }
 
     if (bAnalysis) return; // Very cheeserific
-    Simulate(dTime,dDelta,iStep,nSteps);
+    Simulate(dTime,dDelta,iStep,nSteps,true);
 }
 
 void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta) {
@@ -852,12 +851,6 @@ void MSR::Initialize() {
     ** Now setup for the input parameters.
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
-    param.bRestart = 0;
-    prmAddParam(prm,"bRestart",0,&param.bRestart,sizeof(int),"restart",
-                "restart from checkpoint");
-    param.bDoDensity = 1;
-    prmAddParam(prm,"bDoDensity",0,&param.bDoDensity,sizeof(int),
-                "den","enable/disable density outputs = +den");
     param.iStartStep = 0;
     prmAddParam(prm,"iStartStep",1,&param.iStartStep,
                 sizeof(int),"nstart","<initial step numbering> = 0");
@@ -867,21 +860,6 @@ void MSR::Initialize() {
     param.nSteps10 = 0;
     prmAddParam(prm,"nSteps10",1,&param.nSteps10,sizeof(int),"n10",
                 "<number of timesteps to redshift 10> = 0");
-    param.iOutInterval = 0;
-    prmAddParam(prm,"iOutInterval",1,&param.iOutInterval,sizeof(int),
-                "oi","<number of timesteps between snapshots> = 0");
-    param.iFofInterval = 0;
-    prmAddParam(prm,"iFofInterval",1,&param.iFofInterval,sizeof(int),
-                "fof","<number of timesteps between fof group finding> = 0");
-    param.iCheckInterval = 0;
-    prmAddParam(prm,"iCheckInterval",1,&param.iCheckInterval,sizeof(int),
-                "ci","<number of timesteps between checkpoints> = 0");
-    param.iLogInterval = 1;
-    prmAddParam(prm,"iLogInterval",1,&param.iLogInterval,sizeof(int),
-                "ol","<number of timesteps between logfile outputs> = 1");
-    param.iPkInterval = 1;
-    prmAddParam(prm,"iPkInterval",1,&param.iPkInterval,sizeof(int),
-                "opk","<number of timesteps between pk outputs> = 1");
     param.iDeltakInterval = 0;
     prmAddParam(prm,"iDeltakInterval",1,&param.iDeltakInterval,sizeof(int),
                 "odk","<number of timesteps between DeltaK outputs> = 0 (off)");
@@ -924,33 +902,12 @@ void MSR::Initialize() {
     param.dEta = 0.2;
     prmAddParam(prm,"dEta",2,&param.dEta,sizeof(double),"eta",
                 "<time step criterion> = 0.1");
-    param.bGravStep = 0;
-    prmAddParam(prm,"bGravStep",0,&param.bGravStep,sizeof(int),
-                "gs","<Gravity timestepping according to iTimeStep Criterion>");
-    param.bEpsAccStep = 0;
-    prmAddParam(prm,"bEpsAccStep",0,&param.bEpsAccStep,sizeof(int),
-                "ea", "<Sqrt(Epsilon on a) timestepping>");
-    param.bDensityStep = 0;
-    prmAddParam(prm,"bDensityStep",0,&param.bDensityStep,sizeof(int),
-                "isrho", "<Sqrt(1/Rho) timestepping>");
-    param.iTimeStepCrit = 0;
-    prmAddParam(prm,"iTimeStepCrit",1,&param.iTimeStepCrit,sizeof(int),
-                "tsc", "<Criteria for dynamical time-stepping>");
-    param.nPartRhoLoc = 32;
-    prmAddParam(prm,"nPartRhoLoc",1,&param.nPartRhoLoc,sizeof(int),
-                "nprholoc", "<Number of particles for local density in dynamical time-stepping>");
     param.dPreFacRhoLoc = 4.0*M_PI/3.0;
     prmAddParam(prm,"dPreFacRhoLoc",2,&param.dPreFacRhoLoc,sizeof(double),
                 "dprefacrholoc", "<Pre-factor for local density in dynamical time-stepping>");
     param.dEccFacMax = 3000;
     prmAddParam(prm,"dEccFacMax",2,&param.dEccFacMax,sizeof(double),
                 "deccfacmax", "<Maximum correction factor for eccentricity correction>");
-    param.nPartColl = 0;
-    prmAddParam(prm,"nPartColl",1,&param.nPartColl,sizeof(int),
-                "npcoll", "<Number of particles in collisional regime>");
-    param.nTruncateRung = 0;
-    prmAddParam(prm,"nTruncateRung",1,&param.nTruncateRung,sizeof(int),"nTR",
-                "<number of MaxRung particles to delete MaxRung> = 0");
     param.iMaxRung = IRUNGMAX;
     snprintf(ach,sizeof(ach),"<maximum timestep rung> = %d",param.iMaxRung);
     prmAddParam(prm,"iMaxRung",1,&param.iMaxRung,sizeof(int),
@@ -1127,9 +1084,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"iSignalSeconds",1,&param.iSignalSeconds,
                 sizeof(int),"signal",
                 "<Time (in seconds) that USR1 is sent before termination> = 0 = immediate");
-    param.bFindHopGroups = 0;
-    prmAddParam(prm,"bFindHopGroups",0,&param.bFindHopGroups,sizeof(int),
-                "hop","<enable/disable phase-space group finder> = -hop");
     param.dHopTau = -4.0;
     prmAddParam(prm,"dHopTau",2,&param.dHopTau,sizeof(double),"hoptau",
                 "<linking length for Gasshopper (negative for multiples of softening)> = -4.0");
@@ -1190,9 +1144,6 @@ void MSR::Initialize() {
                 sizeof(int),"wic","<Write IC after generating> = 0");
 
     /* Gas Parameters */
-    param.bDoGas = 0;
-    prmAddParam(prm,"bDoGas",0,&param.bDoGas,sizeof(int),"gas",
-                "calculate gas/don't calculate gas = +gas");
     param.bGasAdiabatic = 1;
     prmAddParam(prm,"bGasAdiabatic",0,&param.bGasAdiabatic,
                 sizeof(int),"GasAdiabatic",
@@ -1840,10 +1791,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
             bVDetails);
     fprintf(fp,"\n# bPeriodic: %d",param.bPeriodic);
     fprintf(fp," bComove: %d",csm->val.bComove);
-    fprintf(fp,"\n# bRestart: %d",param.bRestart);
-    fprintf(fp,"\n# iOutInterval: %d",param.iOutInterval);
-    fprintf(fp," iCheckInterval: %d",param.iCheckInterval);
-    fprintf(fp," iLogInterval: %d",param.iLogInterval);
     fprintf(fp," iEwOrder: %d",param.iEwOrder);
     fprintf(fp," nReplicas: %d",param.nReplicas);
     fprintf(fp,"\n# dEwCut: %f",param.dEwCut);
@@ -1872,23 +1819,14 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," iMaxRung: %d",param.iMaxRung);
     fprintf(fp," bDoRungOutput: %d",param.bDoRungOutput);
     fprintf(fp," bDoRungDestOutput: %d",param.bDoRungDestOutput);
-    fprintf(fp,"\n# bGravStep: %d",param.bGravStep);
-    fprintf(fp," bEpsAccStep: %d",param.bEpsAccStep);
-    fprintf(fp," bDensityStep: %d",param.bDensityStep);
-    fprintf(fp," nTruncateRung: %d",param.nTruncateRung);
-    fprintf(fp,"\n# iTimeStepCrit: %d",param.iTimeStepCrit);
-    fprintf(fp," nPartRhoLoc: %d", param.nPartRhoLoc);
     fprintf(fp," dPreFacRhoLoc: %g", param.dPreFacRhoLoc);
     fprintf(fp," dEccFacMax: %g", param.dEccFacMax);
-    fprintf(fp," nPartColl: %d", param.nPartColl);
     fprintf(fp,"\n# bDoGravity: %d",param.bDoGravity);
     fprintf(fp,"\n# dFracDualTree: %g",param.dFracDualTree);
     fprintf(fp,"dFracNoDomainDecomp: %g",param.dFracNoDomainDecomp);
     fprintf(fp," dFracNoDomainRootFind: %g",param.dFracNoDomainRootFind);
     fprintf(fp," dFracNoDomainDimChoice: %g",param.dFracNoDomainDimChoice);
-    fprintf(fp,"\n# nTruncateRung: %d",param.nTruncateRung);
 
-    fprintf(fp,"\n# SPH: bDoGas: %d",param.bDoGas);
     fprintf(fp," bGasAdiabatic: %d",param.bGasAdiabatic);
     fprintf(fp," bGasIsothermal: %d",param.bGasIsothermal);
     fprintf(fp," bGasCooling: %d",param.bGasCooling);
@@ -1932,7 +1870,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," SFdMinGasMass %g",param.SFdMinGasMass);
     fprintf(fp," SFbdivv %d",param.SFbdivv);
     /* -- */
-    fprintf(fp,"\n# Group Find: bFindHopGroups: %d",param.bFindHopGroups);
     fprintf(fp," dHopTau: %g",param.dHopTau);
     /* -- */
     fprintf(fp,"\n# Group Find: bFindGroups: %d",param.bFindGroups);
@@ -3245,7 +3182,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     // Parameters related to timestepping
     in.ts.iTimeStepCrit = iTimeStepCrit;
     in.ts.nPartRhoLoc = nPartRhoLoc;
-    in.ts.nPartColl = param.nPartColl;
+    in.ts.nPartColl = parameters.get_nPartColl();
     in.ts.dEccFacMax = param.dEccFacMax;
     if (bGravStep) in.ts.dRhoFac = 1.0/(a*a*a);
     else in.ts.dRhoFac = 0.0;
@@ -3452,7 +3389,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     }
     in.dTime = dTime;
     in.dDeltaUPred = dDelta;
-    in.bDoGas = param.bDoGas;
+    in.bDoGas = DoGas();
     in.iRoot = iRoot;
     TimerStart(TIMER_DRIFT);
 
@@ -3563,7 +3500,7 @@ void MSR::KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
     in.dDeltaUPred = 0;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
-    in.bDoGas = param.bDoGas;
+    in.bDoGas = DoGas();
     pstKick(pst,&in,sizeof(in),NULL,0);
     TimerStop(TIMER_KICKO);
 }
@@ -3588,7 +3525,7 @@ void MSR::KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungH
     in.dDeltaUPred = in.dDeltaU;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
-    in.bDoGas = param.bDoGas;
+    in.bDoGas = DoGas();
     pstKick(pst,&in,sizeof(in),NULL,0);
     TimerStop(TIMER_KICKC);
 }
@@ -3746,7 +3683,7 @@ void MSR::AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) 
     }
     in.dAccFac = 1.0/(a*a*a);
     in.bDoGravity = DoGravity();
-    in.bEpsAcc = param.bEpsAccStep;
+    in.bEpsAcc = parameters.get_bEpsAccStep();
     in.dDelta = dDelta;
     in.iMaxRung = param.iMaxRung;
     in.uRungLo = uRungLo;
@@ -3810,7 +3747,8 @@ void MSR::UpdateRung(uint8_t uRung) {
     while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
     iOutMaxRung = iTempRung;
 
-    while (out.nRungCount[iOutMaxRung] <= param.nTruncateRung && iOutMaxRung > uRung) {
+    const auto nTruncateRung = parameters.get_nTruncateRung();
+    while (out.nRungCount[iOutMaxRung] <= nTruncateRung && iOutMaxRung > uRung) {
         msrprintf("n_CurrMaxRung = %" PRIu64 "  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
                   out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
@@ -3953,6 +3891,9 @@ int MSR::NewTopStepKDK(
     uint8_t *puRungMax,
     int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen) {
     const auto bEwald = parameters.get_bEwald();
+    const auto bGravStep = parameters.get_bGravStep();
+    const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
+    const auto iTimeStepCrit = parameters.get_iTimeStepCrit();
     double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
     int bKickOpen=1;
@@ -4083,7 +4024,8 @@ int MSR::NewTopStepKDK(
     if (uRung==0) {
         runAnalysis(iStep,dTime); // Run any registered Python analysis tasks
 
-        if (param.iPkInterval && iStep%param.iPkInterval == 0) OutputPk(iStep,dTime);
+        const auto iPkInterval = parameters.get_iPkInterval();
+        if (iPkInterval && iStep%iPkInterval == 0) OutputPk(iStep,dTime);
 
         /*
         ** We need to write all light cone files (healpix and LCP) at this point before the last
@@ -4123,7 +4065,7 @@ int MSR::NewTopStepKDK(
             SPHoptions.doSPHForces = 0;
             SPHoptions.doSetDensityFlags = 1;
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                 1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
             // Select Neighbors of Neighbors
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.dofBallFactor = 1;
@@ -4132,7 +4074,7 @@ int MSR::NewTopStepKDK(
                 SPHoptions.doSetNNflags = 1;
                 SPHoptions.useDensityFlags = 1;
                 *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                     1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                     1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 SPHoptions.doSetNNflags = 0;
                 SPHoptions.useDensityFlags = 0;
             }
@@ -4152,7 +4094,7 @@ int MSR::NewTopStepKDK(
             }
             TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                 1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.doDensity = 0;
                 SPHoptions.doDensityCorrection = 1;
@@ -4161,7 +4103,7 @@ int MSR::NewTopStepKDK(
                 SPHoptions.dofBallFactor = 0;
                 TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                 *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
-                                     bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                     bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 UpdateGasValues(uRung,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
                 SPHoptions.doDensityCorrection = 0;
                 SPHoptions.useDensityFlags = 0;
@@ -4169,14 +4111,14 @@ int MSR::NewTopStepKDK(
         }
         else {
             *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                 1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.doDensity = 0;
                 SPHoptions.doDensityCorrection = 1;
                 SPHoptions.dofBallFactor = 0;
                 TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                 *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
-                                     bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                     bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 UpdateGasValues(0,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
                 SPHoptions.doDensityCorrection = 0;
             }
@@ -4191,14 +4133,14 @@ int MSR::NewTopStepKDK(
         SPHoptions.dofBallFactor = 0;
         TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                             1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                             1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
     }
     else { /*if (param.bDoGravity)*/
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         SPHoptions.nPredictRung = uRung;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                             1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                             1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
     }
 
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
@@ -4256,6 +4198,8 @@ void MSR::TopStepKDK(
     int iAdjust) {   /* Do an adjust? */
     double dDeltaStep = dDeltaRung * (1 << iRung);
     const auto bEwald = parameters.get_bEwald();
+    const auto bGravStep = parameters.get_bGravStep();
+    const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
 #ifdef BLACKHOLES
     if (!iKickRung && !iRung && param.bBHPlaceSeed) {
         PlaceBHSeed(dTime, CurrMaxRung());
@@ -4280,7 +4224,7 @@ void MSR::TopStepKDK(
         if (DoGas() && MeshlessHydro()) {
             HydroStep(dTime, dDeltaStep);
         }
-        if (param.bDensityStep) {
+        if (parameters.get_bDensityStep()) {
             DomainDecomp(iRung);
             ActiveRung(iRung,1);
             BuildTree(0);
@@ -4381,7 +4325,7 @@ void MSR::TopStepKDK(
             SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
             SPHoptions.doGravity = 1;
             Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
-                    bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
+                    bEwald,bGravStep,nPartRhoLoc,parameters.get_iTimeStepCrit(),
                     SPHoptions);
         }
 
@@ -4510,9 +4454,9 @@ void MSR::AddDelParticles() {
 }
 
 /* Gas routines */
-void MSR::InitSph(double dTime,double dDelta) {
+void MSR::InitSph(double dTime,double dDelta,bool bRestart) {
     if (MeshlessHydro()) {
-        if (!param.bRestart) {
+        if (!bRestart) {
             ActiveRung(0,1);
             InitBall();
             EndTimestepIntegration(dTime, 0.0);
@@ -5047,7 +4991,7 @@ double MSR::Read(std::string_view achInFile) {
     if (param.bInFileLC) read->dvFac = 1.0;
     else read->dvFac = getVfactor(dExpansion);
 
-    if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
+    if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
     if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
 
@@ -5147,8 +5091,11 @@ double MSR::Read(std::string_view achInFile) {
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doDensity = 1;
         SPHoptions.doUConversion = 1;
+        const auto bGravStep = parameters.get_bGravStep();
+        const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
+        const auto iTimeStepCrit = parameters.get_iTimeStepCrit();
         Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,dTheta,0,1,
-                bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
@@ -5156,7 +5103,7 @@ double MSR::Read(std::string_view achInFile) {
             SPHoptions.dofBallFactor = 0;
             TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
             Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,dTheta,0,1,
-                    bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                    bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
             UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);
         }
         TimerStop(TIMER_NONE);
@@ -5327,7 +5274,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         //OutArray(achFile,OUT_GROUP_ARRAY);
         HopWrite(BuildName(iStep,".fofstats").c_str());
     }
-    if ( param.bFindHopGroups ) {
+    if ( parameters.get_bFindHopGroups() ) {
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(0);

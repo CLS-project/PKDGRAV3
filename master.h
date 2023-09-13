@@ -96,7 +96,7 @@ public:
     void MemStatus();
     int GetLock();
     double LoadOrGenerateIC();
-    void Simulate(double dTime,double dDelta,int iStartStep,int nSteps);
+    void Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart=false);
     void Simulate(double dTime);
     void setAnalysisMode(bool b=true) {bAnalysis=b;}
     void setAnalysisMode(PyObject *over) {
@@ -331,22 +331,22 @@ protected:
     }
     //int Steps()           const { return param.nSteps; }
     int LogInterval()     const {
-        return param.iLogInterval;
+        return parameters.get_iLogInterval();
     }
     int OutInterval()     const {
-        return param.iOutInterval;
+        return parameters.get_iOutInterval();
     }
     int CheckInterval()   const {
-        return param.iCheckInterval;
+        return parameters.get_iCheckInterval();
     }
     double Soft()         const {
         return param.dSoft;
     }
     int DoDensity()       const {
-        return param.bDoDensity;
+        return parameters.get_bDoDensity();
     }
     int DoGas()           const {
-        return param.bDoGas;
+        return parameters.get_bDoGas();
     }
     int NewSPH()          const {
         return param.bNewSPH;
@@ -439,7 +439,7 @@ protected:
     void CoolSetup(double dTime);
     void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
     void AddDelParticles();
-    void InitSph(double dTime,double dDelta);
+    void InitSph(double dTime,double dDelta, bool bRestart);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
     // Meshless hydrodynamics

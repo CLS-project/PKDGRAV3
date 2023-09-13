@@ -352,11 +352,6 @@ flag="oi"
 default=0
 help="number of timesteps between snapshots"
 
-["I/O Parameters".iFofInterval]
-flag="fof"
-default=0
-help="number of timesteps between FOF group finding"
-
 ["I/O Parameters".iCheckInterval]
 flag="ci"
 default=0
@@ -490,6 +485,12 @@ help="time step criterion"
 flag="gs"
 default=false
 help="Gravity timestepping according to iTimeStep Criterion"
+
+["Time Stepping".time_step]
+flag="ts"
+default=1
+ommited="TimeStep.epsilon_over_a"
+help="Which timestep scheme to use"
 
 ["Time Stepping".bEpsAccStep]
 flag="ea"

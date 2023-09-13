@@ -27,24 +27,10 @@ struct parameters {
     /*
     ** Parameters for PKDGRAV.
     */
-    int bRestart;
-    int bGravStep;
-    int bEpsAccStep;
     int bAccelStep; /* true if bEpsAccStep */
-    int bDensityStep;
-    int iTimeStepCrit;
-    int nPartRhoLoc;
-    int nPartColl;
-    int nTruncateRung;
-    int bDoDensity;
     int bDoRungOutput;
     int bDoRungDestOutput;
     int bDoGravity;
-    int iOutInterval;
-    int iFofInterval;
-    int iCheckInterval;
-    int iLogInterval;
-    int iPkInterval;
     int iStartStep;
     int nSteps;
     int nSteps10;
@@ -75,7 +61,6 @@ struct parameters {
     double hzLCP;
     double sqdegLCP;
     /* BEGIN Gas Parameters */
-    int bDoGas;
     int bGasAdiabatic;
     int bGasIsentropic;
     int bGasIsothermal;
@@ -137,7 +122,6 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int bFindHopGroups;
     int nMinMembers;
     double dHopTau;
     double dTau;

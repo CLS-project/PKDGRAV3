@@ -104,9 +104,12 @@ void MSR::Simulate(double dTime) {
     }
     return Simulate(dTime,dDelta,param.iStartStep,nSteps);
 }
-void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
+void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart) {
     FILE *fpLog = NULL;
     const auto bEwald = parameters.get_bEwald();
+    const auto bGravStep = parameters.get_bGravStep();
+    const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
+    const auto iTimeStepCrit = parameters.get_iTimeStepCrit();
 
     InitCosmology(csm);
     auto dTheta = set_dynamic(iStartStep,dTime);
@@ -215,7 +218,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         SPHoptions.doDensity = 1;
         SPHoptions.doSPHForces = 0;
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
@@ -223,7 +226,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             SPHoptions.dofBallFactor = 0;
             TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
             uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                               bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                               bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
             UpdateGasValues(0,dTime,dDelta,iStartStep,0,bKickOpen,SPHoptions);
             SPHoptions.doDensityCorrection = 0;
         }
@@ -235,27 +238,27 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         SPHoptions.dofBallFactor = 0;
         TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     else if (DoGravity()) {
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
         MemStatus();
     }
-    if (DoGravity() && param.bGravStep) {
+    if (DoGravity() && bGravStep) {
         assert(param.bNewKDK == 0);    /* for now! */
         BuildTree(bEwald);
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
-                bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     if (DoGas() && MeshlessHydro()) {
-        InitSph(dTime, dDelta);
+        InitSph(dTime, dDelta,bRestart);
     }
 #ifdef BLACKHOLES
     uRungMax = GetMinDt();
@@ -315,14 +318,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     SPHoptions.doDensity = 1;
                     SPHoptions.doSPHForces = 0;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                       bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                     if (SPHoptions.doInterfaceCorrection) {
                         SPHoptions.doDensity = 0;
                         SPHoptions.doDensityCorrection = 1;
                         SPHoptions.dofBallFactor = 0;
                         TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                           bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                         UpdateGasValues(0,ddTime,dDelta,diStep,0,1,SPHoptions);
                         SPHoptions.doDensityCorrection = 0;
                     }
@@ -334,13 +337,13 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     SPHoptions.dofBallFactor = 0;
                     TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                       bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 }
                 else {
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
                     SPHoptions.doGravity = param.bDoGravity;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                       bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 }
                 /* Set the grids of the linear species */
                 if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {
@@ -462,12 +465,12 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (!prmSpecified(prm,"bDoGas")) param.bDoGas = param.bMeshlessHydro||param.bNewSPH;
-    if (param.bDoGas && !(param.bMeshlessHydro||param.bNewSPH) ) {
+    if (!parameters.has_bDoGas()) parameters.set_bDoGas(param.bMeshlessHydro||param.bNewSPH);
+    if (parameters.get_bDoGas() && !(param.bMeshlessHydro||param.bNewSPH) ) {
         fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
         return 0;
     }
-    if ((param.bMeshlessHydro||param.bNewSPH) && !param.bDoGas) {
+    if ((param.bMeshlessHydro||param.bNewSPH) && !parameters.get_bDoGas()) {
         fprintf(stderr,"ERROR: An hydro scheme is selected but bDoGas=0! Did you forget to add bDoGas=1?\n");
         return 0;
     }
@@ -553,7 +556,7 @@ int MSR::ValidateParameters() {
                 puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
                 return 0;
             }
-            if ( !param.bDoGas ) {
+            if ( !parameters.get_bDoGas() ) {
                 puts("ERROR: Can not generate gas if bDoGas=0");
                 return 0;
             }
@@ -658,14 +661,14 @@ int MSR::ValidateParameters() {
     /*
     ** Check if fast gas boundaries are needed.
     */
-    if (param.bDoGas && !NewSPH()) {
+    if (parameters.get_bDoGas() && !NewSPH()) {
         parameters.set_bMemNodeSphBounds(1);
     }
     /*
     ** Check timestepping and gravity combinations.
     */
     assert(param.iMaxRung <= IRUNGMAX);
-    if (param.bEpsAccStep) param.bAccelStep = 1;
+    if (parameters.get_bEpsAccStep()) param.bAccelStep = 1;
     if (param.bDoGravity) {
         /* Potential is optional, but the default for gravity */
         if (!parameters.has_bMemPotential()) parameters.set_bMemPotential(1);
@@ -679,26 +682,26 @@ int MSR::ValidateParameters() {
             parameters.set_bMemNodeVelocity(0);
         }
         else {
-            if ((param.bAccelStep || param.bDensityStep) && param.bGravStep) {
+            if ((param.bAccelStep || parameters.get_bDensityStep()) && parameters.get_bGravStep()) {
                 /*
                 ** We cannot combine these 2 types of timestepping criteria, we need to choose one
                 ** or the other basic timestep criterion, in this case we choose only bGravStep.
                 */
                 param.bAccelStep = 0;
-                param.bEpsAccStep = 0;
-                param.bDensityStep = 0;
+                parameters.set_bEpsAccStep(false);
+                parameters.set_bDensityStep(false);
                 if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
             }
-            else if (!param.bAccelStep && !param.bGravStep && !param.bDensityStep) {
-                param.bGravStep = 1;
+            else if (!param.bAccelStep && !parameters.get_bGravStep() && !parameters.get_bDensityStep()) {
+                parameters.set_bGravStep(true);
                 if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
             }
             /*
             ** Set the needed memory model based on the chosen timestepping method.
             */
-            if (param.bGravStep) {
+            if (parameters.get_bGravStep()) {
                 parameters.set_bMemNodeAcceleration(1);
-                if (param.iTimeStepCrit == 1) {
+                if (parameters.get_iTimeStepCrit()) {
                     parameters.set_bMemNodeVelocity(1);
                 }
             }
