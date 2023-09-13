@@ -340,7 +340,7 @@ protected:
         return parameters.get_iCheckInterval();
     }
     double Soft()         const {
-        return param.dSoft;
+        return parameters.get_dSoft();
     }
     int DoDensity()       const {
         return parameters.get_bDoDensity();
@@ -358,7 +358,7 @@ protected:
         return param.bDoGravity;
     }
     double Eta()          const {
-        return param.dEta;
+        return parameters.get_dEta();
     }
     int MaxRung()         const {
         return param.iMaxRung;

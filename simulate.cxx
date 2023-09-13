@@ -114,7 +114,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     InitCosmology(csm);
     auto dTheta = set_dynamic(iStartStep,dTime);
 
-    if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
+    if (parameters.has_dSoft()) SetSoft(Soft());
 
     /*
     ** Now we have all the parameters for the simulation we can make a
@@ -597,27 +597,27 @@ int MSR::ValidateParameters() {
     /*
      * Softening
      */
-    if (param.bPhysicalSoft ) {
-        if (param.bPhysicalSoft && !csm->val.bComove) {
-            printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
-            param.bPhysicalSoft = 0;
-        }
+    auto bPhysicalSoft = parameters.get_bPhysicalSoft();
+    const auto dMaxPhysicalSoft = parameters.get_dMaxPhysicalSoft();
+    if (bPhysicalSoft && !csm->val.bComove) {
+        printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
+        parameters.set_bPhysicalSoft(bPhysicalSoft = false);
     }
-    if (param.bPhysicalSoft && param.dMaxPhysicalSoft>0) {
+    if (bPhysicalSoft && dMaxPhysicalSoft>0) {
         fprintf(stderr, "ERROR: Setting both bPhysicalSoft and dMaxPhysicalSoft "
                 "is not allowed.\n Did you mean to limit the physical softening"
                 "with bPhysicalSoft and dSoftMax? or just limit the comoving "
                 "softening with dMaxPhysicalSoft?\n");
         return 0;
     }
-    if ( param.dMaxPhysicalSoft>0 && param.dSoft==0.0 && !param.bSoftMaxMul) {
+    if ( dMaxPhysicalSoft>0 && parameters.get_dSoft()==0.0 && !param.bSoftMaxMul) {
         fprintf(stderr, "ERROR: Trying to limit individual softenings setting a "
                 "maximum physical softening rather than a factor...\nThis is "
                 "not supported.\n Did you mean to use dSoft for a global softening? "
                 "or bSoftMaxMul for setting the limit as a factor?\n");
         return 0;
     }
-    if ( param.bPhysicalSoft && param.dSoftMax==0.0) {
+    if ( bPhysicalSoft && parameters.get_dSoftMax()==0.0) {
         fprintf(stderr, "ERROR: If setting bPhysicalSoft, dSoftMax should be "
                 "provided to avoid divergences in the early universe.\n");
         return 0;

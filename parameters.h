@@ -41,7 +41,6 @@ struct parameters {
     int nTreeBitsHi;
     int iWallRunTime;
     int iSignalSeconds;
-    int bPhysicalSoft;
     int bSoftMaxMul;
     int bDoSoftOutput;
     int bDoAccOutput;
@@ -93,11 +92,6 @@ struct parameters {
     int bGasDoExtensiveILPTest;
 
     /* END Gas Parameters */
-    double dEta;
-    double dExtraStore;
-    double dSoft;
-    double dSoftMax;
-    double dMaxPhysicalSoft;
     double dDelta;
     double dEwCut;
     double dEwhCut;

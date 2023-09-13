@@ -48,8 +48,8 @@ def emit_proto(section,parameters_h,parameters_pxi):
       print(f'        {i_type:<7} get_{k}()',file=parameters_pxi)
       print(f'    bool has_{k:{w}}() const {{ return has(str_{k}); }}',file=parameters_h)
       print(f'        bool    has_{k}()',file=parameters_pxi)
-      print(f'    void set_{k:{w}}({c_type} value) {{ set<{c_type}>({name},value); }}',file=parameters_h)
-      print(f'        void    set_{k}({i_type} value)',file=parameters_pxi)
+      print(f'    auto set_{k:{w}}({c_type} value) {{ set<{c_type}>({name},value); return value; }}',file=parameters_h)
+      print(f'        {i_type:<7} set_{k}({i_type} value)',file=parameters_pxi)
     else:
       emit_proto(v.items(),parameters_h,parameters_pxi)
 

@@ -338,7 +338,7 @@ uint64_t MSR::getMemoryModel() {
 
 std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {
     struct inInitializePStore ps;
-    double dStorageAmount = (1.0+param.dExtraStore);
+    double dStorageAmount = (1.0+parameters.get_dExtraStore());
     int i;
     for ( i=0; i<=FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
     ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(mdl));
@@ -582,7 +582,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
     SetDerivedParameters();
 
-    if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
+    if (parameters.has_dSoft()) SetSoft(Soft());
 
     if (DoGas() && NewSPH()) {
         /*
@@ -866,18 +866,6 @@ void MSR::Initialize() {
     param.dDeltakRedshift = 2.0;
     prmAddParam(prm,"dDeltakRedshift",2,&param.dDeltakRedshift,sizeof(double),"zdel",
                 "starting redshift to output delta(k) field = 2.0");
-    param.dSoft = 0.0;
-    prmAddParam(prm,"dSoft",2,&param.dSoft,sizeof(double),"e",
-                "<gravitational softening length> = 0.0");
-    param.dSoftMax = 0.0;
-    prmAddParam(prm,"dSoftMax",2,&param.dSoftMax,sizeof(double),"eMax",
-                "<maximum comoving gravitational softening length (abs or multiplier)> = 0.0");
-    param.dMaxPhysicalSoft = 0.0;
-    prmAddParam(prm,"dMaxPhysicalSoft",2,&param.dMaxPhysicalSoft,sizeof(double),"eMaxPhys",
-                "<maximum softening in physical coordinataes> = 0.0");
-    param.bPhysicalSoft = 0;
-    prmAddParam(prm,"bPhysicalSoft",0,&param.bPhysicalSoft,sizeof(int),"PhysSoft",
-                "<Physical gravitational softening length> -PhysSoft");
     param.bSoftMaxMul = 1;
     prmAddParam(prm,"bSoftMaxMul",0,&param.bSoftMaxMul,sizeof(int),"SMM",
                 "<Use maximum comoving gravitational softening length as a multiplier> +SMM");
@@ -899,9 +887,6 @@ void MSR::Initialize() {
     param.dDelta = 0.0;
     prmAddParam(prm,"dDelta",2,&param.dDelta,sizeof(double),"dt",
                 "<time step>");
-    param.dEta = 0.2;
-    prmAddParam(prm,"dEta",2,&param.dEta,sizeof(double),"eta",
-                "<time step criterion> = 0.1");
     param.dPreFacRhoLoc = 4.0*M_PI/3.0;
     prmAddParam(prm,"dPreFacRhoLoc",2,&param.dPreFacRhoLoc,sizeof(double),
                 "dprefacrholoc", "<Pre-factor for local density in dynamical time-stepping>");
@@ -993,9 +978,6 @@ void MSR::Initialize() {
     strcpy(param.achDataSubPath,"");
     prmAddParam(prm,"achDataSubPath",3,param.achDataSubPath,256,
                 NULL,NULL);
-    param.dExtraStore = 0.1;
-    prmAddParam(prm,"dExtraStore",2,&param.dExtraStore,
-                sizeof(double),NULL,NULL);
     param.bDualTree = 0;
     prmAddParam(prm,"bDualTree",0,&param.bDualTree,sizeof(int),"2tree",
                 "enable/disable second tree for active rungs = -2tree");
@@ -1798,24 +1780,16 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp,"\n# iStartStep: %d",param.iStartStep);
     fprintf(fp," nSteps: %d",param.nSteps);
     fprintf(fp," nSmooth: %d",param.nSmooth);
-    fprintf(fp," dExtraStore: %f",param.dExtraStore);
     fprintf(fp," nTreeBitsLo: %d",param.nTreeBitsLo);
     fprintf(fp," nTreeBitsHi: %d",param.nTreeBitsHi);
     fprintf(fp," iCacheSize: %d",param.iCacheSize);
     fprintf(fp," iCacheMaxInflight: %d",param.iCacheMaxInflight);
     fprintf(fp," iWorkQueueSize: %d",param.iWorkQueueSize);
-    if (prmSpecified(prm,"dSoft"))
-        fprintf(fp," dSoft: %g",param.dSoft);
-    else
-        fprintf(fp," dSoft: input");
-    fprintf(fp,"\n# bPhysicalSoft: %d",param.bPhysicalSoft);
     fprintf(fp," bSoftMaxMul: %d",param.bSoftMaxMul);
-    fprintf(fp," dSoftMax: %g",param.dSoftMax);
     fprintf(fp," bDoSoftOutput: %d",param.bDoSoftOutput);
     fprintf(fp," bDoAccOutput: %d",param.bDoAccOutput);
     fprintf(fp," bDoPotOutput: %d",param.bDoPotOutput);
     fprintf(fp,"\n# dDelta: %g",param.dDelta);
-    fprintf(fp," dEta: %g",param.dEta);
     fprintf(fp," iMaxRung: %d",param.iMaxRung);
     fprintf(fp," bDoRungOutput: %d",param.bDoRungOutput);
     fprintf(fp," bDoRungDestOutput: %d",param.bDoRungDestOutput);
@@ -2993,40 +2967,43 @@ void MSR::ReorderWithinNodes() {
 #endif
 
 void MSR::UpdateSoft(double dTime) {
-    if (param.bPhysicalSoft) {
+    const auto dSoft = parameters.get_dSoft();
+    const auto dSoftMax = parameters.get_dSoftMax();
+    const auto dMaxPhysicalSoft = parameters.get_dMaxPhysicalSoft();
+    if (parameters.get_bPhysicalSoft()) {
         struct inPhysicalSoft in;
 
         in.dFac = 1./csmTime2Exp(csm,dTime);
         in.bSoftMaxMul = param.bSoftMaxMul;
-        in.dSoftMax = param.dSoftMax;
+        in.dSoftMax = dSoftMax;
 
         if (param.bSoftMaxMul && in.dFac > in.dSoftMax) in.dFac = in.dSoftMax;
 
         pstPhysicalSoft(pst,&in,sizeof(in),NULL,0);
     }
-    if (param.dMaxPhysicalSoft > 0) {
+    if (dMaxPhysicalSoft > 0) {
         double dFac = csmTime2Exp(csm,dTime);
-        if (param.dSoft > 0.0) {
+        if (dSoft > 0.0) {
             // Change the global softening
-            if (param.dSoft*dFac > param.dMaxPhysicalSoft)
-                SetSoft(param.dMaxPhysicalSoft/dFac);
+            if (dSoft*dFac > dMaxPhysicalSoft)
+                SetSoft(dMaxPhysicalSoft/dFac);
         }
         else {
             // Individual (either particle or classes) softening are used
             struct inPhysicalSoft in;
 
             in.bSoftMaxMul = param.bSoftMaxMul;
-            in.dSoftMax = param.dSoftMax;
+            in.dSoftMax = dSoftMax;
 
             if (param.bSoftMaxMul) {
                 const float fPhysFac = dFac; // Factor to convert to physical
-                if (fPhysFac < param.dMaxPhysicalSoft) {
+                if (fPhysFac < dMaxPhysicalSoft) {
                     // nothing happens, still in the comoving softening regime
                     in.dFac = 1.;
                 }
                 else {
                     // late-times, softening limited by physical
-                    in.dFac = param.dMaxPhysicalSoft/dFac;
+                    in.dFac = dMaxPhysicalSoft/dFac;
                 }
             }
 
@@ -3188,7 +3165,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     else in.ts.dRhoFac = 0.0;
     in.ts.dTime = dTime;
     in.ts.dDelta = dDelta;
-    in.ts.dEta = param.dEta;
+    in.ts.dEta = Eta();
     in.ts.dPreFacRhoLoc = param.dPreFacRhoLoc;
     in.ts.bGravStep = bGravStep;
     in.ts.uRungLo = uRungLo;
@@ -5060,7 +5037,7 @@ double MSR::Read(std::string_view achInFile) {
         SetSPHoptions();
         InitializeEOS();
 
-        if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
+        if (parameters.has_dSoft()) SetSoft(Soft());
         /*
         ** Initialize fBall
         */
