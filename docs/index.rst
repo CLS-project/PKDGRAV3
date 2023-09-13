@@ -16,6 +16,7 @@ Welcome to pkdgrav3's documentation!
    units.rst
    extensions.rst
    parameters.rst
+   changes.rst
    resources.rst
 
 .. only:: html or text

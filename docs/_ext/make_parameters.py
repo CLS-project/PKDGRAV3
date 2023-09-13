@@ -38,7 +38,7 @@ class ParametersDirective(Directive):
       node = nodes.section()
       vl = ViewList(text.split('\n'),source='')
       nested_parse_with_titles(self.state, vl, node)
-      text = f'.. index:: single: parameters ; {key}\n\n{key} (default {default})'
+      text = f'.. index:: ! single: parameters ; {key}\n\n{key} (default {default})'
       term=nodes.section()
       vl = ViewList(text.split('\n'),source='')
       nested_parse_with_titles(self.state, vl, term)
