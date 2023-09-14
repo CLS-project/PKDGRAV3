@@ -14,7 +14,7 @@ parameters_toml = None
 parameters_dict = {}
 
 class ParametersDirective(Directive):
-    def format_parameter(self,key,v):
+    def format_parameter(self,key,v,main_entry=True):
       # The default value with empty strings as none
       if 'omitted' in v:
         default=v['omitted']
@@ -38,7 +38,9 @@ class ParametersDirective(Directive):
       node = nodes.section()
       vl = ViewList(text.split('\n'),source='')
       nested_parse_with_titles(self.state, vl, node)
-      text = f'.. index:: ! single: parameters ; {key}\n\n{key} (default {default})'
+      text = f'.. index:: {"! " if main_entry else ""}single: parameters ; {key}\n'\
+             f'{f"  :name: {key.lower()}" if main_entry else ""}\n'\
+             f'\n{key} (default {default})'
       term=nodes.section()
       vl = ViewList(text.split('\n'),source='')
       nested_parse_with_titles(self.state, vl, term)
@@ -89,7 +91,7 @@ class show_parameters(ParametersDirective):
       items = []
       for key in self.arguments:
         v = parameters_dict[key]
-        items += self.format_parameter(key,v)
+        items += self.format_parameter(key,v,False)
       return [nodes.definition_list('',*items)]
 
 class make_parameters(ParametersDirective):
