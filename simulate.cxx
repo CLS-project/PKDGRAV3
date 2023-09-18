@@ -56,14 +56,14 @@ double MSR::LoadOrGenerateIC() {
 
 bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) {
     dDelta = param.dDelta;
-    nSteps = param.nSteps;
+    nSteps = parameters.get_nSteps();
     if (!csm->val.bComove) {
         if (prmSpecified(prm,"dRedTo")) {
             printf("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
         }
     }
     else if (!prmSpecified(prm,"dRedTo")) {}
-    else if (prmSpecified(prm,"dDelta") && prmSpecified(prm,"nSteps")) {
+    else if (prmSpecified(prm,"dDelta") && parameters.has_nSteps()) {
         printf("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
         return false;
     }
@@ -77,14 +77,14 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
         nSteps = (int)ceil((tTo-dTime)/param.dDelta);
         dDelta = (tTo-dTime)/(nSteps - iStartStep);
     }
-    else if (prmSpecified(prm,"nSteps")) {
+    else if (parameters.has_nSteps()) {
         auto aTo = 1.0/(param.dRedTo + 1.0);
         auto tTo = csmExp2Time(csm,aTo);
         if (tTo < dTime) {
             printf("Badly specified final redshift, check -zto parameter.\n");
             return false;
         }
-        if (param.nSteps == 0) dDelta = 0.0;
+        if (parameters.get_nSteps() == 0) dDelta = 0.0;
         else dDelta = (tTo-dTime) / (nSteps - iStartStep);
     }
     return true;
@@ -96,13 +96,14 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
 void MSR::Simulate(double dTime) {
     double dDelta;
     int nSteps;
+    const auto iStartStep = parameters.get_iStartStep();
     if (prmSpecified(prm,"achOutTimes")) {
         nSteps = ReadOuts(dTime);
     }
     else {
-        getDeltaSteps(dTime,param.iStartStep, /* OUTPUT -> */ dDelta,nSteps);
+        getDeltaSteps(dTime,iStartStep, /* OUTPUT -> */ dDelta,nSteps);
     }
-    return Simulate(dTime,dDelta,param.iStartStep,nSteps);
+    return Simulate(dTime,dDelta,iStartStep,nSteps);
 }
 void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart) {
     FILE *fpLog = NULL;
@@ -193,7 +194,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     uint8_t uRungMax;
     int iSec = time(0);
 
-    dDelta = SwitchDelta(dTime,dDelta,iStartStep,param.nSteps);
+    dDelta = SwitchDelta(dTime,dDelta,iStartStep,parameters.get_nSteps());
     if (param.bNewKDK) {
         LightConeOpen(iStartStep + 1);
         bKickOpen = 1;
@@ -213,7 +214,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     if (DoGas() && NewSPH()) {
         // Calculate Density
         SelAll(-1,1);
-        SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
         SPHoptions.doGravity = 0;
         SPHoptions.doDensity = 1;
         SPHoptions.doSPHForces = 0;
@@ -242,7 +243,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         MemStatus();
     }
     else if (DoGravity()) {
-        SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
                            bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -251,7 +252,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     if (DoGravity() && bGravStep) {
         assert(param.bNewKDK == 0);    /* for now! */
         BuildTree(bEwald);
-        SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
                 bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -266,7 +267,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     BlackholeInit(uRungMax);
 #endif
     if (parameters.get_bFindGroups() && param.bBHPlaceSeed) {
-        NewFof(param.dTau,param.nMinMembers);
+        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
         GroupStats();
     }
 #endif
@@ -284,7 +285,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     if (param.bWriteIC && !parameters.has_nGrid() && !NewSPH()) {
 #ifndef BLACKHOLES
         if (parameters.get_bFindGroups()) {
-            NewFof(param.dTau,param.nMinMembers);
+            NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
             GroupStats();
         }
 #endif
@@ -301,7 +302,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
     for (auto iStep=iStartStep+1; iStep<=nSteps&&!iStop; ++iStep) {
         auto dTheta = set_dynamic(iStep-1,dTime);
-        dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
+        dDelta = SwitchDelta(dTime,dDelta,iStep-1,parameters.get_nSteps());
         lPrior = time(0);
         TimerRestart();
         if (param.bNewKDK) {
@@ -313,7 +314,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                 if (DoGas() && NewSPH()) {
                     // Calculate Density
                     SelAll(-1,1);
-                    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+                    SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
                     SPHoptions.doGravity = 0;
                     SPHoptions.doDensity = 1;
                     SPHoptions.doSPHForces = 0;
@@ -340,7 +341,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 }
                 else {
-                    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+                    SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
                     SPHoptions.doGravity = param.bDoGravity;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -455,7 +456,7 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (prmSpecified(prm, "achOutTimes") && prmSpecified(prm, "nSteps") ) {
+    if (prmSpecified(prm, "achOutTimes") && parameters.has_nSteps() ) {
         fprintf(stderr, "ERROR: achOutTimes and nSteps can not given at the same time.\n");
         return 0;
     }
@@ -589,7 +590,7 @@ int MSR::ValidateParameters() {
     }
 
     /* Make sure that the old behaviour is obeyed. */
-    if ( prmSpecified(prm,"nSteps") && param.nSteps == 0 ) {
+    if ( parameters.has_nSteps() && parameters.get_nSteps() == 0 ) {
         if ( !prmSpecified(prm,"bDoAccOutput") ) param.bDoAccOutput = 1;
         if ( !prmSpecified(prm,"bDoPotOutput") ) param.bDoPotOutput = 1;
     }
@@ -610,7 +611,7 @@ int MSR::ValidateParameters() {
                 "softening with dMaxPhysicalSoft?\n");
         return 0;
     }
-    if ( dMaxPhysicalSoft>0 && parameters.get_dSoft()==0.0 && !param.bSoftMaxMul) {
+    if ( dMaxPhysicalSoft>0 && parameters.get_dSoft()==0.0 && !parameters.get_bSoftMaxMul()) {
         fprintf(stderr, "ERROR: Trying to limit individual softenings setting a "
                 "maximum physical softening rather than a factor...\nThis is "
                 "not supported.\n Did you mean to use dSoft for a global softening? "
@@ -667,13 +668,14 @@ int MSR::ValidateParameters() {
     /*
     ** Check timestepping and gravity combinations.
     */
-    assert(param.iMaxRung <= IRUNGMAX);
+    const auto iMaxRung = parameters.get_iMaxRung();
+    assert(iMaxRung <= IRUNGMAX);
     if (parameters.get_bEpsAccStep()) param.bAccelStep = 1;
     if (param.bDoGravity) {
         /* Potential is optional, but the default for gravity */
         if (!parameters.has_bMemPotential()) parameters.set_bMemPotential(1);
-        if (param.iMaxRung < 1) {
-            param.iMaxRung = 0;
+        if (iMaxRung < 1) {
+            parameters.set_iMaxRung(0);
             if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
             /*
             ** For single stepping we don't need fancy timestepping variables.
@@ -712,7 +714,7 @@ int MSR::ValidateParameters() {
         }
     }
 
-    if (parameters.get_bFindGroups() && !prmSpecified(prm,"dTau")) {
+    if (parameters.get_bFindGroups() && !parameters.has_dTau()) {
         fprintf(stderr, "ERROR: you must specify dTau when FOF is to be run\n");
         return 0;
     }

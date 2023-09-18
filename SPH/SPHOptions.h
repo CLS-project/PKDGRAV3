@@ -26,13 +26,12 @@
     #error "Define either SPHBALLOFBALLS or SPHBOXOFBALLS in SPHOptions.h"
 #endif
 
-
 #include <stdint.h>
+class pkd_parameters;
 #include "parameters.h"
 
 #include <assert.h>
 #include "cosmo.h"
-
 
 struct SPHBallOfBalls {
     blitz::TinyVector<float,3> fBoBCenter;
@@ -158,7 +157,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
+SPHOptions initializeSPHOptions(pkd_parameters &parameters,struct parameters param, CSM csm, double dTime);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target);
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType);

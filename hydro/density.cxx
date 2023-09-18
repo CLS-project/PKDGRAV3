@@ -51,11 +51,10 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
     }
     else {
         bUpdateBall = 1;
-        Smooth(dTime, dDelta, SMX_HYDRO_DENSITY,0,param.nSmooth);
+        Smooth(dTime, dDelta, SMX_HYDRO_DENSITY,0,parameters.get_nSmooth());
         bUpdateBall = 0;
     }
 }
-
 
 static inline void densNodeOmegaE(NN *nnList, float pH, TinyVector<double,3> dr_node, int nCnt,
                                   double *omega, TinyVector<double,6> &E, int *nSmooth) {
@@ -109,7 +108,6 @@ static inline double densNodeNcondB(PKD pkd, particleStore::ParticleReference &p
     return Ncond;
 }
 
-
 void packHydroDensity(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
     auto p1 = static_cast<hydroDensityPack *>(dst);
@@ -135,7 +133,6 @@ void unpackHydroDensity(void *vpkd,void *dst,const void *src) {
         p1.set_marked(p2->bMarked);
     }
 }
-
 
 // Compute the density and derived variables simply given the fBall,
 // without trying to converge to the correct value
@@ -189,7 +186,6 @@ void hydroDensityFinal(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf
 
     p.set_density(p.mass() * (*omega));
 }
-
 
 void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PARTICLE *> &sinks,
                        NN *nnList,int nCnt) {
@@ -315,7 +311,6 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
             if (niter%10==0 && niter<90)
                 dConvFac *= 0.9;
 
-
             if (niter>100 && partj.marked()) {
                 // At this point, we probably have a particle with plenty of
                 // neighbours, and a small increase/decrease in the radius causes
@@ -338,8 +333,6 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
         } while (partj.marked());
     }
 }
-
-
 
 /* This function is now deprecated and may be removed in future versions of
  * the code.

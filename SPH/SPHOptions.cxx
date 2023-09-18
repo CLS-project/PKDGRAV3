@@ -22,11 +22,12 @@
 #endif
 
 #include "SPHOptions.h"
+#include "pkd_parameters.h"
 #include "parameters.h"
 #include <stdio.h>
 #include "basetype.h"
 
-SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) {
+SPHOptions initializeSPHOptions(pkd_parameters &parameters, struct parameters param, CSM csm, double dTime) {
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = param.fKernelTarget;
     SPHoptions.epsilon = 0.01f;
@@ -42,7 +43,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     else {
         SPHoptions.VelocityDamper = 0.0f;
     }
-    SPHoptions.nSmooth = param.nSmooth;
+    SPHoptions.nSmooth = parameters.get_nSmooth();
     SPHoptions.ballSizeLimit = param.dBallSizeLimit;
     SPHoptions.fBallFactor = 1.1f;
     SPHoptions.dKpcUnit = param.units.dKpcUnit;

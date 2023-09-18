@@ -28,20 +28,12 @@ struct parameters {
     ** Parameters for PKDGRAV.
     */
     int bAccelStep; /* true if bEpsAccStep */
+
     int bDoRungOutput;
     int bDoRungDestOutput;
     int bDoGravity;
-    int iStartStep;
-    int nSteps;
-    int nSteps10;
-    int nSmooth;
-    int iMaxRung;
+
     int bDualTree;
-    int nTreeBitsLo;
-    int nTreeBitsHi;
-    int iWallRunTime;
-    int iSignalSeconds;
-    int bSoftMaxMul;
     int bDoSoftOutput;
     int bDoAccOutput;
     int bDoPotOutput;
@@ -116,9 +108,7 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int nMinMembers;
     double dHopTau;
-    double dTau;
     /*
     ** Parameters for group stats.
     */

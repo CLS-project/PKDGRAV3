@@ -444,6 +444,7 @@ help="restart from checkpoint"
 
 ["I/O Parameters".lstOrbits]
 flag="orbit"
+type=0
 default=[]
 help="Particle ID of particle to write to orbit file (repeatable)"
 

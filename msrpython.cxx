@@ -595,7 +595,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         return NULL;
     if (onlyMarked) iRoot2 = FIXROOT;
 
-    SPHOptions SPHoptions = initializeSPHOptions(msr->param,msr->csm,dTime);
+    SPHOptions SPHoptions = initializeSPHOptions(msr->parameters,msr->param,msr->csm,dTime);
     SPHoptions.doGravity = msr->param.bDoGravity;
     uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,bKickClose,bKickOpen,bEwald,
                                     msr->parameters.get_bGravStep(), msr->parameters.get_nPartRhoLoc(),
@@ -614,7 +614,7 @@ ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int bResmooth = 0;
     double dTime = 0.0;
     double dDelta = 0.0;
-    int nSmooth = self->msr->param.nSmooth;
+    int nSmooth = self->msr->parameters.get_nSmooth();
 
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "i|ipddp:Smooth", const_cast<char **>(kwlist),

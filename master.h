@@ -361,7 +361,7 @@ protected:
         return parameters.get_dEta();
     }
     int MaxRung()         const {
-        return param.iMaxRung;
+        return parameters.get_iMaxRung();
     }
     int Comove()          const {
         return csm->val.bComove;
