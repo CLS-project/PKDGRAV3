@@ -24,7 +24,7 @@ public:
         double dBoxSize;
         double dRedshiftLCP;
         double alphaLCP;
-        double hLCP[3];
+        blitz::TinyVector<double,3> hLCP;
     };
     typedef void output;
     explicit ServiceInitLightcone(PST pst)

@@ -47,9 +47,6 @@ struct parameters {
     double dRedshiftLCP;
     int nSideHealpix;
     int bBowtie;
-    double hxLCP;
-    double hyLCP;
-    double hzLCP;
     double sqdegLCP;
     /* BEGIN Gas Parameters */
     int bGasAdiabatic;
@@ -57,8 +54,6 @@ struct parameters {
     int bGasIsothermal;
     int bNewKDK;
 #define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
-    int nOutputParticles;
-    uint64_t iOutputParticles[GET_PARTICLES_MAX];
     double dEtaCourant;
     double dConstAlpha;
     double dConstBeta;
@@ -87,10 +82,6 @@ struct parameters {
     double dDelta;
     double dEwCut;
     double dEwhCut;
-    double dPeriod;
-    double dxPeriod;
-    double dyPeriod;
-    double dzPeriod;
     double dPreFacRhoLoc;
     double dEccFacMax;
     double dRedTo;

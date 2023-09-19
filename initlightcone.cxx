@@ -18,8 +18,8 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceInitLightcone::input>()  || std::is_trivial<ServiceInitLightcone::input>());
-static_assert(std::is_void<ServiceInitLightcone::output>() || std::is_trivial<ServiceInitLightcone::output>());
+static_assert(std::is_void<ServiceInitLightcone::input>()  || std::is_standard_layout<ServiceInitLightcone::input>());
+static_assert(std::is_void<ServiceInitLightcone::output>() || std::is_standard_layout<ServiceInitLightcone::output>());
 
 int ServiceInitLightcone::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<input *>(vin);

@@ -162,7 +162,7 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
 }
 
 
-static void initLightConeOffsets(PKD pkd,int bBowtie,double h[3],double alpha,double mrLCP) {
+static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3> h,double alpha,double mrLCP) {
     int l,ix,iy,iz,nBox,nBoxMax;
     int *xy;
     int *xz;
@@ -2514,7 +2514,7 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
 /*
 ** Initialize Lightcone stuff.
 */
-void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP) {
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP) {
 #ifdef __linux__
     uint64_t nPageSize = sysconf(_SC_PAGESIZE);
 #else

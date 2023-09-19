@@ -624,37 +624,20 @@ int MSR::ValidateParameters() {
         return 0;
     }
     /*
-    ** Determine the period of the box that we are using.
-    ** Set the new d[xyz]Period parameters which are now used instead
-    ** of a single dPeriod, but we still want to have compatibility
-    ** with the old method of setting dPeriod.
-    */
-    if (prmSpecified(prm,"dPeriod") &&
-            !prmSpecified(prm,"dxPeriod")) {
-        param.dxPeriod = param.dPeriod;
-    }
-    if (prmSpecified(prm,"dPeriod") &&
-            !prmSpecified(prm,"dyPeriod")) {
-        param.dyPeriod = param.dPeriod;
-    }
-    if (prmSpecified(prm,"dPeriod") &&
-            !prmSpecified(prm,"dzPeriod")) {
-        param.dzPeriod = param.dPeriod;
-    }
-    /*
     ** Periodic boundary conditions can be disabled along any of the
     ** x,y,z axes by specifying a period of zero for the given axis.
     ** Internally, the period is set to infinity (Cf. pkdBucketWalk()
     ** and pkdDrift(); also the INTERSECT() macro in smooth.h).
     */
-    if (param.dPeriod  == 0) param.dPeriod  = FLOAT_MAXVAL;
-    if (param.dxPeriod == 0) param.dxPeriod = FLOAT_MAXVAL;
-    if (param.dyPeriod == 0) param.dyPeriod = FLOAT_MAXVAL;
-    if (param.dzPeriod == 0) param.dzPeriod = FLOAT_MAXVAL;
+    auto period = parameters.get_dPeriod();
+    if (period[0] == 0) period[0] = FLOAT_MAXVAL;
+    if (period[1] == 0) period[1] = FLOAT_MAXVAL;
+    if (period[2] == 0) period[2] = FLOAT_MAXVAL;
+    parameters.set_dPeriod(period);
     /*
     ** At the moment, integer positions are only really safe in periodic boxes!Wr
     */
-    if (parameters.get_bMemIntegerPosition() && (!parameters.get_bPeriodic()||param.dxPeriod!=1.0||param.dyPeriod!=1.0||param.dzPeriod!=1.0)) {
+    if (parameters.get_bMemIntegerPosition() && (!parameters.get_bPeriodic()||blitz::any(period!=1.0))) {
         fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
                 "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
     }

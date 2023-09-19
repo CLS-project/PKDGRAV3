@@ -402,7 +402,7 @@ protected:
     void GetNParts();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
-    int GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out);
+    int GetParticles(std::vector<std::int64_t> & particle_ids, struct outGetParticles *out);
     void OutputOrbits(int iStep,double dTime);
     double TotalMass();
     void LightConeOpen(int iStep);

@@ -347,9 +347,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.iCacheSize  = param.iCacheSize;
     ps.iCacheMaxInflight = param.iCacheMaxInflight;
     ps.iWorkQueueSize  = param.iWorkQueueSize;
-    ps.fPeriod[0] = param.dxPeriod;
-    ps.fPeriod[1] = param.dyPeriod;
-    ps.fPeriod[2] = param.dzPeriod;
+    ps.fPeriod = parameters.get_dPeriod();
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
@@ -890,18 +888,6 @@ void MSR::Initialize() {
     param.dEwhCut = 2.8;
     prmAddParam(prm,"dEwhCut",2,&param.dEwhCut,sizeof(double),"ewh",
                 "<dEwhCut> = 2.8");
-    param.dPeriod = 1.0;
-    prmAddParam(prm,"dPeriod",2,&param.dPeriod,sizeof(double),"L",
-                "<periodic box length> = 1.0");
-    param.dxPeriod = 1.0;
-    prmAddParam(prm,"dxPeriod",2,&param.dxPeriod,sizeof(double),"Lx",
-                "<periodic box length in x-dimension> = 1.0");
-    param.dyPeriod = 1.0;
-    prmAddParam(prm,"dyPeriod",2,&param.dyPeriod,sizeof(double),"Ly",
-                "<periodic box length in y-dimension> = 1.0");
-    param.dzPeriod = 1.0;
-    prmAddParam(prm,"dzPeriod",2,&param.dzPeriod,sizeof(double),"Lz",
-                "<periodic box length in z-dimension> = 1.0");
     strcpy(param.achOutPath,"");
     prmAddParam(prm,"achOutPath",3,param.achOutPath,256,"op",
                 "<output path for snapshots and logfile> = \"\"");
@@ -997,15 +983,6 @@ void MSR::Initialize() {
     param.dRedshiftLCP = 0;
     prmAddParam(prm,"dRedshiftLCP",2,&param.dRedshiftLCP,sizeof(double),"zlcp",
                 "starting redshift to output light cone particles = 0");
-    param.hxLCP = 0.749;
-    prmAddParam(prm,"hxLCP",2,&param.hxLCP,sizeof(double),"hx",
-                "x-component of lightcone direction vector = 0.749");
-    param.hyLCP = 0.454;
-    prmAddParam(prm,"hyLCP",2,&param.hyLCP,sizeof(double),"hy",
-                "y-component of lightcone direction vector = 0.454");
-    param.hzLCP = 1;
-    prmAddParam(prm,"hzLCP",2,&param.hzLCP,sizeof(double),"hz",
-                "z-component of lightcone direction vector = 1");
     param.sqdegLCP = 50.0;
     prmAddParam(prm,"sqdegLCP",2,&param.sqdegLCP,sizeof(double),"sqdeg",
                 "square degrees of lightcone = 50.0 (opening angle of nearly 4 deg)");
@@ -1197,8 +1174,6 @@ void MSR::Initialize() {
                 sizeof(int),"bGasDoExtensiveILPTest",
                 "<Do extensive ILP test> = +bGasDoExtensiveILPTest");
     /* END Gas/Star Parameters */
-    param.nOutputParticles = 0;
-    prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);
     param.bAccelStep = 0;
 
     /* New params added by IA for the hydrodynamics */
@@ -1802,13 +1777,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," nBins: %d",param.nBins);
     fprintf(fp," bLogBins: %d",param.bLogBins);
     fprintf(fp," dTheta: %f",param.dTheta);
-    fprintf(fp,"\n# dPeriod: %g",param.dPeriod);
-    fprintf(fp," dxPeriod: %g",
-            param.dxPeriod >= FLOAT_MAXVAL ? 0 : param.dxPeriod);
-    fprintf(fp," dyPeriod: %g",
-            param.dyPeriod >= FLOAT_MAXVAL ? 0 : param.dyPeriod);
-    fprintf(fp," dzPeriod: %g",
-            param.dzPeriod >= FLOAT_MAXVAL ? 0 : param.dzPeriod);
     fprintf(fp,"\n# dHubble0: %g",csm->val.dHubble0);
     fprintf(fp," dOmega0: %g",csm->val.dOmega0);
     fprintf(fp," dLambda: %g",csm->val.dLambda);
@@ -2073,11 +2041,9 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     }
 
     /* We need to enforce periodic boundaries (when applicable) */
-    if (parameters.get_bPeriodic() &&
-            param.dxPeriod < FLOAT_MAXVAL &&
-            param.dyPeriod < FLOAT_MAXVAL &&
-            param.dzPeriod < FLOAT_MAXVAL) {
-        Bound::coord_type offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
+    auto period = parameters.get_dPeriod();
+    if (parameters.get_bPeriodic() && blitz::all(period < FLOAT_MAXVAL)) {
+        Bound::coord_type offset(0.5*period);
         in.bnd = Bound(fCenter-offset,fCenter+offset);
     }
     else {
@@ -2391,11 +2357,9 @@ void MSR::DomainDecompOld(int iRung) {
     ** three dimensions then we can set the initial bounds
     ** instead of calculating them.
     */
-    if (parameters.get_bPeriodic() &&
-            param.dxPeriod < FLOAT_MAXVAL &&
-            param.dyPeriod < FLOAT_MAXVAL &&
-            param.dzPeriod < FLOAT_MAXVAL) {
-        Bound::coord_type offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
+    auto period = parameters.get_dPeriod();
+    if (parameters.get_bPeriodic() && blitz::all(period < FLOAT_MAXVAL)) {
+        Bound::coord_type offset(0.5*period);
         in.bnd = Bound(fCenter-offset,fCenter+offset);
         mdl->RunService(PST_ENFORCEPERIODIC,sizeof(in.bnd),&in.bnd);
     }
@@ -3145,9 +3109,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         in.lc.dLookbackFac = 0.0;
         in.lc.dLookbackFacLCP = 0.0;
     }
-    in.lc.hLCP[0] = param.hxLCP;
-    in.lc.hLCP[1] = param.hyLCP;
-    in.lc.hLCP[2] = param.hzLCP;
+    in.lc.hLCP = parameters.get_hLCP();
 
     /*
     ** Note that in this loop we initialize dt with the full step, not a half step!
@@ -3538,9 +3500,7 @@ void MSR::InitCosmology(CSM csm) {
         in.bLightConeParticles = param.bLightConeParticles;
         in.dBoxSize = parameters.get_dBoxSize();
         in.dRedshiftLCP = param.dRedshiftLCP;
-        in.hLCP[0] = param.hxLCP;
-        in.hLCP[1] = param.hyLCP;
-        in.hLCP[2] = param.hzLCP;
+        in.hLCP = parameters.get_hLCP();
         mdl->RunService(PST_INITLIGHTCONE,sizeof(in),&in);
     }
 }
@@ -4533,9 +4493,7 @@ void MSR::Hop(double dTime, double dDelta) {
         printf("Chain merge complete in %f secs, %" PRIu64 " groups\n",dsec,nGroups);
     inFinish.nMinGroupSize = parameters.get_nMinMembers();
     inFinish.bPeriodic = parameters.get_bPeriodic();
-    inFinish.fPeriod[0] = param.dxPeriod;
-    inFinish.fPeriod[1] = param.dyPeriod;
-    inFinish.fPeriod[2] = param.dzPeriod;
+    inFinish.fPeriod = parameters.get_dPeriod();
     pstHopFinishUp(pst,&inFinish,sizeof(inFinish),&nGroups,sizeof(nGroups));
     if (parameters.get_bVStep())
         printf("Removed groups with fewer than %d particles, %" PRIu64 " remain\n",
@@ -4547,9 +4505,7 @@ void MSR::Hop(double dTime, double dDelta) {
     struct inHopUnbind inUnbind;
     inUnbind.dTime = dTime;
     inUnbind.bPeriodic = parameters.get_bPeriodic();
-    inUnbind.fPeriod[0] = param.dxPeriod;
-    inUnbind.fPeriod[1] = param.dyPeriod;
-    inUnbind.fPeriod[2] = param.dzPeriod;
+    inUnbind.fPeriod = parameters.get_dPeriod();
     inUnbind.nMinGroupSize = parameters.get_nMinMembers();
     inUnbind.iIteration = 0;
     struct inHopGravity inGravity;
@@ -4593,9 +4549,7 @@ void MSR::Hop(double dTime, double dDelta) {
     ** This should be done as a separate msr function.
     */
     inGroupStats.bPeriodic = parameters.get_bPeriodic();
-    inGroupStats.dPeriod[0] = param.dxPeriod;
-    inGroupStats.dPeriod[1] = param.dyPeriod;
-    inGroupStats.dPeriod[2] = param.dzPeriod;
+    inGroupStats.dPeriod = parameters.get_dPeriod();
     inGroupStats.rEnvironment[0] = param.dEnvironment0;
     inGroupStats.rEnvironment[1] = param.dEnvironment1;
     inGroupStats.iGlobalStart = 1; /* global id 0 means ungrouped particle on all cpus */
@@ -4673,9 +4627,7 @@ void MSR::GroupStats() {
         printf("Generating Group statistics\n");
     TimerStart(TIMER_FOF);
     inGroupStats.bPeriodic = parameters.get_bPeriodic();
-    inGroupStats.dPeriod[0] = param.dxPeriod;
-    inGroupStats.dPeriod[1] = param.dyPeriod;
-    inGroupStats.dPeriod[2] = param.dzPeriod;
+    inGroupStats.dPeriod = parameters.get_dPeriod();
     inGroupStats.rEnvironment[0] = param.dEnvironment0;
     inGroupStats.rEnvironment[1] = param.dEnvironment1;
     inGroupStats.iGlobalStart = 1; /* global id 0 means ungrouped particle on all cpus */
@@ -4955,10 +4907,8 @@ double MSR::Read(std::string_view achInFile) {
     ** If this is a non-periodic box, then we must precalculate the bounds.
     ** We throw away the result, but PKD will keep track for later.
     */
-    if (!parameters.get_bPeriodic() ||
-            param.dxPeriod >= FLOAT_MAXVAL ||
-            param.dyPeriod >= FLOAT_MAXVAL ||
-            param.dzPeriod >= FLOAT_MAXVAL) {
+    auto period = parameters.get_dPeriod();
+    if (!parameters.get_bPeriodic() || blitz::any(period >= FLOAT_MAXVAL)) {
         CalcBound();
     }
 
@@ -5945,16 +5895,16 @@ void MSR::LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen)
 }
 #endif
 
-int MSR::GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out) {
+int MSR::GetParticles(std::vector<std::int64_t> & particle_ids, struct outGetParticles *out) {
     int nOut;
-    nOut = pstGetParticles(pst, ID, sizeof(uint64_t)*nIn, out, nIn*sizeof(struct outGetParticles));
+    nOut = pstGetParticles(pst, particle_ids.data(), sizeof(uint64_t)*particle_ids.size(), out, particle_ids.size()*sizeof(struct outGetParticles));
     return nOut / sizeof(struct outGetParticles);
 }
 
 void MSR::OutputOrbits(int iStep,double dTime) {
     int i;
 
-    if (param.nOutputParticles) {
+    if (parameters.has_lstOrbits()) {
         struct outGetParticles particles[GET_PARTICLES_MAX];
         double dExp, dvFac;
 
@@ -5967,7 +5917,8 @@ void MSR::OutputOrbits(int iStep,double dTime) {
             dvFac = 1.0;
         }
 
-        GetParticles(param.nOutputParticles,param.iOutputParticles,particles);
+        auto particle_ids = parameters.get_lstOrbits();
+        GetParticles(particle_ids,particles);
 
         auto filename = BuildName(iStep,".orb");
         std::ofstream fs(filename);
@@ -5976,8 +5927,8 @@ void MSR::OutputOrbits(int iStep,double dTime) {
             perror(filename.c_str());
             Exit(errno);
         }
-        fmt::print(fs,"{n} {a}\n","n"_a=param.nOutputParticles, "a"_a=dExp);
-        for (i=0; i<param.nOutputParticles; ++i) {
+        fmt::print(fs,"{n} {a}\n","n"_a=particle_ids.size(), "a"_a=dExp);
+        for (i=0; i<particle_ids.size(); ++i) {
             fmt::print(fs,"{id} {mass:.8e} {x:.16e} {y:.16e} {z:.16e} {vx:.8e} {vy:.8e} {vz:.8e} {phi:.8e}\n",
                        "id"_a=particles[i].id, "mass"_a=particles[i].mass, "phi"_a=particles[i].phi,
                        "x"_a=particles[i].r[0], "y"_a=particles[i].r[1], "z"_a=particles[i].r[2],

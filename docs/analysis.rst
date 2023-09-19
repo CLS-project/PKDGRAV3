@@ -50,7 +50,7 @@ The code can output light cone data as either healpix maps, or raw particle data
 Parameters
 ==========
 
-.. show_parameters:: bLightCone dRedshiftLCP nSideHealpix bLightConeParticles bBowtie sqdegLCP hxLCP hyLCP hzLCP
+.. show_parameters:: bLightCone dRedshiftLCP nSideHealpix bLightConeParticles bBowtie sqdegLCP hLCP
 
 
 Output

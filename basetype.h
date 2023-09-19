@@ -142,7 +142,7 @@ struct pkdLightconeParameters {
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
     double dLookbackFacLCP;
-    double hLCP[3];
+    blitz::TinyVector<double,3> hLCP;
     double tanalpha_2;
     double dBoxSize;
     int bLightConeParticles;
