@@ -56,7 +56,9 @@ inline static dtype polytropicEnergyFloor(dtype a_inv3, dtype fDens, dtype dCons
         struct eEOSparam eEOS) {
     mtype mask = fDens > eEOS.dPolyFloorMinOD;
     if (movemask(mask)) {
-        dtype eeos = eEOS.dPolyFlooru * pow( fDens*a_inv3/(dtype)eEOS.dPolyFloorDen, (dtype)eEOS.dPolyFloorExponent );
+        dtype eeos = eEOS.dPolyFlooru *
+                     pow( fDens*a_inv3/static_cast<dtype>(eEOS.dPolyFloorDen),
+                          static_cast<dtype>(eEOS.dPolyFloorExponent) );
         return mask_mov( NOT_IN_EEOS, mask, eeos);
     }
     else {
