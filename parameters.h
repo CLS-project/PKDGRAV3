@@ -41,13 +41,8 @@ struct parameters {
     int iCacheMaxInflight;
     int iWorkQueueSize;
     int bAddDelete;
-    int bLightCone;
-    int bLightConeParticles;
     int bInFileLC;
-    double dRedshiftLCP;
     int nSideHealpix;
-    int bBowtie;
-    double sqdegLCP;
     /* BEGIN Gas Parameters */
     int bGasAdiabatic;
     int bGasIsentropic;
@@ -267,18 +262,6 @@ struct parameters {
     double dIMFMaxMass;
     double dCCSNMinMass;
     double dCCSNMaxMass;
-#endif
-
-#ifdef MDL_FFTW
-    int nGridPk;
-    int bPkInterlace;
-    int iPkOrder;
-    int nBinsPk;
-    int nGridLin;
-    int bDoLinPkOutput;
-    int nBinsLinPk;
-    int iDeltakInterval;
-    double dDeltakRedshift;
 #endif
 };
 

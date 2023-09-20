@@ -193,7 +193,10 @@ int pstGridBinK(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(struct outGridBinK);
 }
 
-void MSR::GridBinK(int nBins, int iGrid,uint64_t *nPk,float *fK,float *fPk) {
+std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
+MSR::GridBinK(int nBins, int iGrid) {
+    std::vector<uint64_t> nPk(nBins);
+    std::vector<float> fK(nBins), fPk(nBins);
     struct inGridBinK in;
     auto out = new struct outGridBinK;
     in.nBins = nBins;
@@ -201,17 +204,17 @@ void MSR::GridBinK(int nBins, int iGrid,uint64_t *nPk,float *fK,float *fPk) {
 
     assert(sizeof(out->nPower)/sizeof(out->nPower[0])>nBins);
 
-#if 1
     pstGridBinK(pst, &in, sizeof(in), out, sizeof(*out));
     for ( int i=0; i<nBins; i++ ) {
         if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
         else {
-            if (nPk) nPk[i] = out->nPower[i];
+            nPk[i] = out->nPower[i];
             fK[i] = exp(out->fK[i]/out->nPower[i]);
             fPk[i] = out->fPower[i]/out->nPower[i];
         }
     }
-#endif
-    /* At this point, dPk[] needs to be corrected by the box size */
     delete out;
+
+    /* At this point, dPk[] needs to be corrected by the box size */
+    return {nPk,fK,fPk};
 }

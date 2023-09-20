@@ -134,7 +134,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
 
     TimerHeader();
 
-    if (param.bLightCone && Comove()) {
+    if (parameters.get_bLightCone() && Comove()) {
         auto dBoxSize = parameters.get_dBoxSize();
         printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
                1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*dBoxSize)) - 1.0,
@@ -188,7 +188,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     BuildTree(bEwald);
     runAnalysis(iStartStep,dTime); // Run any registered Python analysis tasks
     OutputOrbits(iStartStep,dTime);
-    if (param.nGridPk>0) OutputPk(iStartStep,dTime);
+    if (parameters.get_nGridPk()>0) OutputPk(iStartStep,dTime);
 
     int bKickOpen, bKickClose=0;
     uint8_t uRungMax;
@@ -202,10 +202,11 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     else bKickOpen = 0;
     if (DoGravity()) {
         /* Compute the grids of the linear species before doing gravity */
-        if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {
-            GridCreateFFT(param.nGridLin);
-            SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
-            if (param.bDoLinPkOutput)
+        auto nGridLin = parameters.get_nGridLin();
+        if (csm->val.classData.bClass && strlen(param.achLinSpecies) && nGridLin > 0) {
+            GridCreateFFT(nGridLin);
+            SetLinGrid(dTime,dDelta,nGridLin,bKickClose,bKickOpen);
+            if (parameters.get_bDoLinPkOutput())
                 OutputLinPk( iStartStep, dTime);
             LinearKick(dTime,dDelta,bKickClose,bKickOpen);
             GridDeleteFFT();
@@ -347,10 +348,11 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 }
                 /* Set the grids of the linear species */
-                if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {
-                    GridCreateFFT(param.nGridLin);
-                    SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
-                    if (param.bDoLinPkOutput)
+                auto nGridLin = parameters.get_nGridLin();
+                if (csm->val.classData.bClass && strlen(param.achLinSpecies) && nGridLin > 0) {
+                    GridCreateFFT(nGridLin);
+                    SetLinGrid(dTime,dDelta,nGridLin,bKickClose,bKickOpen);
+                    if (parameters.get_bDoLinPkOutput())
                         OutputLinPk( iStartStep, dTime);
                     LinearKick(dTime,dDelta,bKickClose,bKickOpen);
                     GridDeleteFFT();
@@ -514,17 +516,12 @@ int MSR::ValidateParameters() {
 #endif
 
 #ifdef MDL_FFTW
-    if ( param.nGridPk ) {
-        if (prmSpecified(prm,"nBinsPk")) {
-            if (param.nBinsPk > param.nGridPk/2) {
-                param.nBinsPk = param.nGridPk/2;
-            }
-        }
-        else param.nBinsPk = param.nGridPk/2;
-        if (param.nBinsPk > PST_MAX_K_BINS)
-            param.nBinsPk = PST_MAX_K_BINS;
+    auto nGridPk = parameters.get_nGridPk();
+    if ( nGridPk ) {
+        parameters.set_nBinsPk(std::min(parameters.has_nBinsPk() ? parameters.get_nBinsPk() : PST_MAX_K_BINS, nGridPk/2));
     }
-    if (param.iPkOrder<1 || param.iPkOrder>4) {
+    auto iPkOrder = parameters.get_iPkOrder();
+    if (iPkOrder<1 || iPkOrder>4) {
         puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
         return 0;
     }
@@ -567,12 +564,6 @@ int MSR::ValidateParameters() {
         if ( !prmSpecified(prm,"h") ) {
             fprintf(stderr, "WARNING: Running with bComove without specifying a Hubble parameter, h\n");
         }
-    }
-    /* Set the number of bins for the power spectrum measurement of linear species */
-    if (param.nGridLin > 0) {
-        param.nBinsLinPk = param.nGridLin/2;
-        if (param.nBinsLinPk > PST_MAX_K_BINS)
-            param.nBinsLinPk = PST_MAX_K_BINS;
     }
 #endif
     if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice) param.dFracNoDomainRootFind = param.dFracNoDomainDimChoice;
@@ -716,7 +707,7 @@ int MSR::ValidateParameters() {
         free(achPkSpecies);
         csmClassGslInitialize(csm);
     }
-    if (strlen(param.achLinSpecies) && param.nGridLin == 0) {
+    if (strlen(param.achLinSpecies) && parameters.get_nGridLin() == 0) {
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
     }

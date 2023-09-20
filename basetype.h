@@ -89,7 +89,6 @@ typedef struct {
     float corrT, corrP, corr;
 } PINFOOUT;
 
-
 #if defined(USE_SIMD)
     typedef float ewaldFloatType;
 #else
@@ -249,7 +248,6 @@ struct inStarForm {
 
 };
 #endif
-
 
 /*
 ** Accumulates the work for a set of particles

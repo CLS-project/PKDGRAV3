@@ -376,13 +376,14 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     if (ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
 #endif
 #ifdef MDL_FFTW
-    if (param.nGridPk>0) {
+    auto nGridPk = parameters.get_nGridPk();
+    if (nGridPk>0) {
         struct inGetFFTMaxSizes inFFTSizes;
         struct outGetFFTMaxSizes outFFTSizes;
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = param.nGridPk;
+        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGridPk;
         pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
         /* The new MeasurePk requires two FFTs to eliminate aliasing */
-        ps.nMinEphemeral = (param.bPkInterlace?2:1)*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+        ps.nMinEphemeral = (parameters.get_bPkInterlace()?2:1)*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
     }
     /*
      * Add some ephemeral memory (if needed) for the linGrid.
@@ -392,7 +393,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
         struct inGetFFTMaxSizes inFFTSizes;
         struct outGetFFTMaxSizes outFFTSizes;
 
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = param.nGridLin;
+        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = parameters.get_nGridLin();
         pstGetFFTMaxSizes(pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, sizeof(outFFTSizes));
 
         if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
@@ -849,12 +850,6 @@ void MSR::Initialize() {
     ** Now setup for the input parameters.
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
-    param.iDeltakInterval = 0;
-    prmAddParam(prm,"iDeltakInterval",1,&param.iDeltakInterval,sizeof(int),
-                "odk","<number of timesteps between DeltaK outputs> = 0 (off)");
-    param.dDeltakRedshift = 2.0;
-    prmAddParam(prm,"dDeltakRedshift",2,&param.dDeltakRedshift,sizeof(double),"zdel",
-                "starting redshift to output delta(k) field = 2.0");
     param.bDoSoftOutput = 0;
     prmAddParam(prm,"bDoSoftOutput",0,&param.bDoSoftOutput,sizeof(int),
                 "softout","enable/disable soft outputs = -softout");
@@ -964,28 +959,13 @@ void MSR::Initialize() {
     param.iWorkQueueSize = 0;
     prmAddParam(prm,"iWorkQueueSize",1,&param.iWorkQueueSize,sizeof(int),"wqs",
                 "<size of the MDL work queue> = 0");
-    param.bLightCone = 0;
-    prmAddParam(prm,"bLightCone",0,&param.bLightCone,sizeof(int),"lc",
-                "output light cone data = -lc");
     param.nSideHealpix = 0;
     prmAddParam(prm,"nSideHealpix",1,&param.nSideHealpix,
                 sizeof(int),"healpix",
                 "<Number per side of the healpix map> = 0 (default:no healpix maps)");
-    param.bLightConeParticles = 0;
-    prmAddParam(prm,"bLightConeParticles",0,&param.bLightConeParticles,sizeof(int),"lcp",
-                "output light cone particles = -lcp");
     param.bInFileLC = 0;
     prmAddParam(prm,"bInFileLC",0,&param.bInFileLC,sizeof(int),"lcin",
                 "input light cone data = -lcin");
-    param.bBowtie = 0;
-    prmAddParam(prm,"bBowtie",0,&param.bBowtie,sizeof(int),"bbt",
-                "output +++ and --- octants of the cone; a bowtie = 0");
-    param.dRedshiftLCP = 0;
-    prmAddParam(prm,"dRedshiftLCP",2,&param.dRedshiftLCP,sizeof(double),"zlcp",
-                "starting redshift to output light cone particles = 0");
-    param.sqdegLCP = 50.0;
-    prmAddParam(prm,"sqdegLCP",2,&param.sqdegLCP,sizeof(double),"sqdeg",
-                "square degrees of lightcone = 50.0 (opening angle of nearly 4 deg)");
     param.dRedTo = 0.0;
     prmAddParam(prm,"dRedTo",2,&param.dRedTo,sizeof(double),"zto",
                 "specifies final redshift for the simulation");
@@ -1017,27 +997,6 @@ void MSR::Initialize() {
     param.dEnvironment1 = -1.0;
     prmAddParam(prm,"dEnvironment1",2,&param.dEnvironment1,sizeof(double),"dEnv1",
                 "<second radius for density environment about a group> = -1.0 (disabled)");
-
-#ifdef MDL_FFTW
-    param.nBinsPk = 0;
-    prmAddParam(prm,"nBinsPk",1,&param.nBinsPk,
-                sizeof(int),"npk","<Number of log bins for P(k)> = nGridPk/2");
-    param.nGridPk = 0;
-    prmAddParam(prm,"nGridPk",1,&param.nGridPk,
-                sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
-    param.bPkInterlace = 1;
-    prmAddParam(prm,"bPkInterlace",0,&param.bPkInterlace,
-                sizeof(int),"pkinterlace","<Use interlacing to measure P(k)> = +pkinterlace");
-    param.iPkOrder = 4;
-    prmAddParam(prm,"iPkOrder",1,&param.iPkOrder,
-                sizeof(int),"pko","<Mass assignment order for measuring P(k) = 3");
-    param.nGridLin = 0;
-    prmAddParam(prm, "nGridLin", 1, &param.nGridLin,
-                sizeof(int), "lingrid", "<Grid size for linear species 0=disabled> =0");
-    param.bDoLinPkOutput = 0;
-    prmAddParam(prm, "bDoLinPkOutput", 0, &param.bDoLinPkOutput,
-                sizeof(int), "linPk", "<enable/disable power spectrum output for linear species> = 0");
-#endif
 
     /* IC Generation */
     csm->val.classData.bClass = 0;
@@ -3091,17 +3050,18 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 
     CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
 
-    in.lc.bLightConeParticles = param.bLightConeParticles;
+    in.lc.bLightConeParticles = parameters.get_bLightConeParticles();
     in.lc.dBoxSize = parameters.get_dBoxSize();
-    if (param.bLightCone) {
+    if (parameters.get_bLightCone()) {
         in.lc.dLookbackFac = csmComoveKickFac(csm,dTime,(csmExp2Time(csm,1.0) - dTime));
-        dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
+        dTimeLCP = csmExp2Time(csm,1.0/(1.0+parameters.get_dRedshiftLCP()));
         in.lc.dLookbackFacLCP = csmComoveKickFac(csm,dTimeLCP,(csmExp2Time(csm,1.0) - dTimeLCP));
-        if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
+        auto sqdegLCP = parameters.get_sqdegLCP();
+        if (sqdegLCP <= 0 || sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
             in.lc.tanalpha_2 = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
         }
         else {
-            double alpha = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
+            double alpha = sqrt(sqdegLCP*M_1_PI)*(M_PI/180.0);
             in.lc.tanalpha_2 = tan(0.5*alpha);  // it is tangent of the half angle that we actually need!
         }
     }
@@ -3489,17 +3449,18 @@ void MSR::InitCosmology(CSM csm) {
     ServiceInitLightcone::input in;
     if (parameters.has_h()) csm->val.h = parameters.get_h();
     mdl->RunService(PST_INITCOSMOLOGY,sizeof(csm->val),&csm->val);
-    if (param.bLightCone) {
-        if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
+    if (parameters.get_bLightCone()) {
+        auto sqdegLCP = parameters.get_sqdegLCP();
+        if (sqdegLCP <= 0 || sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
             in.alphaLCP = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
         }
         else {
-            in.alphaLCP = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
+            in.alphaLCP = sqrt(sqdegLCP*M_1_PI)*(M_PI/180.0);
         }
-        in.bBowtie = param.bBowtie;
-        in.bLightConeParticles = param.bLightConeParticles;
+        in.bBowtie = parameters.get_bBowtie();
+        in.bLightConeParticles = parameters.get_bLightConeParticles();
         in.dBoxSize = parameters.get_dBoxSize();
-        in.dRedshiftLCP = param.dRedshiftLCP;
+        in.dRedshiftLCP = parameters.get_dRedshiftLCP();
         in.hLCP = parameters.get_hLCP();
         mdl->RunService(PST_INITLIGHTCONE,sizeof(in),&in);
     }
@@ -3670,9 +3631,9 @@ void MSR::UpdateRung(uint8_t uRung) {
  ** Open the healpix output file, and also the particles files if requested.
  */
 void MSR::LightConeOpen(int iStep) {
-    if (param.bLightCone) {
+    if (parameters.get_bLightCone()) {
         struct inLightConeOpen lc;
-        if (param.bLightConeParticles ) {
+        if (parameters.get_bLightConeParticles() ) {
             auto filename = BuildName(iStep);
             strcpy(lc.achOutFile,filename.c_str());
         }
@@ -3686,7 +3647,7 @@ void MSR::LightConeOpen(int iStep) {
  ** Close the files for this step.
  */
 void MSR::LightConeClose(int iStep) {
-    if (param.bLightCone) {
+    if (parameters.get_bLightCone()) {
         struct inLightConeClose lc;
         auto filename = BuildName(iStep);
         strcpy(lc.achOutFile,filename.c_str());
@@ -3926,10 +3887,11 @@ int MSR::NewTopStepKDK(
         if (bKickOpen) LightConeOpen(iStep+1);
 
         /* Compute the grids of linear species at main timesteps, before gravity is called */
-        if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin) {
-            GridCreateFFT(param.nGridLin);
-            SetLinGrid(dTime,dDelta,param.nGridLin,1,bKickOpen);
-            if (param.bDoLinPkOutput)
+        auto nGridLin = parameters.get_nGridLin();
+        if (csm->val.classData.bClass && strlen(param.achLinSpecies) && nGridLin) {
+            GridCreateFFT(nGridLin);
+            SetLinGrid(dTime,dDelta,nGridLin,1,bKickOpen);
+            if (parameters.get_bDoLinPkOutput())
                 OutputLinPk( *pdStep, dTime);
             LinearKick(dTime,dDelta,1,bKickOpen);
             GridDeleteFFT();
@@ -5035,17 +4997,15 @@ void MSR::OutputPk(int iStep,double dTime) {
     std::string filename;
     int i;
 
-    if (param.nGridPk == 0) return;
+    auto nGridPk = parameters.get_nGridPk();
+    if (nGridPk == 0) return;
 
-    std::unique_ptr<float[]>    fK    {new float[param.nBinsPk]};
-    std::unique_ptr<float[]>    fPk   {new float[param.nBinsPk]};
-    std::unique_ptr<float[]>    fPkAll{new float[param.nBinsPk]};
-    std::unique_ptr<uint64_t[]> nPk   {new uint64_t[param.nBinsPk]};
+    auto nBinsPk = parameters.get_nBinsPk();
 
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
 
-    MeasurePk(param.iPkOrder,param.bPkInterlace,param.nGridPk,a,param.nBinsPk,nPk.get(),fK.get(),fPk.get(),fPkAll.get());
+    auto [nPk,fK,fPk,fPkAll] = MeasurePk(parameters.get_iPkOrder(),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk);
 
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( parameters.has_dBoxSize() && parameters.get_dBoxSize() > 0.0 ) kfact = parameters.get_dBoxSize();
@@ -5062,7 +5022,7 @@ void MSR::OutputPk(int iStep,double dTime) {
     }
     fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = param.achPkSpecies);
     fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
-    for (i=0; i<param.nBinsPk; ++i) {
+    for (i=0; i<nBinsPk; ++i) {
         if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
                                          "k"_a   = kfact * fK[i] * 2.0 * M_PI,
                                          "pk"_a  = vfact * fPk[i],
@@ -5072,7 +5032,9 @@ void MSR::OutputPk(int iStep,double dTime) {
     fs.close();
     /* Output the k-grid if requested */
     z = 1/a - 1;
-    if (param.iDeltakInterval && (iStep % param.iDeltakInterval == 0) && z < param.dDeltakRedshift) {
+    auto iDeltakInterval = parameters.get_iDeltakInterval();
+    auto dDeltakRedshift = parameters.get_dDeltakRedshift();
+    if (iDeltakInterval && (iStep % iDeltakInterval == 0) && z < dDeltakRedshift) {
         auto filename = BuildName(iStep,".deltak");
         OutputGrid(filename.c_str(),true,0,parallel_write_count());
     }
@@ -5083,17 +5045,13 @@ void MSR::OutputLinPk(int iStep,double dTime) {
     double a, vfact, kfact;
     int i;
 
-    if (param.nGridLin == 0) return;
+    if (parameters.get_nGridLin() == 0) return;
     if (!csm->val.bComove) return;
     if (!parameters.has_dBoxSize()) return;
 
-    std::unique_ptr<float[]>    fK    {new float[param.nBinsLinPk]};
-    std::unique_ptr<float[]>    fPk   {new float[param.nBinsLinPk]};
-    std::unique_ptr<uint64_t[]> nPk   {new uint64_t[param.nBinsLinPk]};
-
     a = csmTime2Exp(csm, dTime);
 
-    MeasureLinPk(param.nGridLin,a,parameters.get_dBoxSize(),nPk.get(),fK.get(),fPk.get());
+    auto [nPk,fK,fPk] = MeasureLinPk(parameters.get_nGridLin(),a,parameters.get_dBoxSize());
 
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
@@ -5110,7 +5068,7 @@ void MSR::OutputLinPk(int iStep,double dTime) {
         perror(filename.c_str());
         Exit(errno);
     }
-    for (i=0; i<param.nBinsLinPk; ++i) {
+    for (i=0; i<fK.size(); ++i) {
         if (fPk[i] > 0.0) fmt::print(fs,"{k} {pk} {nk}\n",
                                          "k"_a   = kfact * fK[i] * 2.0 * M_PI,
                                          "pk"_a  = vfact * fPk[i],
@@ -5773,7 +5731,10 @@ void MSR::GridDeleteFFT() {
 }
 
 /* Important: call msrGridCreateFFT() before, and msrGridDeleteFFT() after */
-void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll) {
+std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
+MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins) {
+    std::vector<uint64_t> nPk;
+    std::vector<float> fK, fPk, fPkAll;
     double dsec;
 
     GridCreateFFT(nGrid);
@@ -5793,14 +5754,14 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
     }
     WindowCorrection(iAssignment,0);
 
-    GridBinK(nBins,0,nPk,fK,fPk);
-    if (csm->val.classData.bClass && param.nGridLin>0 && strlen(param.achPkSpecies) > 0) {
+    std::tie(nPk,fK,fPk) = GridBinK(nBins,0);
+    if (csm->val.classData.bClass && parameters.get_nGridLin()>0 && strlen(param.achPkSpecies) > 0) {
         AddLinearSignal(0,parameters.get_iSeed(),parameters.get_dBoxSize(),a,
                         parameters.get_bFixedAmpIC(),parameters.get_dFixedAmpPhasePI() * M_PI);
-        GridBinK(nBins,0,nPk,fK,fPkAll);
+        std::tie(nPk,fK,fPkAll) = GridBinK(nBins,0);
     }
     else {
-        for (auto i=0; i<nBins; ++i) fPkAll[i] = 0;
+        fPkAll.resize(nBins);
     }
 
     GridDeleteFFT();
@@ -5808,10 +5769,11 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
+    return { nPk,fK,fPk,fPkAll };
 }
 
-void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
-                       uint64_t *nPk,float *fK,float *fPk) {
+std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
+MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize) {
     struct inMeasureLinPk in;
     int i;
     double dsec;
@@ -5819,7 +5781,7 @@ void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
     TimerStart(TIMER_NONE);
 
     in.nGrid = nGrid;
-    in.nBins = param.nBinsLinPk;
+    in.nBins = nGrid / 2;
     in.dBoxSize = dBoxSize;
     in.dA = dA;
     in.iSeed = parameters.get_iSeed();
@@ -5829,10 +5791,12 @@ void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
     std::unique_ptr<struct outMeasureLinPk> out {new struct outMeasureLinPk};
     printf("Measuring P_lin(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
     pstMeasureLinPk(pst, &in, sizeof(in), out.get(), sizeof(*out));
+    std::vector<uint64_t> nPk(nBins);
+    std::vector<float> fK(nBins),fPk(nBins);
     for ( i=0; i<in.nBins; i++ ) {
         if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
         else {
-            if (nPk) nPk[i] = out->nPower[i];
+            if (nPk.size()) nPk[i] = out->nPower[i];
             fK[i] = out->fK[i]/out->nPower[i];
             fPk[i] = out->fPower[i]/out->nPower[i];
         }
@@ -5842,6 +5806,7 @@ void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
     printf("P_lin(k) Calculated, Wallclock: %f secs\n\n",dsec);
+    return { nPk,fK,fPk };
 }
 
 void MSR::SetLinGrid(double dTime, double dDelta,int nGrid, int bKickClose, int bKickOpen) {
@@ -5895,7 +5860,7 @@ void MSR::LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen)
 }
 #endif
 
-int MSR::GetParticles(std::vector<std::int64_t> & particle_ids, struct outGetParticles *out) {
+int MSR::GetParticles(std::vector<std::int64_t> &particle_ids, struct outGetParticles *out) {
     int nOut;
     nOut = pstGetParticles(pst, particle_ids.data(), sizeof(uint64_t)*particle_ids.size(), out, particle_ids.size()*sizeof(struct outGetParticles));
     return nOut / sizeof(struct outGetParticles);

@@ -56,7 +56,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     if (dxStart > 1) return; // the timestep is still too deep!
     if (dxStart < 0) dxStart = 0;
 
-
     const auto &v = pkd->particles.velocity(p);
     double r0[3],r1[3];
     int j;
@@ -120,7 +119,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
     if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
     if (isect[1].dt>isect[2].dt) { temp = isect[1]; isect[1] = isect[2]; isect[2] = temp; }
-
 
     dvec xStart = dxStart;
     dvec h[3];

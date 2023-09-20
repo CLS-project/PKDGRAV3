@@ -693,7 +693,6 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
     return (p->iOrder == IORDERMAX);
 }
 
-
 /*
 ** From tree.c:
 */
@@ -935,6 +934,5 @@ static inline double dot_product(const double *a,const double *b) {
         }                   \
     }                   \
 } while(0)
-
 
 #endif

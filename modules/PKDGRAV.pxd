@@ -7,6 +7,8 @@ from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libc.stdint cimport int64_t,uint64_t,uint8_t
 import cython
+import numpy as np
+cimport numpy as cnp
 cimport cosmo
 from cosmology cimport Cosmology
 
@@ -121,7 +123,7 @@ cdef extern from "master.h":
                         double dTime,double dDelta,double dStep,double dTheta,
                         bool bKickClose,bool bKickOpen,bool bEwald,bool bGravStep,
                         int nPartRhoLoc,bool iTimeStepCrit)
-        void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll)
+        void *MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins)
         void NewFof(double dTau,int nMinMembers)
         void GroupStats()
         uint64_t CountSelected()
@@ -131,6 +133,43 @@ cdef extern from "master.h":
         uint64_t SelCylinder(TinyVector[double,BLITZ3] dP1, TinyVector[double,BLITZ3] dP2, double dRadius, int setIfTrue, int clearIfFalse)
 
 cdef public MSR *msr0 "PKDGRAV_msr0"
+
+cdef extern from *:
+    """
+    struct MeasurePkStruct {
+        std::vector<std::uint64_t> nPk;
+        std::vector<float>    fK;
+        std::vector<float>    fPk;
+        std::vector<float>    fPkAll;
+    };
+
+    template<typename T>
+    inline MeasurePkStruct UnpackMeasurePk(T t) {
+        return {std::move(std::get<0>(t)), 
+                std::move(std::get<1>(t)), 
+                std::move(std::get<2>(t)), 
+                std::move(std::get<3>(t))};
+    }
+
+    """
+
+    ctypedef struct MeasurePkStruct:
+        vector[uint64_t]  nPk
+        vector[float]     fK
+        vector[float]     fPk
+        vector[float]     fPkAll
+
+    MeasurePkStruct UnpackMeasurePk(void *)
+
+
+cdef inline tuple MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins):
+    cdef MeasurePkStruct result = UnpackMeasurePk(msr0.MeasurePk(iAssignment,bInterlace,nGrid,a,nBins))
+    cdef:
+        cnp.uint64_t[:]  nPk    = <cnp.uint64_t[:result.nPk.size()]>result.nPk.data()
+        cnp.float32_t[:] fK     = <cnp.float32_t[:result.fK.size()]>result.fK.data()
+        cnp.float32_t[:] fPk    = <cnp.float32_t[:result.fPk.size()]>result.fPk.data()
+        cnp.float32_t[:] fPkAll = <cnp.float32_t[:result.fPkAll.size()]>result.fPkAll.data()
+    return np.array(nPk), np.array(fK), np.array(fPk), np.array(fPkAll)
 
 cpdef restart(object arguments,object specified,list species,list classes,int n,str name,
     int step,int steps,double time,double delta,double E,double U,double Utime)

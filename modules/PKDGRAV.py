@@ -133,11 +133,7 @@ def measure_pk(grid,bins=0,a=1.0,interlace=True,order=4,L=1.0):
     """
     from math import pi
     if bins==0: bins=grid//2
-    k   = np.zeros(bins,dtype=np.float32)
-    pk  = np.zeros(bins,dtype=np.float32)
-    lpk = np.zeros(bins,dtype=np.float32)
-    npk = np.zeros(bins,dtype=np.uint64)
-    msr0.MeasurePk(order,interlace,grid,a,bins,a2u64(npk),a2f(k),a2f(pk),a2f(lpk))
+    (npk,k,pk,lpk) = MeasurePk(order,interlace,grid,a,bins)
     k *= 2.0 * pi / L
     pk *= L**3
     lpk *= L**3
