@@ -1,11 +1,8 @@
 #include "hydro/hydro.h"
 #include "master.h"
 #include "eEOS/eEOS.h"
-#ifdef OPTIM_FLUX_VEC
-    #include "riemann_own.h"
-#else
-    #include "riemann.h"
-#endif
+#include "hydro/limiters.h"
+#include "riemann.h"
 using blitz::TinyVector;
 using blitz::dot;
 
@@ -45,7 +42,6 @@ void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,doubl
 
 }
 
-
 void MSR::MeshlessFluxes(double dTime,double dDelta) {
     double dsec;
     printf("Computing fluxes... ");
@@ -67,7 +63,6 @@ void MSR::MeshlessFluxes(double dTime,double dDelta) {
     dsec = TimerGet(TIMER_FLUXES);
     printf("took %.5f seconds\n", dsec);
 }
-
 
 void packHydroFluxes(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
@@ -209,470 +204,6 @@ void combHydroFluxes(void *vpkd,void *dst,const void *src) {
     }
 }
 
-
-/* This version is deprecated. It may be removed in future versions of the code
- * without notice.
- *
- * The maintained Riemann solver is the vectorized version of this function,
- * which is activated wit the OPTIM_SMOOTH_NODE and OPTIM_FLUX_VEC flags
- */
-void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
-    //TODO Clean unused variables!
-    PKD pkd = smf->pkd;
-    auto P = pkd->particles[pIn];
-    double minDt;
-    double pvFrame[3], qvFrame[3], vFrame[3];
-    double modApq, pDeltaHalf, qDeltaHalf;
-    double pdivv, qdivv, psi;
-    double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3], dr[3];
-    struct Input_vec_Riemann riemann_input;
-    struct Riemann_outputs riemann_output;
-
-    const auto &pv = P.velocity();
-    auto &psph = P.sph();
-    const double pH = P.ball();
-    const double pDensity = P.density();
-
-    for (auto i = 0; i < nSmooth; ++i) {
-
-        /* In the nnList there is a 'copy' of the own particle,
-         * which we can omit as there are no fluxes to be computed here
-         */
-        if (nnList[i].pPart == pIn) continue;
-
-        auto Q = pkd->particles[nnList[i].pPart];
-        const auto &qv = Q.velocity();
-        auto &qsph = Q.sph();
-        const double qH = Q.ball();
-
-        const double dx = nnList[i].dr[0];
-        const double dy = nnList[i].dr[1];
-        const double dz = nnList[i].dr[2];
-#ifdef FORCE_1D
-        if (dz!=0) continue;
-        if (dy!=0) continue;
-#endif
-#ifdef FORCE_2D
-        if (dz!=0) continue;
-#endif
-
-
-        const auto &Hpq = pH;
-        const double rpq = sqrt(nnList[i].fDist2);
-        // We only compute the fluxes if both particles are within the kernel
-        // of each other
-        if (qH < rpq) continue;
-
-        const double Wpq = cubicSplineKernel(rpq, Hpq);
-        if (Wpq==0.0) {
-            continue;
-        }
-
-        /* We update the conservatives variables taking the minimum timestep
-         * between the particles, as in AREPO */
-        if (!Q.is_active()) {
-            // If q is not active we now that p has the smallest dt
-            minDt = smf->dDelta/(1<<P.rung()) ;
-        }
-        else {
-            // Otherwise we need to explicitly check
-            if (P.rung() > Q.rung()) {
-                minDt = smf->dDelta/(1<<P.rung()) ;
-            }
-            else {
-                minDt = smf->dDelta/(1<<Q.rung()) ;
-            }
-        }
-
-        if (smf->dDelta > 0) {
-            pDeltaHalf = smf->dTime - psph.lastUpdateTime + 0.5*smf->dDelta/(1<<P.rung());
-            qDeltaHalf = smf->dTime - qsph.lastUpdateTime + 0.5*smf->dDelta/(1<<Q.rung());
-        }
-        else {
-            /* For the initialization step we do not extrapolate because we
-             * dont have a reliable dDelta
-             */
-            qDeltaHalf = 0.0;
-            pDeltaHalf = 0.0;
-        }
-        if (pkd->csm->val.bComove) {
-            qDeltaHalf /= smf->a;
-            pDeltaHalf /= smf->a;
-        }
-
-        // DEBUG: Avoid temporal extrapolation
-        //pDeltaHalf = 0.;
-        //qDeltaHalf = 0.;
-
-
-
-        // \tilde{\psi}_j (x_i)
-        psi = -cubicSplineKernel(rpq, pH)/psph.omega;
-        psiTilde_p[0] = (psph.B[XX]*dx + psph.B[XY]*dy + psph.B[XZ]*dz)*psi;
-        psiTilde_p[1] = (psph.B[XY]*dx + psph.B[YY]*dy + psph.B[YZ]*dz)*psi;
-        psiTilde_p[2] = (psph.B[XZ]*dx + psph.B[YZ]*dy + psph.B[ZZ]*dz)*psi;
-
-        // \tilde{\psi}_i (x_j)
-        psi = cubicSplineKernel(rpq, qH)/qsph.omega;
-        psiTilde_q[0] = (qsph.B[XX]*dx + qsph.B[XY]*dy + qsph.B[XZ]*dz)*psi;
-        psiTilde_q[1] = (qsph.B[XY]*dx + qsph.B[YY]*dy + qsph.B[YZ]*dz)*psi;
-        psiTilde_q[2] = (qsph.B[XZ]*dx + qsph.B[YZ]*dy + qsph.B[ZZ]*dz)*psi;
-
-        modApq = 0.0;
-        for (auto j = 0; j < 3; ++j) {
-            Apq[j] = psiTilde_p[j]/psph.omega - psiTilde_q[j]/qsph.omega;
-            modApq += Apq[j]*Apq[j];
-        }
-        modApq = sqrt(modApq);
-
-        /* DEBUG
-        if (modApq<=0.0) {
-           printf("dx %e \t dy %e \t dz %e \n", dx, dy, dz);
-           printf("rpq %e Hpq %e ratio %e Wpq %e \n", rpq, Hpq, rpq/Hpq, Wpq);
-        }
-        assert(modApq>0.0); // Area should be positive!
-        */
-
-
-        if (modApq > 0.) {
-            for (auto j = 0; j < 3; ++j) face_unit[j] = Apq[j]/modApq;
-        }
-        else {
-            for (auto j = 0; j < 3; ++j) face_unit[j] = 0.;
-        }
-
-
-
-        // Velocity of the quadrature mid-point
-        for (auto j = 0; j < 3; ++j) {
-            vFrame[j] = 0.5 * (pv[j] + qv[j]);
-
-            // We boost to the reference of the p-q 'face'
-            pvFrame[j] = pv[j] - vFrame[j];
-            qvFrame[j] = qv[j] - vFrame[j];
-        }
-
-        // Mid-point rule
-        dr[0] = -0.5*dx;
-        dr[1] = -0.5*dy;
-        dr[2] = -0.5*dz;
-
-        // DEBUG: Avoid spatial extrapolation
-        //dr[0] = 0.;
-        //dr[1] = 0.;
-        //dr[2] = 0.;
-
-        // Divergence of the velocity field for the forward in time prediction
-        pdivv = psph.gradVx[0] + psph.gradVy[1] + psph.gradVz[2];
-        qdivv = qsph.gradVx[0] + qsph.gradVy[1] + qsph.gradVz[2];
-
-        pdivv *= pDeltaHalf;
-        qdivv *= qDeltaHalf;
-
-
-        riemann_input.L.rho = P.density();
-        riemann_input.R.rho = Q.density();
-        riemann_input.L.v[0] = pvFrame[0];
-        riemann_input.R.v[0] = qvFrame[0];
-        riemann_input.L.v[1] = pvFrame[1];
-        riemann_input.R.v[1] = qvFrame[1];
-        riemann_input.L.v[2] = pvFrame[2];
-        riemann_input.R.v[2] = qvFrame[2];
-        riemann_input.L.p = psph.P;
-        riemann_input.R.p = qsph.P;
-
-//      printf("1) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
-//      printf("1) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
-
-        // We add the gradients terms (from extrapolation and forward prediction)
-        for (auto j = 0; j < 3; ++j) {
-            riemann_input.L.rho += ( dr[j] - pDeltaHalf*pvFrame[j])*psph.gradRho[j];
-            riemann_input.R.rho += (-dr[j] - qDeltaHalf*qvFrame[j])*qsph.gradRho[j];
-
-            riemann_input.L.v[0] += ( dr[j]*psph.gradVx[j]);
-            riemann_input.R.v[0] += (-dr[j]*qsph.gradVx[j]);
-
-            riemann_input.L.v[1] += ( dr[j]*psph.gradVy[j]);
-            riemann_input.R.v[1] += (-dr[j]*qsph.gradVy[j]);
-
-            riemann_input.L.v[2] += ( dr[j]*psph.gradVz[j]);
-            riemann_input.R.v[2] += (-dr[j]*qsph.gradVz[j]);
-
-            riemann_input.L.p += ( dr[j] - pDeltaHalf*pvFrame[j])*psph.gradP[j];
-            riemann_input.R.p += (-dr[j] - qDeltaHalf*qvFrame[j])*qsph.gradP[j];
-        }
-//      printf("2) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
-//      printf("2) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
-
-        // Placing this here solved the convergence problem for the comoving soundwaves.
-        //   This problem may be caused because we do not use the time extrapolated cell-centered states in
-        //   this limiter
-        /*
-        genericPairwiseLimiter(p.density(), q.density(), &riemann_input.L.rho, &riemann_input.R.rho);
-        genericPairwiseLimiter(psph.P, qsph.P, &riemann_input.L.p, &riemann_input.R.p);
-        genericPairwiseLimiter(pvFrame[0], qvFrame[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
-        genericPairwiseLimiter(pvFrame[1], qvFrame[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
-        genericPairwiseLimiter(pvFrame[2], qvFrame[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
-        */
-
-
-        double temp;
-
-
-        // Forward extrapolation of velocity
-        for (auto j = 0; j < 3; ++j) {
-            temp = pvFrame[j]*pdivv + psph.gradP[j]/pDensity*pDeltaHalf;
-            riemann_input.L.v[j] -= temp;
-            vFrame[j] -= 0.5*temp;
-
-            temp = qvFrame[j]*qdivv + qsph.gradP[j]/Q.density()*qDeltaHalf;
-            riemann_input.R.v[j] -= temp;
-            vFrame[j] -= 0.5*temp;
-        }
-
-        for (auto j = 0; j < 3; ++j) {
-            temp = psph.lastAcc[j]*pDeltaHalf*smf->a;
-            riemann_input.L.v[j] += temp;
-            vFrame[j] += 0.5*temp;
-
-            temp = qsph.lastAcc[j]*qDeltaHalf*smf->a;
-            riemann_input.R.v[j] += temp;
-            vFrame[j] += 0.5*temp;
-        }
-
-        riemann_input.L.rho -= pDensity*pdivv;
-        riemann_input.R.rho -= Q.density()*qdivv;
-        riemann_input.L.p -= smf->dConstGamma*psph.P*pdivv;
-        riemann_input.R.p -= smf->dConstGamma*qsph.P*qdivv;
-
-        genericPairwiseLimiter(P.density(), Q.density(), &riemann_input.L.rho, &riemann_input.R.rho);
-        genericPairwiseLimiter(psph.P, qsph.P, &riemann_input.L.p, &riemann_input.R.p);
-        genericPairwiseLimiter(pvFrame[0], qvFrame[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
-        genericPairwiseLimiter(pvFrame[1], qvFrame[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
-        genericPairwiseLimiter(pvFrame[2], qvFrame[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
-
-        if (pkd->csm->val.bComove) {
-
-            for (auto j = 0; j < 3; ++j) {
-                temp = smf->H * pDeltaHalf * smf->a * pvFrame[j];
-                riemann_input.L.v[j] -= temp;
-                vFrame[j] -= 0.5*temp;
-
-                temp = smf->H * qDeltaHalf * smf->a * qvFrame[j];
-                riemann_input.R.v[j] -= temp;
-                vFrame[j] -= 0.5*temp;
-            }
-
-            riemann_input.L.p -= 3. * smf->H * pDeltaHalf * smf->a *
-                                 (smf->dConstGamma - 1.) * psph.P;
-
-            riemann_input.R.p -= 3. * smf->H * qDeltaHalf * smf->a *
-                                 (smf->dConstGamma - 1.) * qsph.P;
-
-        }
-
-        // DEBUG: Tests for the riemann solver extracted from Toro (10.1007/b79761)
-        // Test 1
-//       riemann_input.L.rho = 1.0; riemann_input.L.p = 1.0; riemann_input.L.v[0] = 0.0;
-//       riemann_input.L.rho = 0.125; riemann_input.L.p = 0.1; riemann_input.L.v[0] = 0.0;
-
-        if (riemann_input.L.rho < 0) {
-            riemann_input.L.rho = P.density();
-            /* printf("WARNING, L.rho < 0 : using first-order scheme \n");*/
-        }
-        if (riemann_input.R.rho < 0) {
-            riemann_input.R.rho = Q.density();
-            /* printf("WARNING, R.rho < 0 : using first-order scheme \n");*/
-        }
-        if (riemann_input.L.p < 0) {
-            riemann_input.L.p = psph.P;
-            /* printf("WARNING, L.p < 0 : using first-order scheme \n");*/
-        }
-        if (riemann_input.R.p < 0) {
-            riemann_input.R.p = qsph.P;
-            /* printf("WARNING, R.p < 0 : using first-order scheme \n");*/
-        }
-
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-        const double a_inv3 = 1./(smf->a * smf->a * smf->a);
-        const double pLeEOS = eEOSPressureFloor(a_inv3, riemann_input.L.rho, 0.5*pH,
-                                                smf->dConstGamma, smf->eEOS);
-        if (pLeEOS != NOT_IN_EEOS)
-            riemann_input.L.p = std::max(riemann_input.L.p, pLeEOS);
-
-        const double pReEOS = eEOSPressureFloor(a_inv3, riemann_input.R.rho, 0.5*qH,
-                                                smf->dConstGamma, smf->eEOS);
-        if (pReEOS != NOT_IN_EEOS)
-            riemann_input.R.p = std::max(riemann_input.R.p, pReEOS);
-#endif
-
-        //Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
-        double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
-        double cs_R = sqrt(GAMMA * riemann_input.R.p / riemann_input.R.rho);
-        riemann_input.L.u  = riemann_input.L.p / (GAMMA_MINUS1 * riemann_input.L.rho);
-        riemann_input.R.u  = riemann_input.R.p / (GAMMA_MINUS1 * riemann_input.R.rho);
-        double h_L = riemann_input.L.p/riemann_input.L.rho +
-                     riemann_input.L.u +
-                     0.5*(riemann_input.L.v[0]*riemann_input.L.v[0]+
-                          riemann_input.L.v[1]*riemann_input.L.v[1]+
-                          riemann_input.L.v[2]*riemann_input.L.v[2]);
-
-        double h_R = riemann_input.R.p/riemann_input.R.rho +
-                     riemann_input.R.u +
-                     0.5*(riemann_input.R.v[0]*riemann_input.R.v[0]+
-                          riemann_input.R.v[1]*riemann_input.R.v[1]+
-                          riemann_input.R.v[2]*riemann_input.R.v[2]);
-
-        double v_line_L = riemann_input.L.v[0]*face_unit[0] +
-                          riemann_input.L.v[1]*face_unit[1] +
-                          riemann_input.L.v[2]*face_unit[2];
-        double v_line_R = riemann_input.R.v[0]*face_unit[0] +
-                          riemann_input.R.v[1]*face_unit[1] +
-                          riemann_input.R.v[2]*face_unit[2];
-
-        // We just remove this to avoid the compiler from screaming.
-        // This function is never called in this case.
-#ifndef OPTIM_FLUX_VEC
-        Riemann_solver_exact(smf, riemann_input, &riemann_output, face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
-#endif
-
-#ifdef USE_MFM
-        /*
-        if (riemann_output.Fluxes.rho != 0){
-           printf("Frho %e \n",riemann_output.Fluxes.rho);
-           abort();
-        }
-        */
-        riemann_output.Fluxes.rho = 0.;
-        riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
-        for (auto j = 0; j < 3; ++j)
-            riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
-#endif
-
-        // Force 2D
-#ifdef FORCE_1D
-        riemann_output.Fluxes.v[2] = 0.;
-        riemann_output.Fluxes.v[1] = 0.;
-#endif
-#ifdef FORCE_2D
-        riemann_output.Fluxes.v[2] = 0.;
-#endif
-
-
-        // Check for NAN fluxes
-        if (riemann_output.Fluxes.rho!=riemann_output.Fluxes.rho)
-            riemann_output.Fluxes.rho = 0.;//abort();
-        if (riemann_output.Fluxes.p!=riemann_output.Fluxes.p)
-            riemann_output.Fluxes.p = 0.;//abort();
-
-
-        if (pkd->csm->val.bComove)
-            minDt /= smf->a; // 1/a term before \nabla
-
-
-
-        // Now we de-boost the fluxes following Eq. A8 Hopkins 2015
-        for (auto j = 0; j < 3; ++j) {
-            riemann_output.Fluxes.p += vFrame[j] * riemann_output.Fluxes.v[j];
-            riemann_output.Fluxes.p += (0.5*vFrame[j]*vFrame[j])*riemann_output.Fluxes.rho;
-        }
-
-        // Now we just multiply by the face area
-        riemann_output.Fluxes.p *= modApq;
-        riemann_output.Fluxes.rho *= modApq;
-        for (auto j = 0; j < 3; ++j) {
-            riemann_output.Fluxes.v[j] *= modApq;
-            riemann_output.Fluxes.v[j] += vFrame[j]*riemann_output.Fluxes.rho;
-        }
-
-
-        if (smf->dDelta > 0) {
-
-#ifndef OPTIM_NO_REDUNDANT_FLUXES
-            {
-#else
-            if ((qH < rpq) | !Q.is_active()) {
-#endif
-
-
-                Q.set_mass(Q.mass() + minDt * riemann_output.Fluxes.rho);
-
-                qsph.mom[0] += minDt * riemann_output.Fluxes.v[0] ;
-                qsph.mom[1] += minDt * riemann_output.Fluxes.v[1] ;
-                qsph.mom[2] += minDt * riemann_output.Fluxes.v[2] ;
-
-                qsph.E += minDt * riemann_output.Fluxes.p;
-
-                qsph.Uint += minDt * ( riemann_output.Fluxes.p -
-                                       riemann_output.Fluxes.v[0]*qv[0] -
-                                       riemann_output.Fluxes.v[1]*qv[1] -
-                                       riemann_output.Fluxes.v[2]*qv[2] +
-                                       0.5*dot(qv,qv)*riemann_output.Fluxes.rho );
-#ifndef USE_MFM
-                qsph.drDotFrho[0] += minDt * riemann_output.Fluxes.rho * dx * smf->a;
-                qsph.drDotFrho[1] += minDt * riemann_output.Fluxes.rho * dy * smf->a;
-                qsph.drDotFrho[2] += minDt * riemann_output.Fluxes.rho * dz * smf->a;
-#endif
-
-                qsph.Frho -= riemann_output.Fluxes.rho;
-                qsph.Fene -= riemann_output.Fluxes.p;
-                for (auto j = 0; j < 3; ++j) {
-                    qsph.Fmom[j] -= riemann_output.Fluxes.v[j];
-                }
-            }
-
-            P.set_mass(P.mass() - minDt * riemann_output.Fluxes.rho);
-
-            psph.mom[0] -= minDt * riemann_output.Fluxes.v[0];
-            psph.mom[1] -= minDt * riemann_output.Fluxes.v[1];
-            psph.mom[2] -= minDt * riemann_output.Fluxes.v[2];
-
-            psph.E -= minDt * riemann_output.Fluxes.p;
-
-            psph.Uint -= minDt * ( riemann_output.Fluxes.p -
-                                   riemann_output.Fluxes.v[0]*pv[0] -
-                                   riemann_output.Fluxes.v[1]*pv[1] -
-                                   riemann_output.Fluxes.v[2]*pv[2] +
-                                   0.5*dot(pv,pv)*riemann_output.Fluxes.rho );
-#ifndef USE_MFM
-            psph.drDotFrho[0] += minDt * riemann_output.Fluxes.rho * dx * smf->a;
-            psph.drDotFrho[1] += minDt * riemann_output.Fluxes.rho * dy * smf->a;
-            psph.drDotFrho[2] += minDt * riemann_output.Fluxes.rho * dz * smf->a;
-#endif
-        }
-        /* Old fluxes update (see 15/04/19 )
-         * TODO: This is not needed for the update of the conserved variables. Instead,
-         * it is now only used for the acceleleration criteria. Memory-wise, this can be
-         * substantially improved
-         */
-        // Own contribution is always added
-        psph.Frho += riemann_output.Fluxes.rho;
-        psph.Fene += riemann_output.Fluxes.p;
-        for (auto j = 0; j < 3; ++j) {
-            psph.Fmom[j] += riemann_output.Fluxes.v[j];
-        }
-
-    } // End of loop over neighbors
-
-}
-
-
-
-#ifdef OPTIM_FLUX_VEC
-/* Vectorizable version of the riemann solver.
- *
- * There are a few differences with respect the previous one, the most importants:
- *   a) we use the input buffer directly,
- *      rather than accessing the particle data directly
- *   b) we omit all clauses that could terminate the loop (continue, abort, etc).
- *      If, for example, FORCE_2D is used, the loop may not be vectorized
- *
- * Now we have two hydroRiemann routines, which means that there is A LOT of
- * code duplication. This can cause bugs and deteriorate readability.
- *
- * At some point, one of them must be discontinued TODO
- */
-
 /* When doing SIMD, a structure of arrays is used,
  * rather than an array of structures.
  *
@@ -713,38 +244,150 @@ enum FLUX_OUT {
     out_last
 };
 
-// Simple macro to improve readability
-#define q(X) input_buffer[q_##X][i]
-void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
-                      my_real **restrict input_buffer,
-                      my_real **restrict output_buffer, SMF *smf) {
-    PKD pkd = smf->pkd;
-    auto P = pkd->particles[pIn];
+template <typename dtype=dvec, typename mtype=dmask>
+class MeshlessHydroSolver {
 
-    const auto &pv = P.velocity();
-    auto &psph = P.sph();
-    const my_real pH = P.ball();
+private:
 
-    const my_real pDensity = P.density();
-    const my_real p_omega = psph.omega;
+    inline void extrapolateDensityInTime(dtype &rho, dtype rho0, dtype vx, dtype vy, dtype vz,
+                                         dtype dt, dtype gradRhoX, dtype gradRhoY, dtype gradRhoZ, dtype divv) {
+        rho -= dt*(vx*gradRhoX + vy*gradRhoY + vz*gradRhoZ + rho0*divv);
+    }
 
+    inline void extrapolateVelocityInTime(dtype &v, dtype &vFrame, dtype divv, dtype v0, dtype dt, dtype acc,
+                                          dtype gradP, dtype rho0,
+                                          dtype a) {
+        dtype temp;
+        temp = -(v0*divv + gradP/rho0)*dt;
+        temp += acc*dt*a;
+        v += temp;
+        vFrame += 0.5*temp;
+    }
 
-#ifdef __INTEL_COMPILER
-    __assume_aligned(input_buffer, 64);
-    __assume_aligned(input_buffer[0], 64);
-#pragma simd
-#pragma vector aligned
-#endif
-#ifdef __GNUC__
-//TODO Trick GCC into autovectorizing this!!
-#endif
-    for (auto i = 0; i < nSmooth; ++i) {
+    inline void extrapolatePressureInTime(dtype &p, dtype dt, dtype gradPx, dtype gradPy, dtype gradPz,
+                                          dtype p0, dtype vx0, dtype vy0, dtype vz0, dtype divv, dtype dConstGamma) {
+        p -= dt*( vx0*gradPx + vy0*gradPy + vz0*gradPz  + dConstGamma*p0*divv);
+    }
 
-        const my_real qH = q(ball);
+    inline void extrapolateStateInTime(
+        dtype &rho, dtype &vx, dtype &vy, dtype &vz, dtype &p,
+        dtype &vFx, dtype &vFy, dtype &vFz,
+        dtype rho0, dtype vx0, dtype vy0, dtype vz0, dtype p0,
+        dtype dt,
+        dtype gradRhoX, dtype gradRhoY, dtype gradRhoZ,
+        dtype gradPX, dtype gradPY, dtype gradPZ,
+        dtype accx, dtype accy, dtype accz, dtype divv,
+        dtype dConstGamma, dtype a) {
 
-        const my_real dx = q(dx);
-        const my_real dy = q(dy);
-        const my_real dz = q(dz);
+        extrapolateDensityInTime( rho, rho0, vx, vy, vz, dt,
+                                  gradRhoX, gradRhoY, gradRhoZ, divv);
+
+        extrapolateVelocityInTime( vx, vFx, divv, vx0, dt, accx, gradPX, rho0, a);
+        extrapolateVelocityInTime( vy, vFy, divv, vy0, dt, accy, gradPY, rho0, a);
+        extrapolateVelocityInTime( vz, vFz, divv, vz0, dt, accz, gradPZ, rho0, a);
+
+        extrapolatePressureInTime( p, dt, gradPX, gradPY, gradPZ,
+                                   p0, vx0, vy0, vz0, divv, dConstGamma);
+    }
+
+    inline void extrapolateVariableInSpace(dtype &var, dtype dx,dtype dy, dtype dz,
+                                           dtype gradx, dtype grady, dtype gradz) {
+        var += dx*gradx + dy*grady + dz*gradz;
+    }
+
+    inline void extrapolateVelocityCosmology(dtype &v, dtype &vFrame, dtype v0, dtype dt, dtype H, dtype a) {
+        dtype temp = H * dt * a * v;
+        v -= temp;
+        vFrame -= 0.5*temp;
+    }
+
+    inline void extrapolateCosmology(dtype &vx, dtype &vy, dtype &vz,
+                                     dtype &vFramex, dtype &vFramey, dtype &vFramez, dtype &p,
+                                     dtype dt, dtype vx0, dtype vy0, dtype vz0, dtype p0,
+                                     dtype dConstGamma, dtype H, dtype a) {
+        extrapolateVelocityCosmology( vx,  vFramex,  vx0,  dt,  H,  a);
+        extrapolateVelocityCosmology( vy,  vFramey,  vy0,  dt,  H,  a);
+        extrapolateVelocityCosmology( vz,  vFramez,  vz0,  dt,  H,  a);
+
+        p -= 3. * H * dt * a * (dConstGamma - 1.) * p0;
+    }
+
+    inline void computeFace(dtype &modApq, std::array<dtype,3> &unit,
+                            dtype rpq,  dtype dx, dtype dy, dtype dz,
+                            dtype pH, dtype qH, dtype p_omega, dtype q_omega,
+                            dtype pBxx, dtype pBxy, dtype pBxz,
+                            dtype pByy, dtype pByz, dtype pBzz,
+                            dtype qBxx, dtype qBxy, dtype qBxz,
+                            dtype qByy, dtype qByz, dtype qBzz) {
+        dtype psi;
+        dtype psiTilde[3];
+        dtype Apq[3] = {0.,0.,0.};
+
+        // \tilde{\psi}_j (x_i)
+        psi  = -cubicSplineKernel(rpq, pH)/p_omega;
+        psiTilde[0] = (pBxx*dx + pBxy*dy + pBxz*dz)*psi;
+        psiTilde[1] = (pBxy*dx + pByy*dy + pByz*dz)*psi;
+        psiTilde[2] = (pBxz*dx + pByz*dy + pBzz*dz)*psi;
+        for (auto j=0; j<3; j++) {
+            Apq[j] += psiTilde[j]/p_omega;
+        }
+
+        // \tilde{\psi}_i (x_j)
+        psi = cubicSplineKernel(rpq, qH)/q_omega;
+        psiTilde[0] = (qBxx*dx + qBxy*dy + qBxz*dz)*psi;
+        psiTilde[1] = (qBxy*dx + qByy*dy + qByz*dz)*psi;
+        psiTilde[2] = (qBxz*dx + qByz*dy + qBzz*dz)*psi;
+        for (auto j=0; j<3; j++) {
+            Apq[j] -= psiTilde[j]/q_omega;
+        }
+
+        modApq = 0.0;
+        for (auto j=0; j<3; j++) {
+            modApq += Apq[j]*Apq[j];
+        }
+        modApq = sqrt(modApq);
+        dtype zero = 0.;
+        mtype cond = modApq>zero;
+        for (auto j=0; j<3; j++) {
+            unit[j] = Apq[j]/modApq;
+        }
+        if (testz(cond)) { // Some of the elements are zero
+            for (auto j=0; j<3; j++)
+                unit[j] = 0.0;
+        }
+    }
+
+    inline void low_limit(dtype &var, dtype def, dtype min) {
+        mtype cond = var<min;
+        var = mask_mov(var, cond, def);
+    }
+
+    inline void doSinglePPFlux(const mtype mask, dtype &F_rho, std::array<dtype,3> &F_v, dtype &F_p, dtype &F_S, dtype &minDt,
+                               bool bComove, dtype dTime, dtype dDelta, dtype a, dtype H, dtype dConstGamma,
+                               dtype rpq, dtype dx, dtype dy, dtype dz,
+                               dtype pBall, dtype pLastUpdateTime, dtype pDt,
+                               dtype pOmega,
+                               dtype pBxx, dtype pBxy, dtype pBxz,
+                               dtype pByy, dtype pByz, dtype pBzz,
+                               dtype pDensity, dtype pVpredx, dtype pVpredy, dtype pVpredz, dtype pP, dtype pS,
+                               dtype pGradRhoX, dtype pGradRhoY, dtype pGradRhoZ,
+                               dtype pGradPX, dtype pGradPY, dtype pGradPZ,
+                               dtype pGradVxX, dtype pGradVxY, dtype pGradVxZ,
+                               dtype pGradVyX, dtype pGradVyY, dtype pGradVyZ,
+                               dtype pGradVzX, dtype pGradVzY, dtype pGradVzZ,
+                               dtype pLastAccX, dtype pLastAccY, dtype pLastAccZ,
+                               dtype qBall, dtype qLastUpdateTime, dtype qDt,
+                               dtype qOmega,
+                               dtype qBxx, dtype qBxy, dtype qBxz,
+                               dtype qByy, dtype qByz, dtype qBzz,
+                               dtype qDensity, dtype qVpredx, dtype qVpredy, dtype qVpredz, dtype qP, dtype qS,
+                               dtype qGradRhoX, dtype qGradRhoY, dtype qGradRhoZ,
+                               dtype qGradPX, dtype qGradPY, dtype qGradPZ,
+                               dtype qGradVxX, dtype qGradVxY, dtype qGradVxZ,
+                               dtype qGradVyX, dtype qGradVyY, dtype qGradVyZ,
+                               dtype qGradVzX, dtype qGradVzY, dtype qGradVzZ,
+                               dtype qLastAccX, dtype qLastAccY, dtype qLastAccZ,
+                               struct eEOSparam &eEOS) {
 
 #ifdef FORCE_1D
         if (dz!=0) continue;
@@ -754,433 +397,566 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
         if (dz!=0) continue;
 #endif
 
-
-
-        // Face where the riemann problem will be solved
-        const my_real rpq = q(dr);
-
-
         /* We update the conservatives variables taking the minimum timestep
          * between the particles, as in AREPO
          */
-        const my_real p_dt = smf->dDelta/(1<<P.rung());
-        const my_real q_dt = q(rung);
-        const my_real minDt = (p_dt > q_dt ? q_dt : p_dt) / smf->a;
+        minDt = min(pDt, qDt);
+        minDt /=  a;
 
-
-        my_real qDeltaHalf=0.0, pDeltaHalf=0.0;
-        if (smf->dDelta > 0) {
-            pDeltaHalf = (smf->dTime - psph.lastUpdateTime + 0.5*p_dt)/smf->a;
-            qDeltaHalf = (smf->dTime - q(lastUpdateTime) + 0.5*q_dt)/smf->a;
-        }
+        dtype qDeltaHalf=0.0, pDeltaHalf=0.0;
+        pDeltaHalf = (dTime - pLastUpdateTime + 0.5*pDt)/a;
+        qDeltaHalf = (dTime - qLastUpdateTime + 0.5*qDt)/a;
 
         // DEBUG: Avoid temporal extrapolation
         //pDeltaHalf = 0.;
         //qDeltaHalf = 0.;
 
-        const my_real omega_q = q(omega);
-
-        // \tilde{\psi}_j (x_i)
-        my_real psi = -cubicSplineKernel(rpq, pH)/p_omega;
-        TinyVector<my_real,3> psiTilde_p, psiTilde_q;
-        psiTilde_p[0] = (psph.B[XX]*dx + psph.B[XY]*dy + psph.B[XZ]*dz)*psi;
-        psiTilde_p[1] = (psph.B[XY]*dx + psph.B[YY]*dy + psph.B[YZ]*dz)*psi;
-        psiTilde_p[2] = (psph.B[XZ]*dx + psph.B[YZ]*dy + psph.B[ZZ]*dz)*psi;
-
-        // \tilde{\psi}_i (x_j)
-        psi = cubicSplineKernel(rpq, qH)/omega_q;
-        psiTilde_q[0] = (q(B_XX)*dx + q(B_XY)*dy + q(B_XZ)*dz)*psi;
-        psiTilde_q[1] = (q(B_XY)*dx + q(B_YY)*dy + q(B_YZ)*dz)*psi;
-        psiTilde_q[2] = (q(B_XZ)*dx + q(B_YZ)*dy + q(B_ZZ)*dz)*psi;
-
-        const TinyVector<my_real,3> Apq{psiTilde_p/p_omega - psiTilde_q/omega_q};
-        const my_real modApq = sqrt(dot(Apq,Apq));
-
-        /* DEBUG
-        if (modApq<=0.0) {
-           printf("dx %e \t dy %e \t dz %e \n", dx, dy, dz);
-           printf("rpq %e Hpq %e ratio %e Wpq %e \n", rpq, Hpq, rpq/Hpq, Wpq);
-        }
-        assert(modApq>0.0); // Area should be positive!
-        */
-
-
-        TinyVector<my_real,3> face_unit{0.0};
-        if (modApq > 0.) {
-            face_unit = Apq / modApq;
-        }
-
+        dtype modApq;
+        std::array<dtype, 3> face_unit;
+        computeFace(modApq, face_unit,
+                    rpq,   dx,  dy,  dz,
+                    pBall,  qBall,  pOmega,  qOmega,
+                    pBxx,  pBxy,  pBxz,
+                    pByy,  pByz,  pBzz,
+                    qBxx, qBxy, qBxz,
+                    qByy, qByz, qBzz);
 
         // Velocity of the quadrature mid-point
-        my_real vFrame[3];
-        vFrame[0] = 0.5 * (pv[0] + q(vx));
-        vFrame[1] = 0.5 * (pv[1] + q(vy));
-        vFrame[2] = 0.5 * (pv[2] + q(vz));
+        dtype vFrame[3];
+        vFrame[0] = 0.5*(pVpredx+qVpredx);
+        vFrame[1] = 0.5*(pVpredy+qVpredy);
+        vFrame[2] = 0.5*(pVpredz+qVpredz);
 
-        my_real pvFrame[3], qvFrame[3];
-        for (auto j = 0; j < 3; ++j) {
-            // We boost to the reference of the p-q 'face'
-            pvFrame[j] = pv[j] - vFrame[j];
-        }
-
-        qvFrame[0] = q(vx) - vFrame[0];
-        qvFrame[1] = q(vy) - vFrame[1];
-        qvFrame[2] = q(vz) - vFrame[2];
+        dtype pv[3], qv[3];
+        // We boost to the reference of the p-q 'face'
+        pv[0] = pVpredx - vFrame[0];
+        qv[0] = qVpredx - vFrame[0];
+        pv[1] = pVpredy - vFrame[1];
+        qv[1] = qVpredy - vFrame[1];
+        pv[2] = pVpredz - vFrame[2];
+        qv[2] = qVpredz - vFrame[2];
 
         // Mid-point rule
-        const my_real dr[3] = {-0.5*dx, -0.5*dy, -0.5*dz};
+        dx  = -0.5*dx;
+        dy  = -0.5*dy;
+        dz  = -0.5*dz;
 
         // DEBUG: Avoid spatial extrapolation
-        //dr[0] = 0.0;
-        //dr[1] = 0.0;
-        //dr[2] = 0.0;
+        //dx = 0.0;
+        //dy = 0.0;
+        //dz = 0.0;
 
         // Divergence of the velocity field for the forward in time prediction
-        my_real pdivv = (psph.gradVx[0] + psph.gradVy[1] + psph.gradVz[2])*pDeltaHalf;
-        my_real qdivv = (q(gradVxX) + q(gradVyY) + q(gradVzZ))*qDeltaHalf;
+        dtype pdivv = (pGradVxX + pGradVyY + pGradVzZ);
+        dtype qdivv = (qGradVxX + qGradVyY + qGradVzZ);
 
-        // At some point we should erase the need for this structs... FIXME
-        struct Input_vec_Riemann riemann_input;
-        struct Riemann_outputs riemann_output;
+        dtype L_v[3], R_v[3];
+        dtype L_rho = pDensity;
+        dtype R_rho = qDensity;
+        dtype L_p = pP;
+        dtype R_p = qP;
+        L_v[0] = pv[0];
+        R_v[0] = qv[0];
+        L_v[1] = pv[1];
+        R_v[1] = qv[1];
+        L_v[2] = pv[2];
+        R_v[2] = qv[2];
 
-        riemann_input.L.rho = pDensity;
-        riemann_input.R.rho = q(rho);
-        riemann_input.L.v[0] = pvFrame[0];
-        riemann_input.R.v[0] = qvFrame[0];
-        riemann_input.L.v[1] = pvFrame[1];
-        riemann_input.R.v[1] = qvFrame[1];
-        riemann_input.L.v[2] = pvFrame[2];
-        riemann_input.R.v[2] = qvFrame[2];
-        riemann_input.L.p = psph.P;
-        riemann_input.R.p = q(P);
+        extrapolateStateInTime(
+            L_rho,
+            L_v[0], L_v[1], L_v[2],
+            L_p,
+            vFrame[0],  vFrame[1], vFrame[2],
+            pDensity, pv[0], pv[1], pv[2], pP,
+            pDeltaHalf,
+            pGradRhoX, pGradRhoY, pGradRhoZ,
+            pGradPX, pGradPY, pGradPZ,
+            pLastAccX, pLastAccY, pLastAccZ, pdivv,
+            dConstGamma, a);
 
-//      printf("1) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
-//      printf("1) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
+        extrapolateVariableInSpace( L_rho, dx,dy, dz,
+                                    pGradRhoX, pGradRhoY, pGradRhoZ);
+        extrapolateVariableInSpace( L_p, dx,dy, dz,
+                                    pGradPX, pGradPY, pGradPZ);
+        extrapolateVariableInSpace( L_v[0], dx,dy, dz,
+                                    pGradVxX, pGradVxY, pGradVxZ);
+        extrapolateVariableInSpace( L_v[1], dx,dy, dz,
+                                    pGradVyX, pGradVyY, pGradVyZ);
+        extrapolateVariableInSpace( L_v[2], dx,dy, dz,
+                                    pGradVzX, pGradVzY, pGradVzZ);
 
-        // We add the gradients terms (from extrapolation and forward prediction)
-        for (auto j = 0; j < 3; ++j) {
-            riemann_input.L.rho += ( dr[j] - pDeltaHalf*pvFrame[j])*psph.gradRho[j];
+        dx = -dx;
+        dy = -dy;
+        dz = -dz;
 
-            riemann_input.L.v[0] += ( dr[j]*psph.gradVx[j]);
-            riemann_input.L.v[1] += ( dr[j]*psph.gradVy[j]);
-            riemann_input.L.v[2] += ( dr[j]*psph.gradVz[j]);
+        extrapolateStateInTime(
+            R_rho,
+            R_v[0], R_v[1], R_v[2],
+            R_p,
+            vFrame[0],  vFrame[1], vFrame[2],
+            qDensity, qv[0], qv[1], qv[2], qP,
+            qDeltaHalf,
+            qGradRhoX, qGradRhoY, qGradRhoZ,
+            qGradPX, qGradPY, qGradPZ,
+            qLastAccX, qLastAccY, qLastAccZ, qdivv,
+            dConstGamma, a);
 
-            riemann_input.L.p += ( dr[j] - pDeltaHalf*pvFrame[j])*psph.gradP[j];
+        extrapolateVariableInSpace( R_rho, dx,dy, dz,
+                                    qGradRhoX, qGradRhoY, qGradRhoZ);
+        extrapolateVariableInSpace( R_p, dx,dy, dz,
+                                    qGradPX, qGradPY, qGradPZ);
+        extrapolateVariableInSpace( R_v[0], dx,dy, dz,
+                                    qGradVxX, qGradVxY, qGradVxZ);
+        extrapolateVariableInSpace( R_v[1], dx,dy, dz,
+                                    qGradVyX, qGradVyY, qGradVyZ);
+        extrapolateVariableInSpace( R_v[2], dx,dy, dz,
+                                    qGradVzX, qGradVzY, qGradVzZ);
+
+        genericPairwiseLimiter(pDensity, qDensity, L_rho, R_rho);
+        genericPairwiseLimiter(pP, qP, L_p, R_p);
+        genericPairwiseLimiter(pv[0], qv[0], L_v[0], R_v[0]);
+        genericPairwiseLimiter(pv[1], qv[1], L_v[1], R_v[1]);
+        genericPairwiseLimiter(pv[2], qv[2], L_v[2], R_v[2]);
+
+        if (bComove) {
+            extrapolateCosmology(
+                R_v[0], R_v[1], R_v[2],
+                vFrame[0],  vFrame[1], vFrame[2],
+                R_p,
+                qDeltaHalf,
+                qv[0], qv[1], qv[2], qP,
+                dConstGamma, H, a);
+
+            extrapolateCosmology(
+                L_v[0], L_v[1], L_v[2],
+                vFrame[0],  vFrame[1], vFrame[2],
+                L_p,
+                pDeltaHalf,
+                pv[0], pv[1], pv[2], pP,
+                dConstGamma, H, a);
         }
 
+        dtype zero = 0.0;
+        low_limit(L_rho, pDensity, zero);
+        low_limit(R_rho, qDensity, zero);
+        low_limit(L_p, pP, zero);
+        low_limit(R_p, qP, zero);
 
-
-        riemann_input.R.rho += (-dr[0] - qDeltaHalf*qvFrame[0])*q(gradRhoX);
-        riemann_input.R.rho += (-dr[1] - qDeltaHalf*qvFrame[1])*q(gradRhoY);
-        riemann_input.R.rho += (-dr[2] - qDeltaHalf*qvFrame[2])*q(gradRhoZ);
-
-        riemann_input.R.v[0] += (-dr[0]*q(gradVxX));
-        riemann_input.R.v[0] += (-dr[1]*q(gradVxY));
-        riemann_input.R.v[0] += (-dr[2]*q(gradVxZ));
-
-        riemann_input.R.v[1] += (-dr[0]*q(gradVyX));
-        riemann_input.R.v[1] += (-dr[1]*q(gradVyY));
-        riemann_input.R.v[1] += (-dr[2]*q(gradVyZ));
-
-        riemann_input.R.v[2] += (-dr[0]*q(gradVzX));
-        riemann_input.R.v[2] += (-dr[1]*q(gradVzY));
-        riemann_input.R.v[2] += (-dr[2]*q(gradVzZ));
-
-        riemann_input.R.p += (-dr[0] - qDeltaHalf*qvFrame[0])*q(gradPX);
-        riemann_input.R.p += (-dr[1] - qDeltaHalf*qvFrame[1])*q(gradPY);
-        riemann_input.R.p += (-dr[2] - qDeltaHalf*qvFrame[2])*q(gradPZ);
-
-
-
-//      printf("2) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
-//      printf("2) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
-
-
-
-        my_real temp;
-
-
-
-        for (auto j = 0; j < 3; ++j) { // Forward extrapolation of velocity
-            temp = pvFrame[j]*pdivv + psph.gradP[j]/pDensity*pDeltaHalf;
-            riemann_input.L.v[j] -= temp;
-            vFrame[j] -= 0.5*temp;
-        }
-
-        temp = qvFrame[0]*qdivv + q(gradPX)/q(rho)*qDeltaHalf;
-        riemann_input.R.v[0] -= temp;
-        vFrame[0] -= 0.5*temp;
-
-        temp = qvFrame[1]*qdivv + q(gradPY)/q(rho)*qDeltaHalf;
-        riemann_input.R.v[1] -= temp;
-        vFrame[1] -= 0.5*temp;
-
-        temp = qvFrame[2]*qdivv + q(gradPZ)/q(rho)*qDeltaHalf;
-        riemann_input.R.v[2] -= temp;
-        vFrame[2] -= 0.5*temp;
-
-
-        for (auto j = 0; j < 3; ++j) {
-            temp = psph.lastAcc[j]*pDeltaHalf*smf->a;
-            riemann_input.L.v[j] += temp;
-            vFrame[j] += 0.5*temp;
-
-        }
-        temp = q(lastAccX)*qDeltaHalf*smf->a;
-        riemann_input.R.v[0] += temp;
-        vFrame[0] += 0.5*temp;
-
-        temp = q(lastAccY)*qDeltaHalf*smf->a;
-        riemann_input.R.v[1] += temp;
-        vFrame[1] += 0.5*temp;
-
-        temp = q(lastAccZ)*qDeltaHalf*smf->a;
-        riemann_input.R.v[2] += temp;
-        vFrame[2] += 0.5*temp;
-
-        riemann_input.L.rho -= pDensity*pdivv;
-        riemann_input.R.rho -= q(rho)*qdivv;
-        riemann_input.L.p -= smf->dConstGamma*psph.P*pdivv;
-        riemann_input.R.p -= smf->dConstGamma*q(P)*qdivv;
-
-        genericPairwiseLimiter(pDensity, q(rho), &riemann_input.L.rho, &riemann_input.R.rho);
-        genericPairwiseLimiter(psph.P, q(P), &riemann_input.L.p, &riemann_input.R.p);
-        for (auto j = 0; j < 3; ++j) {
-            genericPairwiseLimiter(pvFrame[j], qvFrame[j], &riemann_input.L.v[j], &riemann_input.R.v[j]);
-        }
-
-        if (pkd->csm->val.bComove) {
-
-            for (auto j = 0; j < 3; ++j) {
-                temp = smf->H * pDeltaHalf * smf->a * pvFrame[j];
-                riemann_input.L.v[j] -= temp;
-                vFrame[j] -= 0.5*temp;
-
-                temp = smf->H * qDeltaHalf * smf->a * qvFrame[j];
-                riemann_input.R.v[j] -= temp;
-                vFrame[j] -= 0.5*temp;
-            }
-
-            riemann_input.L.p -= 3. * smf->H * pDeltaHalf * smf->a * (smf->dConstGamma - 1.) * psph.P;
-            riemann_input.R.p -= 3. * smf->H * qDeltaHalf * smf->a * (smf->dConstGamma - 1.) * q(P);
-
-        }
-
-        // DEBUG: Tests for the riemann solver extracted from Toro (10.1007/b79761)
-        // Test 1
-//       riemann_input.L.rho = 1.0; riemann_input.L.p = 1.0; riemann_input.L.v[0] = 0.0;
-//       riemann_input.L.rho = 0.125; riemann_input.L.p = 0.1; riemann_input.L.v[0] = 0.0;
-
-        if (riemann_input.L.rho < 0) {
-            riemann_input.L.rho = pDensity;
-            /* printf("WARNING, L.rho < 0 : using first-order scheme \n");*/
-        }
-        if (riemann_input.R.rho < 0) {
-            riemann_input.R.rho = q(rho);
-            /* printf("WARNING, R.rho < 0 : using first-order scheme \n");*/
-        }
-        if (riemann_input.L.p < 0) {
-            riemann_input.L.p = psph.P;
-            /* printf("WARNING, L.p < 0 : using first-order scheme \n");*/
-        }
-        if (riemann_input.R.p < 0) {
-            riemann_input.R.p = q(P);
-            /* printf("WARNING, R.p < 0 : using first-order scheme \n");*/
-        }
-
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-        const double a_inv3 = 1./(smf->a * smf->a * smf->a);
-        const double pLeEOS = eEOSPressureFloor(a_inv3, riemann_input.L.rho, 0.5*pH,
-                                                smf->dConstGamma, smf->eEOS);
-        if (pLeEOS != NOT_IN_EEOS)
-            riemann_input.L.p = std::max(riemann_input.L.p, pLeEOS);
-
-        const double pReEOS = eEOSPressureFloor(a_inv3, riemann_input.R.rho, 0.5*qH,
-                                                smf->dConstGamma, smf->eEOS);
-        if (pReEOS != NOT_IN_EEOS)
-            riemann_input.R.p = std::max(riemann_input.R.p, pReEOS);
+#ifdef EEOS_POLYTROPE
+        dtype a_inv3 = 1.0/(a*a*a);
+        const dtype pLpoly =
+            polytropicPressureFloor<dtype,mtype>(a_inv3, L_rho, dConstGamma,eEOS);
+        const dtype pRpoly =
+            polytropicPressureFloor<dtype,mtype>(a_inv3, R_rho, dConstGamma,eEOS);
+        L_p = max(L_p, pLpoly);
+        R_p = max(R_p, pRpoly);
 #endif
+        /*
+        #ifdef EEOS_JEANS
+        const double pLjeans =
+            jeansPressureFloor(L_rho, pH, smf->dConstGamma, smf->dEOSNJeans);
+        const double pRjeans =
+            jeansPressureFloor(R_rho, q(ball), smf->dConstGamma, smf->dEOSNJeans);
+        L_p = max(L_p, pLjeans);
+        R_p = max(R_p, pRjeans);
+        #endif
+        */
 
-        double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
-        double cs_R = sqrt(GAMMA * riemann_input.R.p / riemann_input.R.rho);
-        riemann_input.L.u = riemann_input.L.p / (GAMMA_MINUS1 * riemann_input.L.rho);
-        riemann_input.R.u = riemann_input.R.p / (GAMMA_MINUS1 * riemann_input.R.rho);
-        double h_L = riemann_input.L.p/riemann_input.L.rho +
-                     riemann_input.L.u +
-                     0.5*(riemann_input.L.v[0]*riemann_input.L.v[0] +
-                          riemann_input.L.v[1]*riemann_input.L.v[1] +
-                          riemann_input.L.v[2]*riemann_input.L.v[2]);
-        double h_R = riemann_input.R.p/riemann_input.R.rho +
-                     riemann_input.R.u +
-                     0.5*(riemann_input.R.v[0]*riemann_input.R.v[0] +
-                          riemann_input.R.v[1]*riemann_input.R.v[1] +
-                          riemann_input.R.v[2]*riemann_input.R.v[2]);
+        dtype P_M, S_M;
 
-        double v_line_L = riemann_input.L.v[0]*face_unit[0] +
-                          riemann_input.L.v[1]*face_unit[1] +
-                          riemann_input.L.v[2]*face_unit[2];
+        RiemannSolverExact<dtype,mtype> riemann(dConstGamma, mask);
+        int niter = riemann.solve(
+                        R_rho, R_p, R_v,
+                        L_rho, L_p, L_v,
+                        P_M, S_M,
+                        &F_rho, &F_p, F_v.data(),
+                        face_unit.data());
 
-        double v_line_R = riemann_input.R.v[0]*face_unit[0] +
-                          riemann_input.R.v[1]*face_unit[1] +
-                          riemann_input.R.v[2]*face_unit[2];
-
-        int niter = Riemann_solver_exact(smf,
-                                         riemann_input.R.rho, riemann_input.R.p, riemann_input.R.v,
-                                         riemann_input.L.rho, riemann_input.L.p, riemann_input.L.v,
-                                         &riemann_output.P_M, &riemann_output.S_M,
-                                         &riemann_output.Fluxes.rho, &riemann_output.Fluxes.p, &riemann_output.Fluxes.v[0],
-                                         face_unit.data(), v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
-
-
-
-
+        /*
+        int nan;
+        // Only works if compiling with -fno-finite-math-only !!
+        nan = nan_guard(S_M, zero);
+        nan = nan_guard(P_M, zero);
+        if (nan){
+           printf("-----\n");
+           dump(S_M);
+           dump(P_M);
+           dump(R_rho);
+           dump(L_rho);
+           dump(R_p);
+           dump(L_p);
+           dump(R_v[0]);
+           dump(L_v[0]);
+           dump(R_v[1]);
+           dump(L_v[1]);
+           dump(R_v[2]);
+           dump(L_v[2]);
+           dump(face_unit[0]);
+           dump(face_unit[1]);
+           dump(face_unit[2]);
+        }
+        */
 
 #ifdef ENTROPY_SWITCH
 
 #ifdef USE_MFM
         // As we are in a truly lagrangian configuration,
-        // there is no advection of entropy among particles.
-        double fluxes_S = 0.;
+        // there is no adtypetion of entropy among particles.
+        F_S=0.;
 #else
-        // riemann_output.Fluxes contains now the face state given by the riemann solver.
-        // We only need that for computing the entropy flux, and then can be overwritten
-        double fluxes_S = 0.;
-        for (auto j = 0; j < 3; ++j) fluxes_S += riemann_output.Fluxes.v[j]*face_unit[j];
-        if (fluxes_S > 0) {
+        /*
+        for (auto j=0; j<3; j++) F_S += F_v[j]*face_unit[j];
+        if (F_S > 0) {
             // Maybe this values should be properly extrapolated to the faces..
             // but this is expensive!
-            fluxes_S *= psph.S*pDensity/P.mass();
+            F_S *= pS*pOmega;
         }
         else {
-            fluxes_S *= q(S)*q(rho)/q(mass);
+            F_S *= qS*qOmega;
         }
-        fluxes_S *= riemann_output.Fluxes.rho*modApq;
-        fluxes_S = 0.;
+        F_S *= F_rho*modApq;
+        */
+        F_S = 0.;
 
 #endif //USE_MFM
 #endif //ENTROPY_SWITCH
 
 #ifdef USE_MFM
-        riemann_output.Fluxes.rho = 0.;
-        riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
-        for (auto j = 0; j < 3; ++j)
-            riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
+        F_rho = 0.;
+        F_p = P_M * S_M;
+        for (auto j=0; j<3; j++)
+            F_v[j] = P_M * face_unit[j];
 #endif
         // End MFM
 
         // Force 2D
 #ifdef FORCE_1D
-        riemann_output.Fluxes.v[2] = 0.;
-        riemann_output.Fluxes.v[1] = 0.;
+        F_v[2] = 0.;
+        F_v[1] = 0.;
 #endif
 #ifdef FORCE_2D
-        riemann_output.Fluxes.v[2] = 0.;
+        F_v[2] = 0.;
 #endif
 
-
-
-        // DEBUG
-//       abort();
-
+        /*
         // Check for NAN fluxes
-        if (riemann_output.Fluxes.rho!=riemann_output.Fluxes.rho)
-            riemann_output.Fluxes.rho = 0.;//abort();
-        if (riemann_output.Fluxes.p!=riemann_output.Fluxes.p)
-            riemann_output.Fluxes.p = 0.;//abort();
-
-
-
+        if (F_rho!=F_rho)
+            F_rho = 0.;//abort();
+        if (F_p!=F_p)
+            F_p = 0.;//abort();
+        */
 
         // Now we de-boost the fluxes following Eq. A8 Hopkins 2015
-        for (auto j = 0; j < 3; ++j) {
-            riemann_output.Fluxes.p += vFrame[j] * riemann_output.Fluxes.v[j];
-            riemann_output.Fluxes.p += (0.5*vFrame[j]*vFrame[j])*riemann_output.Fluxes.rho;
+        for (auto j=0; j<3; j++) {
+            F_p += vFrame[j] * F_v[j];
+            F_p += (0.5*vFrame[j]*vFrame[j])*F_rho;
         }
 
         // Now we just multiply by the face area
-        riemann_output.Fluxes.p *= modApq;
-        riemann_output.Fluxes.rho *= modApq;
-        for (auto j = 0; j < 3; ++j) {
-            riemann_output.Fluxes.v[j] *= modApq;
-            riemann_output.Fluxes.v[j] += vFrame[j]*riemann_output.Fluxes.rho;
+        F_p *= modApq;
+        F_rho *= modApq;
+        for (auto j=0; j<3; j++) {
+            F_v[j] *= modApq;
+            F_v[j] += vFrame[j]*F_rho;
         }
 
-        // We fill the output buffer with the fluxes, which then
-        // will be added to the corresponding particles
-        output_buffer[out_Frho][i] = riemann_output.Fluxes.rho;
-        output_buffer[out_Fene][i] = riemann_output.Fluxes.p;
-        output_buffer[out_FmomX][i] = riemann_output.Fluxes.v[0];
-        output_buffer[out_FmomY][i] = riemann_output.Fluxes.v[1];
-        output_buffer[out_FmomZ][i] = riemann_output.Fluxes.v[2];
+        /*
+        printf("----\n");
+        printf("%d\n", niter);
+        dump(modApq);
+        dump(F_p);
+        dump(F_rho);
+        dump(F_v[0]);
+        dump(F_v[1]);
+        dump(F_v[2]);
+        */
+
+        /*
+        assert(!nan_guard(minDt, zero));
+        assert(!nan_guard(F_rho, zero));
+        assert(!nan_guard(F_p, zero));
+        assert(!nan_guard(F_v[0], zero));
+        assert(!nan_guard(F_v[1], zero));
+        assert(!nan_guard(F_v[2], zero));
+        */
+
+        // Phew! Done ;)
+    }
+
+#ifdef OPTIM_FLUX_VEC
+
+public:
+
+// Simple macro to improve readability
+#define q(X)    input_buffer[q_##X * nBuff + i]
+#define qout(X) output_buffer[out_##X * nBuff + i]
+    void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
+                      my_real *restrict input_buffer,
+                      my_real *restrict output_buffer, SMF *smf) {
+        PKD pkd = smf->pkd;
+        auto P = pkd->particles[pIn];
+
+        const auto &pv = P.velocity();
+        auto &psph = P.sph();
+
+        const my_real pDensity = P.density();
+        const my_real p_omega = psph.omega;
+
+        bool bComove = pkd->csm->val.bComove;
+        dtype dTime = smf->dTime;
+        dtype dDelta = smf->dDelta;
+        dtype a = smf->a;
+        dtype H = smf->H;
+        dtype dConstGamma = smf->dConstGamma;
+
+        dtype pomega = psph.omega;
+        dtype pH     = P.ball();
+        dtype plast  = psph.lastUpdateTime;
+        dtype pDt    = smf->dDelta/(1<<P.rung());
+        dtype pBXX   = psph.B[XX];
+        dtype pBXY   = psph.B[XY];
+        dtype pBXZ   = psph.B[XZ];
+        dtype pBYY   = psph.B[YY];
+        dtype pBYZ   = psph.B[YZ];
+        dtype pBZZ   = psph.B[ZZ];
+        dtype pDens  = pDensity;
+        dtype pVpredx= P.velocity()[0];
+        dtype pVpredy= P.velocity()[1];
+        dtype pVpredz= P.velocity()[2];
+        dtype pPres  = psph.P;
+        dtype pS;
 #ifdef ENTROPY_SWITCH
-        output_buffer[out_FS][i] = fluxes_S;
+        pS    = psph.S;
 #endif
-        output_buffer[out_minDt][i] = minDt;
+        dtype pgradRhox = psph.gradRho[0];
+        dtype pgradRhoy = psph.gradRho[1];
+        dtype pgradRhoz = psph.gradRho[2];
+        dtype pgradPx = psph.gradP[0];
+        dtype pgradPy = psph.gradP[1];
+        dtype pgradPz = psph.gradP[2];
+        dtype pgradVxx = psph.gradVx[0];
+        dtype pgradVxy = psph.gradVx[1];
+        dtype pgradVxz = psph.gradVx[2];
+        dtype pgradVyx = psph.gradVy[0];
+        dtype pgradVyy = psph.gradVy[1];
+        dtype pgradVyz = psph.gradVy[2];
+        dtype pgradVzx = psph.gradVz[0];
+        dtype pgradVzy = psph.gradVz[1];
+        dtype pgradVzz = psph.gradVz[2];
+        dtype plastAccx = psph.lastAcc[0];
+        dtype plastAccy = psph.lastAcc[1];
+        dtype plastAccz = psph.lastAcc[2];
 
-    } // End of loop over neighbors
-}
+        dtype qdr;
+        dtype qdx;
+        dtype qdy;
+        dtype qdz;
+        dtype qomega;
+        dtype qh;
+        dtype qlast;
+        dtype qDt;
+        dtype qBXX;
+        dtype qBXY;
+        dtype qBXZ;
+        dtype qBYY;
+        dtype qBYZ;
+        dtype qBZZ;
+        dtype qDens;
+        dtype qvx;
+        dtype qvy;
+        dtype qvz;
+        dtype qP;
+        dtype qS;
+        dtype qgradRhox;
+        dtype qgradRhoy;
+        dtype qgradRhoz;
+        dtype qgradPx;
+        dtype qgradPy;
+        dtype qgradPz;
+        dtype qgradVxx;
+        dtype qgradVxy;
+        dtype qgradVxz;
+        dtype qgradVyx;
+        dtype qgradVyy;
+        dtype qgradVyz;
+        dtype qgradVzx;
+        dtype qgradVzy;
+        dtype qgradVzz;
+        dtype qlastAccx;
+        dtype qlastAccy;
+        dtype qlastAccz;
 
+        double index[dtype::width()];
+        for (auto i=0; i<dtype::width(); i++)
+            index[i] = i;
+        dtype index_v;
+        index_v.load(index);
 
-void hydroFluxFillBuffer(my_real **buffer, PARTICLE *qIn, int i, double dr2,
-                         TinyVector<double,3> dr, SMF *smf) {
+#pragma forceinline
+        assert(nBuff>(nSmooth+dtype::width()-1));
+        for (auto i=0; i<nSmooth; i+=dtype::width()) {
+            dtype F_rho;
+            std::array<dtype,3> F_v;
+            dtype F_P;
+            dtype F_S;
+            dtype minDt;
+
+            const mtype mask = index_v<(double)nSmooth;
+            index_v += (double)dtype::width();
+
+            qdr.load(       &q(dr));
+            qdx.load(       &q(dx));
+            qdy.load(       &q(dy));
+            qdz.load(       &q(dz));
+            qomega.load(    &q(omega));
+            // Change name to h, not ball
+            qh.load(        &q(ball));
+            qlast.load(     &q(lastUpdateTime));
+            qDt.load(       &q(rung));
+            qBXX.load(      &q(B_XX));
+            qBXY.load(      &q(B_XY));
+            qBXZ.load(      &q(B_XZ));
+            qBYY.load(      &q(B_YY));
+            qBYZ.load(      &q(B_YZ));
+            qBZZ.load(      &q(B_ZZ));
+            qDens.load(     &q(rho));
+            qvx.load(       &q(vx));
+            qvy.load(       &q(vy));
+            qvz.load(       &q(vz));
+            qP.load(        &q(P));
+#ifdef ENTROPY_SWITCH
+            qS.load(        &q(S));
+#endif
+            qgradRhox.load( &q(gradRhoX));
+            qgradRhoy.load( &q(gradRhoY));
+            qgradRhoz.load( &q(gradRhoZ));
+            qgradPx.load(   &q(gradPX));
+            qgradPy.load(   &q(gradPY));
+            qgradPz.load(   &q(gradPZ));
+            qgradVxx.load(  &q(gradVxX));
+            qgradVxy.load(  &q(gradVxY));
+            qgradVxz.load(  &q(gradVxZ));
+            qgradVyx.load(  &q(gradVyX));
+            qgradVyy.load(  &q(gradVyY));
+            qgradVyz.load(  &q(gradVyZ));
+            qgradVzx.load(  &q(gradVzX));
+            qgradVzy.load(  &q(gradVzY));
+            qgradVzz.load(  &q(gradVzZ));
+            qlastAccx.load( &q(lastAccX));
+            qlastAccy.load( &q(lastAccY));
+            qlastAccz.load( &q(lastAccZ));
+
+            if (smf->dDelta <= 0.0) {
+                pDt = 0.;
+                qDt = 0.;
+                plast = 0.;
+                qlast = 0.;
+                dTime = 0.;
+            }
+
+            doSinglePPFlux( mask, F_rho, F_v, F_P, F_S, minDt,
+                            bComove, dTime, dDelta,  a,  H,  dConstGamma,
+                            qdr,  qdx,  qdy,  qdz,
+                            pH,  plast,  pDt,
+                            pomega,
+                            pBXX,  pBXY,  pBXZ,
+                            pBYY,  pBYZ,  pBZZ,
+                            pDens,  pVpredx, pVpredy, pVpredz,  pPres,  pS,
+                            pgradRhox, pgradRhoy, pgradRhoz,
+                            pgradPx,   pgradPy,   pgradPz,
+                            pgradVxx,  pgradVxy,  pgradVxz,
+                            pgradVyx,  pgradVyy,  pgradVyz,
+                            pgradVzx,  pgradVzy,  pgradVzz,
+                            plastAccx, plastAccy, plastAccz,
+                            qh,  qlast,  qDt,
+                            qomega,
+                            qBXX,  qBXY,  qBXZ,
+                            qBYY,  qBYZ,  qBZZ,
+                            qDens,  qvx, qvy, qvz,  qP,  qS,
+                            qgradRhox,  qgradRhoy,  qgradRhoz,
+                            qgradPx,    qgradPy,    qgradPz,
+                            qgradVxx,   qgradVxy,   qgradVxz,
+                            qgradVyx,   qgradVyy,   qgradVyz,
+                            qgradVzx,   qgradVzy,   qgradVzz,
+                            qlastAccx,  qlastAccy,  qlastAccz,
+                            smf->eEOS );
+
+            // We fill the output buffer with the fluxes, which then
+            // will be added to the corresponding particles
+            F_rho.store(&output_buffer[out_Frho * nBuff + i]);
+            F_P.store(&output_buffer[out_Fene * nBuff + i]);
+            F_v[0].store(&output_buffer[out_FmomX * nBuff + i]);
+            F_v[1].store(&output_buffer[out_FmomY * nBuff + i]);
+            F_v[2].store(&output_buffer[out_FmomZ * nBuff + i]);
+#ifdef ENTROPY_SWITCH
+            F_S.store(&output_buffer[out_FS * nBuff + i]);
+#endif
+            //dump(F_v[0]);
+            minDt.store(&output_buffer[out_minDt * nBuff + i]);
+
+        }
+    }
+};
+
+void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *qIn, int i, int nBuff,
+                         double dr2, blitz::TinyVector<double,3> dr, SMF *smf) {
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
     double dDelta = smf->dDelta;
     double qH = Q.ball();
     auto &qsph = Q.sph();
-    buffer[q_mass][i] = Q.mass();
-    buffer[q_ball][i] = qH;
-    buffer[q_dx][i] = dr[0];
-    buffer[q_dy][i] = dr[1];
-    buffer[q_dz][i] = dr[2];
-    buffer[q_dr][i] = sqrt(dr2);
-    buffer[q_rung][i] = dDelta/(1<<Q.rung());
-    buffer[q_rho][i] = Q.density();
-    buffer[q_P][i] = qsph.P;
+    q(mass) = Q.mass();
+    q(ball) = qH;
+    q(dx) = dr[0];
+    q(dy) = dr[1];
+    q(dz) = dr[2];
+    q(dr) = sqrt(dr2);
+    q(rung) = dDelta/(1<<Q.rung());
+    q(rho) = Q.density();
+    q(P) = qsph.P;
 #ifdef ENTROPY_SWITCH
-    buffer[q_S][i] = qsph.S;
+    q(S) = qsph.S;
 #endif
     const auto &qv = Q.velocity();
-    buffer[q_vx][i] = qv[0];
-    buffer[q_vy][i] = qv[1];
-    buffer[q_vz][i] = qv[2];
+    q(vx) = qv[0];
+    q(vy) = qv[1];
+    q(vz) = qv[2];
 
-    buffer[q_gradRhoX][i] = qsph.gradRho[0];
-    buffer[q_gradRhoY][i] = qsph.gradRho[1];
-    buffer[q_gradRhoZ][i] = qsph.gradRho[2];
+    q(gradRhoX) = qsph.gradRho[0];
+    q(gradRhoY) = qsph.gradRho[1];
+    q(gradRhoZ) = qsph.gradRho[2];
 
-    buffer[q_gradPX][i] = qsph.gradP[0];
-    buffer[q_gradPY][i] = qsph.gradP[1];
-    buffer[q_gradPZ][i] = qsph.gradP[2];
+    q(gradPX) = qsph.gradP[0];
+    q(gradPY) = qsph.gradP[1];
+    q(gradPZ) = qsph.gradP[2];
 
-    buffer[q_gradVxX][i] = qsph.gradVx[0];
-    buffer[q_gradVxY][i] = qsph.gradVx[1];
-    buffer[q_gradVxZ][i] = qsph.gradVx[2];
+    q(gradVxX) = qsph.gradVx[0];
+    q(gradVxY) = qsph.gradVx[1];
+    q(gradVxZ) = qsph.gradVx[2];
 
-    buffer[q_gradVyX][i] = qsph.gradVy[0];
-    buffer[q_gradVyY][i] = qsph.gradVy[1];
-    buffer[q_gradVyZ][i] = qsph.gradVy[2];
+    q(gradVyX) = qsph.gradVy[0];
+    q(gradVyY) = qsph.gradVy[1];
+    q(gradVyZ) = qsph.gradVy[2];
 
-    buffer[q_gradVzX][i] = qsph.gradVz[0];
-    buffer[q_gradVzY][i] = qsph.gradVz[1];
-    buffer[q_gradVzZ][i] = qsph.gradVz[2];
+    q(gradVzX) = qsph.gradVz[0];
+    q(gradVzY) = qsph.gradVz[1];
+    q(gradVzZ) = qsph.gradVz[2];
 
-    buffer[q_lastUpdateTime][i] = qsph.lastUpdateTime;
-    buffer[q_lastAccX][i] = qsph.lastAcc[0];
-    buffer[q_lastAccY][i] = qsph.lastAcc[1];
-    buffer[q_lastAccZ][i] = qsph.lastAcc[2];
-    buffer[q_B_XX][i] = qsph.B[XX];
-    buffer[q_B_YY][i] = qsph.B[YY];
-    buffer[q_B_ZZ][i] = qsph.B[ZZ];
-    buffer[q_B_XY][i] = qsph.B[XY];
-    buffer[q_B_XZ][i] = qsph.B[XZ];
-    buffer[q_B_YZ][i] = qsph.B[YZ];
-    buffer[q_omega][i] = qsph.omega;
+    q(lastUpdateTime) = qsph.lastUpdateTime;
+    q(lastAccX) = qsph.lastAcc[0];
+    q(lastAccY) = qsph.lastAcc[1];
+    q(lastAccZ) = qsph.lastAcc[2];
+    q(B_XX) = qsph.B[XX];
+    q(B_YY) = qsph.B[YY];
+    q(B_ZZ) = qsph.B[ZZ];
+    q(B_XY) = qsph.B[XY];
+    q(B_XZ) = qsph.B[XZ];
+    q(B_YZ) = qsph.B[YZ];
+    q(omega) = qsph.omega;
 }
 
-
-void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
-                               PARTICLE *pIn, PARTICLE *qIn, int i, SMF *smf) {
+void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
+                               PARTICLE *pIn, PARTICLE *qIn, int i, int nBuff, SMF *smf) {
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
     auto Q = pkd->particles[qIn];
@@ -1191,41 +967,41 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
     const auto &dDelta = smf->dDelta;
     const auto &aFac = smf->a;
     if (dDelta>0) {
-        P.set_mass(P.mass() - out_buffer[out_minDt][i] * out_buffer[out_Frho][i]);
+        P.set_mass(P.mass() - qout(minDt) * qout(Frho));
 
-        psph.mom[0] -= out_buffer[out_minDt][i] * out_buffer[out_FmomX][i];
-        psph.mom[1] -= out_buffer[out_minDt][i] * out_buffer[out_FmomY][i];
-        psph.mom[2] -= out_buffer[out_minDt][i] * out_buffer[out_FmomZ][i];
+        psph.mom[0] -= qout(minDt) * qout(FmomX);
+        psph.mom[1] -= qout(minDt) * qout(FmomY);
+        psph.mom[2] -= qout(minDt) * qout(FmomZ);
 
-        psph.E -= out_buffer[out_minDt][i] * out_buffer[out_Fene][i];
+        psph.E -= qout(minDt) * qout(Fene);
 
-        psph.Uint -= out_buffer[out_minDt][i] * ( out_buffer[out_Fene][i]
-                     - out_buffer[out_FmomX][i]*pv[0]
-                     - out_buffer[out_FmomY][i]*pv[1]
-                     - out_buffer[out_FmomZ][i]*pv[2]
-                     + 0.5*dot(pv,pv)*out_buffer[out_Frho][i] );
+        psph.Uint -= qout(minDt) * ( qout(Fene)
+                                     - qout(FmomX)*pv[0]
+                                     - qout(FmomY)*pv[1]
+                                     - qout(FmomZ)*pv[2]
+                                     + 0.5*dot(pv,pv)*qout(Frho) );
 
 #ifdef ENTROPY_SWITCH
-        psph.S -= out_buffer[out_minDt][i] * out_buffer[out_FS][i];
+        psph.S -= qout(minDt)* qout(FS);
 #endif
 
 #ifndef USE_MFM
-        psph.drDotFrho[0] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dx][i] * aFac;
-        psph.drDotFrho[1] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dy][i] * aFac;
-        psph.drDotFrho[2] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dz][i] * aFac;
+        psph.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
+        psph.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
+        psph.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
 #endif
-        psph.Frho +=    out_buffer[out_Frho][i];
-        psph.Fene +=    out_buffer[out_Fene][i];
-        psph.Fmom[0] += out_buffer[out_FmomX][i];
-        psph.Fmom[1] += out_buffer[out_FmomY][i];
-        psph.Fmom[2] += out_buffer[out_FmomZ][i];
+        psph.Frho +=    qout(Frho);
+        psph.Fene +=    qout(Fene);
+        psph.Fmom[0] += qout(FmomX);
+        psph.Fmom[1] += qout(FmomY);
+        psph.Fmom[2] += qout(FmomZ);
     }
     else {
-        psph.Frho +=    out_buffer[out_Frho][i];
-        psph.Fene +=    out_buffer[out_Fene][i];
-        psph.Fmom[0] += out_buffer[out_FmomX][i];
-        psph.Fmom[1] += out_buffer[out_FmomY][i];
-        psph.Fmom[2] += out_buffer[out_FmomZ][i];
+        psph.Frho +=    qout(Frho);
+        psph.Fene +=    qout(Fene);
+        psph.Fmom[0] += qout(FmomX);
+        psph.Fmom[1] += qout(FmomY);
+        psph.Fmom[2] += qout(FmomZ);
     }
 
 #ifndef OPTIM_NO_REDUNDANT_FLUXES
@@ -1238,52 +1014,65 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
     {
 
         // If this is not the case, something VERY odd must have happened
-        assert( qsph.P == in_buffer[q_P][i] );
+        assert( qsph.P == q(P) );
         if (dDelta>0) {
-            Q.set_mass(Q.mass() + out_buffer[out_minDt][i] * out_buffer[out_Frho][i]);
+            Q.set_mass(Q.mass() + qout(minDt) * qout(Frho));
 
-            qsph.mom[0] += out_buffer[out_minDt][i] * out_buffer[out_FmomX][i];
-            qsph.mom[1] += out_buffer[out_minDt][i] * out_buffer[out_FmomY][i];
-            qsph.mom[2] += out_buffer[out_minDt][i] * out_buffer[out_FmomZ][i];
+            qsph.mom[0] += qout(minDt) * qout(FmomX);
+            qsph.mom[1] += qout(minDt) * qout(FmomY);
+            qsph.mom[2] += qout(minDt) * qout(FmomZ);
 
-            qsph.E += out_buffer[out_minDt][i] * out_buffer[out_Fene][i];
+            qsph.E += qout(minDt) * qout(Fene);
 
-            qsph.Uint += out_buffer[out_minDt][i] * ( out_buffer[out_Fene][i]
-                         - out_buffer[out_FmomX][i]*qv[0]
-                         - out_buffer[out_FmomY][i]*qv[1]
-                         - out_buffer[out_FmomZ][i]*qv[2]
-                         + 0.5*dot(qv,qv)*out_buffer[out_Frho][i] );
+            qsph.Uint += qout(minDt) * ( qout(Fene)
+                                         - qout(FmomX)*qv[0]
+                                         - qout(FmomY)*qv[1]
+                                         - qout(FmomZ)*qv[2]
+                                         + 0.5*dot(qv,qv)*qout(Frho) );
 #ifdef ENTROPY_SWITCH
-            qsph.S += out_buffer[out_minDt][i] * out_buffer[out_FS][i];
+            qsph.S += qout(minDt) * qout(FS);
 #endif
 
 #ifndef USE_MFM
-            qsph.drDotFrho[0] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dx][i] * aFac;
-            qsph.drDotFrho[1] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dy][i] * aFac;
-            qsph.drDotFrho[2] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dz][i] * aFac;
+            qsph.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
+            qsph.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
+            qsph.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
 #endif
-            qsph.Frho -=    out_buffer[out_Frho][i];
-            qsph.Fene -=    out_buffer[out_Fene][i];
-            qsph.Fmom[0] -= out_buffer[out_FmomX][i];
-            qsph.Fmom[1] -= out_buffer[out_FmomY][i];
-            qsph.Fmom[2] -= out_buffer[out_FmomZ][i];
+            qsph.Frho -=    qout(Frho);
+            qsph.Fene -=    qout(Fene);
+            qsph.Fmom[0] -= qout(FmomX);
+            qsph.Fmom[1] -= qout(FmomY);
+            qsph.Fmom[2] -= qout(FmomZ);
         }
         else {
-            qsph.Frho -=    out_buffer[out_Frho][i];
-            qsph.Fene -=    out_buffer[out_Fene][i];
-            qsph.Fmom[0] -= out_buffer[out_FmomX][i];
-            qsph.Fmom[1] -= out_buffer[out_FmomY][i];
-            qsph.Fmom[2] -= out_buffer[out_FmomZ][i];
+            qsph.Frho -=    qout(Frho);
+            qsph.Fene -=    qout(Fene);
+            qsph.Fmom[0] -= qout(FmomX);
+            qsph.Fmom[1] -= qout(FmomY);
+            qsph.Fmom[2] -= qout(FmomZ);
         }
 
     } // q marked/active
 
 }
 
-void hydroFluxGetNvars(int *in, int *out) {
+void hydroFluxGetBufferInfo(int *in, int *out) {
     *in = q_last;
     *out = out_last;
 }
 
 #endif // OPTIM_FLUX_VEC
 
+void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
+                          my_real *restrict input_buffer,
+                          my_real *restrict output_buffer, SMF *smf) {
+
+#if defined(USE_SIMD_FLUX)
+    MeshlessHydroSolver<dvec,dmask> solver;
+#else
+    MeshlessHydroSolver<vec<double,double>,mmask<bool>> solver;
+#endif
+    solver.hydroRiemann(p,fBall,nSmooth, nBuff,
+                        input_buffer,
+                        output_buffer, smf) ;
+}

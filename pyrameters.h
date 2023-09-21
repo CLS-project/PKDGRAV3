@@ -43,11 +43,11 @@ protected:
     template<typename T,int N> blitz::TinyVector<T,N> get(const char *name);
 
 public:
-    template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_signed<T>::value && !std::is_same<T, bool>::value, int>::type = 0>
+    template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_signed<T>::value&& !std::is_same<T, bool>::value, int>::type = 0>
     void set(const char *name, T value) {
         PyObject_SetAttrString(arguments_,name,PyLong_FromSsize_t(value));
     }
-    template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_unsigned<T>::value && !std::is_same<T, bool>::value, int>::type = 0>
+    template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_unsigned<T>::value&& !std::is_same<T, bool>::value, int>::type = 0>
     void set(const char *name, T value) {
         PyObject_SetAttrString(arguments_,name,PyLong_FromSize_t(value));
     }

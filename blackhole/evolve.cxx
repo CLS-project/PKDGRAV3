@@ -25,7 +25,7 @@ static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
     if (prob_factor > 0.0) {
         for (auto i = 0; i < nSmooth; ++i) {
             const double rpq = sqrt(nnList[i].fDist2);
-            const double kernel = cubicSplineKernel(rpq, pH);
+            const double kernel = cubicSplineKernel(rpq, static_cast<double>(pH));
             const double prob = prob_factor * kernel;
             if (rand()<RAND_MAX*prob) {
                 ++nAccreted;
@@ -189,7 +189,7 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             assert(q.is_gas());
 #endif
             const double rpq = sqrt(nnList[i].fDist2);
-            const double kernel = cubicSplineKernel(rpq, pH);
+            const double kernel = cubicSplineKernel(rpq, static_cast<double>(pH));
             const auto &qMass = q.mass();
             massSum += qMass;
 

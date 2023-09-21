@@ -70,7 +70,7 @@ static inline void densNodeOmegaE(NN *nnList, float pH, TinyVector<double,3> dr_
         const auto fDist2 = blitz::dot(dr,dr);
         if (fDist2 <= pH2) {
             const double rpq = sqrt(fDist2);
-            const double Wpq = cubicSplineKernel(rpq, pH);
+            const double Wpq = cubicSplineKernel(rpq, static_cast<double>(pH));
 
             *omega += Wpq;
 
@@ -160,7 +160,7 @@ void hydroDensityFinal(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf
 
         for (auto i = 0; i < nSmooth; ++i) {
             const double rpq = sqrt(nnList[i].fDist2);
-            const double Wpq = cubicSplineKernel(rpq, pH);
+            const double Wpq = cubicSplineKernel(rpq, static_cast<double>(pH));
 
             *omega += Wpq;
 
@@ -183,7 +183,7 @@ void hydroDensityFinal(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf
     else {
         for (auto i = 0; i < nSmooth; ++i) {
             const double rpq = sqrt(nnList[i].fDist2);
-            *omega += cubicSplineKernel(rpq, pH);
+            *omega += cubicSplineKernel(rpq, static_cast<double>(pH));
         }
     }
 

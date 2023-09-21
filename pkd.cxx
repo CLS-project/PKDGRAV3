@@ -109,7 +109,6 @@ using blitz::dot;
 using blitz::max;
 using blitz::min;
 
-
 static void initLightBallOffsets(PKD pkd,double mrLCP) {
     Bound bnd(TinyVector<double,3>(-0.5),TinyVector<double,3>(0.5));
     double min2;
@@ -160,7 +159,6 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
         pkd->nBoxLC[l] = nBox;
     }
 }
-
 
 static void initLightConeOffsets(PKD pkd,int bBowtie,double h[3],double alpha,double mrLCP) {
     int l,ix,iy,iz,nBox,nBoxMax;
@@ -304,7 +302,6 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,double h[3],double alpha,do
     }
     pkd->nBoxLC[l] = nBox;
 }
-
 
 pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
@@ -910,7 +907,6 @@ void pkdEnforcePeriodic(PKD pkd,Bound bnd) {
     }
 }
 
-
 /*
 ** x and y must have range [1,2) !
 ** returns key in the range [0,2^63-1]
@@ -1113,7 +1109,6 @@ int pkdWeightWrap(PKD pkd,int d,double fSplit,double fSplit2,int iSplitSide,
     return (iPart);
 }
 
-
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
                  int *pnLow,int *pnHigh) {
     int iPart;
@@ -1134,7 +1129,6 @@ int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
     return (iPart);
 }
 
-
 int pkdLowerPart(PKD pkd,int d,double fSplit,int i,int j) {
     auto pi = pkd->particles.begin() + i;
     auto pj = pkd->particles.begin() + j;
@@ -1142,14 +1136,12 @@ int pkdLowerPart(PKD pkd,int d,double fSplit,int i,int j) {
     return ii - pkd->particles.begin();
 }
 
-
 int pkdUpperPart(PKD pkd,int d,double fSplit,int i,int j) {
     auto pi = pkd->particles.begin() + i;
     auto pj = pkd->particles.begin() + j;
     auto ii = std::partition(pi,pj+1,[d,fSplit](auto &p) {return p.position(d)<fSplit;});
     return ii - pkd->particles.begin();
 }
-
 
 int pkdLowerPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int i,int j) {
     auto pi = pkd->particles.begin() + i;
@@ -1171,7 +1163,6 @@ int pkdLowerPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int i,int j) {
         return ii - pkd->particles.begin();
     }
 }
-
 
 int pkdUpperPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int i,int j) {
     auto pi = pkd->particles.begin() + i;
@@ -1195,7 +1186,6 @@ int pkdUpperPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int i,int j) {
     }
 }
 
-
 int pkdLowerOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     auto pi = pkd->particles.begin() + i;
     auto pj = pkd->particles.begin() + j;
@@ -1204,7 +1194,6 @@ int pkdLowerOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     //assert (std::all_of(pi,ii,split) && std::none_of(ii,pj+1,split));
     return ii - pkd->particles.begin();
 }
-
 
 int pkdUpperOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     auto pi = pkd->particles.begin() + i;
@@ -1215,12 +1204,10 @@ int pkdUpperOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     return ii - pkd->particles.begin();
 }
 
-
 int pkdActiveOrder(PKD pkd) {
     auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return p.is_active();});
     return (pkd->nActive = i - pkd->particles.begin());
 }
-
 
 int pkdColRejects(PKD pkd,int nSplit) {
     int iRejects,i;
@@ -1239,7 +1226,6 @@ int pkdColRejects(PKD pkd,int nSplit) {
     pkd->SetLocal(nSplit);
     return (pkd->nRejects);
 }
-
 
 int pkdSwapRejects(PKD pkd,int idSwap) {
     size_t nBuf;
@@ -1280,7 +1266,6 @@ void pkdSwapAll(PKD pkd, int idSwap) {
 int pkdSwapSpace(PKD pkd) {
     return (pkd->FreeStore() - pkd->Local());
 }
-
 
 int pkdActive(PKD pkd) {
     return (pkd->nActive);
@@ -1680,7 +1665,6 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
         fioSetAttr(fio, HDF5_COSMO_G, "Cosmological run", FIO_TYPE_INT, 1, &flag);
     }
 
-
     /*
      * Units header
      */
@@ -2008,9 +1992,6 @@ void pkdGravAll(PKD pkd,
 
     for (i=0; i<=IRUNGMAX; ++i) pnRung[i] = pkd->nRung[i];
 
-
-
-
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
@@ -2246,9 +2227,6 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
 }
 
-
-
-
 #ifdef OPTIM_REORDER_IN_NODES
 /// @brief Order particles in buckets by type
 /// @param pkd
@@ -2274,7 +2252,6 @@ void pkdReorderWithinNodes(PKD pkd) {
     }
 }
 #endif
-
 
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
     double pDelta, dScaleFactor, dHubble;
@@ -2320,15 +2297,12 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             // ##### Gravity
             hydroSourceGravity(pkd, p, &sph, pDelta, pa, dScaleFactor, bComove);
 
-
             // ##### Expansion effects
             hydroSourceExpansion(pkd, p, &sph,
                                  pDelta, dScaleFactor, dHubble, bComove, in.dConstGamma);
 
-
             // ##### Synchronize Uint, Etot (and possibly S)
             hydroSyncEnergies(pkd, p, &sph, pa, in.dConstGamma);
-
 
             // ##### Cooling
 #ifdef COOLING
@@ -2343,8 +2317,8 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 #if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
             // ##### Effective Equation Of State
             const double a_inv3 = 1. / (dScaleFactor * dScaleFactor * dScaleFactor);
-            const double dFlooru = eEOSEnergyFloor(a_inv3, p.density(), p.ball(),
-                                                   in.dConstGamma, in.eEOS);
+            const double dFlooru = eEOSEnergyFloor<vec<double,double>,mmask<bool>>(a_inv3, p.density(), p.ball(),
+                                   in.dConstGamma, in.eEOS);
             if (dFlooru != NOT_IN_EEOS) {
                 const double dEOSUint = p.mass() * dFlooru;
                 if (sph.Uint < dEOSUint) {
@@ -2360,14 +2334,11 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             pkdAddFBEnergy(pkd, p, &sph, in.dConstGamma);
 #endif
 
-
             // Actually set the primitive variables
             hydroSetPrimitives(pkd, p, &sph, in.dTuFac, in.dConstGamma);
 
-
             // Set 'last*' variables for next timestep
             hydroSetLastVars(pkd, p, &sph, pa, dScaleFactor, in.dTime, in.dDelta, in.dConstGamma);
-
 
         }
         else if (p.is_bh() && p.is_active()) {
@@ -2377,7 +2348,6 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
         }
     }
 }
-
 
 void pkdSetupInterpScale(PKD pkd,double dBoxSize,double mrMax) {
     const int nTable=1000;
@@ -2394,7 +2364,6 @@ void pkdSetupInterpScale(PKD pkd,double dBoxSize,double mrMax) {
     pkd->interp_scale = gsl_spline_alloc(gsl_interp_cspline,nTable);
     gsl_spline_init(pkd->interp_scale,rt,at_inv,nTable);
 }
-
 
 void pkdLightConeVel(PKD pkd,double dBoxSize) {
     const int nTable=1000;
@@ -2452,7 +2421,6 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
     pkdKick(pkd,dTime,dDelta,0,0,0,0,uRungLo,uRungHi);
 }
 
-
 void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,double dDeltaU,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
     assert(pkd->particles.present(PKD_FIELD::oVelocity));
     assert(pkd->particles.present(PKD_FIELD::oAcceleration));
@@ -2509,7 +2477,6 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
         csmClassGslInitialize(pkd->csm);
     }
 }
-
 
 /*
 ** Initialize Lightcone stuff.
@@ -2728,7 +2695,6 @@ uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
     else return iRung;
 }
 
-
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
                   uint8_t uRung,int iMaxRung,uint64_t *nRungCount) {
     int iTempRung;
@@ -2793,7 +2759,6 @@ void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
     }
     p.set_marked(false);
 }
-
 
 /* IA: We replace the deleted particles with those at the end of the particle array (which are still valid), making the tree
  *  no longer usable, unless *extreme* care is taken.
@@ -2914,7 +2879,6 @@ void pkdGetNParts(PKD pkd, struct outGetNParts *out ) {
 
     pkdSetNParts(pkd, out->nGas, out->nDark, out->nStar, out->nBH);
 }
-
 
 void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar, int nBH) {
     pkd->nGas = nGas;

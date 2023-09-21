@@ -63,7 +63,7 @@ fvec cosf(const fvec &xx) {
     fvec fj = cvt_fvec(j);
     fmask mask = fj >= 2.0f;
     fj = mask_sub(mask,fj,fvec(2.0f));
-    mask ^= (fj >= 1.0f);
+    mask ^= (fmask)(fj >= 1.0f);
     cos_sign = maskz_mov(mask,fvec::sign_mask());
     fmask poly = fj >= 1.0f;
     x = ((x - y * vmath_DP1) - y * vmath_DP2) - y * vmath_DP3;
@@ -94,7 +94,7 @@ void sincosf(const fvec &xx, fvec &sin, fvec &cos) {
     fmask mask = fj >= 2.0f;
     sin_sign = mask_xor(mask,sin_sign,fvec::sign_mask());
     fj = mask_sub(mask,fj,fvec(2.0f));
-    mask ^= (fj >= 1.0f);
+    mask ^= (fmask)(fj >= 1.0f);
     cos_sign = maskz_mov(mask,fvec::sign_mask());
     fmask poly = fj >= 1.0f;
     x = ((x - y * vmath_DP1) - y * vmath_DP2) - y * vmath_DP3;
@@ -254,7 +254,6 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
                + i32v(_mm256_and_si256(i32v(consts.two),_mm256_castpd_si256(pred2)));
 #endif
 
-
     SET_PREFACTOR(p0);
     SET_PREFACTOR(p1);
     SET_PREFACTOR(p2);
@@ -280,6 +279,52 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
     r_erf = mask_mov(t,pred0,nt);
     r_erfc = mask_mov(nt,pred0,t);
 
+    return t;
+}
+
+extern "C" {
+#if defined(HAVE_LIBVECM_POW)
+    __m128d _ZGVbN2vv_pow(__m128d x, __m128d y);
+#endif
+#if defined(HAVE_LIBVECM256_POW)
+    __m256d _ZGVdN4vv_pow(__m256d x, __m256d y);
+#endif
+#if defined(HAVE_LIBVECM512_POW)
+    __m512d _ZGVeN8vv_pow(__m512d x, __m512d y);
+#endif
+}
+
+static inline
+dvec pow(const dvec &xx,const dvec &yy) {
+    dvec t;
+#if defined(__AVX512F__)
+#if defined(HAVE_MM512_POW)
+    t =_mm512_pow_pd(xx, yy);
+#elif defined(HAVE_LIBVECM_POW)
+    t =_ZGVeN8vv_pow(xx, yy);
+#else
+    assert(0);
+#endif
+
+#elif defined(__AVX__)
+#if defined(HAVE_MM256_POW)
+    t = _mm256_pow_pd(xx, yy);
+#elif defined(HAVE_LIBVECM256_POW)
+    t = _ZGVdN4vv_pow(xx, yy);
+#else
+    assert(0);
+#endif
+
+#elif defined(__SSE__)
+#if defined(HAVE_MM_POW)
+    t = _mm_pow_pd(xx, yy);
+#elif defined (HAVE_LIBVECM_POW)
+    t = _ZGVbN2vv_pow(xx, yy);
+#else
+    assert(0);
+#endif
+
+#endif
     return t;
 }
 #endif/*VMATH_H*/
