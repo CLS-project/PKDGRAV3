@@ -404,7 +404,7 @@ protected:
     void GetNParts();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
-    int GetParticles(std::vector<std::int64_t> &particle_ids, struct outGetParticles *out);
+    mdl::ServiceBuffer GetParticles(std::vector<std::int64_t> &particle_ids);
     void OutputOrbits(int iStep,double dTime);
     double TotalMass();
     void LightConeOpen(int iStep);

@@ -5860,17 +5860,18 @@ void MSR::LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen)
 }
 #endif
 
-int MSR::GetParticles(std::vector<std::int64_t> &particle_ids, struct outGetParticles *out) {
-    int nOut;
-    nOut = pstGetParticles(pst, particle_ids.data(), sizeof(uint64_t)*particle_ids.size(), out, particle_ids.size()*sizeof(struct outGetParticles));
-    return nOut / sizeof(struct outGetParticles);
+mdl::ServiceBuffer MSR::GetParticles(std::vector<std::int64_t> &particle_ids) {
+    mdl::ServiceBufferOut outBuffer {
+        mdl::ServiceBuffer::Field<struct outGetParticles>(particle_ids.size())
+    };
+    mdl->RunService(PST_GET_PARTICLES, sizeof(uint64_t)*particle_ids.size(), particle_ids.data(), outBuffer);
+    return std::move(outBuffer);
 }
 
 void MSR::OutputOrbits(int iStep,double dTime) {
     int i;
 
     if (parameters.has_lstOrbits()) {
-        struct outGetParticles particles[GET_PARTICLES_MAX];
         double dExp, dvFac;
 
         if (csm->val.bComove) {
@@ -5883,7 +5884,8 @@ void MSR::OutputOrbits(int iStep,double dTime) {
         }
 
         auto particle_ids = parameters.get_lstOrbits();
-        GetParticles(particle_ids,particles);
+        auto out = GetParticles(particle_ids);
+        auto particles = static_cast<struct outGetParticles *>(out.data(0));
 
         auto filename = BuildName(iStep,".orb");
         std::ofstream fs(filename);
