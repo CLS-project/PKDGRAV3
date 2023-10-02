@@ -29,20 +29,6 @@ struct parameters {
     */
     int bAccelStep; /* true if bEpsAccStep */
 
-    int bDoRungOutput;
-    int bDoRungDestOutput;
-    int bDoGravity;
-
-    int bDualTree;
-    int bDoSoftOutput;
-    int bDoAccOutput;
-    int bDoPotOutput;
-    int iCacheSize;
-    int iCacheMaxInflight;
-    int iWorkQueueSize;
-    int bAddDelete;
-    int bInFileLC;
-    int nSideHealpix;
     /* BEGIN Gas Parameters */
     int bGasAdiabatic;
     int bGasIsentropic;
@@ -74,36 +60,6 @@ struct parameters {
     int bGasDoExtensiveILPTest;
 
     /* END Gas Parameters */
-    double dDelta;
-    double dEwCut;
-    double dEwhCut;
-    double dPreFacRhoLoc;
-    double dEccFacMax;
-    double dRedTo;
-    char achOutPath[256];
-    char achIoPath[256];
-    char achCheckpointPath[256];
-    char achDataSubPath[256];
-    char achOutTimes[256];
-    char achLinSpecies[256];
-    char achPkSpecies[256];
-    double dFracDualTree;
-    double dFracNoDomainDecomp;
-    double dFracNoDomainRootFind;
-    double dFracNoDomainDimChoice;
-    /*
-    ** Additional parameters for group finding.
-    */
-    double dHopTau;
-    /*
-    ** Parameters for group stats.
-    */
-    double dEnvironment0;
-    double dEnvironment1;
-    /* IC Generation */
-    int bWriteIC;
-    int bICgas;
-    double dInitialT;
 
     /*
      * IA: Parameters for the meshless hydrodynamics

@@ -322,7 +322,7 @@ protected:
     static double Time();
     static void Leader();
     static void Trailer();
-    static void MakePath(const char *dir,const char *base,char *path);
+    static void MakePath(std::string_view dir,std::string_view base,char *path);
 
     double getTime(double dExpansion); // Return simulation time
     double getVfactor(double dTime);
@@ -357,7 +357,7 @@ protected:
         return param.bMeshlessHydro;
     }
     int DoGravity()       const {
-        return param.bDoGravity;
+        return parameters.get_bDoGravity();
     }
     double Eta()          const {
         return parameters.get_dEta();
@@ -375,7 +375,7 @@ protected:
         return iCurrMaxRung;
     }
 
-    std::string BuildName(const char *path,int iStep,const char *type="");
+    std::string BuildName(std::string_view path,int iStep,const char *type="");
     std::string BuildName(int iStep,const char *type=""); // With achOutPath
     std::string BuildIoName(int iStep,const char *type="");
     std::string BuildCpName(int iStep,const char *type="");

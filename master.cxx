@@ -240,23 +240,25 @@ static void make_directories(std::string name) {
     }
 }
 
-std::string MSR::BuildName(const char *path,int iStep,const char *type) {
-    if (!path[0]) path = "{name}.{step:05d}{type}";
+std::string MSR::BuildName(std::string_view path,int iStep,const char *type) {
+    if (!path.length()) path = "{name}.{step:05d}{type}";
     auto name = fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
     make_directories(name);
     return name;
 }
 std::string MSR::BuildName(int iStep,const char *type) {
-    return BuildName(param.achOutPath,iStep,type);
+    return BuildName(parameters.get_achOutPath(),iStep,type);
 }
 std::string MSR::BuildIoName(int iStep,const char *type) {
-    if ( param.achIoPath[0] )
-        return BuildName(param.achIoPath,iStep,type);
+    auto achIoPath = parameters.get_achIoPath();
+    if ( achIoPath.length() )
+        return BuildName(achIoPath,iStep,type);
     else return BuildName(iStep,type);
 }
 std::string MSR::BuildCpName(int iStep,const char *type) {
-    if ( param.achCheckpointPath[0] )
-        return BuildName(param.achCheckpointPath,iStep,type);
+    auto achCheckpointPath = parameters.get_achCheckpointPath();
+    if ( achCheckpointPath.length() )
+        return BuildName(achCheckpointPath,iStep,type);
     else return BuildName(iStep,type);
 }
 
@@ -268,7 +270,7 @@ size_t MSR::getLocalGridMemory(int nGrid) {
     return outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 }
 
-void MSR::MakePath(const char *dir,const char *base,char *path) {
+void MSR::MakePath(std::string_view dir,std::string_view base,char *path) {
     /*
     ** Prepends "dir" to "base" and returns the result in "path". It is the
     ** caller's responsibility to ensure enough memory has been allocated
@@ -276,13 +278,16 @@ void MSR::MakePath(const char *dir,const char *base,char *path) {
     */
 
     if (!path) return;
-    path[0] = 0;
-    if (dir&&dir[0]) {
-        strcat(path,dir);
-        strcat(path,"/");
+    if (dir.length()) {
+        memcpy(path,dir.data(),dir.length());
+        path += dir.length();
+        *path++ = '/';
     }
-    if (!base) return;
-    strcat(path,base);
+    if (base.length()) {
+        memcpy(path,base.data(),base.length());
+        path += base.length();
+    }
+    *path = 0;
 }
 
 uint64_t MSR::getMemoryModel() {
@@ -306,9 +311,9 @@ uint64_t MSR::getMemoryModel() {
     if (parameters.get_bMemIntegerPosition()) mMemoryModel |= PKD_MODEL_INTEGER_POS;
     if (parameters.get_bMemUnordered()&&param.bNewKDK) mMemoryModel |= PKD_MODEL_UNORDERED;
     if (parameters.get_bMemParticleID())   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
-    if (parameters.get_bMemAcceleration() || param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
+    if (parameters.get_bMemAcceleration() || parameters.get_bDoAccOutput()) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (parameters.get_bMemVelocity())     mMemoryModel |= PKD_MODEL_VELOCITY;
-    if (parameters.get_bMemPotential() || param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
+    if (parameters.get_bMemPotential() || parameters.get_bDoPotOutput())    mMemoryModel |= PKD_MODEL_POTENTIAL;
     if (parameters.get_bFindHopGroups())   mMemoryModel |= PKD_MODEL_GROUPS | PKD_MODEL_DENSITY | PKD_MODEL_BALL;
     if (parameters.get_bMemGroups())       mMemoryModel |= PKD_MODEL_GROUPS;
     if (parameters.get_bMemMass())         mMemoryModel |= PKD_MODEL_MASS;
@@ -344,9 +349,9 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(mdl));
     ps.nTreeBitsLo = parameters.get_nTreeBitsLo();
     ps.nTreeBitsHi = parameters.get_nTreeBitsHi();
-    ps.iCacheSize  = param.iCacheSize;
-    ps.iCacheMaxInflight = param.iCacheMaxInflight;
-    ps.iWorkQueueSize  = param.iWorkQueueSize;
+    ps.iCacheSize  = parameters.get_iCacheSize();
+    ps.iCacheMaxInflight = parameters.get_iCacheMaxInflight();
+    ps.iWorkQueueSize  = parameters.get_iWorkQueueSize();
     ps.fPeriod = parameters.get_dPeriod();
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
 
@@ -389,7 +394,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
      * Add some ephemeral memory (if needed) for the linGrid.
      * 3 grids are stored : forceX, forceY, forceZ
      */
-    if (strlen(param.achLinSpecies)) {
+    if (parameters.get_achLinSpecies().length()) {
         struct inGetFFTMaxSizes inFFTSizes;
         struct outGetFFTMaxSizes outFFTSizes;
 
@@ -606,8 +611,8 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         SetSPHoptions();
         InitializeEOS();
     }
-    if (param.bAddDelete) GetNParts();
-    if (prmSpecified(prm,"achOutTimes")) {
+    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.has_achOutTimes()) {
         nSteps = ReadOuts(dTime);
     }
 
@@ -850,51 +855,9 @@ void MSR::Initialize() {
     ** Now setup for the input parameters.
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
-    param.bDoSoftOutput = 0;
-    prmAddParam(prm,"bDoSoftOutput",0,&param.bDoSoftOutput,sizeof(int),
-                "softout","enable/disable soft outputs = -softout");
-    param.bDoAccOutput = 0;
-    prmAddParam(prm,"bDoAccOutput",0,&param.bDoAccOutput,sizeof(int),
-                "accout","enable/disable acceleration outputs = -accout");
-    param.bDoPotOutput = 0;
-    prmAddParam(prm,"bDoPotOutput",0,&param.bDoPotOutput,sizeof(int),
-                "potout","enable/disable potential outputs = -potout");
-    param.bDoRungOutput = 0;
-    prmAddParam(prm,"bDoRungOutput",0,&param.bDoRungOutput,sizeof(int),
-                "rungout","enable/disable rung outputs = -rungout");
-    param.bDoRungDestOutput = 0;
-    prmAddParam(prm,"bDoRungDestOutput",0,&param.bDoRungDestOutput,sizeof(int),
-                "rungdestout","enable/disable rung destination outputs = -rungdestout");
-    param.dDelta = 0.0;
-    prmAddParam(prm,"dDelta",2,&param.dDelta,sizeof(double),"dt",
-                "<time step>");
-    param.dPreFacRhoLoc = 4.0*M_PI/3.0;
-    prmAddParam(prm,"dPreFacRhoLoc",2,&param.dPreFacRhoLoc,sizeof(double),
-                "dprefacrholoc", "<Pre-factor for local density in dynamical time-stepping>");
-    param.dEccFacMax = 3000;
-    prmAddParam(prm,"dEccFacMax",2,&param.dEccFacMax,sizeof(double),
-                "deccfacmax", "<Maximum correction factor for eccentricity correction>");
     param.bNewKDK = 0;
     prmAddParam(prm,"bNewKDK",0,&param.bNewKDK,
                 sizeof(int), "NewKDK", "<Use new implementation of KDK time stepping=no>");
-    param.dEwCut = 2.6;
-    prmAddParam(prm,"dEwCut",2,&param.dEwCut,sizeof(double),"ew",
-                "<dEwCut> = 2.6");
-    param.dEwhCut = 2.8;
-    prmAddParam(prm,"dEwhCut",2,&param.dEwhCut,sizeof(double),"ewh",
-                "<dEwhCut> = 2.8");
-    strcpy(param.achOutPath,"");
-    prmAddParam(prm,"achOutPath",3,param.achOutPath,256,"op",
-                "<output path for snapshots and logfile> = \"\"");
-    strcpy(param.achIoPath,"");
-    prmAddParam(prm,"achIoPath",3,param.achIoPath,256,"iop",
-                "<output path for snapshots and logfile> = \"\"");
-    strcpy(param.achCheckpointPath,"");
-    prmAddParam(prm,"achCheckpointPath",3,param.achCheckpointPath,256,"cpp",
-                "<output path for checkpoints> = \"\"");
-    strcpy(param.achOutTimes,"");
-    prmAddParam(prm,"achOutTimes",3,param.achOutTimes,256,"ot",
-                "<input file containing the sequence of output z|t|a> = \"\"");
     csm->val.bComove = 0;
     prmAddParam(prm,"bComove",0,&csm->val.bComove,sizeof(int),
                 "cm", "enable/disable comoving coordinates = -cm");
@@ -940,85 +903,11 @@ void MSR::Initialize() {
     csm->val.dPivot = 0.05;
     prmAddParam(prm,"dPivot",2,&csm->val.dPivot,
                 sizeof(double), "kpivot", "Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot> = 0.05");
-    strcpy(param.achDataSubPath,"");
-    prmAddParam(prm,"achDataSubPath",3,param.achDataSubPath,256,
-                NULL,NULL);
-    param.bDualTree = 0;
-    prmAddParam(prm,"bDualTree",0,&param.bDualTree,sizeof(int),"2tree",
-                "enable/disable second tree for active rungs = -2tree");
-#ifdef MDL_CACHE_SIZE
-    param.iCacheSize = MDL_CACHE_SIZE;
-#else
-    param.iCacheSize = 0;
-#endif
-    prmAddParam(prm,"iCacheSize",1,&param.iCacheSize,sizeof(int),"cs",
-                "<size of the MDL cache (0=default)> = 0");
-    param.iCacheMaxInflight = 0;
-    prmAddParam(prm,"iCacheMaxInflight",1,&param.iCacheMaxInflight,sizeof(int),"inflight",
-                "<maximum number of inflight cache message to each rank (0=no limit)> = 0");
-    param.iWorkQueueSize = 0;
-    prmAddParam(prm,"iWorkQueueSize",1,&param.iWorkQueueSize,sizeof(int),"wqs",
-                "<size of the MDL work queue> = 0");
-    param.nSideHealpix = 0;
-    prmAddParam(prm,"nSideHealpix",1,&param.nSideHealpix,
-                sizeof(int),"healpix",
-                "<Number per side of the healpix map> = 0 (default:no healpix maps)");
-    param.bInFileLC = 0;
-    prmAddParam(prm,"bInFileLC",0,&param.bInFileLC,sizeof(int),"lcin",
-                "input light cone data = -lcin");
-    param.dRedTo = 0.0;
-    prmAddParam(prm,"dRedTo",2,&param.dRedTo,sizeof(double),"zto",
-                "specifies final redshift for the simulation");
-    param.dFracDualTree = 0.05;
-    prmAddParam(prm,"dFracDualTree",2,&param.dFracDualTree,
-                sizeof(double),"fndt",
-                "<Fraction of Active Particles for to use a dual tree> = dFracNoDomainDecomp ");
-    param.dFracNoDomainDecomp = 0.1;
-    prmAddParam(prm,"dFracNoDomainDecomp",2,&param.dFracNoDomainDecomp,
-                sizeof(double),"fndd",
-                "<Fraction of Active Particles for no DD> = 0.1");
-    param.dFracNoDomainRootFind = 0.1;
-    prmAddParam(prm,"dFracNoDomainRootFind",2,&param.dFracNoDomainRootFind,
-                sizeof(double),"fndrf",
-                "<Fraction of Active Particles for no DD root finding> = 0.1");
-    param.dFracNoDomainDimChoice = 0.1;
-    prmAddParam(prm,"dFracNoDomainDimChoice",2,&param.dFracNoDomainDimChoice,
-                sizeof(double),"fnddc",
-                "<Fraction of Active Particles for no DD dimension choice> = 0.1");
-    param.bDoGravity = 1;
-    prmAddParam(prm,"bDoGravity",0,&param.bDoGravity,sizeof(int),"g",
-                "enable/disable interparticle gravity = +g");
-    param.dHopTau = -4.0;
-    prmAddParam(prm,"dHopTau",2,&param.dHopTau,sizeof(double),"hoptau",
-                "<linking length for Gasshopper (negative for multiples of softening)> = -4.0");
-    param.dEnvironment0 = -1.0;
-    prmAddParam(prm,"dEnvironment0",2,&param.dEnvironment0,sizeof(double),"dEnv0",
-                "<first radius for density environment about a group> = -1.0 (disabled)");
-    param.dEnvironment1 = -1.0;
-    prmAddParam(prm,"dEnvironment1",2,&param.dEnvironment1,sizeof(double),"dEnv1",
-                "<second radius for density environment about a group> = -1.0 (disabled)");
 
     /* IC Generation */
     csm->val.classData.bClass = 0;
     prmAddParam(prm,"bClass",0,&csm->val.classData.bClass,
                 sizeof(int),"class","<Enable/disable the use of CLASS> = -class");
-    param.achLinSpecies[0] = 0;
-    prmAddParam(prm, "achLinSpecies", 3, param.achLinSpecies,
-                128, "lin_species",
-                "<plus-separated string of linear species, e.g. \"ncdm[0]+g+metric\"> -lin_species");
-    param.achPkSpecies[0] = 0;
-    prmAddParam(prm, "achPkSpecies", 3, param.achPkSpecies,
-                128, "pk_species",
-                "<plus-separated string of P(k) linear species, e.g. \"ncdm[0]+g\"> -pk_species");
-    param.bICgas = 0;
-    prmAddParam(prm,"bICgas",0,&param.bICgas,
-                sizeof(int),"ICgas","<Enable/disable gas in the ICs> = 0");
-    param.dInitialT = 100.0;
-    prmAddParam(prm,"dInitialT",2,&param.dInitialT,
-                sizeof(double),"InitialT","<Initial temperature of the IC-generated gas> = 100");
-    param.bWriteIC = 0;
-    prmAddParam(prm,"bWriteIC",0,&param.bWriteIC,
-                sizeof(int),"wic","<Write IC after generating> = 0");
 
     /* Gas Parameters */
     param.bGasAdiabatic = 1;
@@ -1080,9 +969,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"ddHonHLimit",2,&param.ddHonHLimit,
                 sizeof(double),"dhonh",
                 "<|dH|/H Limiter> = 0.1");
-    param.bAddDelete = 0;
-    prmAddParam(prm,"bAddDelete",0,&param.bAddDelete,sizeof(int),
-                "adddel","<Add Delete Particles> = 0");
     param.fKernelTarget = 0;
     prmAddParam(prm,"fKernelTarget", 2, &param.fKernelTarget,
                 sizeof(double), "fKernelTarget", "Kernel target, either number- or massdensity");
@@ -1553,222 +1439,6 @@ void MSR::Initialize() {
 
 }
 
-#if 0
-void msrLogParams(MSR &msr,FILE *fp) {
-#if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
-    char hostname[MAXHOSTNAMELEN];
-#endif
-    double z;
-    int i;
-
-#ifdef __DATE__
-#ifdef __TIME__
-    fprintf(fp,"# Compiled: %s %s\n",__DATE__,__TIME__);
-#endif
-#endif
-#if defined(__AVX__)
-    fprintf(fp,"# with AVX support\n");
-#elif defined(__SSE3__)
-    fprintf(fp,"# with SSE3 support\n");
-#elif defined(__SSE2__)
-    fprintf(fp,"# with SSE2 support\n");
-#elif defined(__SSE__)
-    fprintf(fp,"# with SSE support\n");
-#endif
-
-    fprintf(fp,"# Preprocessor macros:");
-#ifdef DEBUG
-    fprintf(fp," DEBUG");
-#endif
-#ifdef _REENTRANT
-    fprintf(fp," _REENTRANT");
-#endif
-    /* IA: new macros */
-#ifdef USE_MFM
-    fprintf(fp," USE_MFM");
-#endif
-#ifdef FORCE_2D
-    fprintf(fp," FORCE_2D");
-#endif
-#ifdef FORCE_1D
-    fprintf(fp," FORCE_1D");
-#endif
-#ifdef LIMITER_BARTH
-    fprintf(fp," LIMITER_BARTH");
-#endif
-#ifdef LIMITER_CONDBARTH
-    fprintf(fp," LIMITER_CONDBARTH");
-#endif
-#ifdef ENTROPY_SWITCH
-    fprintf(fp," ENTROPY_SWITCH");
-#endif
-#ifdef COOLING
-    fprintf(fp," COOLING");
-#endif
-#ifdef STAR_FORMATION
-    fprintf(fp," STAR_FORMATION");
-#endif
-#ifdef FEEDBACK
-    fprintf(fp," FEEDBACK");
-#endif
-#ifdef STELLAR_EVOLUTION
-    fprintf(fp," STELLAR_EVOLUTION");
-#endif
-#ifdef HERNQUIST_POTENTIAL
-    fprintf(fp," HERNQUIST_POTENTIAL");
-#endif
-#ifdef BLACKHOLES
-    fprintf(fp," BLACKHOLES");
-#endif
-#ifdef OPTIM_NO_REDUNDANT_FLUXES
-    fprintf(fp," OPTIM_NO_REDUNDANT_FLUXES");
-#endif
-#ifdef OPTIM_DENSITY_REITER
-    fprintf(fp," OPTIM_DENSITY_REITER");
-#endif
-#ifdef OPTIM_SMOOTH_NODE
-    fprintf(fp," OPTIM_SMOOTH_NODE");
-#endif
-#ifdef OPTIM_REORDER_IN_NODES
-    fprintf(fp," OPTIM_REORDER_IN_NODES");
-#endif
-#ifdef OPTIM_FLUX_VEC
-    fprintf(fp," OPTIM_FLUX_VEC");
-#endif
-#ifdef OPTIM_UNION_EXTRAFIELDS
-    fprintf(fp," OPTIM_UNION_EXTRAFIELDS");
-#endif
-#ifdef DEBUG_UNION_EXTRAFIELDS
-    fprintf(fp," DEBUG_UNION_EXTRAFIELDS");
-#endif
-#ifdef DEBUG_FLUX_INFO
-    fprintf(fp," DEBUG_FLUX_INFO");
-#endif
-#ifdef OPTIM_AVOID_IS_ACTIVE
-    fprintf(fp," OPTIM_AVOID_IS_ACTIVE");
-#endif
-    /* End of new macros */
-#if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
-    fprintf(fp,"\n# Master host: ");
-    if (gethostname(hostname,MAXHOSTNAMELEN))
-        fprintf(fp,"unknown");
-    else
-        fprintf(fp,"%s",hostname);
-#endif
-    fprintf(fp,"\n# N: %" PRIu64,N);
-    fprintf(fp," ngas: %" PRIu64,nGas);
-    fprintf(fp," nstar: %" PRIu64,nStar);
-    fprintf(fp," nbh: %" PRIu64,nBH);
-    fprintf(fp," nThreads: %d",nThreads);
-    fprintf(fp," bDiag: %d",param.bDiag);
-    fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",param.bVWarnings,
-            param.bVStart,param.bVStep,parameters.get_bVRungStat(),
-            bVDetails);
-    fprintf(fp,"\n# bPeriodic: %d",param.bPeriodic);
-    fprintf(fp," bComove: %d",csm->val.bComove);
-    fprintf(fp," iEwOrder: %d",param.iEwOrder);
-    fprintf(fp," nReplicas: %d",param.nReplicas);
-    fprintf(fp,"\n# dEwCut: %f",param.dEwCut);
-    fprintf(fp," dEwhCut: %f",param.dEwhCut);
-    fprintf(fp," iCacheSize: %d",param.iCacheSize);
-    fprintf(fp," iCacheMaxInflight: %d",param.iCacheMaxInflight);
-    fprintf(fp," iWorkQueueSize: %d",param.iWorkQueueSize);
-    fprintf(fp," bDoSoftOutput: %d",param.bDoSoftOutput);
-    fprintf(fp," bDoAccOutput: %d",param.bDoAccOutput);
-    fprintf(fp," bDoPotOutput: %d",param.bDoPotOutput);
-    fprintf(fp,"\n# dDelta: %g",param.dDelta);
-    fprintf(fp," bDoRungOutput: %d",param.bDoRungOutput);
-    fprintf(fp," bDoRungDestOutput: %d",param.bDoRungDestOutput);
-    fprintf(fp," dPreFacRhoLoc: %g", param.dPreFacRhoLoc);
-    fprintf(fp," dEccFacMax: %g", param.dEccFacMax);
-    fprintf(fp,"\n# bDoGravity: %d",param.bDoGravity);
-    fprintf(fp,"\n# dFracDualTree: %g",param.dFracDualTree);
-    fprintf(fp,"dFracNoDomainDecomp: %g",param.dFracNoDomainDecomp);
-    fprintf(fp," dFracNoDomainRootFind: %g",param.dFracNoDomainRootFind);
-    fprintf(fp," dFracNoDomainDimChoice: %g",param.dFracNoDomainDimChoice);
-
-    fprintf(fp," bGasAdiabatic: %d",param.bGasAdiabatic);
-    fprintf(fp," bGasIsothermal: %d",param.bGasIsothermal);
-    fprintf(fp," bGasCooling: %d",param.bGasCooling);
-    fprintf(fp," bInitTFromCooling: %d",param.bInitTFromCooling);
-    fprintf(fp," iRungCoolTableUpdate: %d",param.iRungCoolTableUpdate);
-    fprintf(fp," iViscosityLimiter: %d",param.iViscosityLimiter);
-    fprintf(fp," iDiffusion: %d",param.iDiffusion);
-    fprintf(fp,"\n# dConstAlpha: %g",param.dConstAlpha);
-    fprintf(fp," dConstBeta: %g",param.dConstBeta);
-    fprintf(fp," dConstGamma: %g",param.dConstGamma);
-    fprintf(fp," dMeanMolWeight: %g",param.dMeanMolWeight);
-    fprintf(fp," dGasConst: %g",param.dGasConst);
-    fprintf(fp,"\n# dEtaCourant: %g",param.dEtaCourant);
-    fprintf(fp," dEtaUDot: %g",param.dEtaUDot);
-    fprintf(fp," dTuFac: %g",dTuFac);
-    fprintf(fp," dhMinOverSoft: %g",param.dhMinOverSoft);
-    fprintf(fp," dMetalDiffusionCoeff: %g",param.dMetalDiffusionCoeff);
-    fprintf(fp," dThermalDiffusionCoeff: %g",param.dThermalDiffusionCoeff);
-    fprintf(fp,"\n# UNITS: dKBoltzUnit: %g",param.units.dKBoltzUnit);
-    fprintf(fp," dMsolUnit: %g",param.units.dMsolUnit);
-    fprintf(fp," dKpcUnit: %g",param.units.dKpcUnit);
-    if (prmSpecified(prm, "dMsolUnit") &&
-            prmSpecified(prm, "dKpcUnit")) {
-        fprintf(fp," dErgPerGmUnit: %g", param.dErgPerGmUnit );
-        fprintf(fp," dGmPerCcUnit (z=0): %g", param.dGmPerCcUnit );
-        fprintf(fp," dSecUnit: %g", param.dSecUnit );
-        fprintf(fp," dKmPerSecUnit (z=0): %g", param.dKmPerSecUnit );
-    }
-    fprintf(fp,"\n# STARFORM: bStarForm %d",param.bStarForm);
-    fprintf(fp," bFeedback %d",param.bFeedback);
-    fprintf(fp," SFdEfficiency %g",param.SFdEfficiency);
-    fprintf(fp," SFdTMax %g",param.SFdTMax);
-    fprintf(fp," SFdPhysDenMin %g",param.SFdPhysDenMin);
-    fprintf(fp," SFdComovingDenMin %g",param.SFdComovingDenMin);
-    fprintf(fp," SFdESNPerStarMass %g",param.SFdESNPerStarMass);
-    fprintf(fp,"\n# SFdtCoolingShutoff %g",param.SFdtCoolingShutoff);
-    fprintf(fp," SFdtFeedbackDelay %g",param.SFdtFeedbackDelay);
-    fprintf(fp," SFdMassLossPerStarMass %g",param.SFdMassLossPerStarMass);
-    fprintf(fp," SFdZMassPerStarMass %g",param.SFdZMassPerStarMass);
-    fprintf(fp," SFdInitStarMass %g",param.SFdInitStarMass);
-    fprintf(fp," SFdMinGasMass %g",param.SFdMinGasMass);
-    fprintf(fp," SFbdivv %d",param.SFbdivv);
-    /* -- */
-    fprintf(fp," dHopTau: %g",param.dHopTau);
-    /* -- */
-    fprintf(fp,"\n# Group Find: bFindGroups: %d",param.bFindGroups);
-    fprintf(fp," nBins: %d",param.nBins);
-    fprintf(fp," bLogBins: %d",param.bLogBins);
-    fprintf(fp," dTheta: %f",param.dTheta);
-    fprintf(fp,"\n# dHubble0: %g",csm->val.dHubble0);
-    fprintf(fp," dOmega0: %g",csm->val.dOmega0);
-    fprintf(fp," dLambda: %g",csm->val.dLambda);
-    fprintf(fp," dOmegaDE: %g",csm->val.dOmegaDE);
-    fprintf(fp," w0: %g",csm->val.w0);
-    fprintf(fp," wa: %g",csm->val.wa);
-    fprintf(fp," dOmegaRad: %g",csm->val.dOmegaRad);
-    fprintf(fp," dOmegab: %g",csm->val.dOmegab);
-    fprintf(fp,"\n# achOutPath: %s",param.achOutPath);
-    fprintf(fp,"\n# achIoPath: %s",param.achIoPath);
-    fprintf(fp,"\n# achDataSubPath: %s",param.achDataSubPath);
-    if (csm->val.bComove) {
-        fprintf(fp,"\n# RedOut:");
-        if (nOuts == 0) fprintf(fp," none");
-        for (i=0; i<nOuts; i++) {
-            if (i%5 == 0) fprintf(fp,"\n#   ");
-            z = 1.0/csmTime2Exp(csm, pdOutTime[i]) - 1.0;
-            fprintf(fp," %f",z);
-        }
-        fprintf(fp,"\n");
-    }
-    else {
-        fprintf(fp,"\n# TimeOut:");
-        if (nOuts == 0) fprintf(fp," none");
-        for (i=0; i<nOuts; i++) {
-            if (i%5 == 0) fprintf(fp,"\n#   ");
-            fprintf(fp," %f",pdOutTime[i]);
-        }
-        fprintf(fp,"\n");
-    }
-}
-#endif
-
 int MSR::GetLock() {
     /*
     ** Attempts to lock run directory to prevent overwriting. If an old lock
@@ -1781,7 +1451,7 @@ int MSR::GetLock() {
     FILE *fp = NULL;
     char achTmp[256],achFile[256];
 
-    MakePath(param.achDataSubPath,LOCKFILE,achFile);
+    MakePath(parameters.get_achDataSubPath(),LOCKFILE,achFile);
     if (!bOverwrite && (fp = fopen(achFile,"r"))) {
         if (fscanf(fp,"%s",achTmp) != 1) achTmp[0] = '\0';
         (void) fclose(fp);
@@ -1814,7 +1484,7 @@ int MSR::CheckForStop(const char *achStopFile) {
 
     char achFile[256];
     FILE *fp = NULL;
-    MakePath(param.achDataSubPath,achStopFile,achFile);
+    MakePath(parameters.get_achDataSubPath(),achStopFile,achFile);
     if ((fp = fopen(achFile,"r"))) {
         (void) printf("User interrupt detected.\n");
         (void) fclose(fp);
@@ -1908,7 +1578,7 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
 }
 
 double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
-    if (csm->val.bComove && prmSpecified(prm,"dRedTo")
+    if (csm->val.bComove && parameters.has_dRedTo()
             && parameters.has_nSteps() && parameters.has_nSteps10()) {
         double aTo,tTo;
         const auto nSteps10 = parameters.get_nSteps10();
@@ -1917,7 +1587,7 @@ double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
             nSteps = nSteps10 - iStep;
         }
         else {
-            aTo = 1.0/(param.dRedTo + 1.0);
+            aTo = 1.0/(parameters.get_dRedTo() + 1.0);
             nSteps = nSteps - iStep;
         }
         assert(nSteps>0);
@@ -1983,7 +1653,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    MSR::MakePath(param.achDataSubPath,pszFileName,in.achOutFile);
+    MSR::MakePath(parameters.get_achDataSubPath(),pszFileName,in.achOutFile);
 
     in.bStandard = parameters.get_bStandard();
     nProcessors = parallel_write_count();
@@ -2079,7 +1749,7 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    MSR::MakePath(param.achDataSubPath,pszFileName.c_str(),achOutFile);
+    MSR::MakePath(parameters.get_achDataSubPath(),pszFileName.c_str(),achOutFile);
 
     nProcessors = parallel_write_count();
     auto bHDF5 = parameters.get_bHDF5();
@@ -2132,10 +1802,10 @@ void MSR::InitBall() {
 void MSR::DomainDecompOld(int iRung) {
     OldDD::ServiceDomainDecomp::input in;
     uint64_t nActive;
-    const uint64_t nDT = (N*param.dFracDualTree);
-    const uint64_t nDD = (N*param.dFracNoDomainDecomp);
-    const uint64_t nRT = (N*param.dFracNoDomainRootFind);
-    const uint64_t nSD = (N*param.dFracNoDomainDimChoice);
+    const uint64_t nDT = (N*parameters.get_dFracDualTree());
+    const uint64_t nDD = (N*parameters.get_dFracNoDomainDecomp());
+    const uint64_t nRT = (N*parameters.get_dFracNoDomainRootFind());
+    const uint64_t nSD = (N*parameters.get_dFracNoDomainDimChoice());
     double dsec;
     int iRungDT, iRungDD=0,iRungRT,iRungSD;
     int i;
@@ -2595,7 +2265,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
         /*
         ** Add Data Subpath for local and non-local names.
         */
-        MSR::MakePath(param.achDataSubPath,pszFile,achOutFile);
+        MSR::MakePath(parameters.get_achDataSubPath(),pszFile,achOutFile);
 
         switch (iFileType) {
 #ifdef HAVE_LIBBZ2
@@ -2703,7 +2373,7 @@ void MSR::OutVector(const char *pszFile,int iType) {
 void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->nSmooth = nSmooth;
     smf->dTime = dTime;
-    smf->bDoGravity = param.bDoGravity;
+    smf->bDoGravity = parameters.get_bDoGravity();
     smf->iMaxRung = parameters.get_iMaxRung();
     smf->units = param.units;
     if (Comove()) {
@@ -2981,7 +2651,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      int bKickClose,int bKickOpen,int bEwald,int bGravStep,
                      int nPartRhoLoc,int iTimeStepCrit) {
     SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
-    SPHoptions.doGravity = param.bDoGravity;
+    SPHoptions.doGravity = parameters.get_bDoGravity();
     SPHoptions.nPredictRung = uRungLo;
     return Gravity(uRungLo,uRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,
                    bKickClose,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,
@@ -3026,21 +2696,21 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.bPeriodic = parameters.get_bPeriodic();
     in.bEwald = bEwald;
     in.bGPU = parameters.get_bGPU();
-    in.dEwCut = param.dEwCut;
-    in.dEwhCut = param.dEwhCut;
+    in.dEwCut = parameters.get_dEwCut();
+    in.dEwhCut = parameters.get_dEwhCut();
     in.nReps = in.bPeriodic ? parameters.get_nReplicas() : 0;
 
     // Parameters related to timestepping
     in.ts.iTimeStepCrit = iTimeStepCrit;
     in.ts.nPartRhoLoc = nPartRhoLoc;
     in.ts.nPartColl = parameters.get_nPartColl();
-    in.ts.dEccFacMax = param.dEccFacMax;
+    in.ts.dEccFacMax = parameters.get_dEccFacMax();
     if (bGravStep) in.ts.dRhoFac = 1.0/(a*a*a);
     else in.ts.dRhoFac = 0.0;
     in.ts.dTime = dTime;
     in.ts.dDelta = dDelta;
     in.ts.dEta = Eta();
-    in.ts.dPreFacRhoLoc = param.dPreFacRhoLoc;
+    in.ts.dPreFacRhoLoc = parameters.get_dPreFacRhoLoc();
     in.ts.bGravStep = bGravStep;
     in.ts.uRungLo = uRungLo;
     in.ts.uRungHi = uRungHi;
@@ -3114,8 +2784,8 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         */
         for (i=uRungLo; i<=IRUNGMAX; ++i) nRung[i] = outr.nRung[i];
 
-        const uint64_t nDT = (N*param.dFracDualTree);
-        const uint64_t nDD = (N*param.dFracNoDomainDecomp);
+        const uint64_t nDT = (N*parameters.get_dFracDualTree());
+        const uint64_t nDD = (N*parameters.get_dFracNoDomainDecomp());
         uint64_t nActive = 0;
         iRungDD = 0;
         iRungDT = 0;
@@ -3399,7 +3069,7 @@ int MSR::ReadOuts(double dTime) {
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    MakePath(param.achDataSubPath,param.achOutTimes,achFile);
+    MakePath(parameters.get_achDataSubPath(),parameters.get_achOutTimes(),achFile);
 
     dOutTimes.clear();
     dOutTimes.push_back(INFINITY); // Sentinal node
@@ -3504,8 +3174,8 @@ int MSR::CountRungs(uint64_t *nRungs) {
     }
     iCurrMaxRung = iMaxRung;
 
-    const uint64_t nDT = (N*param.dFracDualTree);
-    const uint64_t nDD = (N*param.dFracNoDomainDecomp);
+    const uint64_t nDT = (N*parameters.get_dFracDualTree());
+    const uint64_t nDD = (N*parameters.get_dFracNoDomainDecomp());
     uint64_t nActive = 0;
     iRungDD = 0;
     iRungDT = 0;
@@ -3638,7 +3308,7 @@ void MSR::LightConeOpen(int iStep) {
             strcpy(lc.achOutFile,filename.c_str());
         }
         else lc.achOutFile[0] = 0;
-        lc.nSideHealpix = param.nSideHealpix;
+        lc.nSideHealpix = parameters.get_nSideHealpix();
         pstLightConeOpen(pst,&lc,sizeof(lc),NULL,0);
     }
 }
@@ -3764,7 +3434,7 @@ int MSR::NewTopStepKDK(
         OutputFineStatistics(*pdStep, dTime);
 
     if (uRung == iRungDT+1) {
-        if ( param.bDualTree && uRung < *puRungMax) {
+        if ( parameters.get_bDualTree() && uRung < *puRungMax) {
             /* HACK: FIXME: Don't use the dual tree before z=2; the overlap region is too large */
             /* better would be to construct the tree matching remote processor shape as well as local */
             double a = csmTime2Exp(csm,dTime);
@@ -3888,7 +3558,7 @@ int MSR::NewTopStepKDK(
 
         /* Compute the grids of linear species at main timesteps, before gravity is called */
         auto nGridLin = parameters.get_nGridLin();
-        if (csm->val.classData.bClass && strlen(param.achLinSpecies) && nGridLin) {
+        if (csm->val.classData.bClass && parameters.get_achLinSpecies().length() && nGridLin) {
             GridCreateFFT(nGridLin);
             SetLinGrid(dTime,dDelta,nGridLin,1,bKickOpen);
             if (parameters.get_bDoLinPkOutput())
@@ -3977,7 +3647,7 @@ int MSR::NewTopStepKDK(
         }
         // Calculate Forces
         SelAll(-1,1);
-        SPHoptions.doGravity = param.bDoGravity;
+        SPHoptions.doGravity = parameters.get_bDoGravity();
         SPHoptions.doDensity = 0;
         SPHoptions.nPredictRung = uRung;
         SPHoptions.doSPHForces = 1;
@@ -3987,9 +3657,9 @@ int MSR::NewTopStepKDK(
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                              1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
     }
-    else { /*if (param.bDoGravity)*/
+    else { /*if (parameters.get_bDoGravity())*/
         SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
-        SPHoptions.doGravity = param.bDoGravity;
+        SPHoptions.doGravity = parameters.get_bDoGravity();
         SPHoptions.nPredictRung = uRung;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                              1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -4403,7 +4073,7 @@ void MSR::Hop(double dTime, double dDelta) {
     h.nSmooth    = in.nSmooth = 80;
     h.bPeriodic  = in.bPeriodic = parameters.get_bPeriodic();
     h.bSymmetric = in.bSymmetric = 0;
-    h.dHopTau    = param.dHopTau<0 ? param.dHopTau : param.dHopTau;
+    h.dHopTau    = parameters.get_dHopTau();
     h.smf.a      = in.smf.a = dTime;
     h.smf.dTau2  = in.smf.dTau2 = 0.0;
     h.smf.nMinMembers = in.smf.nMinMembers = parameters.get_nMinMembers();
@@ -4474,8 +4144,8 @@ void MSR::Hop(double dTime, double dDelta) {
     inGravity.dTime = dTime;
     inGravity.bPeriodic = parameters.get_bPeriodic();
     inGravity.nGroup = parameters.get_nGroup();
-    inGravity.dEwCut = param.dEwCut;
-    inGravity.dEwhCut = param.dEwhCut;
+    inGravity.dEwCut = parameters.get_dEwCut();
+    inGravity.dEwhCut = parameters.get_dEwhCut();
     inGravity.uRungLo = 0;
     inGravity.uRungHi = MAX_RUNG;
     inGravity.dTheta = dThetaMin;
@@ -4512,8 +4182,8 @@ void MSR::Hop(double dTime, double dDelta) {
     */
     inGroupStats.bPeriodic = parameters.get_bPeriodic();
     inGroupStats.dPeriod = parameters.get_dPeriod();
-    inGroupStats.rEnvironment[0] = param.dEnvironment0;
-    inGroupStats.rEnvironment[1] = param.dEnvironment1;
+    inGroupStats.rEnvironment[0] = parameters.get_dEnvironment0();
+    inGroupStats.rEnvironment[1] = parameters.get_dEnvironment1();
     inGroupStats.iGlobalStart = 1; /* global id 0 means ungrouped particle on all cpus */
     auto dBoxSize = parameters.get_dBoxSize();
     if ( parameters.has_dBoxSize() && dBoxSize > 0.0 ) {
@@ -4590,8 +4260,8 @@ void MSR::GroupStats() {
     TimerStart(TIMER_FOF);
     inGroupStats.bPeriodic = parameters.get_bPeriodic();
     inGroupStats.dPeriod = parameters.get_dPeriod();
-    inGroupStats.rEnvironment[0] = param.dEnvironment0;
-    inGroupStats.rEnvironment[1] = param.dEnvironment1;
+    inGroupStats.rEnvironment[0] = parameters.get_dEnvironment0();
+    inGroupStats.rEnvironment[1] = parameters.get_dEnvironment1();
     inGroupStats.iGlobalStart = 1; /* global id 0 means ungrouped particle on all cpus */
     auto dBoxSize = parameters.get_dBoxSize();
     if ( parameters.has_dBoxSize() && dBoxSize > 0.0 ) {
@@ -4639,9 +4309,9 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.fPhase = parameters.get_dFixedAmpPhasePI() * M_PI;
     in.nGrid = nGrid;
     in.b2LPT = parameters.get_b2LPT();
-    in.bICgas = param.bICgas;
+    in.bICgas = parameters.get_bICgas();
     in.nBucket = parameters.get_nBucket();
-    in.dInitialT = param.dInitialT;
+    in.dInitialT = parameters.get_dInitialT();
     in.dInitialH = param.dInitialH;
 #ifdef HAVE_HELIUM
     in.dInitialHe = param.dInitialHe;
@@ -4781,8 +4451,10 @@ double MSR::Read(std::string_view achInFile) {
     std::unique_ptr<char[]> buffer {new char[sizeof(inReadFile) + nBytes]};
     auto read = new (buffer.get()) inReadFile;
 
+    std::cout << parameters.get_achDataSubPath() << std::endl;
+
     /* Add Data Subpath for local and non-local names. */
-    MSR::MakePath(param.achDataSubPath,achInFile.data(),achFilename);
+    MSR::MakePath(parameters.get_achDataSubPath(),achInFile.data(),achFilename);
     fio = fioOpen(achFilename,csm->val.dOmega0,csm->val.dOmegab);
     if (fio==NULL) {
         fprintf(stderr,"ERROR: unable to open input file\n");
@@ -4832,7 +4504,7 @@ double MSR::Read(std::string_view achInFile) {
            N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(dExpansion);
-    if (param.bInFileLC) read->dvFac = 1.0;
+    if (parameters.get_bInFileLC()) read->dvFac = 1.0;
     else read->dvFac = getVfactor(dExpansion);
 
     if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
@@ -4952,7 +4624,7 @@ double MSR::Read(std::string_view achInFile) {
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
         printf("Converting u complete, Wallclock: %f secs.\n", dsec);
-        if (param.bWriteIC || (parameters.get_nSteps() == 0)) {
+        if (parameters.get_bWriteIC() || (parameters.get_nSteps() == 0)) {
             printf("Writing updated IC ...\n");
             TimerStart(TIMER_NONE);
             Write(BuildIoName(0).c_str(),0.0,0);
@@ -5020,7 +4692,7 @@ void MSR::OutputPk(int iStep,double dTime) {
         perror(filename.c_str());
         Exit(errno);
     }
-    fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = param.achPkSpecies);
+    fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = parameters.get_achPkSpecies());
     fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
     for (i=0; i<nBinsPk; ++i) {
         if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
@@ -5088,7 +4760,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
     // IA: If we allow for adding/deleting particles, we need to recount them to have the
     //  correct number of particles per specie
-    if (param.bAddDelete) GetNParts();
+    if (parameters.get_bAddDelete()) GetNParts();
 
     printf( "Writing output for step %d\n", iStep );
 
@@ -5123,11 +4795,11 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         HopWrite(BuildName(iStep,".hopstats").c_str());
     }
 
-    if (param.bDoAccOutput) {
+    if (parameters.get_bDoAccOutput()) {
         Reorder();
         OutVector(BuildName(iStep,".acc").c_str(),OUT_ACCEL_VECTOR);
     }
-    if (param.bDoPotOutput) {
+    if (parameters.get_bDoPotOutput()) {
         Reorder();
         OutArray(BuildName(iStep,".pot").c_str(),OUT_POT_ARRAY);
     }
@@ -5136,15 +4808,15 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         Reorder();
         OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
     }
-    if (param.bDoRungOutput) {
+    if (parameters.get_bDoRungOutput()) {
         Reorder();
         OutArray(BuildName(iStep,".rung").c_str(),OUT_RUNG_ARRAY);
     }
-    if (param.bDoRungDestOutput) {
+    if (parameters.get_bDoRungDestOutput()) {
         Reorder();
         OutArray(BuildName(iStep,".rd").c_str(),OUT_RUNGDEST_ARRAY);
     }
-    if (param.bDoSoftOutput) {
+    if (parameters.get_bDoSoftOutput()) {
         Reorder();
         OutArray(BuildName(iStep,".soft").c_str(),OUT_SOFT_ARRAY);
     }
@@ -5755,7 +5427,7 @@ MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins) {
     WindowCorrection(iAssignment,0);
 
     std::tie(nPk,fK,fPk) = GridBinK(nBins,0);
-    if (csm->val.classData.bClass && parameters.get_nGridLin()>0 && strlen(param.achPkSpecies) > 0) {
+    if (csm->val.classData.bClass && parameters.get_nGridLin()>0 && parameters.get_achPkSpecies().length() > 0) {
         AddLinearSignal(0,parameters.get_iSeed(),parameters.get_dBoxSize(),a,
                         parameters.get_bFixedAmpIC(),parameters.get_dFixedAmpPhasePI() * M_PI);
         std::tie(nPk,fK,fPkAll) = GridBinK(nBins,0);

@@ -596,7 +596,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     if (onlyMarked) iRoot2 = FIXROOT;
 
     SPHOptions SPHoptions = initializeSPHOptions(msr->parameters,msr->param,msr->csm,dTime);
-    SPHoptions.doGravity = msr->param.bDoGravity;
+    SPHoptions.doGravity = msr->parameters.get_bDoGravity();
     uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,bKickClose,bKickOpen,bEwald,
                                     msr->parameters.get_bGravStep(), msr->parameters.get_nPartRhoLoc(),
                                     msr->parameters.get_iTimeStepCrit(), SPHoptions);

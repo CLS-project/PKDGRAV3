@@ -37,8 +37,9 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, struct parameters pa
     SPHoptions.gamma = param.dConstGamma;
     SPHoptions.TuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
     SPHoptions.FastGasFraction = param.dFastGasFraction;
-    if (param.dDelta > 0.0 && param.dVelocityDamper > 0.0) {
-        SPHoptions.VelocityDamper = 2.0 / param.dDelta * param.dVelocityDamper;
+    auto dDelta = parameters.get_dDelta();
+    if (dDelta > 0.0 && param.dVelocityDamper > 0.0) {
+        SPHoptions.VelocityDamper = 2.0 / dDelta * param.dVelocityDamper;
     }
     else {
         SPHoptions.VelocityDamper = 0.0f;

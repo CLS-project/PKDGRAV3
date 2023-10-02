@@ -89,6 +89,8 @@ protected:
                 if (c_string == nullptr) throw std::domain_error(name);     // must be a string
                 return std::string_view(c_string,length);                   // return as a string_view
             }
+            else if (v == Py_None) return std::string_view();
+            else throw std::domain_error(name);
         }
         else if constexpr (is_std_vector<T>::value) {
             if (PyList_Check(v)) {
