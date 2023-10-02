@@ -648,7 +648,7 @@ int MSR::ValidateParameters() {
     */
     const auto iMaxRung = parameters.get_iMaxRung();
     assert(iMaxRung <= IRUNGMAX);
-    if (parameters.get_bEpsAccStep()) param.bAccelStep = 1;
+    if (parameters.get_bEpsAccStep()) parameters.set_bAccelStep(true);
     if (parameters.get_bDoGravity()) {
         /* Potential is optional, but the default for gravity */
         if (!parameters.has_bMemPotential()) parameters.set_bMemPotential(1);
@@ -662,17 +662,17 @@ int MSR::ValidateParameters() {
             parameters.set_bMemNodeVelocity(0);
         }
         else {
-            if ((param.bAccelStep || parameters.get_bDensityStep()) && parameters.get_bGravStep()) {
+            if ((parameters.get_bAccelStep() || parameters.get_bDensityStep()) && parameters.get_bGravStep()) {
                 /*
                 ** We cannot combine these 2 types of timestepping criteria, we need to choose one
                 ** or the other basic timestep criterion, in this case we choose only bGravStep.
                 */
-                param.bAccelStep = 0;
+                parameters.set_bAccelStep(false);
                 parameters.set_bEpsAccStep(false);
                 parameters.set_bDensityStep(false);
                 if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
             }
-            else if (!param.bAccelStep && !parameters.get_bGravStep() && !parameters.get_bDensityStep()) {
+            else if (!parameters.get_bAccelStep() && !parameters.get_bGravStep() && !parameters.get_bDensityStep()) {
                 parameters.set_bGravStep(true);
                 if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
             }

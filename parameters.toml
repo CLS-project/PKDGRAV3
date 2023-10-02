@@ -489,6 +489,11 @@ default=1
 ommited="TimeStep.epsilon_over_a"
 help="Which timestep scheme to use"
 
+["Time Stepping".bAccelStep]
+flag="as"
+default=false
+help="Acceleration timestepping"
+
 ["Time Stepping".bEpsAccStep]
 flag="ea"
 default=false

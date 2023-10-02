@@ -25,7 +25,6 @@ struct parameters {
     /*
     ** Parameters for PKDGRAV.
     */
-    int bAccelStep; /* true if bEpsAccStep */
 
     /*
      * IA: Parameters for the meshless hydrodynamics

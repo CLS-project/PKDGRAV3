@@ -829,8 +829,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"bClass",0,&csm->val.classData.bClass,
                 sizeof(int),"class","<Enable/disable the use of CLASS> = -class");
 
-    param.bAccelStep = 0;
-
     /* New params added by IA for the hydrodynamics */
     param.dCFLacc = 0.01;
     prmAddParam(prm,"dCFLacc",2,&param.dCFLacc,sizeof(double),"CFLacc",
@@ -3552,7 +3550,7 @@ void MSR::TopStepKDK(
         msrprintf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
         /* JW: Note -- can't trash uRungNew here! Force calcs set values for it! */
         ActiveRung(iRung, 1);
-        if (param.bAccelStep) AccelStep(iRung,MAX_RUNG,dTime,dDeltaStep);
+        if (parameters.get_bAccelStep()) AccelStep(iRung,MAX_RUNG,dTime,dDeltaStep);
         if (DoGas() && MeshlessHydro()) {
             HydroStep(dTime, dDeltaStep);
         }
