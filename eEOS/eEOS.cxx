@@ -21,14 +21,13 @@ void MSR::SetEOSParam() {
 #endif
 }
 
-
 int MSR::ValidateEOSParam() {
-    if (!prmSpecified(prm, "dOmegab") && prmSpecified(prm, "dEOSFloorMinOD")) {
+    if (!parameters.has_dOmegab() && parameters.has_dEOSFloorMinOD()) {
         fprintf(stderr,"ERROR: dEOSFloorMinOD is specified but dOmegab is not set\n");
         return 0;
     }
 #ifdef EEOS_POLYTROPE
-    if (!prmSpecified(prm, "dOmegab") && prmSpecified(prm, "dEOSPolyFloorMinOD")) {
+    if (!parameters.has_dOmegab() && parameters.has_dEOSPolyFloorMinOD()) {
         fprintf(stderr,"ERROR: dEOSPolyFloorMinOD is specified but dOmegab is not set\n");
         return 0;
     }

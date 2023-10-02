@@ -538,19 +538,19 @@ int MSR::ValidateParameters() {
             puts("ERROR: Box size for IC not specified");
             return 0;
         }
-        if ( !csm->val.classData.bClass ) {
-            if ( ( !prmSpecified(prm,"dSigma8") || csm->val.dSigma8 <= 0 ) &&
-                    ( !prmSpecified(prm,"dNormalization") || csm->val.dNormalization <= 0 ) ) {
+        if ( !parameters.get_bClass() ) {
+            if ( ( !parameters.has_dSigma8() || parameters.get_dSigma8() <= 0 ) &&
+                    ( !parameters.has_dNormalization() || parameters.get_dNormalization() <= 0 ) ) {
                 puts("ERROR: Either dSigma8 or dNormalization should be specified for generating IC");
                 return 0;
             }
-            if ( !prmSpecified(prm,"dSpectral") || csm->val.dSpectral <= 0 ) {
+            if ( !parameters.has_dSpectral() || parameters.get_dSpectral() <= 0 ) {
                 puts("ERROR: dSpectral for IC not specified");
                 return 0;
             }
         }
         if ( parameters.get_bICgas() ) {
-            if ( !prmSpecified(prm,"dOmegab") || csm->val.dOmegab <= 0 ) {
+            if ( !parameters.has_dOmegab() || parameters.get_dOmegab() <= 0 ) {
                 puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
                 return 0;
             }
@@ -560,8 +560,8 @@ int MSR::ValidateParameters() {
             }
         }
     }
-    if ( csm->val.bComove && !csm->val.classData.bClass ) {
-        if ( !prmSpecified(prm,"h") ) {
+    if ( parameters.get_bComove() && !parameters.get_bClass() ) {
+        if ( !parameters.has_h() ) {
             fprintf(stderr, "WARNING: Running with bComove without specifying a Hubble parameter, h\n");
         }
     }
@@ -595,7 +595,7 @@ int MSR::ValidateParameters() {
      */
     auto bPhysicalSoft = parameters.get_bPhysicalSoft();
     const auto dMaxPhysicalSoft = parameters.get_dMaxPhysicalSoft();
-    if (bPhysicalSoft && !csm->val.bComove) {
+    if (bPhysicalSoft && !parameters.get_bComove()) {
         printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
         parameters.set_bPhysicalSoft(bPhysicalSoft = false);
     }
@@ -697,6 +697,24 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
+    csmInitialize(&csm);
+    csm->val.bComove = parameters.get_bComove();
+    csm->val.dHubble0 = parameters.get_dHubble0();
+    csm->val.h = parameters.get_h();
+    csm->val.dOmega0 = parameters.get_dOmega0();
+    csm->val.dLambda = parameters.get_dLambda();
+    csm->val.dOmegaDE = parameters.get_dOmegaDE();
+    csm->val.w0 = parameters.get_w0();
+    csm->val.wa = parameters.get_wa();
+    csm->val.dOmegaRad = parameters.get_dOmegaRad();
+    csm->val.dOmegab = parameters.get_dOmegab();
+    csm->val.dSigma8 = parameters.get_dSigma8();
+    csm->val.dNormalization = parameters.get_dNormalization();
+    csm->val.dSpectral = parameters.get_dSpectral();
+    csm->val.dRunning = parameters.get_dRunning();
+    csm->val.dPivot = parameters.get_dPivot();
+    csm->val.classData.bClass = parameters.get_bClass();
+
     if (csm->val.classData.bClass) {
         const char *aLinear[MAX_CSM_SPECIES];
         const char *aPower[MAX_CSM_SPECIES];
@@ -704,7 +722,7 @@ int MSR::ValidateParameters() {
         char *achPkSpecies = strdup(parameters.get_achPkSpecies().data());
         int nLinear = parseSpeciesNames(aLinear,achLinSpecies);
         int nPower = parseSpeciesNames(aPower,achPkSpecies);
-        if (!prmSpecified(prm,"dOmega0")) csm->val.dOmega0 = 0.0;
+        if (!parameters.has_dOmega0()) csm->val.dOmega0 = 0.0;
         auto achClassFilename = parameters.get_achClassFilename();
         csmClassRead(csm, achClassFilename.data(), parameters.get_dBoxSize(), parameters.get_h(), nLinear, aLinear, nPower, aPower);
         free(achLinSpecies);

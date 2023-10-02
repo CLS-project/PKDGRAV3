@@ -778,56 +778,6 @@ void MSR::Initialize() {
     ** Now setup for the input parameters.
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
-    csm->val.bComove = 0;
-    prmAddParam(prm,"bComove",0,&csm->val.bComove,sizeof(int),
-                "cm", "enable/disable comoving coordinates = -cm");
-    csm->val.dHubble0 = 0.0;
-    prmAddParam(prm,"dHubble0",2,&csm->val.dHubble0,
-                sizeof(double),"Hub", "<dHubble0> = 0.0");
-    csm->val.h = 0.0;
-    prmAddParam(prm,"h",2,&csm->val.h,
-                sizeof(double),"h","<hubble parameter h> = 0");
-    csm->val.dOmega0 = 1.0;
-    prmAddParam(prm,"dOmega0",2,&csm->val.dOmega0,
-                sizeof(double),"Om", "<dOmega0> = 1.0");
-    csm->val.dLambda = 0.0;
-    prmAddParam(prm,"dLambda",2,&csm->val.dLambda,
-                sizeof(double),"Lambda", "<dLambda> = 0.0");
-    csm->val.dOmegaDE = 0.0;
-    prmAddParam(prm,"dOmegaDE",2,&csm->val.dOmegaDE,
-                sizeof(double),"OmDE", "Omega for Dark Energy using w0 and wa parameters: <dOmegaDE> = 0.0");
-    csm->val.w0 = -1.0;
-    prmAddParam(prm,"w0",2,&csm->val.w0,
-                sizeof(double),"w0", "w0 parameter for Dark Energy <w0> = -1.0 (pure Lambda)");
-    csm->val.wa = 0.0;
-    prmAddParam(prm,"wa",2,&csm->val.wa,
-                sizeof(double),"wa", "wa parameter for Dark Energy <wa> = 0.0 (pure Lambda)");
-    csm->val.dOmegaRad = 0.0;
-    prmAddParam(prm,"dOmegaRad",2,&csm->val.dOmegaRad,
-                sizeof(double),"Omrad", "<dOmegaRad> = 0.0");
-    csm->val.dOmegab = 0.0;
-    prmAddParam(prm,"dOmegab",2,&csm->val.dOmegab,
-                sizeof(double),"Omb", "<dOmegab> = 0.0");
-    csm->val.dSigma8 = 0.0;
-    prmAddParam(prm,"dSigma8",2,&csm->val.dSigma8,
-                sizeof(double),"S8", "<dSimga8> = 0.0");
-    csm->val.dNormalization = 0.0;
-    prmAddParam(prm,"dNormalization",2,&csm->val.dNormalization,
-                sizeof(double),"As", "<dNormalization> = 0.0");
-    csm->val.dSpectral = 0.0;
-    prmAddParam(prm,"dSpectral",2,&csm->val.dSpectral,
-                sizeof(double),"ns", "<dSpectral> = 0.0");
-    csm->val.dRunning = 0.0;
-    prmAddParam(prm,"dRunning",2,&csm->val.dRunning,
-                sizeof(double), "alphas", "Primordial tilt running: <dRunning> = 0.0");
-    csm->val.dPivot = 0.05;
-    prmAddParam(prm,"dPivot",2,&csm->val.dPivot,
-                sizeof(double), "kpivot", "Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot> = 0.05");
-
-    /* IC Generation */
-    csm->val.classData.bClass = 0;
-    prmAddParam(prm,"bClass",0,&csm->val.classData.bClass,
-                sizeof(int),"class","<Enable/disable the use of CLASS> = -class");
 
     /* New params added by IA for the hydrodynamics */
     param.dCFLacc = 0.01;
@@ -4285,16 +4235,16 @@ double MSR::Read(std::string_view achInFile) {
     if (!fioGetAttr(fio,HDF5_HEADER_G,"dUOld",FIO_TYPE_DOUBLE,&dUOld)) dUOld = 0.0;
 
     if (csm->val.bComove) {
-        if (!prmSpecified(prm, "dOmega0"))
+        if (!parameters.has_dOmega0())
             fioGetAttr(fio,HDF5_COSMO_G,"Omega_m",FIO_TYPE_DOUBLE,&csm->val.dOmega0);
-        if (!prmSpecified(prm, "dLambda"))
+        if (!parameters.has_dLambda())
             fioGetAttr(fio,HDF5_COSMO_G,"Omega_Lambda",FIO_TYPE_DOUBLE,&csm->val.dLambda);
         if (!parameters.has_dBoxSize()) {
             double dBoxSize;
             fioGetAttr(fio,HDF5_HEADER_G,"BoxSize",FIO_TYPE_DOUBLE,&dBoxSize);
             parameters.set_dBoxSize(dBoxSize);
         }
-        if (!prmSpecified(prm, "h"))
+        if (!parameters.has_h())
             fioGetAttr(fio,HDF5_COSMO_G,"HubbleParam",FIO_TYPE_DOUBLE,&csm->val.h);
     }
 
