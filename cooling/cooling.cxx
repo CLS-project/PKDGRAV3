@@ -221,10 +221,10 @@ void MSR::CoolingInit(float redshift) {
     /* Compute conversion factors */
     // This is not ideal, and does not follow PKDGRAV3 philosophy... someday
     // it should be reworked
-    cooling->internal_energy_to_cgs = param.units.dErgPerGmUnit;
+    cooling->internal_energy_to_cgs = units.dErgPerGmUnit;
     cooling->internal_energy_from_cgs = 1. / cooling->internal_energy_to_cgs;
-    cooling->number_density_to_cgs = pow(param.units.dKpcUnit*KPCCM,-3.);
-    cooling->units = param.units;
+    cooling->number_density_to_cgs = pow(units.dKpcUnit*KPCCM,-3.);
+    cooling->units = units;
     cooling->dConstGamma = param.dConstGamma;
     cooling->dCoolingMinu = param.dCoolingMinu;
 

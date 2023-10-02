@@ -1,16 +1,16 @@
 #include "blackhole/init.h"
 #include "master.h"
 
-void MSR::SetBlackholeParam() {
-    if (!param.bRestart) {
-        param.dBHAccretionEddFac *= (1e3/MSOLG/param.units.dMsolUnit )  /
-                                    pow( 100. / KPCCM / param.units.dKpcUnit, 3) /
-                                    param.units.dSecUnit / param.dBHRadiativeEff ;
+void MSR::SetBlackholeParam(bool bRestart) {
+    if (!bRestart) {
+        param.dBHAccretionEddFac *= (1e3/MSOLG/units.dMsolUnit )  /
+                                    pow( 100. / KPCCM / units.dKpcUnit, 3) /
+                                    units.dSecUnit / param.dBHRadiativeEff ;
 
         // We precompute the factor such that we only need to multiply
         // AccretionRate by this amount to get E_feed
         param.dBHFBEff *= param.dBHRadiativeEff *
-                          pow( LIGHTSPEED * 1e-5 / param.units.dKmPerSecUnit, 2);
+                          pow( LIGHTSPEED * 1e-5 / units.dKmPerSecUnit, 2);
     }
 
     // This, in principle, will not be a parameter

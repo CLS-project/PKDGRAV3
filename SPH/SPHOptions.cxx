@@ -28,6 +28,7 @@
 #include "basetype.h"
 
 SPHOptions initializeSPHOptions(pkd_parameters &parameters, struct parameters param, CSM csm, double dTime) {
+    UNITS units(parameters,csm->val.h);
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = param.fKernelTarget;
     SPHoptions.epsilon = 0.01f;
@@ -35,7 +36,7 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, struct parameters pa
     SPHoptions.beta = param.dConstBeta;
     SPHoptions.EtaCourant = param.dEtaCourant;
     SPHoptions.gamma = param.dConstGamma;
-    SPHoptions.TuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+    SPHoptions.TuFac = units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
     SPHoptions.FastGasFraction = param.dFastGasFraction;
     auto dDelta = parameters.get_dDelta();
     if (dDelta > 0.0 && param.dVelocityDamper > 0.0) {
@@ -47,8 +48,8 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, struct parameters pa
     SPHoptions.nSmooth = parameters.get_nSmooth();
     SPHoptions.ballSizeLimit = param.dBallSizeLimit;
     SPHoptions.fBallFactor = 1.1f;
-    SPHoptions.dKpcUnit = param.units.dKpcUnit;
-    SPHoptions.dMsolUnit = param.units.dMsolUnit;
+    SPHoptions.dKpcUnit = units.dKpcUnit;
+    SPHoptions.dMsolUnit = units.dMsolUnit;
     SPHoptions.dMeanMolWeight = param.dMeanMolWeight;
     SPHoptions.nPredictRung = 0;
     SPHoptions.nRungCorrection = 2;

@@ -24,7 +24,7 @@ void MSR::BHMerger(double dTime) {
     ReorderWithinNodes();
 #endif
 
-    in.nSmooth = param.nSmooth;
+    in.nSmooth = parameters.get_nSmooth();
     in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = 0;
     in.iSmoothType = SMX_BH_MERGER;

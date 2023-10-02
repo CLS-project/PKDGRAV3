@@ -18,8 +18,6 @@
 #ifndef PARAMETERS_HINCLUDED
 #define PARAMETERS_HINCLUDED
 
-#include "units.h"
-
 /*
 ** Don't even think about putting a pointer in here!!
 */
@@ -40,7 +38,6 @@ struct parameters {
     double dConstBeta;
     double dConstGamma;
     double dMeanMolWeight;
-    UNITS units;
     double ddHonHLimit;
     double dhMinOverSoft;
     double dFastGasFraction;

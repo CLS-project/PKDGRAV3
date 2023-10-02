@@ -584,7 +584,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
     InitCosmology(csm);
 
-    SetDerivedParameters();
+    SetDerivedParameters(true);
 
     if (parameters.has_dSoft()) SetSoft(Soft());
 
@@ -719,16 +719,15 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     msrprintf("Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
 }
 
-void MSR::SetDerivedParameters() {
+void MSR::SetDerivedParameters(bool bRestart) {
     /**********************************************************************\
     * The following "parameters" are derived from real parameters.
     \**********************************************************************/
 
-    SetUnits();
-
     /* Temperature-to-specific-internal-energy conversion factors for different values
      * of mean molecular weight (mu) */
-    const double dTuPrefac = param.units.dGasConst / (param.dConstGamma - 1.);
+    units = UNITS(parameters,csm->val.h);
+    const double dTuPrefac = units.dGasConst / (param.dConstGamma - 1.);
     dTuFac = dTuPrefac / param.dMeanMolWeight;
 
     const double dInvPrimNeutralMu = 0.25 + 0.75 * param.dInitialH;
@@ -740,96 +739,20 @@ void MSR::SetDerivedParameters() {
     SetCoolingParam();
 #endif
 #ifdef STAR_FORMATION
-    SetStarFormationParam();
+    SetStarFormationParam(bRestart);
 #endif
 #ifdef FEEDBACK
-    SetFeedbackParam();
+    SetFeedbackParam(bRestart);
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     SetEOSParam();
 #endif
 #ifdef BLACKHOLES
-    SetBlackholeParam();
+    SetBlackholeParam(bRestart);
 #endif
 #ifdef STELLAR_EVOLUTION
     SetStellarEvolutionParam();
 #endif
-}
-
-void MSR::SetUnits() {
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    if (prmSpecified(prm, "dMsolUnit") &&
-            prmSpecified(prm, "dKpcUnit")) {
-        /* code KBOLTZ/MHYDR */
-        param.units.dGasConst = param.units.dKpcUnit*KPCCM*KBOLTZ
-                                /MHYDR/GCGS/param.units.dMsolUnit/MSOLG;
-        /* code energy per unit mass --> erg per g */
-        param.units.dErgPerGmUnit = GCGS*param.units.dMsolUnit*MSOLG/
-                                    (param.units.dKpcUnit*KPCCM);
-        /* code energy --> erg */
-        param.units.dErgUnit = GCGS*pow(param.units.dMsolUnit*MSOLG,2.0)/
-                               (param.units.dKpcUnit*KPCCM);
-        /* code density --> g per cc */
-        param.units.dGmPerCcUnit = (param.units.dMsolUnit*MSOLG)/
-                                   pow(param.units.dKpcUnit*KPCCM,3.0);
-        /* code time --> seconds */
-        param.units.dSecUnit = sqrt(1/(param.units.dGmPerCcUnit*GCGS));
-        /* code speed --> km/s */
-        param.units.dKmPerSecUnit = sqrt(GCGS*param.units.dMsolUnit*MSOLG
-                                         /(param.units.dKpcUnit*KPCCM))/1e5;
-        /* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
-        param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
-    }
-    else if (parameters.get_nGrid()) {
-        // We need to properly set a unit system, we do so following the
-        // convention: G=1, rho=Omega0 in code units
-        param.units.dKpcUnit = parameters.get_dBoxSize()*1e3 / csm->val.h;
-
-        // The mass unit is set such that we recover a correct dHubble0
-        // in code units and 100h in physical
-        const double dHubbleCGS = 100.*csm->val.h*1e5/(1e3*KPCCM); // 1/s
-        param.units.dMsolUnit = pow( param.units.dKpcUnit * KPCCM, 3 ) / MSOLG
-                                * 3.0 * pow( dHubbleCGS, 2 ) * M_1_PI / 8.0 / GCGS;
-
-        /* code KBOLTZ/MHYDR */
-        param.units.dGasConst = param.units.dKpcUnit*KPCCM*KBOLTZ
-                                /MHYDR/GCGS/param.units.dMsolUnit/MSOLG;
-        /* code energy per unit mass --> erg per g */
-        param.units.dErgPerGmUnit = GCGS*param.units.dMsolUnit*MSOLG/
-                                    (param.units.dKpcUnit*KPCCM);
-        /* code energy --> erg */
-        param.units.dErgUnit = GCGS*pow(param.units.dMsolUnit*MSOLG,2.0)/
-                               (param.units.dKpcUnit*KPCCM);
-        /* code density --> g per cc */
-        param.units.dGmPerCcUnit = (param.units.dMsolUnit*MSOLG)/
-                                   pow(param.units.dKpcUnit*KPCCM,3.0);
-        /* code time --> seconds */
-        param.units.dSecUnit = sqrt(1/(param.units.dGmPerCcUnit*GCGS));
-        /* code speed --> km/s */
-        param.units.dKmPerSecUnit = sqrt(GCGS*param.units.dMsolUnit*MSOLG
-                                         /(param.units.dKpcUnit*KPCCM))/1e5;
-        /* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
-        param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
-
-        // Some safety checks
-        double H0 = csm->val.h * 100. / param.units.dKmPerSecUnit *
-                    param.units.dKpcUnit/1e3;
-        double rhoCrit = 3.*H0*H0/(8.*M_PI);
-        assert( fabs(H0-csm->val.dHubble0)/H0 < 0.01 );
-        assert( fabs(rhoCrit-1.0) < 0.01 );
-
-    }
-    else {
-        param.units.dSecUnit = 1;
-        param.units.dKmPerSecUnit = 1;
-        param.units.dComovingGmPerCcUnit = 1;
-        param.units.dGmPerCcUnit = 1;
-        param.units.dErgPerGmUnit = 1;
-        param.units.dErgUnit = 1;
-    }
 }
 
 void MSR::Initialize() {
@@ -941,14 +864,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"dMeanMolWeight",2,&param.dMeanMolWeight,
                 sizeof(double),"mmw",
                 "<Mean molecular weight in amu> = 1.0");
-    param.units.dGasConst = 1.0;
-    prmAddParam(prm,"dGasConst",2,&param.units.dGasConst,
-                sizeof(double),"gcnst",
-                "<Gas Constant>");
-    param.units.dKBoltzUnit = 1.0;
-    prmAddParam(prm,"dKBoltzUnit",2,&param.units.dKBoltzUnit,
-                sizeof(double),"kb",
-                "<Boltzmann Constant in System Units>");
     param.dhMinOverSoft = 0.0;
     prmAddParam(prm,"dhMinOverSoft",2,&param.dhMinOverSoft,
                 sizeof(double),"hmin",
@@ -957,14 +872,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"dFastGasFraction",2,&param.dFastGasFraction,
                 sizeof(double),"dFastGasFraction",
                 "<Fraction for FastGas> = 0.5");
-    param.units.dMsolUnit = 1.0;
-    prmAddParam(prm,"dMsolUnit",2,&param.units.dMsolUnit,
-                sizeof(double),"msu",
-                "<Solar mass/system mass unit>");
-    param.units.dKpcUnit = 1000.0;
-    prmAddParam(prm,"dKpcUnit",2,&param.units.dKpcUnit,
-                sizeof(double),"kpcu",
-                "<Kiloparsec/system length unit>");
     param.ddHonHLimit = 0.1;
     prmAddParam(prm,"ddHonHLimit",2,&param.ddHonHLimit,
                 sizeof(double),"dhonh",
@@ -1683,11 +1590,11 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     in.dTimeOld   = dTimeOld;
     in.dUOld      = dUOld;
     in.dTuFac     = dTuFac;
-    in.dBoxSize   = param.units.dKpcUnit*1e-3*csm->val.h;
+    in.units      = units;
+    in.dBoxSize   = in.units.dKpcUnit*1e-3*csm->val.h;
     in.Omega0     = csm->val.dOmega0;
     in.OmegaLambda= csm->val.dLambda;
     in.HubbleParam= csm->val.h;
-    in.units      = param.units;
 
     in.nDark = nDark;
     in.nGas  = nGas;
@@ -2375,7 +2282,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dTime = dTime;
     smf->bDoGravity = parameters.get_bDoGravity();
     smf->iMaxRung = parameters.get_iMaxRung();
-    smf->units = param.units;
+    smf->units = units;
     if (Comove()) {
         smf->bComove = 1;
         smf->H = csmTime2Hub(csm,dTime);
@@ -2967,7 +2874,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
 
 void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     struct inEndTimestep in;
-    in.units = param.units;
+    in.units = UNITS(parameters,csm->val.h);
 #ifdef GRACKLE
     strcpy(in.achCoolingTable, param.achCoolingTables);
 #endif

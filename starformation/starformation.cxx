@@ -17,7 +17,7 @@
 
 /* MSR layer
  */
-void MSR::SetStarFormationParam() {
+void MSR::SetStarFormationParam(bool bRestart) {
     param.dSFThresholdu = param.dSFThresholdT*dTuFacPrimNeutral;
 
     if (csm->val.bComove) {
@@ -28,15 +28,15 @@ void MSR::SetStarFormationParam() {
         param.dSFThresholdOD = 0.0;
     }
 
-    if (!param.bRestart) {
-        const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
+    if (!bRestart) {
+        const double dnHToRho = MHYDR / param.dInitialH / units.dGmPerCcUnit;
         param.dSFThresholdDen *= dnHToRho; // Code physical density now
 
-        const double Msolpcm2 = 1. / param.units.dMsolUnit *
-                                pow(param.units.dKpcUnit*1e3, 2);
-        param.dSFnormalizationKS *= 1. / param.units.dMsolUnit *
-                                    param.units.dSecUnit/SECONDSPERYEAR *
-                                    pow(param.units.dKpcUnit, 2) *
+        const double Msolpcm2 = 1. / units.dMsolUnit *
+                                pow(units.dKpcUnit*1e3, 2);
+        param.dSFnormalizationKS *= 1. / units.dMsolUnit *
+                                    units.dSecUnit/SECONDSPERYEAR *
+                                    pow(units.dKpcUnit, 2) *
                                     pow(Msolpcm2,-param.dSFindexKS);
     }
 }

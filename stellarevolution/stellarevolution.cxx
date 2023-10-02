@@ -12,7 +12,7 @@ using blitz::TinyVector;
 
 
 void MSR::SetStellarEvolutionParam() {
-    const double dYrToTime = SECONDSPERYEAR / param.units.dSecUnit;
+    const double dYrToTime = SECONDSPERYEAR / units.dSecUnit;
 
     if (strcmp(param.achSNIaDTDType, "exponential") == 0) {
         param.dSNIaNorm = param.dSNIaNumPerMass;
@@ -30,11 +30,11 @@ void MSR::SetStellarEvolutionParam() {
         Exit(1);
     }
 
-    param.dWindSpecificEkin = 0.5 * pow(param.dStellarWindSpeed / param.units.dKmPerSecUnit, 2);
+    param.dWindSpecificEkin = 0.5 * pow(param.dStellarWindSpeed / units.dKmPerSecUnit, 2);
     /* The number of gas particles to enrich is set to the average number of
        neighbours within a smoothing length. The factor 0.5 comes from the cubic
        spline kernel used by the hydro */
-    param.nSmoothEnrich = 0.5 * param.nSmooth;
+    param.nSmoothEnrich = 0.5 * parameters.get_nSmooth();
 }
 
 
@@ -121,7 +121,7 @@ void MSR::StellarEvolutionInit(double dTime) {
         in.StelEvolData.afLifetimeInitialMass[i] = log10(LifetimeData->pfInitialMass[i]);
     for (auto i = 0; i < STEV_LIFETIME_N_METALLICITY * STEV_LIFETIME_N_MASS; ++i) {
         in.StelEvolData.afLifetime[i] = log10(LifetimeData->pfLifetime[i] * SECONDSPERYEAR /
-                                              param.units.dSecUnit);
+                                              units.dSecUnit);
     }
 
     strcpy(in.achSNIaDTDType, param.achSNIaDTDType);

@@ -90,8 +90,7 @@ public:
 public:
     int Python(int argc, char *argv[]);
     int ValidateParameters();
-    void SetDerivedParameters();
-    void SetUnits();
+    void SetDerivedParameters(bool bRestart=false);
     void Hostname();
     void MemStatus();
     int GetLock();
@@ -215,6 +214,9 @@ public:
     void runAnalysis(int iStep,double dTime);
 protected:
     std::list<msr_analysis_callback> analysis_callbacks;
+
+protected:
+    UNITS units;
 
 public: // should be private
     pkd_parameters parameters;
@@ -463,13 +465,13 @@ protected:
     void GrackleInit(int bComove, double dScaleFactor);
 #endif
 #ifdef STAR_FORMATION
-    void SetStarFormationParam();
+    void SetStarFormationParam(bool bRestart);
     int  ValidateStarFormationParam();
     void StarFormInit(double dTime);
 #endif
     void StarForm(double dTime, double dDelta, int iRung);
 #ifdef FEEDBACK
-    void SetFeedbackParam();
+    void SetFeedbackParam(bool bRestart);
 #endif
 #ifdef STELLAR_EVOLUTION
     void SetStellarEvolutionParam();
@@ -480,7 +482,7 @@ protected:
     int ValidateEOSParam();
 #endif
 #ifdef BLACKHOLES
-    void SetBlackholeParam();
+    void SetBlackholeParam(bool bRestart);
     int  ValidateBlackholeParam();
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);

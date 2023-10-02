@@ -3,7 +3,7 @@
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 void MSR::SetEOSParam() {
     const double dHydFrac = param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
+    const double dnHToRho = MHYDR / dHydFrac / units.dGmPerCcUnit;
     param.dEOSFloorDen = param.dEOSFloornH*dnHToRho;
     param.dEOSFlooru = param.dEOSFloorTemp*dTuFacPrimNeutral;
     if (csm->val.bComove)

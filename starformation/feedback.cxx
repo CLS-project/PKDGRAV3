@@ -4,23 +4,23 @@
 #include "master.h"
 #include "imf.h"
 
-void MSR::SetFeedbackParam() {
+void MSR::SetFeedbackParam(bool bRestart) {
     param.dSNFBDu = param.dSNFBDT * dTuFacPrimIonised;
 
     auto IMF = ChooseIMF(param.achIMFType, param.dIMFMinMass, param.dIMFMaxMass);
     const double dCCSNNumPerMass =
         IMF->UnweightedIntegration(param.dCCSNMinMass, param.dCCSNMaxMass);
     param.dCCSNFBSpecEnergy = (param.dCCSNEnergy / MSOLG) * dCCSNNumPerMass /
-                              param.units.dErgPerGmUnit;
+                              units.dErgPerGmUnit;
 
     param.dSNIaFBSpecEnergy = (param.dSNIaEnergy / MSOLG) * param.dSNIaNumPerMass /
-                              param.units.dErgPerGmUnit;
+                              units.dErgPerGmUnit;
 
-    if (!param.bRestart) {
-        param.dCCSNFBDelay *= SECONDSPERYEAR / param.units.dSecUnit;
-        param.dSNIaFBDelay *= SECONDSPERYEAR / param.units.dSecUnit;
+    if (!bRestart) {
+        param.dCCSNFBDelay *= SECONDSPERYEAR / units.dSecUnit;
+        param.dSNIaFBDelay *= SECONDSPERYEAR / units.dSecUnit;
 
-        const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
+        const double dnHToRho = MHYDR / param.dInitialH / units.dGmPerCcUnit;
         param.dSNFBEffnH0 *= dnHToRho;
     }
 }
