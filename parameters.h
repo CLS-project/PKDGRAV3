@@ -27,37 +27,6 @@ struct parameters {
     */
     int bAccelStep; /* true if bEpsAccStep */
 
-    /* BEGIN Gas Parameters */
-    int bGasAdiabatic;
-    int bGasIsentropic;
-    int bGasIsothermal;
-    int bNewKDK;
-#define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
-    double dEtaCourant;
-    double dConstAlpha;
-    double dConstBeta;
-    double dConstGamma;
-    double dMeanMolWeight;
-    double ddHonHLimit;
-    double dhMinOverSoft;
-    double dFastGasFraction;
-    double fKernelTarget;
-    double dVelocityDamper;
-    double dBallSizeLimit;
-    int iKernelType;
-    int bNewSPH;
-    int bGasBuiltinIdeal;
-    int bGasOnTheFlyPrediction;
-    int bGasInterfaceCorrection;
-    int bGasConsistentPrediction;
-    int bCentrifugal;
-    double dCentrifT0;
-    double dCentrifT1;
-    double dCentrifOmega0;
-    int bGasDoExtensiveILPTest;
-
-    /* END Gas Parameters */
-
     /*
      * IA: Parameters for the meshless hydrodynamics
      */

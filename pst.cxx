@@ -68,6 +68,8 @@
     #include "starformation/starformation.h"
 #endif
 
+#define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
+
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
 
@@ -358,7 +360,6 @@ void pstInitialize(PST *ppst,mdl::mdlClass *mdl,LCL *plcl) {
     pst->iSplitDim = -1;
     pst->iLvl = 0;
 }
-
 
 void pstFinish(PST pst) {
     PST pstKill;
@@ -1236,7 +1237,6 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct outGravityReduct tmp;
     int i;
 
-
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
@@ -1402,7 +1402,6 @@ int pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(struct outCalcEandL);
 }
 
-
 int pstDrift(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto in = static_cast<struct inDrift *>(vin);
@@ -1418,7 +1417,6 @@ int pstDrift(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return 0;
 }
-
 
 int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
@@ -1738,7 +1736,6 @@ int pstSetTotal(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(struct outSetTotal);
 }
 
-
 int pstSetWriteStart(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto in = static_cast<struct inSetWriteStart *>(vin);
@@ -1937,7 +1934,6 @@ int pstFofPhases(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(struct outFofPhases);
 }
 
-
 /*
 ** This is an almost identical copy of HopFinishUp.
 ** JST: added the count of lower subtree number of local groups.
@@ -2047,7 +2043,6 @@ int pstMemStatus(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return pst->nLeaves*sizeof(struct outMemStatus);
 }
-
 
 int pstGetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
@@ -2207,7 +2202,6 @@ int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return sizeof(struct outCalcMtot);
 }
-
 
 int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
@@ -2391,13 +2385,10 @@ int pstTotalMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(struct outTotalMass);
 }
 
-
 int pstGetMinDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto out = static_cast<struct outGetMinDt *>(vout);
     struct outGetMinDt outUpper;
-
-
 
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETMINDT,vin,nIn);
@@ -2411,7 +2402,6 @@ int pstGetMinDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return sizeof(struct outGetMinDt);
 }
-
 
 int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inLightConeOpen *>(vin);

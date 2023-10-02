@@ -195,7 +195,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     int iSec = time(0);
 
     dDelta = SwitchDelta(dTime,dDelta,iStartStep,parameters.get_nSteps());
-    if (param.bNewKDK) {
+    if (parameters.get_bNewKDK()) {
         LightConeOpen(iStartStep + 1);
         bKickOpen = 1;
     }
@@ -215,7 +215,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     if (DoGas() && NewSPH()) {
         // Calculate Density
         SelAll(-1,1);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
         SPHoptions.doGravity = 0;
         SPHoptions.doDensity = 1;
         SPHoptions.doSPHForces = 0;
@@ -244,16 +244,16 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         MemStatus();
     }
     else if (DoGravity()) {
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
                            bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     if (DoGravity() && bGravStep) {
-        assert(param.bNewKDK == 0);    /* for now! */
+        assert(parameters.get_bNewKDK() == false);    /* for now! */
         BuildTree(bEwald);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
                 bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -306,7 +306,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         dDelta = SwitchDelta(dTime,dDelta,iStep-1,parameters.get_nSteps());
         lPrior = time(0);
         TimerRestart();
-        if (param.bNewKDK) {
+        if (parameters.get_bNewKDK()) {
             double diStep = (double)(iStep-1);
             double ddTime = dTime;
             if (bKickOpen) {
@@ -315,7 +315,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                 if (DoGas() && NewSPH()) {
                     // Calculate Density
                     SelAll(-1,1);
-                    SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+                    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
                     SPHoptions.doGravity = 0;
                     SPHoptions.doDensity = 1;
                     SPHoptions.doSPHForces = 0;
@@ -342,7 +342,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 }
                 else {
-                    SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+                    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
                     SPHoptions.doGravity = parameters.get_bDoGravity();
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -382,7 +382,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                            1.0/csmTime2Exp(csm,dTime)-1.0,
                            E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec);
         }
-        if (!param.bNewKDK) {
+        if (!parameters.get_bNewKDK()) {
             CheckForOutput(iStep,nSteps,dTime,&bDoCheckpoint,&bDoOutput);
         }
         iStop = (bDoCheckpoint&2) || (bDoOutput&2);
@@ -391,7 +391,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             bDoCheckpoint = 0;
         }
         if (bDoOutput) {
-            if (DoGas() && NewSPH() && param.bCentrifugal) {
+            if (DoGas() && NewSPH() && parameters.get_bCentrifugal()) {
                 ResetCOM();
             }
             Output(iStep,dTime,parameters.get_dDelta(),0);
@@ -468,16 +468,16 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (!parameters.has_bDoGas()) parameters.set_bDoGas(param.bMeshlessHydro||param.bNewSPH);
-    if (parameters.get_bDoGas() && !(param.bMeshlessHydro||param.bNewSPH) ) {
+    if (!parameters.has_bDoGas()) parameters.set_bDoGas(param.bMeshlessHydro||parameters.get_bNewSPH());
+    if (parameters.get_bDoGas() && !(param.bMeshlessHydro||parameters.get_bNewSPH()) ) {
         fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
         return 0;
     }
-    if ((param.bMeshlessHydro||param.bNewSPH) && !parameters.get_bDoGas()) {
+    if ((param.bMeshlessHydro||parameters.get_bNewSPH()) && !parameters.get_bDoGas()) {
         fprintf(stderr,"ERROR: An hydro scheme is selected but bDoGas=0! Did you forget to add bDoGas=1?\n");
         return 0;
     }
-    if (param.bMeshlessHydro && param.bNewSPH) {
+    if (param.bMeshlessHydro && parameters.get_bNewSPH()) {
         fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }
@@ -490,13 +490,13 @@ int MSR::ValidateParameters() {
     if  (!ValidateStarFormationParam()) return 0;
 #endif
 
-    if (param.bGasInterfaceCorrection && param.bGasOnTheFlyPrediction) {
+    if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {
         fprintf(stderr,"Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
-        param.bGasOnTheFlyPrediction = 0;
+        parameters.set_bGasOnTheFlyPrediction(false);
     }
 
 #ifndef NN_FLAG_IN_PARTICLE
-    if (param.bNewSPH && param.bGasInterfaceCorrection && param.dFastGasFraction > 0.0f) {
+    if (parameters.get_bNewSPH() && parameters.get_bGasInterfaceCorrection() && param.dFastGasFraction > 0.0f) {
         fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
         return 0;
     }

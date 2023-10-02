@@ -62,7 +62,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dDelta = dDelta;
     in.dSFindexKS = param.dSFindexKS;
     in.dSFnormalizationKS = param.dSFnormalizationKS;
-    in.dConstGamma = param.dConstGamma;
+    in.dConstGamma = parameters.get_dConstGamma();
     in.dSFGasFraction = param.dSFGasFraction;
     in.dSFThresholdDen = param.dSFThresholdDen * a * a * a;  // Send in comoving units
     in.dSFThresholdOD = param.dSFThresholdOD;

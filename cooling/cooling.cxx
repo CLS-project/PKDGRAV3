@@ -225,7 +225,7 @@ void MSR::CoolingInit(float redshift) {
     cooling->internal_energy_from_cgs = 1. / cooling->internal_energy_to_cgs;
     cooling->number_density_to_cgs = pow(units.dKpcUnit*KPCCM,-3.);
     cooling->units = units;
-    cooling->dConstGamma = param.dConstGamma;
+    cooling->dConstGamma = parameters.get_dConstGamma();
     cooling->dCoolingMinu = param.dCoolingMinu;
 
     /* Store some constants in CGS units */

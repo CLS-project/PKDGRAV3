@@ -353,7 +353,7 @@ protected:
         return parameters.get_bDoGas();
     }
     int NewSPH()          const {
-        return param.bNewSPH;
+        return parameters.get_bNewSPH();
     }
     int MeshlessHydro()   const {
         return param.bMeshlessHydro;

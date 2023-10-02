@@ -305,11 +305,11 @@ uint64_t MSR::getMemoryModel() {
     }
     if (DoGravity()) {
         mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
-        if (!param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
+        if (!parameters.get_bNewKDK()) mMemoryModel |= PKD_MODEL_ACCELERATION;
     }
     if (parameters.get_bDoDensity())       mMemoryModel |= PKD_MODEL_DENSITY;
     if (parameters.get_bMemIntegerPosition()) mMemoryModel |= PKD_MODEL_INTEGER_POS;
-    if (parameters.get_bMemUnordered()&&param.bNewKDK) mMemoryModel |= PKD_MODEL_UNORDERED;
+    if (parameters.get_bMemUnordered()&&parameters.get_bNewKDK()) mMemoryModel |= PKD_MODEL_UNORDERED;
     if (parameters.get_bMemParticleID())   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (parameters.get_bMemAcceleration() || parameters.get_bDoAccOutput()) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (parameters.get_bMemVelocity())     mMemoryModel |= PKD_MODEL_VELOCITY;
@@ -595,15 +595,15 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         sec = MSR::Time();
         printf("Initializing Kernel target ...\n");
         {
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
             if (SPHoptions.useNumDen) {
-                param.fKernelTarget = parameters.get_nSmooth();
+                parameters.set_fKernelTarget(parameters.get_nSmooth());
             }
             else {
                 double Mtot;
                 uint64_t Ntot;
                 CalcMtot(&Mtot, &Ntot);
-                param.fKernelTarget = Mtot/Ntot*parameters.get_nSmooth();
+                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
             }
         }
         dsec = MSR::Time() - sec;
@@ -727,8 +727,8 @@ void MSR::SetDerivedParameters(bool bRestart) {
     /* Temperature-to-specific-internal-energy conversion factors for different values
      * of mean molecular weight (mu) */
     units = UNITS(parameters,csm->val.h);
-    const double dTuPrefac = units.dGasConst / (param.dConstGamma - 1.);
-    dTuFac = dTuPrefac / param.dMeanMolWeight;
+    const double dTuPrefac = units.dGasConst / (parameters.get_dConstGamma() - 1.);
+    dTuFac = dTuPrefac / parameters.get_dMeanMolWeight();
 
     const double dInvPrimNeutralMu = 0.25 + 0.75 * param.dInitialH;
     const double dInvPrimIonisedMu = 0.75 + 1.25 * param.dInitialH;
@@ -778,9 +778,6 @@ void MSR::Initialize() {
     ** Now setup for the input parameters.
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
-    param.bNewKDK = 0;
-    prmAddParam(prm,"bNewKDK",0,&param.bNewKDK,
-                sizeof(int), "NewKDK", "<Use new implementation of KDK time stepping=no>");
     csm->val.bComove = 0;
     prmAddParam(prm,"bComove",0,&csm->val.bComove,sizeof(int),
                 "cm", "enable/disable comoving coordinates = -cm");
@@ -832,100 +829,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"bClass",0,&csm->val.classData.bClass,
                 sizeof(int),"class","<Enable/disable the use of CLASS> = -class");
 
-    /* Gas Parameters */
-    param.bGasAdiabatic = 1;
-    prmAddParam(prm,"bGasAdiabatic",0,&param.bGasAdiabatic,
-                sizeof(int),"GasAdiabatic",
-                "<Gas is Adiabatic> = +GasAdiabatic");
-    param.bGasIsentropic = 1;
-    prmAddParam(prm,"bGasIsentropic",0,&param.bGasIsentropic,
-                sizeof(int),"bGasIsentropic",
-                "<Gas is evolved isentropically> = +GasIsentropic");
-    param.bGasIsothermal = 0;
-    prmAddParam(prm,"bGasIsothermal",0,&param.bGasIsothermal,
-                sizeof(int),"GasIsothermal",
-                "<Gas is Isothermal> = +GasIsothermal");
-    param.dEtaCourant = 0.4;
-    prmAddParam(prm,"dEtaCourant",2,&param.dEtaCourant,sizeof(double),"etaC",
-                "<Courant criterion> = 0.4");
-    param.dConstAlpha = 1.0;
-    prmAddParam(prm,"dConstAlpha",2,&param.dConstAlpha,
-                sizeof(double),"alpha",
-                "<Alpha constant in viscosity> = 1.0 or 0.5 (bBulkViscosity)");
-    param.dConstBeta = 2.0;
-    prmAddParam(prm,"dConstBeta",2,&param.dConstBeta,
-                sizeof(double),"beta",
-                "<Beta constant in viscosity> = 2.0 or 0.5 (bBulkViscosity)");
-    param.dConstGamma = 5.0/3.0;
-    prmAddParam(prm,"dConstGamma",2,&param.dConstGamma,
-                sizeof(double),"gamma",
-                "<Ratio of specific heats> = 5/3");
-    param.dMeanMolWeight = 1.0;
-    prmAddParam(prm,"dMeanMolWeight",2,&param.dMeanMolWeight,
-                sizeof(double),"mmw",
-                "<Mean molecular weight in amu> = 1.0");
-    param.dhMinOverSoft = 0.0;
-    prmAddParam(prm,"dhMinOverSoft",2,&param.dhMinOverSoft,
-                sizeof(double),"hmin",
-                "<Minimum h as a fraction of Softening> = 0.0");
-    param.dFastGasFraction = 0.5;
-    prmAddParam(prm,"dFastGasFraction",2,&param.dFastGasFraction,
-                sizeof(double),"dFastGasFraction",
-                "<Fraction for FastGas> = 0.5");
-    param.ddHonHLimit = 0.1;
-    prmAddParam(prm,"ddHonHLimit",2,&param.ddHonHLimit,
-                sizeof(double),"dhonh",
-                "<|dH|/H Limiter> = 0.1");
-    param.fKernelTarget = 0;
-    prmAddParam(prm,"fKernelTarget", 2, &param.fKernelTarget,
-                sizeof(double), "fKernelTarget", "Kernel target, either number- or massdensity");
-    param.dVelocityDamper = 0.0;
-    prmAddParam(prm,"dVelocityDamper", 2, &param.dVelocityDamper,
-                sizeof(double), "dVelocityDamper", "Velocity Damper");
-    param.dVelocityDamper = 10.0;
-    prmAddParam(prm,"dBallSizeLimit", 2, &param.dBallSizeLimit,
-                sizeof(double), "dBallSizeLimit", "Ball size limit");
-    param.iKernelType = 0;
-    prmAddParam(prm,"iKernelType",1,&param.iKernelType,sizeof(int),"s",
-                "<Kernel type, 0: M4, 1: Wendland C2, 2: Wendland C4, 3: Wendland C6> = 0");
-    param.bNewSPH = 0;
-    prmAddParam(prm,"bNewSPH", 0, &param.bNewSPH,
-                sizeof(int), "bNewSPH",
-                "Use the new SPH implementation");
-    param.bGasBuiltinIdeal = 0;
-    prmAddParam(prm,"bGasBuiltinIdeal",0,&param.bGasBuiltinIdeal,
-                sizeof(int),"bGasBuiltinIdeal",
-                "<Use builtin ideal gas> = +GasBuiltinIdeal");
-    param.bCentrifugal = 0;
-    prmAddParam(prm,"bCentrifugal",0,&param.bCentrifugal,
-                sizeof(int),"bCentrifugal",
-                "<Apply centrifugal force> = +Centrifugal");
-    param.dCentrifT0 = 0.0;
-    prmAddParam(prm,"dCentrifT0", 2, &param.dCentrifT0,
-                sizeof(double), "dCentrifT0", "Start time for centrifugal ramp");
-    param.dCentrifT1 = 0.0;
-    prmAddParam(prm,"dCentrifT1", 2, &param.dCentrifT1,
-                sizeof(double), "dCentrifT1", "End time for centrifugal ramp");
-    param.dCentrifOmega0 = 0.0;
-    prmAddParam(prm,"dCentrifOmega0", 2, &param.dCentrifOmega0,
-                sizeof(double), "dCentrifOmega0", "Maximum omega for centrifugal ramp");
-    param.bGasOnTheFlyPrediction = 0;
-    prmAddParam(prm,"bGasOnTheFlyPrediction",0,&param.bGasOnTheFlyPrediction,
-                sizeof(int),"bGasOnTheFlyPrediction",
-                "<Do on the fly prediction> = +bGasOnTheFlyPrediction");
-    param.bGasInterfaceCorrection = 0;
-    prmAddParam(prm,"bGasInterfaceCorrection",0,&param.bGasInterfaceCorrection,
-                sizeof(int),"bGasInterfaceCorrection",
-                "<Do interface correction> = +bGasInterfaceCorrection");
-    param.bGasConsistentPrediction = 0;
-    prmAddParam(prm,"bGasConsistentPrediction",0,&param.bGasConsistentPrediction,
-                sizeof(int),"bGasConsistentPrediction",
-                "<Do consistent prediction> = +bGasConsistentPrediction");
-    param.bGasDoExtensiveILPTest = 0;
-    prmAddParam(prm,"bGasDoExtensiveILPTest",0,&param.bGasDoExtensiveILPTest,
-                sizeof(int),"bGasDoExtensiveILPTest",
-                "<Do extensive ILP test> = +bGasDoExtensiveILPTest");
-    /* END Gas/Star Parameters */
     param.bAccelStep = 0;
 
     /* New params added by IA for the hydrodynamics */
@@ -1614,7 +1517,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,
-                             in.bStandard,param.bNewSPH ? in.dTime : in.dExp,
+                             in.bStandard,parameters.get_bNewSPH() ? in.dTime : in.dExp,
                              in.nGas, in.nDark, in.nStar);
         fioClose(fio);
     }
@@ -1933,7 +1836,7 @@ void MSR::DomainDecomp(int iRung) {
 */
 void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     struct inBuildTree in;
-    const double ddHonHLimit = param.ddHonHLimit;
+    const double ddHonHLimit = parameters.get_ddHonHLimit();
     PST pst0;
     LCL *plcl;
     PKD pkd;
@@ -2293,16 +2196,16 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
         smf->H = 0.0;
         smf->a = 1.0;
     }
-    smf->gamma = param.dConstGamma;
+    smf->gamma = parameters.get_dConstGamma();
     smf->dDelta = dDelta;
-    smf->dEtaCourant = param.dEtaCourant;
+    smf->dEtaCourant = parameters.get_dEtaCourant();
     smf->bMeshlessHydro = param.bMeshlessHydro;
     smf->bIterativeSmoothingLength = param.bIterativeSmoothingLength;
     smf->bUpdateBall = bUpdateBall;
     smf->nBucket = parameters.get_nBucket();
     smf->dCFLacc = param.dCFLacc;
-    smf->dConstGamma = param.dConstGamma;
-    smf->dhMinOverSoft = param.dhMinOverSoft;
+    smf->dConstGamma = parameters.get_dConstGamma();
+    smf->dhMinOverSoft = parameters.get_dhMinOverSoft();
     smf->dNeighborsStd = param.dNeighborsStd;
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     eEOSFill(param, &smf->eEOS);
@@ -2557,7 +2460,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      double dTime, double dDelta, double dStep, double dTheta,
                      int bKickClose,int bKickOpen,int bEwald,int bGravStep,
                      int nPartRhoLoc,int iTimeStepCrit) {
-    SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
     SPHoptions.doGravity = parameters.get_bDoGravity();
     SPHoptions.nPredictRung = uRungLo;
     return Gravity(uRungLo,uRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,
@@ -2880,7 +2783,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
 #endif
     in.dTime = dTime;
     in.dDelta = dDelta;
-    in.dConstGamma = param.dConstGamma;
+    in.dConstGamma = parameters.get_dConstGamma();
     in.dTuFac = dTuFacPrimNeutral;
 #ifdef STAR_FORMATION
     in.dSFThresholdOD = param.dSFThresholdOD;
@@ -3160,7 +3063,7 @@ void MSR::UpdateRung(uint8_t uRung) {
     int iTempRung,iOutMaxRung;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
-    if (parameters.get_bMemUnordered()&&param.bNewKDK) return;
+    if (parameters.get_bMemUnordered()&&parameters.get_bNewKDK()) return;
 
     in.uRungLo = uRung;
     in.uRungHi = MaxRung();
@@ -3481,7 +3384,7 @@ int MSR::NewTopStepKDK(
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     if (DoGas() && NewSPH()) {
         SelAll(-1,1);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
         uint64_t nParticlesOnRung = 0;
         for (int i = MaxRung(); i>=uRung; i--) {
             nParticlesOnRung += nRung[i];
@@ -3565,7 +3468,7 @@ int MSR::NewTopStepKDK(
                              1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
     }
     else { /*if (parameters.get_bDoGravity())*/
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         SPHoptions.nPredictRung = uRung;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
@@ -3751,7 +3654,7 @@ void MSR::TopStepKDK(
             BuildTree(bEwald);
         }
         if (DoGravity()) {
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
             SPHoptions.doGravity = 1;
             Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
                     bEwald,bGravStep,nPartRhoLoc,parameters.get_iTimeStepCrit(),
@@ -4202,13 +4105,13 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     else csm = this->csm;
 
     // We only support periodic initial conditions
-    parameters.set(parameters.str_bPeriodic,true);
-    parameters.set(parameters.str_bComove,true);
+    parameters.set_bPeriodic(true);
+    parameters.set_bComove(true);
 
-    parameters.set(parameters.str_iSeed,iSeed);
-    parameters.set(parameters.str_dRedFrom,z);
-    parameters.set(parameters.str_dBoxSize,L);
-    parameters.set(parameters.str_nGrid,nGrid);
+    parameters.set_iSeed(iSeed);
+    parameters.set_dRedFrom(z);
+    parameters.set_dBoxSize(L);
+    parameters.set_nGrid(nGrid);
 
     in.dBoxSize = L;
     in.iSeed = iSeed;
@@ -4391,7 +4294,7 @@ double MSR::Read(std::string_view achInFile) {
         if (!parameters.has_dBoxSize()) {
             double dBoxSize;
             fioGetAttr(fio,HDF5_HEADER_G,"BoxSize",FIO_TYPE_DOUBLE,&dBoxSize);
-            parameters.set(parameters.str_dBoxSize,dBoxSize);
+            parameters.set_dBoxSize(dBoxSize);
         }
         if (!prmSpecified(prm, "h"))
             fioGetAttr(fio,HDF5_COSMO_G,"HubbleParam",FIO_TYPE_DOUBLE,&csm->val.h);
@@ -4463,15 +4366,15 @@ double MSR::Read(std::string_view achInFile) {
         TimerStart(TIMER_NONE);
         printf("Initializing Kernel target ...\n");
         {
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
             if (SPHoptions.useNumDen) {
-                param.fKernelTarget = parameters.get_nSmooth();
+                parameters.set_fKernelTarget(parameters.get_nSmooth());
             }
             else {
                 double Mtot;
                 uint64_t Ntot;
                 CalcMtot(&Mtot, &Ntot);
-                param.fKernelTarget = Mtot/Ntot*parameters.get_nSmooth();
+                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
             }
         }
         TimerStop(TIMER_NONE);
@@ -4510,7 +4413,7 @@ double MSR::Read(std::string_view achInFile) {
         auto dTheta = set_dynamic(iStartStep,dTime);
 
         // Calculate Density
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,param,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
         SPHoptions.doDensity = 1;
         SPHoptions.doUConversion = 1;
         const auto bGravStep = parameters.get_bGravStep();
@@ -4868,7 +4771,7 @@ void MSR::CalcMtot(double *M, uint64_t *N) {
 
 void MSR::SetSPHoptions() {
     struct inSetSPHoptions in;
-    in.SPHoptions = initializeSPHOptions(parameters,param,csm,1.0);
+    in.SPHoptions = initializeSPHOptions(parameters,csm,1.0);
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
 }
 
@@ -5046,7 +4949,7 @@ void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double d
 
 void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions) {
     struct inTreeUpdateFlagBounds in;
-    const double ddHonHLimit = param.ddHonHLimit;
+    const double ddHonHLimit = parameters.get_ddHonHLimit();
     PST pst0;
     LCL *plcl;
     PKD pkd;

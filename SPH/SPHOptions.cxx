@@ -27,30 +27,31 @@
 #include <stdio.h>
 #include "basetype.h"
 
-SPHOptions initializeSPHOptions(pkd_parameters &parameters, struct parameters param, CSM csm, double dTime) {
+SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTime) {
     UNITS units(parameters,csm->val.h);
     SPHOptions SPHoptions;
-    SPHoptions.fKernelTarget = param.fKernelTarget;
+    SPHoptions.fKernelTarget = parameters.get_fKernelTarget();
     SPHoptions.epsilon = 0.01f;
-    SPHoptions.alpha = param.dConstAlpha;
-    SPHoptions.beta = param.dConstBeta;
-    SPHoptions.EtaCourant = param.dEtaCourant;
-    SPHoptions.gamma = param.dConstGamma;
-    SPHoptions.TuFac = units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
-    SPHoptions.FastGasFraction = param.dFastGasFraction;
+    SPHoptions.alpha = parameters.get_dConstAlpha();
+    SPHoptions.beta = parameters.get_dConstBeta();
+    SPHoptions.EtaCourant = parameters.get_dEtaCourant();
+    SPHoptions.gamma = parameters.get_dConstGamma();
+    SPHoptions.TuFac = units.dGasConst/(SPHoptions.gamma - 1)/parameters.get_dMeanMolWeight();
+    SPHoptions.FastGasFraction = parameters.get_dFastGasFraction();
     auto dDelta = parameters.get_dDelta();
-    if (dDelta > 0.0 && param.dVelocityDamper > 0.0) {
-        SPHoptions.VelocityDamper = 2.0 / dDelta * param.dVelocityDamper;
+    auto dVelocityDamper = parameters.get_dVelocityDamper();
+    if (dDelta > 0.0 && dVelocityDamper > 0.0) {
+        SPHoptions.VelocityDamper = 2.0 / dDelta * dVelocityDamper;
     }
     else {
         SPHoptions.VelocityDamper = 0.0f;
     }
     SPHoptions.nSmooth = parameters.get_nSmooth();
-    SPHoptions.ballSizeLimit = param.dBallSizeLimit;
+    SPHoptions.ballSizeLimit = parameters.get_dBallSizeLimit();
     SPHoptions.fBallFactor = 1.1f;
     SPHoptions.dKpcUnit = units.dKpcUnit;
     SPHoptions.dMsolUnit = units.dMsolUnit;
-    SPHoptions.dMeanMolWeight = param.dMeanMolWeight;
+    SPHoptions.dMeanMolWeight = parameters.get_dMeanMolWeight();
     SPHoptions.nPredictRung = 0;
     SPHoptions.nRungCorrection = 2;
     if (csm->val.bComove) {
@@ -69,20 +70,20 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, struct parameters pa
     SPHoptions.doSetDensityFlags = 0;
     SPHoptions.dofBallFactor = 1;
     SPHoptions.useNumDen = 1;
-    SPHoptions.useIsentropic = param.bGasIsentropic;
-    SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
+    SPHoptions.useIsentropic = parameters.get_bGasIsentropic();
+    SPHoptions.useBuiltinIdeal = parameters.get_bGasBuiltinIdeal();
     SPHoptions.useDensityFlags = 0;
-    SPHoptions.doOnTheFlyPrediction = param.bGasOnTheFlyPrediction;
-    SPHoptions.doInterfaceCorrection = param.bGasInterfaceCorrection;
+    SPHoptions.doOnTheFlyPrediction = parameters.get_bGasOnTheFlyPrediction();
+    SPHoptions.doInterfaceCorrection = parameters.get_bGasInterfaceCorrection();
     SPHoptions.doSetNNflags = 0;
     SPHoptions.useNNflags = 0;
-    SPHoptions.doConsistentPrediction = param.bGasConsistentPrediction;
-    SPHoptions.kernelType = param.iKernelType;
-    SPHoptions.doCentrifugal = param.bCentrifugal;
-    SPHoptions.CentrifugalT0 = param.dCentrifT0;
-    SPHoptions.CentrifugalT1 = param.dCentrifT1;
-    SPHoptions.CentrifugalOmega0 = param.dCentrifOmega0;
-    SPHoptions.doExtensiveILPTest = param.bGasDoExtensiveILPTest;
+    SPHoptions.doConsistentPrediction = parameters.get_bGasConsistentPrediction();
+    SPHoptions.kernelType = parameters.get_iKernelType();
+    SPHoptions.doCentrifugal = parameters.get_bCentrifugal();
+    SPHoptions.CentrifugalT0 = parameters.get_dCentrifT0();
+    SPHoptions.CentrifugalT1 = parameters.get_dCentrifT1();
+    SPHoptions.CentrifugalOmega0 = parameters.get_dCentrifOmega0();
+    SPHoptions.doExtensiveILPTest = parameters.get_bGasDoExtensiveILPTest();
     return SPHoptions;
 }
 

@@ -1048,20 +1048,20 @@ flag="gas"
 default=false
 help="calculate gas/do not calculate gas"
 
-["Gas".bGasAdiabatic]
-flag="GasAdiabatic"
-default=true
-help="Gas is Adiabatic"
+#["Gas".bGasAdiabatic]
+#flag="GasAdiabatic"
+#default=true
+#help="Gas is Adiabatic"
 
 ["Gas".bGasIsentropic]
 flag="GasIsentropic"
 default=true
 help="Gas is evolved isentropically"
 
-["Gas".bGasIsothermal]
-flag="GasIsothermal"
-default=false
-help="Gas is Isothermal"
+#["Gas".bGasIsothermal]
+#flag="GasIsothermal"
+#default=false
+#help="Gas is Isothermal"
 
 ["Gas".dEtaCourant]
 flag="etaC"
