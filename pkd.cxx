@@ -528,9 +528,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->pTempPRIVATE = static_cast<PARTICLE *>(malloc(particles.ParticleSize()));
     mdlassert(mdl,this->pTempPRIVATE != NULL);
 
-#ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(this->mdl,iCacheSize);
-#endif
     mdl->SetCacheMaxInflight(iCacheMaxInflight);
 
     // This is cheeserific - chooses the largest specified
