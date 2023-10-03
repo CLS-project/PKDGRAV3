@@ -149,7 +149,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             p.set_class(0,p.soft(),0,FIO_SPECIES_BH);
 
             p.mass() = pkd->parameters.get_dBHSeedMass();
-            p.set_ball(pkd->param.dSoft);
+            p.set_ball(pkd->parameters.get_dSoft());
 
             auto &pBH = p.BH();
 

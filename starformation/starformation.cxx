@@ -80,9 +80,9 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.eEOS = eEOSparam(parameters,calc);
 #endif
 #ifdef STELLAR_EVOLUTION
-    in.dSNIaMaxMass = param.dSNIaMaxMass;
-    in.dCCSNMinMass = param.dCCSNMinMass;
-    in.dCCSNMaxMass = param.dCCSNMaxMass;
+    in.dSNIaMaxMass = parameters.get_dSNIaMaxMass();
+    in.dCCSNMinMass = parameters.get_dCCSNMinMass();
+    in.dCCSNMaxMass = parameters.get_dCCSNMaxMass();
 #endif
 
     if (parameters.get_bVDetails()) printf("Star Form (rung: %d) ... ", iRung);

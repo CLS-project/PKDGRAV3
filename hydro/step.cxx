@@ -148,11 +148,11 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #ifdef HERNQUIST_POTENTIAL
     // Timestep criteria based on the Hernsquist potential
     const double const_reduced_hubble_cgs = 3.2407789e-18;
-    //const double H0 = 0.704 * const_reduced_hubble_cgs * pkd->param.dSecUnit;
+    //const double H0 = 0.704 * const_reduced_hubble_cgs * parameters.get_dSecUnit();
     const double H0 = 70.4/ smf->units.dKmPerSecUnit * ( smf->units.dKpcUnit / 1e3);
 
     const double concentration = 9.0;
-    const double M200 = 135.28423603962767; //137.0 ; // / pkd->param.dMsolUnit;
+    const double M200 = 135.28423603962767; //137.0 ; // / parameters.get_dMsolUnit();
     const double V200 = cbrt(M200*H0);
     //const double R200 = V200/(H0);
     const double R200 = cbrt(M200/(100.*H0*H0));

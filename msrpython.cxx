@@ -576,7 +576,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char const *kwlist[]= {"time","delta","theta","rung","ewald","step","KickClose","KickOpen", "onlyMarked", NULL};
     double dTime = 0.0;
     double dDelta = 0.0;
-    // double dTheta = msr->param.dTheta;
+    // double dTheta = msr->parameters.get_dTheta();
     double dTheta = 0.7;
 
     int bEwald = msr->parameters.get_bEwald();

@@ -779,85 +779,6 @@ void MSR::Initialize() {
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
 
-#ifdef STELLAR_EVOLUTION
-    strcpy(param.achStelEvolPath, "");
-    prmAddParam(prm, "achStelEvolPath", 3, param.achStelEvolPath, 256, "stevtables",
-                "Path to stellar-evolution tables");
-
-    strcpy(param.achSNIaDTDType, "exponential");
-    prmAddParam(prm, "achSNIaDTDType", 3, param.achSNIaDTDType, 32, "dtdtype",
-                "Type of Delay-Time Distribution function for SNIa events");
-
-    param.bChemEnrich = 1;
-    prmAddParam(prm, "bChemEnrich", 0, &param.bChemEnrich,
-                sizeof(int), "bChemEnrich",
-                "Activate chemical enrichment of gas particles surrounding a star particle");
-
-    param.dSNIaExpScale = 2e9;
-    prmAddParam(prm, "dSNIaExpScale", 2, &param.dSNIaExpScale,
-                sizeof(double), "sniaexpscale",
-                "Time scale of the exponential Delay-Time Distribution function <yr>");
-
-    param.dSNIaPLScale = -1.1;
-    prmAddParam(prm, "dSNIaPLScale", 2, &param.dSNIaPLScale,
-                sizeof(double), "sniaplscale",
-                "Index of the power-law Delay-Time Distribution function <dimensionless>");
-
-    param.dSNIaPLInitTime = 40e6;
-    prmAddParam(prm, "dSNIaPLInitTime", 2, &param.dSNIaPLInitTime,
-                sizeof(double), "sniaplti",
-                "Initial time for the normalization of the power-law Delay-Time Distribution "
-                "function <yr>");
-
-    param.dSNIaPLFinalTime = 13.7e9;
-    prmAddParam(prm, "dSNIaPLFinalTime", 2, &param.dSNIaPLFinalTime,
-                sizeof(double), "sniapltf",
-                "Final time for the normalization of the power-law Delay-Time Distribution "
-                "function <yr>");
-
-    param.dSNIaMaxMass = 8.0;
-    prmAddParam(prm, "dSNIaMaxMass", 2, &param.dSNIaMaxMass,
-                sizeof(double), "sniamaxmass",
-                "Maximum mass for the likely progenitors of SNIa events <Mo>");
-
-    param.dStellarWindSpeed = 10.0;
-    prmAddParam(prm, "dStellarWindSpeed", 2, &param.dStellarWindSpeed,
-                sizeof(double), "windspeed",
-                "Stellar wind speed <km/s>");
-#endif
-#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
-    param.dSNIaNumPerMass = 2e-3;
-    prmAddParam(prm,"dSNIaNumPerMass", 2, &param.dSNIaNumPerMass,
-                sizeof(double), "dSNIaNumPerMass",
-                "Number of SNIa events per stellar mass <1/Mo>");
-#endif
-#ifdef STELLAR_IMF
-    strcpy(param.achIMFType, "chabrier");
-    prmAddParam(prm, "achIMFType", 3, param.achIMFType, 32, "imftype",
-                "Type of Initial-Mass Function");
-
-    param.dIMFMinMass = 0.1;
-    prmAddParam(prm, "dIMFMinMass", 2, &param.dIMFMinMass,
-                sizeof(double), "imfminmass",
-                "Lower mass limit of the Initial-Mass Function <Mo>");
-
-    param.dIMFMaxMass = 100.0;
-    prmAddParam(prm, "dIMFMaxMass", 2, &param.dIMFMaxMass,
-                sizeof(double), "imfmaxmass",
-                "Upper mass limit of the Initial-Mass Function <Mo>");
-
-    param.dCCSNMinMass = 6.0;
-    prmAddParam(prm, "dCCSNMinMass", 2, &param.dCCSNMinMass,
-                sizeof(double), "ccsnminmass",
-                "Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
-
-    param.dCCSNMaxMass = 100.0;
-    prmAddParam(prm, "dCCSNMaxMass", 2, &param.dCCSNMaxMass,
-                sizeof(double), "ccsnmaxmass",
-                "Maximum mass for a star to end its life as a Core Collapse Supernova <Mo>");
-#endif
-    /* END of new params */
-
     /*
     ** Create the processor subset tree.
     */
@@ -1847,10 +1768,10 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->bBHAccretion = parameters.get_bBHAccretion();
 #endif
 #ifdef STELLAR_EVOLUTION
-    smf->dWindSpecificEkin = param.dWindSpecificEkin;
-    smf->dSNIaNorm = param.dSNIaNorm;
-    smf->dSNIaScale = param.dSNIaScale;
-    smf->dCCSNMinMass = param.dCCSNMinMass;
+    smf->dWindSpecificEkin = calc.dWindSpecificEkin;
+    smf->dSNIaNorm = calc.dSNIaNorm;
+    smf->dSNIaScale = calc.dSNIaScale;
+    smf->dCCSNMinMass = parameters.get_dCCSNMinMass();
 #endif
 }
 
@@ -2415,7 +2336,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.dBHRadiativeEff = parameters.get_dBHRadiativeEff();
 #endif
 #ifdef STELLAR_EVOLUTION
-    in.bChemEnrich = param.bChemEnrich;
+    in.bChemEnrich = parameters.get_bChemEnrich();
 #endif
     double dsec;
 
@@ -3104,8 +3025,8 @@ int MSR::NewTopStepKDK(
     }
 #endif
 #ifdef STELLAR_EVOLUTION
-    if (param.bChemEnrich) {
-        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,param.nSmoothEnrich);
+    if (parameters.get_bChemEnrich()) {
+        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,calc.nSmoothEnrich);
     }
 #endif
 #endif
@@ -3300,8 +3221,8 @@ void MSR::TopStepKDK(
 #ifdef STELLAR_EVOLUTION
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
-        if (param.bChemEnrich) {
-            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,param.nSmoothEnrich);
+        if (parameters.get_bChemEnrich()) {
+            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,calc.nSmoothEnrich);
         }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);

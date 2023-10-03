@@ -336,7 +336,6 @@ protected:
     auto OutName() const {
         return parameters.get_achOutName();
     }
-    //int Steps()           const { return param.nSteps; }
     int LogInterval()     const {
         return parameters.get_iLogInterval();
     }

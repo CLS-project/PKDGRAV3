@@ -496,7 +496,7 @@ int MSR::ValidateParameters() {
     }
 
 #ifndef NN_FLAG_IN_PARTICLE
-    if (parameters.get_bNewSPH() && parameters.get_bGasInterfaceCorrection() && param.dFastGasFraction > 0.0f) {
+    if (parameters.get_bNewSPH() && parameters.get_bGasInterfaceCorrection() && parameters.get_dFastGasFraction() > 0.0f) {
         fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
         return 0;
     }
@@ -509,9 +509,9 @@ int MSR::ValidateParameters() {
         parameters.set_nGroup(256);
 
 #ifndef USE_HDF5
-    if (param.bHDF5) {
+    if (parameters.get_bHDF5()) {
         printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
-        param.bHDF5 = 0;
+        parameters.set_bHDF5(false);
     }
 #endif
 

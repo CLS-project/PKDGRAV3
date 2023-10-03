@@ -1580,7 +1580,7 @@ help="Initial metallicity"
 
 ["Stellar Initial-Mass Function (IMF)".achIMFType]
 flag="imftype"
-default=""
+default="chabrier"
 help="Type of IMF"
 
 ["Stellar Initial-Mass Function (IMF)".dIMFMinMass]
@@ -1614,7 +1614,7 @@ help="Path to stellar evolution tables"
 
 ["Stellar evolution".achSNIaDTDType]
 flag="dtdtype"
-default=""
+default="exponential"
 help="Type of Delay-Time Distribution function for SNIa events"
 
 ["Stellar evolution".bChemEnrich]
