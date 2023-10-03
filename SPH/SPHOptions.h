@@ -28,7 +28,6 @@
 
 #include <stdint.h>
 class pkd_parameters;
-#include "parameters.h"
 
 #include <assert.h>
 #include "cosmo.h"

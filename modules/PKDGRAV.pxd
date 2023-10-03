@@ -91,16 +91,11 @@ cdef extern from "core/particle.h":
         FIELD_PARTICLE_ID  "PKD_FIELD::oParticleID"
         FIELD_GLOBAL_GID   "PKD_FIELD::oGlobalGid"
 
-cdef extern from "param.h":
-    cdef struct prmContext:
-        pass
-
 include "pkd_parameters.pxi"
 
 cdef extern from "master.h":
     cdef cppclass MSR:
         pkd_parameters parameters
-        prmContext *prm
 
         uint64_t N
         # MSR() except +

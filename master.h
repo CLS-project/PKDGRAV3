@@ -25,10 +25,8 @@
 #include <string_view>
 #include <Python.h>
 
-#include "param.h"
 #include "pst.h"
 #include "mdl.h"
-#include "parameters.h"
 #include "pkd_parameters.h"
 #ifdef COOLING
     #include "cooling/cooling_struct.h"
@@ -234,7 +232,6 @@ public:
 public:
     bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 
-    PRM prm;
     LCL lcl;
 
     blitz::TinyVector<double,3> fCenter;
@@ -242,7 +239,6 @@ public:
     /*
     ** Parameters.
     */
-    struct parameters param;
     CSM csm;
     /*
     ** Other stuff...

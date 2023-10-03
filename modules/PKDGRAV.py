@@ -9,7 +9,6 @@ from cosmology import Cosmology
 
 def set_parameters(**kwargs):
     msr0.parameters.update(kwargs,True)
-    msr0.parameters.ppy2prm(msr0.prm)
 
 def restart(arguments,specified,species,classes,n,name,step,steps,time,delta,E,U,Utime):
     ndark = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_DARK])

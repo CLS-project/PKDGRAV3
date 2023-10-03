@@ -521,7 +521,6 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     auto sec = MSR::Time();
 
     parameters.merge(pkd_parameters(arguments,specified));
-    parameters.ppy2prm(prm);
 
     this->nDark = nDark;
     this->nGas  = nGas;
@@ -534,7 +533,6 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
     if (parameter_overrides) {
         if (!parameters.update(parameter_overrides)) Exit(1);
-        parameters.ppy2prm(prm);
         parameter_overrides = nullptr; // This is not owned by us
     }
 
@@ -774,10 +772,6 @@ void MSR::Initialize() {
     iLastRungDD = -1;  /* Domain decomposition is not done */
     nRung.resize(MAX_RUNG+1,0);
     csmInitialize(&csm);
-    /*
-    ** Now setup for the input parameters.
-    */
-    prmInitialize(&prm,MSR::Leader,MSR::Trailer);
 
     /*
     ** Create the processor subset tree.
@@ -850,7 +844,6 @@ MSR::MSR(MDL mdl,PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass *>(mdl)), bV
 
 MSR::~MSR() {
     csmFinish(csm);
-    prmFinish(prm);
     if (Py_IsInitialized()) Py_Finalize();
 }
 

@@ -53,7 +53,6 @@ static void flush_std_files(void) {
 \******************************************************************************/
 
 void MSR::SaveParameters() {
-    parameters.prm2ppy(prm);
 }
 
 /******************************************************************************\
@@ -243,7 +242,6 @@ bool MSR::setParameters(PyObject *kwobj,bool bIgnoreUnknown) {
     auto allow = PyDict_GetItemString(kwobj,"bIgnoreUnknown");
     if (allow) bIgnoreUnknown = PyObject_IsTrue(allow)>0;
     auto bSuccess = parameters.update(kwobj,bIgnoreUnknown);
-    parameters.ppy2prm(prm);
     ValidateParameters();
     return bSuccess;
 }
@@ -1523,7 +1521,6 @@ int MSR::Python(int argc, char *argv[]) {
     Py_DECREF(result);
     PyObject *script = PyObject_GetAttrString(arguments,"script");
 
-    parameters.ppy2prm(prm); // Update the pkdgrav parameter state
     bVDetails = parameters.get_bVDetails();
 
     // If a script was specified then we run it.
@@ -1580,7 +1577,6 @@ int MSR::Python(int argc, char *argv[]) {
             PyErr_Print();
             exit(1);
         }
-        parameters.ppy2prm(prm); // Update the pkdgrav parameter state
         bVDetails = parameters.get_bVDetails();
     }
 

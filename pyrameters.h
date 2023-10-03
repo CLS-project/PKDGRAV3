@@ -24,8 +24,6 @@
 #include <vector>
 #include "blitz/array.h"
 
-#include "param.h"  // This should go away at some point
-
 class pyrameters {
     template<typename T, typename _ = void>
     struct is_container : std::false_type {};
@@ -254,10 +252,6 @@ public:
     bool verify(PyObject *kwobj);
 
     bool update(PyObject *kwobj,bool bIgnoreUnknown=false);
-
-public:
-    void prm2ppy(PRM prm);
-    bool ppy2prm(PRM prm);
 
 public:
     template<typename T> void set_dynamic(const char *name, T value);

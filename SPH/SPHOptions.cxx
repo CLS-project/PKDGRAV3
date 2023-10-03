@@ -23,7 +23,6 @@
 
 #include "SPHOptions.h"
 #include "pkd_parameters.h"
-#include "parameters.h"
 #include <stdio.h>
 #include "basetype.h"
 

@@ -68,8 +68,6 @@ with open(argv[2], 'w') as parameters_h,open(argv[3], 'w') as parameters_pxi:
         void set(const char *name,double value)
         void set(const char *name,uint64_t value)
         void set(const char *name,int64_t value)
-        void prm2ppy(prmContext *prm)
-        bool ppy2prm(prmContext *prm)
         bool    update(object kwobj,bool bIgnoreUnknown)
         object  arguments()
         object  specified()''',file=parameters_pxi)
