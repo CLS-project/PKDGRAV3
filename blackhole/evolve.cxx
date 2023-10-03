@@ -8,7 +8,7 @@ void MSR::BHDrift(double dTime, double dDelta) {
     Smooth(dTime,dDelta,SMX_BH_DRIFT,1,parameters.get_nSmooth());
     pstRepositionBH(pst, NULL, 0, NULL, 0);
 
-    if (param.bBHAccretion) {
+    if (parameters.get_bBHAccretion()) {
         struct inBHAccretion in;
         in.dScaleFactor = csmTime2Exp(csm,dTime);
         pstBHAccretion(pst, &in, sizeof(in), NULL, 0);

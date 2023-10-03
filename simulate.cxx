@@ -267,7 +267,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
-    if (parameters.get_bFindGroups() && param.bBHPlaceSeed) {
+    if (parameters.get_bFindGroups() && parameters.get_bBHPlaceSeed()) {
         NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
         GroupStats();
     }

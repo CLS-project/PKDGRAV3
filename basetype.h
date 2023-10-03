@@ -81,6 +81,11 @@ struct CALC {
     double dSNIaFBDelay;
     double dSNIaFBSpecEnergy;
 #endif
+#ifdef BLACKHOLES
+    double dBHAccretionEddFac;
+    double dBHFBEff;
+    double dBHFBEcrit;
+#endif
 };
 
 /*

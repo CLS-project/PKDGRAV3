@@ -11,9 +11,9 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     in.dTime = dTime;
     in.uRungMax = uRungMax;
     in.dScaleFactor = csmTime2Exp(csm,dTime);
-    in.dBHMhaloMin = param.dBHMhaloMin;
+    in.dBHMhaloMin = parameters.get_dBHMhaloMin();
     in.dTau = parameters.get_dTau();
-    in.dBHSeedMass = param.dBHSeedMass;
+    in.dBHSeedMass = parameters.get_dBHSeedMass();
 #ifdef STAR_FORMATION
     in.dDenMin = calc.dSFThresholdDen*pow(in.dScaleFactor,3);
 #else
@@ -148,7 +148,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             // this won't be problematic as long as we use oMass and dSoft is set in the parameters file
             p.set_class(0,p.soft(),0,FIO_SPECIES_BH);
 
-            p.mass() = pkd->param.dBHSeedMass;
+            p.mass() = pkd->parameters.get_dBHSeedMass();
             p.set_ball(pkd->param.dSoft);
 
             auto &pBH = p.BH();

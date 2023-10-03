@@ -748,7 +748,7 @@ void MSR::SetDerivedParameters(bool bRestart) {
     SetEOSParam();
 #endif
 #ifdef BLACKHOLES
-    SetBlackholeParam(bRestart);
+    SetBlackholeParam();
 #endif
 #ifdef STELLAR_EVOLUTION
     SetStellarEvolutionParam();
@@ -779,56 +779,6 @@ void MSR::Initialize() {
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
 
-#ifdef BLACKHOLES
-    param.bBHMerger = 1;
-    prmAddParam(prm,"bBHMerger", 0, &param.bBHMerger,
-                sizeof(int), "bBHMerger",
-                "Activate merger of black hole partices");
-    param.bBHAccretion = 1;
-    prmAddParam(prm,"bBHAccretion", 0, &param.bBHAccretion,
-                sizeof(int), "bAccretion",
-                "Activate the accretion of gas particle into blackholes");
-    param.bBHFeedback = 1;
-    prmAddParam(prm,"bBHFeedback", 0, &param.bBHFeedback,
-                sizeof(int), "bBHFeedback",
-                "Activate the BH feedback");
-    param.dBHAccretionAlpha = 1.0;
-    prmAddParam(prm,"dBHAccretionAlpha", 2, &param.dBHAccretionAlpha,
-                sizeof(double), "dAccretionAlpha",
-                "Accretion efficiency parameter <adimiensional>");
-    param.dBHAccretionCvisc = 0.0;
-    prmAddParam(prm,"dBHAccretionCvisc", 2, &param.dBHAccretionCvisc,
-                sizeof(double), "dAccretionCvisc",
-                "Accretion viscosity parameter <adimiensional>");
-    param.dBHRadiativeEff = 0.1;
-    prmAddParam(prm,"dBHRadiativeEff", 2, &param.dBHRadiativeEff,
-                sizeof(double), "dBHRadiativeEff",
-                "Radiative efficiency of the BH <adimiensional>");
-    param.dBHFBEff = 0.1;
-    prmAddParam(prm,"dBHFBEff", 2, &param.dBHFBEff,
-                sizeof(double), "dBHFBEff",
-                "Coupling effiency of the BH with its surroundings <adimiensional>");
-    param.dBHFBDT = 1e8;
-    prmAddParam(prm,"dBHFBDT", 2, &param.dBHFBDT,
-                sizeof(double), "dBHFBDT",
-                "Temperature change in the feedback events");
-    param.dBHAccretionEddFac = 4.* M_PI * 1.6726219e-27 / 6.652458e-29 / 299792458.;
-    prmAddParam(prm,"dBHAccretionEddFac", 2, &param.dBHAccretionEddFac,
-                sizeof(double), "dBHAccretionEddFac",
-                "4pi * m_p / sigma_T / c <kg m^-3 s>");
-    param.bBHPlaceSeed = 1;
-    prmAddParam(prm,"bBHPlaceSeed", 0, &param.bBHPlaceSeed,
-                sizeof(int), "bBHPlaceSeed",
-                "Place BH seeds in FOF groups");
-    param.dBHSeedMass = 1.0;
-    prmAddParam(prm,"dBHSeedMass", 2, &param.dBHSeedMass,
-                sizeof(double), "dBHSeedMass",
-                "Mass of the BH seed <code units>");
-    param.dBHMhaloMin = 1.0;
-    prmAddParam(prm,"dBHMhaloMin", 2, &param.dBHMhaloMin,
-                sizeof(double), "dBHMhaloMin",
-                "Minimum mass required to place a BH in a FOF group <code units>");
-#endif
 #ifdef STELLAR_EVOLUTION
     strcpy(param.achStelEvolPath, "");
     prmAddParam(prm, "achStelEvolPath", 3, param.achStelEvolPath, 256, "stevtables",
@@ -1888,13 +1838,13 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dSNIaFBSpecEnergy = calc.dSNIaFBSpecEnergy;
 #endif
 #ifdef BLACKHOLES
-    smf->dBHFBEff = param.dBHFBEff;
-    smf->dBHFBEcrit = param.dBHFBEcrit;
-    smf->dBHAccretionEddFac = param.dBHAccretionEddFac;
-    smf->dBHAccretionAlpha = param.dBHAccretionAlpha;
-    smf->dBHAccretionCvisc = param.dBHAccretionCvisc;
-    smf->bBHFeedback = param.bBHFeedback;
-    smf->bBHAccretion = param.bBHAccretion;
+    smf->dBHFBEff = calc.dBHFBEff;
+    smf->dBHFBEcrit = calc.dBHFBEcrit;
+    smf->dBHAccretionEddFac = calc.dBHAccretionEddFac;
+    smf->dBHAccretionAlpha = parameters.get_dBHAccretionAlpha();
+    smf->dBHAccretionCvisc = parameters.get_dBHAccretionCvisc();
+    smf->bBHFeedback = parameters.get_bBHFeedback();
+    smf->bBHAccretion = parameters.get_bBHAccretion();
 #endif
 #ifdef STELLAR_EVOLUTION
     smf->dWindSpecificEkin = param.dWindSpecificEkin;
@@ -2462,7 +2412,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.eEOS = eEOSparam(parameters,calc);
 #endif
 #ifdef BLACKHOLES
-    in.dBHRadiativeEff = param.dBHRadiativeEff;
+    in.dBHRadiativeEff = parameters.get_dBHRadiativeEff();
 #endif
 #ifdef STELLAR_EVOLUTION
     in.bChemEnrich = param.bChemEnrich;
@@ -2945,7 +2895,7 @@ int MSR::NewTopStepKDK(
     ZeroNewRung(uRung,MAX_RUNG,uRung);
 
 #ifdef BLACKHOLES
-    if (param.bBHPlaceSeed) {
+    if (parameters.get_bBHPlaceSeed()) {
         PlaceBHSeed(dTime, *puRungMax);
     }
 #endif
@@ -2991,11 +2941,12 @@ int MSR::NewTopStepKDK(
         }
 
 #ifdef BLACKHOLES
-        if (param.bBHMerger) {
+        auto bBHMerger = parameters.get_bBHMerger();
+        if (bBHMerger) {
             SelActives();
             BHMerger(dTime);
         }
-        if (param.bBHAccretion && !param.bBHMerger) {
+        if (parameters.get_bBHAccretion() && !bBHMerger) {
             struct outGetNParts Nout;
 
             Nout.n = 0;
@@ -3203,7 +3154,7 @@ void MSR::TopStepKDK(
     const auto bGravStep = parameters.get_bGravStep();
     const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
 #ifdef BLACKHOLES
-    if (!iKickRung && !iRung && param.bBHPlaceSeed) {
+    if (!iKickRung && !iRung && parameters.get_bBHPlaceSeed()) {
         PlaceBHSeed(dTime, CurrMaxRung());
 
 #ifdef OPTIM_REORDER_IN_NODES
@@ -3294,11 +3245,12 @@ void MSR::TopStepKDK(
 #endif
 
 #ifdef BLACKHOLES
-        if (param.bBHMerger) {
+        auto bBHMerger = parameters.get_bBHMerger();
+        if (bBHMerger) {
             SelActives();
             BHMerger(dTime);
         }
-        if (param.bBHAccretion && !param.bBHMerger) {
+        if (parameters.get_bBHAccretion() && !bBHMerger) {
             // If there are mergers, this was already done in msrBHMerger, so
             // there is no need to repeat this.
             struct outGetNParts Nout;

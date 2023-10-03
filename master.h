@@ -485,7 +485,7 @@ protected:
     int ValidateEOSParam();
 #endif
 #ifdef BLACKHOLES
-    void SetBlackholeParam(bool bRestart);
+    void SetBlackholeParam();
     int  ValidateBlackholeParam();
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);

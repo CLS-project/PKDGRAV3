@@ -26,22 +26,6 @@ struct parameters {
     ** Parameters for PKDGRAV.
     */
 
-
-#ifdef BLACKHOLES
-    int bBHMerger;
-    int bBHPlaceSeed;
-    int bBHAccretion;
-    int bBHFeedback;
-    double dBHAccretionAlpha;
-    double dBHAccretionCvisc;
-    double dBHAccretionEddFac;
-    double dBHRadiativeEff;
-    double dBHFBEff;
-    double dBHFBDT;
-    double dBHFBEcrit;
-    double dBHSeedMass;
-    double dBHMhaloMin;
-#endif
 #ifdef STELLAR_EVOLUTION
     char achStelEvolPath[256];
     char achSNIaDTDType[32];
