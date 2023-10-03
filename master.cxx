@@ -730,8 +730,8 @@ void MSR::SetDerivedParameters(bool bRestart) {
     const double dTuPrefac = units.dGasConst / (parameters.get_dConstGamma() - 1.);
     dTuFac = dTuPrefac / parameters.get_dMeanMolWeight();
 
-    const double dInvPrimNeutralMu = 0.25 + 0.75 * param.dInitialH;
-    const double dInvPrimIonisedMu = 0.75 + 1.25 * param.dInitialH;
+    const double dInvPrimNeutralMu = 0.25 + 0.75 * parameters.get_dInitialH();
+    const double dInvPrimIonisedMu = 0.75 + 1.25 * parameters.get_dInitialH();
     dTuFacPrimNeutral = dTuPrefac * dInvPrimNeutralMu;
     dTuFacPrimIonised = dTuPrefac * dInvPrimIonisedMu;
 
@@ -739,10 +739,10 @@ void MSR::SetDerivedParameters(bool bRestart) {
     SetCoolingParam();
 #endif
 #ifdef STAR_FORMATION
-    SetStarFormationParam(bRestart);
+    SetStarFormationParam();
 #endif
 #ifdef FEEDBACK
-    SetFeedbackParam(bRestart);
+    SetFeedbackParam();
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     SetEOSParam();
@@ -779,284 +779,6 @@ void MSR::Initialize() {
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
 
-    /* New params added by IA for the hydrodynamics */
-    param.dCFLacc = 0.01;
-    prmAddParam(prm,"dCFLacc",2,&param.dCFLacc,sizeof(double),"CFLacc",
-                "<CFL for the acceleration criteria> = 0.01");
-    param.bMeshlessHydro = 0;
-    prmAddParam(prm,"bMeshlessHydro", 0, &param.bMeshlessHydro,
-                sizeof(int), "meshlessHydro",
-                "Use the new meshless implementation of the hydrodynamics");
-
-    param.bGlobalDt = 0;
-    prmAddParam(prm,"bGlobalDt", 0, &param.bGlobalDt,
-                sizeof(int), "globaldt",
-                "Force all particles to the same rung");
-
-    param.bIterativeSmoothingLength = 1;
-    prmAddParam(prm,"bIterativeSmoothingLength", 0, &param.bIterativeSmoothingLength,
-                sizeof(int), "iterh",
-                "Use an iterative scheme to obtain h");
-
-    param.bWakeUpParticles = 0;
-    prmAddParam(prm,"bWakeUpParticles", 0, &param.bWakeUpParticles,
-                sizeof(int), "wakeup",
-                "Wake the particles when there is a big rung difference");
-
-    param.dNeighborsStd = 1;
-    prmAddParam(prm,"dNeighborsStd", 2, &param.dNeighborsStd,
-                sizeof(double), "neighstd",
-                "Maximum deviation from desired number of neighbors");
-
-    param.bOutFineStatistics = 0;
-    prmAddParam(prm,"bOutFineStatistics", 0, &param.bOutFineStatistics,
-                sizeof(int), "finestats",
-                "Save high cadence information on the rung distribution and star formation");
-
-#if defined(COOLING) || defined(GRACKLE)
-    prmAddParam(prm,"achCoolingTables",3,param.achCoolingTables,256,"coolingtables",
-                "Path to cooling tables");
-#endif
-
-#ifdef COOLING
-    /// Hydrogen reionization
-    param.fH_reion_z = 11.5;
-    prmAddParam(prm,"fH_reion_z", 2, &param.fH_reion_z,
-                sizeof(double), "H_reion_z",
-                "Redshift of Hydrogen reionization");
-
-    param.fH_reion_eV_p_H = 2.0;
-    prmAddParam(prm,"fH_reion_eV_p_H", 2, &param.fH_reion_eV_p_H,
-                sizeof(double), "H_reion_eV_p_H",
-                "Energy (in eV) injected per proton during H reionization");
-
-    /// Helium reionization
-    param.fHe_reion_eV_p_H = 2.0;
-    prmAddParam(prm,"fHe_reion_eV_p_H", 2, &param.fHe_reion_eV_p_H,
-                sizeof(double), "He_reion_eV_p_H",
-                "Energy (in eV) injected per proton during He reionization");
-
-    param.fHe_reion_z_centre = 3.5;
-    prmAddParam(prm,"fHe_reion_z_centre", 2, &param.fHe_reion_z_centre,
-                sizeof(double), "He_reion_z_centre",
-                "Mean redshift of Helium reionization");
-
-    param.fHe_reion_z_sigma = 0.5;
-    prmAddParam(prm,"fHe_reion_z_sigma", 2, &param.fHe_reion_z_sigma,
-                sizeof(double), "He_reion_z_sigma",
-                "Redshift interval for Helium reionization");
-
-    /// Relatives abundances of Ca and S
-    param.fCa_over_Si_in_Solar = 1.;
-    param.fS_over_Si_in_Solar = 1.;
-
-    /// Temperature of the CMB at z=0
-    param.fT_CMB_0 = 2.725;
-    prmAddParam(prm,"fT_CMB_0", 2, &param.fT_CMB_0,
-                sizeof(double), "fT_CMB_0",
-                "Temperature of the CMB at z=0");
-
-    param.dCoolingMinTemp = 100.0;
-    prmAddParam(prm,"dCoolingMinTemp", 2, &param.dCoolingMinTemp,
-                sizeof(double), "dCoolingMinTemp",
-                "Minimum allowed temperature [K]");
-#endif
-
-#ifdef EEOS_POLYTROPE
-    param.dEOSFloornH = 1e-5;
-    prmAddParam(prm,"dEOSFloornH", 2, &param.dEOSFloornH,
-                sizeof(double), "dEOSFloornH",
-                "Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
-
-    param.dEOSFloorTemp = 1e4;
-    prmAddParam(prm,"dEOSFloorTemp", 2, &param.dEOSFloorTemp,
-                sizeof(double), "dEOSFloorTemp",
-                "Temperature at the internal energy floor [K]");
-
-    param.dEOSFloorMinOD = 10.0;
-    prmAddParam(prm,"dEOSFloorMinOD", 2, &param.dEOSFloorMinOD,
-                sizeof(double), "dEOSFloorMinOD",
-                "Minimum overdensity at which the constant temperature EOS will be applied");
-    param.dEOSPolyFloorMinOD = 10.0;
-    prmAddParam(prm,"dEOSPolyFloorMinOD", 2, &param.dEOSPolyFloorMinOD,
-                sizeof(double), "dEOSPolyFloorMinOD",
-                "Minimum overdensity at which the polytropic EOS will be applied");
-
-    param.dEOSPolyFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
-    prmAddParam(prm,"dEOSPolyFloorIndex", 2, &param.dEOSPolyFloorIndex,
-                sizeof(double), "dEOSPolyFloorIndex",
-                "Index of the polytropic effective EOS");
-
-    param.dEOSPolyFloornH = 0.1;
-    prmAddParam(prm,"dEOSPolyFloornH", 2, &param.dEOSPolyFloornH,
-                sizeof(double), "dEOSPolyFloornH",
-                "Minimum density at which the effective EOS will be applied (in nH [cm-3])");
-
-    param.dEOSPolyFloorTemp = 1e4;
-    prmAddParam(prm,"dEOSPolyFloorTemp", 2, &param.dEOSPolyFloorTemp,
-                sizeof(double), "dEOSPolyFloorTemp",
-                "Temperature at the density threshold for the effective EOS [K]");
-#endif
-#ifdef EEOS_JEANS
-    param.dEOSNJeans = 8.75;
-    prmAddParam(prm,"dEOSNJeans", 2, &param.dEOSNJeans,
-                sizeof(double), "dEOSNJeans",
-                "Number of elements to resolve the Jeans length");
-#endif
-    /* Parameters for the initial abundances */
-    param.dInitialH = 0.75;
-    prmAddParam(prm,"dInitialH", 2, &param.dInitialH,
-                sizeof(double), "dInitialH",
-                "Initial Hydrogen abundance");
-#ifdef HAVE_HELIUM
-    param.dInitialHe = 0.25;
-    prmAddParam(prm,"dInitialHe", 2, &param.dInitialHe,
-                sizeof(double), "dInitialHe",
-                "Initial Helium abundance");
-#endif
-#ifdef HAVE_CARBON
-    param.dInitialC = 0.0;
-    prmAddParam(prm,"dInitialC", 2, &param.dInitialC,
-                sizeof(double), "dInitialC",
-                "Initial Carbon abundance");
-#endif
-#ifdef HAVE_NITROGEN
-    param.dInitialN = 0.0;
-    prmAddParam(prm,"dInitialN", 2, &param.dInitialN,
-                sizeof(double), "dInitialN",
-                "Initial Nitrogen abundance");
-#endif
-#ifdef HAVE_OXYGEN
-    param.dInitialO = 0.0;
-    prmAddParam(prm,"dInitialO", 2, &param.dInitialO,
-                sizeof(double), "dInitialO",
-                "Initial Oxygen abundance");
-#endif
-#ifdef HAVE_NEON
-    param.dInitialNe = 0.0;
-    prmAddParam(prm,"dInitialNe", 2, &param.dInitialNe,
-                sizeof(double), "dInitialNe",
-                "Initial Neon abundance");
-#endif
-#ifdef HAVE_MAGNESIUM
-    param.dInitialMg = 0.0;
-    prmAddParam(prm,"dInitialMg", 2, &param.dInitialMg,
-                sizeof(double), "dInitialMg",
-                "Initial Magnesium abundance");
-#endif
-#ifdef HAVE_SILICON
-    param.dInitialSi = 0.0;
-    prmAddParam(prm,"dInitialSi", 2, &param.dInitialSi,
-                sizeof(double), "dInitialSi",
-                "Initial Silicon abundance");
-#endif
-#ifdef HAVE_IRON
-    param.dInitialFe = 0.0;
-    prmAddParam(prm,"dInitialFe", 2, &param.dInitialFe,
-                sizeof(double), "dInitialFe",
-                "Initial Iron abundance");
-#endif
-#ifdef HAVE_METALLICITY
-    param.dInitialMetallicity = 0.0;
-    prmAddParam(prm,"dInitialMetallicity", 2, &param.dInitialMetallicity,
-                sizeof(double), "dInitialMetallicity",
-                "Initial metallicity");
-#endif
-#ifdef STAR_FORMATION
-#ifdef HAVE_METALLICITY
-    param.bSFThresholdDenSchaye2004 = 0;
-    prmAddParam(prm,"bSFThresholdDenSchaye2004", 0, &param.bSFThresholdDenSchaye2004,
-                sizeof(int), "bSFThresholdDenSchaye2004",
-                "Use the metallicity-dependent SF density threshold of Schaye (2004)");
-#endif
-    param.dSFThresholdDen = 0.1;
-    prmAddParam(prm,"dSFThresholdDen", 2, &param.dSFThresholdDen,
-                sizeof(double), "dSFThresholdDen",
-                "Minimum density at which the star formation can happen (in nH [cm-3])");
-
-    param.dSFThresholdT = 1e5;
-    prmAddParam(prm,"dSFThresholdTemp", 2, &param.dSFThresholdT,
-                sizeof(double), "dSFThresholdTemp",
-                "Maximum temperature of a gas element to for stars [K]");
-    param.dSFMinOverDensity = 57.7;
-    prmAddParam(prm,"dSFMinOverDensity", 2, &param.dSFMinOverDensity,
-                sizeof(double), "dSFMinOverDensity",
-                "Minimium overdensity for allowing star formation");
-
-    param.dSFGasFraction = 0.3;
-    prmAddParam(prm,"dSFGasFraction", 2, &param.dSFGasFraction,
-                sizeof(double), "dSFGasFraction",
-                "Gas fraction (assumed constant) for the star formation");
-
-    param.dSFindexKS = 1.4;
-    prmAddParam(prm,"dSFindexKS", 2, &param.dSFindexKS,
-                sizeof(double), "dSFindexKS",
-                "Index of the KS law for star formation");
-
-    param.dSFnormalizationKS = 2.5e-4;
-    prmAddParam(prm,"dSFnormalizationKS", 2, &param.dSFnormalizationKS,
-                sizeof(double), "dSFnormalizationKS",
-                "Normalization of the KS law for star formation [Mo / yr / kpc2]");
-    param.dSFEfficiency = 0.0;
-    prmAddParam(prm,"dSFEfficiency", 2, &param.dSFEfficiency,
-                sizeof(double), "dSFEfficiency",
-                "Star formation efficiency per free-fall time; set >0 to use density-based SFR");
-#endif
-#ifdef FEEDBACK
-    param.bCCSNFeedback = 1;
-    prmAddParam(prm,"bCCSNFeedback", 0, &param.bCCSNFeedback,
-                sizeof(int), "bCCSNFeedback",
-                "Activate energy feedback from CCSN events");
-
-    param.bSNIaFeedback = 0;
-    prmAddParam(prm,"bSNIaFeedback", 0, &param.bSNIaFeedback,
-                sizeof(int), "bSNIaFeedback",
-                "Activate energy feedback from SNIa events");
-
-    param.dSNFBEfficiency = 1.;
-    prmAddParam(prm,"dSNFBEfficiency", 2, &param.dSNFBEfficiency,
-                sizeof(double), "dSNFBEfficiency",
-                "Efficiency of SN feedback. Asymptotic minimum efficiency "
-                "if dSNFBMaxEff is provided");
-
-    param.dSNFBMaxEff = 0.0;
-    prmAddParam(prm,"dSNFBMaxEff", 2, &param.dSNFBMaxEff,
-                sizeof(double), "dSNFBMaxEff",
-                "Asymptotic maximum efficiency of SN feedback");
-
-    param.dSNFBEffIndex = 0.87;
-    prmAddParam(prm,"dSNFBEffIndex", 2, &param.dSNFBEffIndex,
-                sizeof(double), "dSNFBEffIndex",
-                "Metallicity and density index for the feedback efficiency");
-
-    param.dSNFBEffnH0 = 0.67;
-    prmAddParam(prm,"dSNFBEffnH0", 2, &param.dSNFBEffnH0,
-                sizeof(double), "dSNFBEffnH0",
-                "Hydrogen number density normalization of the feedback efficiency [nH cm-3]");
-
-    param.dSNFBDT = pow(10.0, 7.5);
-    prmAddParam(prm,"dSNFBDT", 2, &param.dSNFBDu,
-                sizeof(double), "dSNFBDT",
-                "Increment in temperature injected per supernova event [K]");
-
-    param.dCCSNFBDelay = 3e7;
-    prmAddParam(prm,"dCCSNFBDelay", 2, &param.dCCSNFBDelay,
-                sizeof(double), "dCCSNFBDelay",
-                "Time between star formation and injection of CCSN energy [yr]");
-
-    param.dCCSNEnergy = 1e51;
-    prmAddParam(prm, "dCCSNEnergy", 2, &param.dCCSNEnergy, sizeof(double), "dCCSNEnergy",
-                "CCSN event energy [erg]");
-
-    param.dSNIaFBDelay = 2e8;
-    prmAddParam(prm,"dSNIaFBDelay", 2, &param.dSNIaFBDelay,
-                sizeof(double), "dSNIaFBDelay",
-                "Time between star formation and injection of SNIa energy [yr]");
-
-    param.dSNIaEnergy = 1e51;
-    prmAddParam(prm, "dSNIaEnergy", 2, &param.dSNIaEnergy, sizeof(double), "dSNIaEnergy",
-                "SNIa event energy [erg]");
-#endif
 #ifdef BLACKHOLES
     param.bBHMerger = 1;
     prmAddParam(prm,"bBHMerger", 0, &param.bBHMerger,
@@ -2147,23 +1869,23 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->gamma = parameters.get_dConstGamma();
     smf->dDelta = dDelta;
     smf->dEtaCourant = parameters.get_dEtaCourant();
-    smf->bMeshlessHydro = param.bMeshlessHydro;
-    smf->bIterativeSmoothingLength = param.bIterativeSmoothingLength;
+    smf->bMeshlessHydro = parameters.get_bMeshlessHydro();
+    smf->bIterativeSmoothingLength = parameters.get_bIterativeSmoothingLength();
     smf->bUpdateBall = bUpdateBall;
     smf->nBucket = parameters.get_nBucket();
-    smf->dCFLacc = param.dCFLacc;
+    smf->dCFLacc = parameters.get_dCFLacc();
     smf->dConstGamma = parameters.get_dConstGamma();
     smf->dhMinOverSoft = parameters.get_dhMinOverSoft();
-    smf->dNeighborsStd = param.dNeighborsStd;
+    smf->dNeighborsStd = parameters.get_dNeighborsStd();
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    eEOSFill(param, &smf->eEOS);
+    smf->eEOS = eEOSparam(parameters,calc);
 #endif
 #ifdef FEEDBACK
-    smf->dSNFBDu = param.dSNFBDu;
-    smf->dCCSNFBDelay = param.dCCSNFBDelay;
-    smf->dCCSNFBSpecEnergy = param.dCCSNFBSpecEnergy;
-    smf->dSNIaFBDelay = param.dSNIaFBDelay;
-    smf->dSNIaFBSpecEnergy = param.dSNIaFBSpecEnergy;
+    smf->dSNFBDu = calc.dSNFBDu;
+    smf->dCCSNFBDelay = calc.dCCSNFBDelay;
+    smf->dCCSNFBSpecEnergy = calc.dCCSNFBSpecEnergy;
+    smf->dSNIaFBDelay = calc.dSNIaFBDelay;
+    smf->dSNIaFBSpecEnergy = calc.dSNIaFBSpecEnergy;
 #endif
 #ifdef BLACKHOLES
     smf->dBHFBEff = param.dBHFBEff;
@@ -2689,7 +2411,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
 }
 
 void MSR::OutputFineStatistics(double dStep, double dTime) {
-    if (!param.bOutFineStatistics)
+    if (!parameters.get_bOutFineStatistics())
         return;
     if (dTime==-1) {
         std::string achFile(OutName());
@@ -2727,17 +2449,17 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     struct inEndTimestep in;
     in.units = UNITS(parameters,csm->val.h);
 #ifdef GRACKLE
-    strcpy(in.achCoolingTable, param.achCoolingTables);
+    strcpy(in.achCoolingTable, parameters.get_achCoolingTables().data());
 #endif
     in.dTime = dTime;
     in.dDelta = dDelta;
     in.dConstGamma = parameters.get_dConstGamma();
     in.dTuFac = dTuFacPrimNeutral;
 #ifdef STAR_FORMATION
-    in.dSFThresholdOD = param.dSFThresholdOD;
+    in.dSFThresholdOD = calc.dSFThresholdOD;
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    eEOSFill(param, &in.eEOS);
+    in.eEOS = eEOSparam(parameters,calc);
 #endif
 #ifdef BLACKHOLES
     in.dBHRadiativeEff = param.dBHRadiativeEff;
@@ -3426,7 +3148,7 @@ int MSR::NewTopStepKDK(
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     ActiveRung(uRung,0);
 #ifdef FEEDBACK
-    if (param.bCCSNFeedback || param.bSNIaFeedback) {
+    if (parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback()) {
         Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1,parameters.get_nSmooth());
     }
 #endif
@@ -3616,7 +3338,7 @@ void MSR::TopStepKDK(
         printf("Computing feedback... ");
 
         TimerStart(TIMER_FEEDBACK);
-        if (param.bCCSNFeedback || param.bSNIaFeedback) {
+        if (parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback()) {
             Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1,parameters.get_nSmooth());
         }
         TimerStop(TIMER_FEEDBACK);
@@ -3759,33 +3481,33 @@ void MSR::Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable, 
 
 void MSR::ChemCompInit() {
     struct inChemCompInit in;
-    in.dInitialH = param.dInitialH;
+    in.dInitialH = parameters.get_dInitialH();
 #ifdef HAVE_HELIUM
-    in.dInitialHe = param.dInitialHe;
+    in.dInitialHe = parameters.get_dInitialHe();
 #endif
 #ifdef HAVE_CARBON
-    in.dInitialC = param.dInitialC;
+    in.dInitialC = parameters.get_dInitialC();
 #endif
 #ifdef HAVE_NITROGEN
-    in.dInitialN = param.dInitialN;
+    in.dInitialN = parameters.get_dInitialN();
 #endif
 #ifdef HAVE_OXYGEN
-    in.dInitialO = param.dInitialO;
+    in.dInitialO = parameters.get_dInitialO();
 #endif
 #ifdef HAVE_NEON
-    in.dInitialNe = param.dInitialNe;
+    in.dInitialNe = parameters.get_dInitialNe();
 #endif
 #ifdef HAVE_MAGNESIUM
-    in.dInitialMg = param.dInitialMg;
+    in.dInitialMg = parameters.get_dInitialMg();
 #endif
 #ifdef HAVE_SILICON
-    in.dInitialSi = param.dInitialSi;
+    in.dInitialSi = parameters.get_dInitialSi();
 #endif
 #ifdef HAVE_IRON
-    in.dInitialFe = param.dInitialFe;
+    in.dInitialFe = parameters.get_dInitialFe();
 #endif
 #ifdef HAVE_METALLICITY
-    in.dInitialMetallicity = param.dInitialMetallicity;
+    in.dInitialMetallicity = parameters.get_dInitialMetallicity();
 #endif
 
     pstChemCompInit(pst, &in, sizeof(in), NULL, 0);
@@ -4070,33 +3792,33 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.bICgas = parameters.get_bICgas();
     in.nBucket = parameters.get_nBucket();
     in.dInitialT = parameters.get_dInitialT();
-    in.dInitialH = param.dInitialH;
+    in.dInitialH = parameters.get_dInitialH();
 #ifdef HAVE_HELIUM
-    in.dInitialHe = param.dInitialHe;
+    in.dInitialHe = parameters.get_dInitialHe();
 #endif
 #ifdef HAVE_CARBON
-    in.dInitialC = param.dInitialC;
+    in.dInitialC = parameters.get_dInitialC();
 #endif
 #ifdef HAVE_NITROGEN
-    in.dInitialN = param.dInitialN;
+    in.dInitialN = parameters.get_dInitialN();
 #endif
 #ifdef HAVE_OXYGEN
-    in.dInitialO = param.dInitialO;
+    in.dInitialO = parameters.get_dInitialO();
 #endif
 #ifdef HAVE_NEON
-    in.dInitialNe = param.dInitialNe;
+    in.dInitialNe = parameters.get_dInitialNe();
 #endif
 #ifdef HAVE_MAGNESIUM
-    in.dInitialMg = param.dInitialMg;
+    in.dInitialMg = parameters.get_dInitialMg();
 #endif
 #ifdef HAVE_SILICON
-    in.dInitialSi = param.dInitialSi;
+    in.dInitialSi = parameters.get_dInitialSi();
 #endif
 #ifdef HAVE_IRON
-    in.dInitialFe = param.dInitialFe;
+    in.dInitialFe = parameters.get_dInitialFe();
 #endif
 #ifdef HAVE_METALLICITY
-    in.dInitialMetallicity = param.dInitialMetallicity;
+    in.dInitialMetallicity = parameters.get_dInitialMetallicity();
 #endif
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */

@@ -1,21 +1,6 @@
 #include "eEOS/eEOS_struct.h"
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 
-inline static void eEOSFill(const struct parameters param, struct eEOSparam *eEOS) {
-#ifdef EEOS_POLYTROPE
-    eEOS->dPolyFloorMinOD = param.dEOSPolyFloorMinBaryonOD;
-    eEOS->dPolyFloorExponent = param.dEOSPolyFloorExponent;
-    eEOS->dPolyFloorDen = param.dEOSPolyFloorDen;
-    eEOS->dPolyFlooru = param.dEOSPolyFlooru;
-#endif
-#ifdef EEOS_JEANS
-    eEOS->dNJeans = param.dEOSNJeans;
-#endif
-    eEOS->dFlooru = param.dEOSFlooru;
-    eEOS->dFloorDen = param.dEOSFloorDen;
-    eEOS->dFloorMinOD = param.dEOSFloorMinBaryonOD;
-}
-
 /*
  * General interface to the eEOS module
  * The density is in comoving coordinates.

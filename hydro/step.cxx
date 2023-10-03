@@ -19,7 +19,7 @@ void MSR::HydroStep(double dTime, double dDelta) {
     ReSmooth(dTime, dDelta, SMX_HYDRO_STEP, 1);
 #endif
 
-    if (param.bGlobalDt) {
+    if (parameters.get_bGlobalDt()) {
         uint8_t minDt;
         minDt = GetMinDt();
         SetGlobalDt(minDt);
@@ -29,7 +29,7 @@ void MSR::HydroStep(double dTime, double dDelta) {
     dsec = TimerGet(TIMER_TIMESTEP);
     printf("took %.5f seconds\n", dsec);
 
-    if (param.bWakeUpParticles) {
+    if (parameters.get_bWakeUpParticles()) {
         struct inDrift in;
         in.iRoot = 0; // Not used
         in.dTime = dTime;

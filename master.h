@@ -229,6 +229,9 @@ public: // should be private
         return dTheta;
     }
 public:
+    struct CALC calc;
+
+public:
     bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 
     PRM prm;
@@ -356,7 +359,7 @@ protected:
         return parameters.get_bNewSPH();
     }
     int MeshlessHydro()   const {
-        return param.bMeshlessHydro;
+        return parameters.get_bMeshlessHydro();
     }
     int DoGravity()       const {
         return parameters.get_bDoGravity();
@@ -465,13 +468,13 @@ protected:
     void GrackleInit(int bComove, double dScaleFactor);
 #endif
 #ifdef STAR_FORMATION
-    void SetStarFormationParam(bool bRestart);
+    void SetStarFormationParam();
     int  ValidateStarFormationParam();
     void StarFormInit(double dTime);
 #endif
     void StarForm(double dTime, double dDelta, int iRung);
 #ifdef FEEDBACK
-    void SetFeedbackParam(bool bRestart);
+    void SetFeedbackParam();
 #endif
 #ifdef STELLAR_EVOLUTION
     void SetStellarEvolutionParam();

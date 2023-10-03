@@ -468,16 +468,16 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (!parameters.has_bDoGas()) parameters.set_bDoGas(param.bMeshlessHydro||parameters.get_bNewSPH());
-    if (parameters.get_bDoGas() && !(param.bMeshlessHydro||parameters.get_bNewSPH()) ) {
+    if (!parameters.has_bDoGas()) parameters.set_bDoGas(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH());
+    if (parameters.get_bDoGas() && !(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) ) {
         fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
         return 0;
     }
-    if ((param.bMeshlessHydro||parameters.get_bNewSPH()) && !parameters.get_bDoGas()) {
+    if ((parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) && !parameters.get_bDoGas()) {
         fprintf(stderr,"ERROR: An hydro scheme is selected but bDoGas=0! Did you forget to add bDoGas=1?\n");
         return 0;
     }
-    if (param.bMeshlessHydro && parameters.get_bNewSPH()) {
+    if (parameters.get_bMeshlessHydro() && parameters.get_bNewSPH()) {
         fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }

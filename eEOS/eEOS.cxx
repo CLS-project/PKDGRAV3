@@ -1,23 +1,39 @@
 #include "master.h"
 
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-void MSR::SetEOSParam() {
-    const double dHydFrac = param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / units.dGmPerCcUnit;
-    param.dEOSFloorDen = param.dEOSFloornH*dnHToRho;
-    param.dEOSFlooru = param.dEOSFloorTemp*dTuFacPrimNeutral;
-    if (csm->val.bComove)
-        param.dEOSFloorMinBaryonOD = param.dEOSFloorMinOD*csm->val.dOmegab;
-    else
-        param.dEOSFloorMinBaryonOD = 0.;
+
+eEOSparam::eEOSparam(class pkd_parameters &parameters,struct CALC &calc) {
 #ifdef EEOS_POLYTROPE
-    param.dEOSPolyFloorExponent = param.dEOSPolyFloorIndex-1.;
-    param.dEOSPolyFloorDen =  param.dEOSPolyFloornH*dnHToRho;
-    param.dEOSPolyFlooru = param.dEOSPolyFloorTemp*dTuFacPrimNeutral;
+    dPolyFloorMinOD = calc.dEOSPolyFloorMinBaryonOD;
+    dPolyFloorExponent = calc.dEOSPolyFloorExponent;
+    dPolyFloorDen = calc.dEOSPolyFloorDen;
+    dPolyFlooru = calc.dEOSPolyFlooru;
+#endif
+#ifdef EEOS_JEANS
+    dNJeans = parameters.get_dEOSNJeans();
+#endif
+    dFlooru = calc.dEOSFlooru;
+    dFloorDen = calc.dEOSFloorDen;
+    dFloorMinOD = calc.dEOSFloorMinBaryonOD;
+}
+
+void MSR::SetEOSParam() {
+    const double dHydFrac = parameters.get_dInitialH();
+    const double dnHToRho = MHYDR / dHydFrac / units.dGmPerCcUnit;
+    calc.dEOSFloorDen = parameters.get_dEOSFloornH()*dnHToRho;
+    calc.dEOSFlooru = parameters.get_dEOSFloorTemp()*dTuFacPrimNeutral;
     if (csm->val.bComove)
-        param.dEOSPolyFloorMinBaryonOD = param.dEOSPolyFloorMinOD*csm->val.dOmegab;
+        calc.dEOSFloorMinBaryonOD = parameters.get_dEOSFloorMinOD()*csm->val.dOmegab;
     else
-        param.dEOSPolyFloorMinBaryonOD = 0.;
+        calc.dEOSFloorMinBaryonOD = 0.;
+#ifdef EEOS_POLYTROPE
+    calc.dEOSPolyFloorExponent = parameters.get_dEOSPolyFloorIndex()-1.;
+    calc.dEOSPolyFloorDen =  parameters.get_dEOSPolyFloornH()*dnHToRho;
+    calc.dEOSPolyFlooru = parameters.get_dEOSPolyFloorTemp()*dTuFacPrimNeutral;
+    if (csm->val.bComove)
+        calc.dEOSPolyFloorMinBaryonOD = parameters.get_dEOSPolyFloorMinOD()*csm->val.dOmegab;
+    else
+        calc.dEOSPolyFloorMinBaryonOD = 0.;
 #endif
 }
 

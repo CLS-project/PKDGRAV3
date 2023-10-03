@@ -10,7 +10,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 
     printf("Computing density... \n");
     TimerStart(TIMER_DENSITY);
-    if (param.bIterativeSmoothingLength) {
+    if (parameters.get_bIterativeSmoothingLength()) {
 #ifdef OPTIM_AVOID_IS_ACTIVE
         SelActives();
 #else

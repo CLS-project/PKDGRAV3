@@ -15,7 +15,7 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     in.dTau = parameters.get_dTau();
     in.dBHSeedMass = param.dBHSeedMass;
 #ifdef STAR_FORMATION
-    in.dDenMin = param.dSFThresholdDen*pow(in.dScaleFactor,3);
+    in.dDenMin = calc.dSFThresholdDen*pow(in.dScaleFactor,3);
 #else
     in.dDenMin = 0.0;
 #endif
