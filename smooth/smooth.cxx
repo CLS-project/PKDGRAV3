@@ -180,7 +180,7 @@ void smHashAdd(SMX smx,void *p) {
 ** Assumes that p is definitely in the hash table!!!
 */
 void smHashDel(SMX smx,void *p) {
-    struct hashElement *t,*tt;
+    struct hashElement *t, *tt;
     uint32_t i = ((intptr_t)(p))%smx->nHash;
 
     if (!smx->pHash[i].coll) {
@@ -1182,7 +1182,6 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 #ifdef OPTIM_SMOOTH_NODE
 
 /* Allocate a buffer for N particles each one with nVar variables.
- * Also allocate an array of pointers to the beggining of each variable array
  *
  * If oldBuff is present, the new buffer is initialized with the contents of
  * oldBuff, with a size oldN
@@ -1430,7 +1429,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                             // Try pointer to pPart declared as restrict, to check if compiler does something better
 
-                            if (nCnt_p >= nnListMax_p) {
+                            if (nCnt_p+dvec::width() >= nnListMax_p) {
                                 nnListMax_p += NNLIST_INCREMENT;
                                 nnList_p = static_cast<NN *>(realloc(nnList_p,nnListMax_p*sizeof(NN)));
                                 assert(nnList_p != NULL);
