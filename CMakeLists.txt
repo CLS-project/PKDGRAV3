@@ -557,6 +557,12 @@ if (HERNQUIST_POTENTIAL)
   message("-- Analytical gravity ACTIVE -> Hernquist potential")
 endif(HERNQUIST_POTENTIAL)
 
+option(NFW_POTENTIAL "Add the contribution of DM using a NFW potential" OFF)
+if (NFW_POTENTIAL)
+  target_compile_options(${PROJECT_NAME} PRIVATE -DNFW_POTENTIAL)
+  message("-- Analytical gravity ACTIVE -> NFW potential")
+endif(NFW_POTENTIAL)
+
 option(BLACKHOLES "Activate black hole model" OFF)
 if (BLACKHOLES)
   target_compile_options(${PROJECT_NAME} PRIVATE -DBLACKHOLES)
