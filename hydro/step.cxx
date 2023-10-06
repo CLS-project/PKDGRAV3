@@ -1,6 +1,8 @@
 #include <algorithm>
 #include "hydro/hydro.h"
 #include "master.h"
+#include "potential/hernquist.h"
+
 using blitz::TinyVector;
 using blitz::dot;
 
@@ -145,40 +147,10 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif
 
 #ifdef HERNQUIST_POTENTIAL
-    // Timestep criteria based on the Hernsquist potential
-    const double const_reduced_hubble_cgs = 3.2407789e-18;
-    //const double H0 = 0.704 * const_reduced_hubble_cgs * parameters.get_dSecUnit();
-    const double H0 = 70.4/ smf->units.dKmPerSecUnit * ( smf->units.dKpcUnit / 1e3);
-
-    const double concentration = 9.0;
-    const double M200 = 135.28423603962767; //137.0 ; // / parameters.get_dMsolUnit();
-    const double V200 = cbrt(M200*H0);
-    //const double R200 = V200/(H0);
-    const double R200 = cbrt(M200/(100.*H0*H0));
-    const double RS = R200 / concentration;
-
-    const double al = RS * sqrt(2. * (log(1. + concentration) -
-                                      concentration / (1. + concentration)));
-
-    const double mass = M200;
-    (1.-0.041);
-
-    /* Calculate the relative potential with respect to the centre of the
-     * potential */
-    auto dr = p.position(); //- potential->x;
-
-    /* calculate the radius  */
-    const double epsilon =  0.2/smf->units.dKpcUnit;
-    const double epsilon2 = epsilon*epsilon;
-    const float r = sqrtf(dot(dr,dr) + epsilon2);
-    const float sqrtgm_inv = 1.f / sqrtf(mass);
-
-    /* Calculate the circular orbital period */
-    const float period = 2.f * M_PI * sqrtf(r) * al *
-                         (1 + r / al) * sqrtgm_inv;
+    auto out = hernquist(p.position());
 
     /* Time-step as a fraction of the circular orbital time */
-    const double time_step = 0.01 * period;
+    const double time_step = std::get<1>(out);
 
     if (time_step < dtEst) dtEst = time_step;
 #endif
@@ -265,4 +237,3 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
         }
     }
 }
-
