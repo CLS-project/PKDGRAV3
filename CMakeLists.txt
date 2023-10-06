@@ -68,7 +68,7 @@ endif()
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
+find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter Development NumPy)
 set(PYTHON ${Python3_EXECUTABLE})
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
