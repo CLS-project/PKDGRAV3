@@ -21,7 +21,7 @@ def get_types(default):
   elif isinstance(default,int):
     return 'int64_t','int64_t'
   elif isinstance(default,str):
-    return 'std::string','string'
+    return 'std::string_view','string'
   else:
     return None, None
 
@@ -39,15 +39,20 @@ def emit_proto(section,parameters_h,parameters_pxi):
         if (len(default) == 0):
           c_type = 'PyObject*'
           i_type = 'object'
+        elif (len(default) == 1):
+          item_type = get_types(default[0])[0]
+          c_type = f'std::vector<{item_type}>'
+          i_type = f'vector[{item_type}]'
         else:
           item_type = get_types(default[0])[0]
-          # name = f'get<PyObject*>(str_{k})'
-          c_type = f'{item_type},{len(default)}'
+          c_type = f'blitz::TinyVector<{item_type},{len(default)}>'
           i_type = f'TinyVector[{item_type},BLITZ{len(default)}]'
-      print(f'    auto get_{k:{w}}() {{ return get<{c_type}>({name}); }}',file=parameters_h)
+      print(f'    auto get_{k:{w}}() const {{ return get<{c_type}>({name}); }}',file=parameters_h)
       print(f'        {i_type:<7} get_{k}()',file=parameters_pxi)
-      print(f'    bool has_{k:{w}}() {{ return has(str_{k}); }}',file=parameters_h)
+      print(f'    bool has_{k:{w}}() const {{ return has(str_{k}); }}',file=parameters_h)
       print(f'        bool    has_{k}()',file=parameters_pxi)
+      print(f'    auto set_{k:{w}}(const {c_type} &value) {{ set<{c_type}>({name},value); return value; }}',file=parameters_h)
+      print(f'        {i_type:<7} set_{k}({i_type} value)',file=parameters_pxi)
     else:
       emit_proto(v.items(),parameters_h,parameters_pxi)
 
@@ -63,8 +68,6 @@ with open(argv[2], 'w') as parameters_h,open(argv[3], 'w') as parameters_pxi:
         void set(const char *name,double value)
         void set(const char *name,uint64_t value)
         void set(const char *name,int64_t value)
-        void prm2ppy(prmContext *prm)
-        bool ppy2prm(prmContext *prm)
         bool    update(object kwobj,bool bIgnoreUnknown)
         object  arguments()
         object  specified()''',file=parameters_pxi)

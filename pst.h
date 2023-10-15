@@ -25,7 +25,6 @@
 #include "io/outtype.h"
 #include "io/output.h"
 
-#include "parameters.h"
 #include "cosmo.h"
 #include "ic/ic.h"
 

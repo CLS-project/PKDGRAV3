@@ -58,7 +58,7 @@ static inline void get_redshift_index(const float z, int *z_index, float *dz,
                                       struct cooling_function_data *restrict cooling);
 
 void MSR::SetCoolingParam() {
-    param.dCoolingMinu = param.dCoolingMinTemp * dTuFacPrimNeutral;
+    calc.dCoolingMinu = parameters.get_dCoolingMinTemp() * dTuFacPrimNeutral;
 }
 
 /**
@@ -174,27 +174,27 @@ void MSR::CoolingInit(float redshift) {
 
     /* Read model parameters */
 
-    strcpy(cooling->cooling_table_path, param.achCoolingTables);
+    strcpy(cooling->cooling_table_path, parameters.get_achCoolingTables().data());
 
     /* Despite the names, the values of H_reion_heat_cgs and He_reion_heat_cgs
      * that are read in are actually in units of electron volts per proton mass.
      * We later convert to units just below */
 
-    if (redshift < param.fH_reion_z) {
+    cooling->H_reion_z = parameters.get_fH_reion_z();
+    if (redshift < cooling->H_reion_z) {
         cooling->H_reion_done = 1;
     }
     else {
         cooling->H_reion_done = 0;
     }
-    cooling->H_reion_z = param.fH_reion_z;
-    cooling->H_reion_heat_cgs = param.fH_reion_eV_p_H;
-    cooling->He_reion_z_centre = param.fHe_reion_z_centre;
-    cooling->He_reion_z_sigma = param.fHe_reion_z_sigma;
-    cooling->He_reion_heat_cgs = param.fHe_reion_eV_p_H;
+    cooling->H_reion_heat_cgs = parameters.get_fH_reion_eV_p_H();
+    cooling->He_reion_z_centre = parameters.get_fHe_reion_z_centre();
+    cooling->He_reion_z_sigma = parameters.get_fHe_reion_z_sigma();
+    cooling->He_reion_heat_cgs = parameters.get_fHe_reion_eV_p_H();
 
     /* Optional parameters to correct the abundances */
-    cooling->Ca_over_Si_ratio_in_solar = param.fCa_over_Si_in_Solar;
-    cooling->S_over_Si_ratio_in_solar = param.fS_over_Si_in_Solar;
+    cooling->Ca_over_Si_ratio_in_solar = calc.fCa_over_Si_in_Solar;
+    cooling->S_over_Si_ratio_in_solar = calc.fS_over_Si_in_Solar;
 
     /* Convert H_reion_heat_cgs and He_reion_heat_cgs to cgs
      * (units used internally by the cooling routines). This is done by
@@ -221,17 +221,17 @@ void MSR::CoolingInit(float redshift) {
     /* Compute conversion factors */
     // This is not ideal, and does not follow PKDGRAV3 philosophy... someday
     // it should be reworked
-    cooling->internal_energy_to_cgs = param.units.dErgPerGmUnit;
+    cooling->internal_energy_to_cgs = units.dErgPerGmUnit;
     cooling->internal_energy_from_cgs = 1. / cooling->internal_energy_to_cgs;
-    cooling->number_density_to_cgs = pow(param.units.dKpcUnit*KPCCM,-3.);
-    cooling->units = param.units;
-    cooling->dConstGamma = param.dConstGamma;
-    cooling->dCoolingMinu = param.dCoolingMinu;
+    cooling->number_density_to_cgs = pow(units.dKpcUnit*KPCCM,-3.);
+    cooling->units = units;
+    cooling->dConstGamma = parameters.get_dConstGamma();
+    cooling->dCoolingMinu = calc.dCoolingMinu;
 
     /* Store some constants in CGS units */
     const double proton_mass_cgs = MHYDR;
     cooling->inv_proton_mass_cgs = 1. / proton_mass_cgs;
-    cooling->T_CMB_0 = param.fT_CMB_0;
+    cooling->T_CMB_0 = parameters.get_fT_CMB_0();
 
     const double compton_coefficient_cgs = 1.0178085e-37;
 

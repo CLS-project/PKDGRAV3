@@ -18,27 +18,24 @@
 /* MSR layer
  */
 void MSR::SetStarFormationParam() {
-    param.dSFThresholdu = param.dSFThresholdT*dTuFacPrimNeutral;
+    calc.dSFThresholdu = parameters.get_dSFThresholdT()*dTuFacPrimNeutral;
 
     if (csm->val.bComove) {
         // As usual, in code units the critical density is 1.0
-        param.dSFThresholdOD = param.dSFMinOverDensity * csm->val.dOmegab;
+        calc.dSFThresholdOD = parameters.get_dSFMinOverDensity() * csm->val.dOmegab;
     }
     else {
-        param.dSFThresholdOD = 0.0;
+        calc.dSFThresholdOD = 0.0;
     }
 
-    if (!param.bRestart) {
-        const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
-        param.dSFThresholdDen *= dnHToRho; // Code physical density now
-
-        const double Msolpcm2 = 1. / param.units.dMsolUnit *
-                                pow(param.units.dKpcUnit*1e3, 2);
-        param.dSFnormalizationKS *= 1. / param.units.dMsolUnit *
-                                    param.units.dSecUnit/SECONDSPERYEAR *
-                                    pow(param.units.dKpcUnit, 2) *
-                                    pow(Msolpcm2,-param.dSFindexKS);
-    }
+    const double dnHToRho = MHYDR / parameters.get_dInitialH() / units.dGmPerCcUnit;
+    calc.dSFThresholdDen = parameters.get_dSFThresholdDen() * dnHToRho; // Code physical density now
+    const double Msolpcm2 = 1. / units.dMsolUnit *
+                            pow(units.dKpcUnit*1e3, 2);
+    calc.dSFnormalizationKS *= 1. / units.dMsolUnit *
+                                units.dSecUnit/SECONDSPERYEAR *
+                                pow(units.dKpcUnit, 2) *
+                                pow(Msolpcm2,-parameters.get_dSFindexKS());
 }
 
 int MSR::ValidateStarFormationParam() {
@@ -60,32 +57,32 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dScaleFactor = a;
     in.dTime = dTime;
     in.dDelta = dDelta;
-    in.dSFindexKS = param.dSFindexKS;
-    in.dSFnormalizationKS = param.dSFnormalizationKS;
-    in.dConstGamma = param.dConstGamma;
-    in.dSFGasFraction = param.dSFGasFraction;
-    in.dSFThresholdDen = param.dSFThresholdDen * a * a * a;  // Send in comoving units
-    in.dSFThresholdOD = param.dSFThresholdOD;
-    in.dSFThresholdu = param.dSFThresholdu;
-    in.dSFEfficiency = param.dSFEfficiency;
+    in.dSFindexKS = parameters.get_dSFindexKS();
+    in.dSFnormalizationKS = calc.dSFnormalizationKS;
+    in.dConstGamma = parameters.get_dConstGamma();
+    in.dSFGasFraction = parameters.get_dSFGasFraction();
+    in.dSFThresholdDen = calc.dSFThresholdDen * a * a * a;  // Send in comoving units
+    in.dSFThresholdOD = calc.dSFThresholdOD;
+    in.dSFThresholdu = calc.dSFThresholdu;
+    in.dSFEfficiency = parameters.get_dSFEfficiency();
 #ifdef HAVE_METALLICITY
-    in.bSFThresholdDenSchaye2004 = param.bSFThresholdDenSchaye2004;
+    in.bSFThresholdDenSchaye2004 = parameters.get_bSFThresholdDenSchaye2004();
 #endif
 #ifdef FEEDBACK
-    in.bCCSNFeedback = param.bCCSNFeedback;
-    in.bSNIaFeedback = param.bSNIaFeedback;
-    in.dSNFBEfficiency = param.dSNFBEfficiency;
-    in.dSNFBMaxEff = param.dSNFBMaxEff;
-    in.dSNFBEffIndex = param.dSNFBEffIndex;
-    in.dSNFBEffnH0 = param.dSNFBEffnH0;
+    in.bCCSNFeedback = parameters.get_bCCSNFeedback();
+    in.bSNIaFeedback = parameters.get_bSNIaFeedback();
+    in.dSNFBEfficiency = parameters.get_dSNFBEfficiency();
+    in.dSNFBMaxEff = parameters.get_dSNFBMaxEff();
+    in.dSNFBEffIndex = parameters.get_dSNFBEffIndex();
+    in.dSNFBEffnH0 = calc.dSNFBEffnH0;
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    eEOSFill(param, &in.eEOS);
+    in.eEOS = eEOSparam(parameters,calc);
 #endif
 #ifdef STELLAR_EVOLUTION
-    in.dSNIaMaxMass = param.dSNIaMaxMass;
-    in.dCCSNMinMass = param.dCCSNMinMass;
-    in.dCCSNMaxMass = param.dCCSNMaxMass;
+    in.dSNIaMaxMass = parameters.get_dSNIaMaxMass();
+    in.dCCSNMinMass = parameters.get_dCCSNMinMass();
+    in.dCCSNMaxMass = parameters.get_dCCSNMaxMass();
 #endif
 
     if (parameters.get_bVDetails()) printf("Star Form (rung: %d) ... ", iRung);

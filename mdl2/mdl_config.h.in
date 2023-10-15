@@ -19,5 +19,5 @@
 #cmakedefine USE_BT 1
 #cmakedefine DEBUG_COUNT_CACHE 1
 #define USE_SINGLE 1
-#define OMPI_SKIP_MPICXX
+#define OMPI_SKIP_MPICXX 1
 #define INSTRUMENT 1

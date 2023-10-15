@@ -30,7 +30,7 @@ extern void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p
 #define NBOX 184
 
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
-                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,double hlcp[3],double tanalpha_2) {
+                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,blitz::TinyVector<double,3> hlcp,double tanalpha_2) {
     const double dLightSpeed = dLightSpeedSim(dBoxSize);
     const double mrLCP = dLightSpeed*dLookbackFacLCP;
     const double depth = dLightSpeed*dLookbackFac;
@@ -55,7 +55,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     dxStart = (depth - nLayerMax)/(dKickDelta*dLightSpeed);
     if (dxStart > 1) return; // the timestep is still too deep!
     if (dxStart < 0) dxStart = 0;
-
 
     const auto &v = pkd->particles.velocity(p);
     double r0[3],r1[3];
@@ -120,7 +119,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
     if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
     if (isect[1].dt>isect[2].dt) { temp = isect[1]; isect[1] = isect[2]; isect[2] = temp; }
-
 
     dvec xStart = dxStart;
     dvec h[3];

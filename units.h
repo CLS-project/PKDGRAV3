@@ -27,7 +27,8 @@
 #define LIGHTSPEED 2.9979e10 /* Speed of light cm/s */
 #define SECONDSPERYEAR   31557600.
 
-typedef struct units {
+class pkd_parameters;
+struct UNITS {
     double dMsolUnit;
     double dKpcUnit;
     double dKBoltzUnit;
@@ -38,6 +39,8 @@ typedef struct units {
     double dSecUnit;
     double dKmPerSecUnit;
     double dGasConst;
-} UNITS;
+    UNITS() = default;
+    UNITS(pkd_parameters &parameters,double h);
+};
 
 #endif

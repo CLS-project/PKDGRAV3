@@ -160,7 +160,7 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
     }
 }
 
-static void initLightConeOffsets(PKD pkd,int bBowtie,double h[3],double alpha,double mrLCP) {
+static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3> h,double alpha,double mrLCP) {
     int l,ix,iy,iz,nBox,nBoxMax;
     int *xy;
     int *xz;
@@ -528,9 +528,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->pTempPRIVATE = static_cast<PARTICLE *>(malloc(particles.ParticleSize()));
     mdlassert(mdl,this->pTempPRIVATE != NULL);
 
-#ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(this->mdl,iCacheSize);
-#endif
     mdl->SetCacheMaxInflight(iCacheMaxInflight);
 
     // This is cheeserific - chooses the largest specified
@@ -2481,7 +2479,7 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
 /*
 ** Initialize Lightcone stuff.
 */
-void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP) {
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP) {
 #ifdef __linux__
     uint64_t nPageSize = sysconf(_SC_PAGESIZE);
 #else

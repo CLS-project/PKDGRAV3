@@ -7,6 +7,12 @@
 #     flag:    the command line flag used to override the parameter
 #     default: the default value. NB: The type of "default" determines the
 #              type of the parameter. String, int, float or Boolean.
+#              A list type can be specified in one of three ways:
+#                []      - generic object returned (does not have to be a list)
+#                [1,1,1] - returns a TinyVector of exactly this length.
+#                          Types must be identical for all elements.
+#                [1.0]   - Returns a std::vector of the given type.
+#                          The default is empty (value is used only for the type)
 #     omitted: The "default" value if the parameter is ommited if it is
 #              different from "default". Parsed as restructured text.
 #              Needs to be small to fit beside the parameter (default whatever)
@@ -139,7 +145,7 @@ docs='''
 If enabled, the power spectrum measurement tool creates two mass assignment grids.
 The second contains the mass with the particles offset by half a grid cell.
 The results of the two mass assignment grids are combined to reduce grid aliasing effects.
-See :cite:t:`HockneyEastwood1988`.
+See :cite:t:`HockneyEastwood1988`, section 7-8 "Interlacing" for details..
 '''
 
 ["Analysis"."Power Spectrum Measurement".iPkOrder]
@@ -154,7 +160,7 @@ Selects the mass assignment method:
 3. Triangular Shaped Cloud (TSC), and
 4. Piecewise Cubic Spline (PSC).
 
-The recommended method is PCS.
+The recommended method is PCS. See :cite:t:`2016MNRAS.460.3624S` for details.
 '''
 
 ["Analysis"."Light Cone".bLightCone]
@@ -194,20 +200,10 @@ flag="sqdeg"
 default=50.0
 help="square degrees of lightcone (if (<0 || >41253) then all sky)"
 
-["Analysis"."Light Cone".hxLCP]
-flag="hx"
-default=0.749
-help="x-component of lightcone direction vector"
-
-["Analysis"."Light Cone".hyLCP]
-flag="hy"
-default=0.454
-help="y-component of lightcone direction vector"
-
-["Analysis"."Light Cone".hzLCP]
-flag="hz"
-default=1.0
-help="z-component of lightcone direction vector"
+["Analysis"."Light Cone".hLCP]
+flag="hr"
+default=[0.749,0.454,1.0]
+help="lightcone direction vector"
 
 ["Analysis"."Group Finding"]
 docs='''
@@ -352,11 +348,6 @@ flag="oi"
 default=0
 help="number of timesteps between snapshots"
 
-["I/O Parameters".iFofInterval]
-flag="fof"
-default=0
-help="number of timesteps between FOF group finding"
-
 ["I/O Parameters".iCheckInterval]
 flag="ci"
 default=0
@@ -449,8 +440,9 @@ help="restart from checkpoint"
 
 ["I/O Parameters".lstOrbits]
 flag="orbit"
-default=[]
-help="Particle ID of particle to write to orbit file (repeatable)"
+type=0
+default=[0]
+help="List of particle IDs of particle to write to orbit file"
 
 ################################################################################
 ########## Time Stepping
@@ -490,6 +482,17 @@ help="time step criterion"
 flag="gs"
 default=false
 help="Gravity timestepping according to iTimeStep Criterion"
+
+["Time Stepping".time_step]
+flag="ts"
+default=1
+ommited="TimeStep.epsilon_over_a"
+help="Which timestep scheme to use"
+
+["Time Stepping".bAccelStep]
+flag="as"
+default=false
+help="Acceleration timestepping"
 
 ["Time Stepping".bEpsAccStep]
 flag="ea"
@@ -615,23 +618,13 @@ This turns on periodic boundary conditions. If you have gravity turned on
 
 ["Periodic Boundaries".dPeriod]
 flag="L"
-default=1.0
+default=[1.0,1.0,1.0]
 help="periodic box length"
-
-["Periodic Boundaries".dxPeriod]
-flag="Lx"
-default=1.0
-help="periodic box length in x-dimension"
-
-["Periodic Boundaries".dyPeriod]
-flag="Ly"
-default=1.0
-help="periodic box length in y-dimension"
-
-["Periodic Boundaries".dzPeriod]
-flag="Lz"
-default=1.0
-help="periodic box length in z-dimension"
+docs='''
+Length of the periodic box in code units.
+This can be scalar float in which case all three dimensions have the same length,
+or it can be a list of three numbers for the x, y and z period.
+'''
 
 ################################################################################
 ########## Cosmology
@@ -1060,20 +1053,20 @@ flag="gas"
 default=false
 help="calculate gas/do not calculate gas"
 
-["Gas".bGasAdiabatic]
-flag="GasAdiabatic"
-default=true
-help="Gas is Adiabatic"
+#["Gas".bGasAdiabatic]
+#flag="GasAdiabatic"
+#default=true
+#help="Gas is Adiabatic"
 
 ["Gas".bGasIsentropic]
 flag="GasIsentropic"
 default=true
 help="Gas is evolved isentropically"
 
-["Gas".bGasIsothermal]
-flag="GasIsothermal"
-default=false
-help="Gas is Isothermal"
+#["Gas".bGasIsothermal]
+#flag="GasIsothermal"
+#default=false
+#help="Gas is Isothermal"
 
 ["Gas".dEtaCourant]
 flag="etaC"
@@ -1587,7 +1580,7 @@ help="Initial metallicity"
 
 ["Stellar Initial-Mass Function (IMF)".achIMFType]
 flag="imftype"
-default=""
+default="chabrier"
 help="Type of IMF"
 
 ["Stellar Initial-Mass Function (IMF)".dIMFMinMass]
@@ -1621,7 +1614,7 @@ help="Path to stellar evolution tables"
 
 ["Stellar evolution".achSNIaDTDType]
 flag="dtdtype"
-default=""
+default="exponential"
 help="Type of Delay-Time Distribution function for SNIa events"
 
 ["Stellar evolution".bChemEnrich]
@@ -1728,11 +1721,6 @@ docs='''
 Provides verbose tracing information which is normally not useful except to a
 developer debugging an issue with the code.
 '''
-
-["Debugging/Testing/Diagnostics".nDigits]
-flag="nd"
-default=5
-help="number of digits to use in output filenames"
 
 ["Debugging/Testing/Diagnostics".iCacheSize]
 flag="cs"

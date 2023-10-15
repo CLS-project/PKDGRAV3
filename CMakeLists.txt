@@ -192,7 +192,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c param.c pyrameters.cxx ${CMAKE_BINARY_DIR}/pkd_parameters.h
+	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c units.cxx
+	pyrameters.cxx ${CMAKE_BINARY_DIR}/pkd_parameters.h
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
 	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
@@ -498,7 +499,7 @@ endif(FIXED_NSMOOTH_STRICT)
 
 option(COOLING "Activate the chemistry and the cooling for the gas particles. Also makes effective a internal energy floor" OFF)
 if (COOLING)
-   target_sources(${PROJECT_NAME} PRIVATE  cooling/cooling.cxx cooling/cooling_tables.c )
+   target_sources(${PROJECT_NAME} PRIVATE  cooling/cooling.cxx cooling/cooling_tables.cxx )
    target_compile_options(${PROJECT_NAME} PRIVATE -DCOOLING)
    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_HELIUM -DHAVE_CARBON -DHAVE_NITROGEN -DHAVE_OXYGEN -DHAVE_NEON -DHAVE_MAGNESIUM -DHAVE_SILICON -DHAVE_IRON)
    message("-- Cooling is ACTIVE")

@@ -22,12 +22,11 @@
 #include <signal.h>
 #include <time.h>
 #include <vector>
+#include <string_view>
 #include <Python.h>
 
-#include "param.h"
 #include "pst.h"
 #include "mdl.h"
-#include "parameters.h"
 #include "pkd_parameters.h"
 #ifdef COOLING
     #include "cooling/cooling_struct.h"
@@ -89,21 +88,24 @@ public:
 public:
     int Python(int argc, char *argv[]);
     int ValidateParameters();
-    void SetDerivedParameters();
-    void SetUnits();
+    void SetDerivedParameters(bool bRestart=false);
     void Hostname();
     void MemStatus();
     int GetLock();
     double LoadOrGenerateIC();
-    void Simulate(double dTime,double dDelta,int iStartStep,int nSteps);
+    void Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart=false);
     void Simulate(double dTime);
     void setAnalysisMode(bool b=true) {bAnalysis=b;}
     void setAnalysisMode(PyObject *over) {
         bAnalysis=true;
         parameter_overrides = over;
     }
+private:
+    int64_t parallel_count(bool bParallel,int64_t nParallel);
 protected:
-    void stat_files(std::vector<uint64_t> &counts,const std::string &filename_template, uint64_t element_size);
+    int64_t parallel_read_count();
+    int64_t parallel_write_count();
+    void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
     void Restore(const std::string &filename,int nSizeParticle);
 
 public:
@@ -116,7 +118,7 @@ public:
                  double dEcosmo,double dUOld, double dTimeOld,
                  std::vector<PARTCLASS> &aClasses,
                  PyObject *arguments,PyObject *specified);
-    double Read(const std::string &achInFile);
+    double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
     void OutArray(const char *pszFile,int iType,int iFileType);
@@ -157,13 +159,15 @@ public:
     void Hop(double dTime,double dDelta);
     void GroupStats();
     void HopWrite(const char *fname);
-    void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
+    std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
+            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
     void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
     void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
-    void GridBinK(int nBins, int iGrid,uint64_t *nPk,float *fK,float *fPk);
+    std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
+            GridBinK(int nBins, int iGrid);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
     void GridCreateFFT(int nGrid);
@@ -209,6 +213,9 @@ public:
 protected:
     std::list<msr_analysis_callback> analysis_callbacks;
 
+protected:
+    UNITS units;
+
 public: // should be private
     pkd_parameters parameters;
     double set_dynamic(int iStep, double dTime) {
@@ -220,9 +227,11 @@ public: // should be private
         return dTheta;
     }
 public:
+    struct CALC calc;
+
+public:
     bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 
-    PRM prm;
     LCL lcl;
 
     blitz::TinyVector<double,3> fCenter;
@@ -230,7 +239,6 @@ public:
     /*
     ** Parameters.
     */
-    struct parameters param;
     CSM csm;
     /*
     ** Other stuff...
@@ -252,7 +260,6 @@ public:
         double sec;
         double acc;
     } ti[TOTAL_TIMERS];
-
 
 #ifdef COOLING
     struct cooling_function_data *cooling;
@@ -316,48 +323,47 @@ protected:
     static double Time();
     static void Leader();
     static void Trailer();
-    static void MakePath(const char *dir,const char *base,char *path);
+    static void MakePath(std::string_view dir,std::string_view base,char *path);
 
     double getTime(double dExpansion); // Return simulation time
     double getVfactor(double dTime);
     bool getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps);
 
-    const char *OutName() const {
-        return param.achOutName;
+    auto OutName() const {
+        return parameters.get_achOutName();
     }
-    //int Steps()           const { return param.nSteps; }
     int LogInterval()     const {
-        return param.iLogInterval;
+        return parameters.get_iLogInterval();
     }
     int OutInterval()     const {
-        return param.iOutInterval;
+        return parameters.get_iOutInterval();
     }
     int CheckInterval()   const {
-        return param.iCheckInterval;
+        return parameters.get_iCheckInterval();
     }
     double Soft()         const {
-        return param.dSoft;
+        return parameters.get_dSoft();
     }
     int DoDensity()       const {
-        return param.bDoDensity;
+        return parameters.get_bDoDensity();
     }
     int DoGas()           const {
-        return param.bDoGas;
+        return parameters.get_bDoGas();
     }
     int NewSPH()          const {
-        return param.bNewSPH;
+        return parameters.get_bNewSPH();
     }
     int MeshlessHydro()   const {
-        return param.bMeshlessHydro;
+        return parameters.get_bMeshlessHydro();
     }
     int DoGravity()       const {
-        return param.bDoGravity;
+        return parameters.get_bDoGravity();
     }
     double Eta()          const {
-        return param.dEta;
+        return parameters.get_dEta();
     }
     int MaxRung()         const {
-        return param.iMaxRung;
+        return parameters.get_iMaxRung();
     }
     int Comove()          const {
         return csm->val.bComove;
@@ -369,7 +375,7 @@ protected:
         return iCurrMaxRung;
     }
 
-    std::string BuildName(const char *path,int iStep,const char *type="");
+    std::string BuildName(std::string_view path,int iStep,const char *type="");
     std::string BuildName(int iStep,const char *type=""); // With achOutPath
     std::string BuildIoName(int iStep,const char *type="");
     std::string BuildCpName(int iStep,const char *type="");
@@ -398,7 +404,7 @@ protected:
     void GetNParts();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
-    int GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out);
+    mdl::ServiceBuffer GetParticles(std::vector<std::int64_t> &particle_ids);
     void OutputOrbits(int iStep,double dTime);
     double TotalMass();
     void LightConeOpen(int iStep);
@@ -435,7 +441,7 @@ protected:
     void CoolSetup(double dTime);
     void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
     void AddDelParticles();
-    void InitSph(double dTime,double dDelta);
+    void InitSph(double dTime,double dDelta, bool bRestart);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
     // Meshless hydrodynamics
@@ -483,7 +489,6 @@ protected:
     void BHStep(double dTime, double dDelta);
 #endif
 
-
     void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
     void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
@@ -494,7 +499,8 @@ protected:
     void SetSoft(double);
     void InitBall();
 
-    void MeasureLinPk(int nGridLin,double a,double dBoxSize, uint64_t *nPk,float *fK,float *fPk);
+    std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
+            MeasureLinPk(int nGridLin,double a,double dBoxSize);
     void OutputPk(int iStep,double dTime);
     void OutputLinPk(int iStep, double dTime);
 
@@ -516,8 +522,6 @@ protected:
         int iKickRung,  /* Gravity on all rungs from iRung
                         to iKickRung */
         int iAdjust);       /* Do an adjust? */
-
-
 
     void CalcDistance(const double *dCenter, double dRadius );
     void CalcCOM(const double *dCenter, double dRadius,
