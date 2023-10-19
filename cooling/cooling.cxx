@@ -30,16 +30,7 @@
 #include <time.h>
 
 #include "cooling.h"
-#ifdef __cplusplus
-extern "C" {
-#endif
 #include "cooling_rates.h"
-#include "cooling_struct.h"
-#include "cooling_tables.h"
-#include "interpolate.h"
-#ifdef __cplusplus
-}
-#endif
 
 #include "pkd.h"
 #include "master.h"
