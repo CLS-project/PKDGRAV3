@@ -32,10 +32,10 @@ void MSR::SetStarFormationParam() {
     calc.dSFThresholdDen = parameters.get_dSFThresholdDen() * dnHToRho; // Code physical density now
     const double Msolpcm2 = 1. / units.dMsolUnit *
                             pow(units.dKpcUnit*1e3, 2);
-    calc.dSFnormalizationKS *= 1. / units.dMsolUnit *
-                                units.dSecUnit/SECONDSPERYEAR *
-                                pow(units.dKpcUnit, 2) *
-                                pow(Msolpcm2,-parameters.get_dSFindexKS());
+    calc.dSFnormalizationKS = parameters.get_dSFnormalizationKS() / units.dMsolUnit *
+                              units.dSecUnit/SECONDSPERYEAR *
+                              pow(units.dKpcUnit, 2) *
+                              pow(Msolpcm2,-parameters.get_dSFindexKS());
 }
 
 int MSR::ValidateStarFormationParam() {
