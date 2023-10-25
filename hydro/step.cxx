@@ -1,8 +1,7 @@
 #include <algorithm>
 #include "hydro/hydro.h"
 #include "master.h"
-#include "potential/hernquist.h"
-#include "potential/nfw.h"
+#include "potential/potential.h"
 
 using blitz::TinyVector;
 using blitz::dot;
@@ -147,19 +146,11 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 #endif
 
-#ifdef HERNQUIST_POTENTIAL
-    auto out = hernquist(p.position());
+#ifdef EXTERNAL_POTENTIAL
+    auto out = external_potential(p.position());
 
     /* Time-step as a fraction of the circular orbital time */
-    const double time_step = std::get<1>(out);
-
-    if (time_step < dtEst) dtEst = time_step;
-#endif
-#ifdef NFW_POTENTIAL
-    auto out = nfw(p.position());
-
-    /* Time-step as a fraction of the circular orbital time */
-    const double time_step = std::get<1>(out);
+    const double time_step = std::get<POT_DT>(out);
 
     if (time_step < dtEst) dtEst = time_step;
 #endif

@@ -1,7 +1,7 @@
 #ifndef HERNQUIST_HINCLUDED
 #define HERNQUIST_HINCLUDED
 
-static inline std::tuple<blitz::TinyVector<double,3>, double>  hernquist(blitz::TinyVector<double,3> pos) {
+static inline out_potential external_potential(blitz::TinyVector<double,3> pos) {
     // Hard coded just for the isolated galaxy test
     const double const_reduced_hubble_cgs = 3.2407789e-18;
     const double dMsolUnit = 1e10;

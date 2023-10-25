@@ -8,7 +8,7 @@
  * Remember, G=1
  */
 
-static inline std::tuple<blitz::TinyVector<double,3>, double>  nfw(blitz::TinyVector<double,3> pos) {
+static inline out_potential  external_potential(blitz::TinyVector<double,3> pos) {
 
     const double dMsolUnit = 1e10;
     const double dKpcUnit = 1.0;

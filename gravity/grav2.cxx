@@ -43,8 +43,7 @@
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
 #include "SPH/SPHpredict.h"
-#include "potential/hernquist.h"
-#include "potential/nfw.h"
+#include "potential/potential.h"
 #include "../core/simd.h"
 
 #include <algorithm>
@@ -222,17 +221,9 @@ void pkdParticleWorkDone(workParticle *wp) {
             if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces) {
                 auto r = p.position();
                 auto m = p.mass();
-#ifdef HERNQUIST_POTENTIAL
-                auto out = hernquist(r);
-                auto acc = std::get<0>(out);
-
-                wp->pInfoOut[i].a[0] += acc[0];
-                wp->pInfoOut[i].a[1] += acc[1];
-                wp->pInfoOut[i].a[2] += acc[2];
-#endif
-#ifdef NFW_POTENTIAL
-                auto out = nfw(r);
-                auto acc = std::get<0>(out);
+#ifdef EXTERNAL_POTENTIAL
+                auto out = external_potential(r);
+                auto acc = std::get<POT_ACC>(out);
 
                 wp->pInfoOut[i].a[0] += acc[0];
                 wp->pInfoOut[i].a[1] += acc[1];
