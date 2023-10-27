@@ -370,8 +370,8 @@ public:
     treeStore tree;
     int FreeStore() { return particles.FreeStore(); }
     int Local() { return particles.Local(); }
-    int SetLocal(int n) {return particles.SetLocal(n);}
-    int AddLocal(int n) {return particles.AddLocal(n);}
+    int SetLocal(int n);
+    int AddLocal(int n);
     auto EphemeralBytes() {return nEphemeralBytes; }
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(Bound) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return tree.ElementSize(); }
@@ -826,7 +826,6 @@ static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRu
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
                  int *pnLow,int *pnHigh);
 void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p);
-void pkdNewParticle(PKD pkd, PARTICLE *p);
 int pkdIsGas(PKD,PARTICLE *);
 int pkdIsDark(PKD,PARTICLE *);
 int pkdIsStar(PKD,PARTICLE *);

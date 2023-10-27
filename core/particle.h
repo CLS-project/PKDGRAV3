@@ -51,11 +51,11 @@
 
 /* Regular particle with order and all the goodies */
 struct PARTICLE {
-uint64_t  uRung      :  IRUNGBITS;
+    uint64_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
+    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
 #ifdef NN_FLAG_IN_PARTICLE
     uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
 #endif
@@ -67,9 +67,9 @@ static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
 #define IGROUPMAX ((1<<IGROUPBITS)-1)
 
 typedef struct uparticle {
-uint32_t  uRung      :  IRUNGBITS;
+    uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
-uint32_t  iGroup     :  IGROUPBITS;
+    uint32_t  iGroup     :  IGROUPBITS;
 } UPARTICLE;
 static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 
@@ -171,7 +171,6 @@ struct SPHFIELDS {
     float fReceivedMass;
     float fReceivedE;
 #endif
-
 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
     float fAccFBEnergy;
@@ -619,7 +618,7 @@ public:
     auto NewParticle() {
         assert(Local()<FreeStore());
         auto i = Local();
-        AddLocal(1);
+        SetLocal(Local()+1);
         auto p = ParticlePointer(*this,i);
         if (!bNoParticleOrder) p->set_order(IORDERMAX);
         return p;
