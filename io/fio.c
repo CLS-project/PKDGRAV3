@@ -3648,15 +3648,6 @@ static int hdf5ReadSph(
     field_get_double(pdPos,&base->fldFields[SPH_POSITION],base->iIndex);
     field_get_double(pdVel,&base->fldFields[SPH_VELOCITY],base->iIndex);
 
-    /* If each particles has a unique class, use that */
-    class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
-
-    /* But the mass can still be overriden by that given in the input file */
-    field_get_float(pfMass,&base->fldFields[SPH_MASS],base->iIndex);
-
-    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_SMOOTHING],base->iIndex) )
-        pfOtherData[0] = 0.0f;
-
     /* Potential is optional */
     if ( !field_get_float(pfPot,&base->fldFields[SPH_POTENTIAL],base->iIndex) )
         *pfPot = 0.0f;
@@ -3664,6 +3655,19 @@ static int hdf5ReadSph(
     /* Density is optional */
     if ( !field_get_float(pfDen,&base->fldFields[SPH_DENSITY],base->iIndex) )
         *pfDen = 0.0f;
+
+    /* iOrder is either sequential, or is listed for each particle */
+    *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
+
+    /* If each particles has a unique class, use that */
+    class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
+
+    /* But the mass can still be overriden by that given in the input file */
+    field_get_float(pfMass,&base->fldFields[SPH_MASS],base->iIndex);
+
+    /* Smoothing length is optional */
+    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_SMOOTHING],base->iIndex) )
+        pfOtherData[0] = 0.0f;
 
     /* Element abundances are optional */
     if ( !field_get_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex) )
@@ -3674,7 +3678,6 @@ static int hdf5ReadSph(
     if ( !field_get_float(&pfOtherData[1],&base->fldFields[SPH_METALLICITY],base->iIndex) )
         pfOtherData[1] = -1.0f;
 #endif
-
 
     /* We need either temperature or internal energy */
     if ( !field_get_float(pfTemp,&base->fldFields[SPH_INTERNALENERGY],base->iIndex) ) {
@@ -3691,10 +3694,6 @@ static int hdf5ReadSph(
             // than internal energies
         }
     }
-
-    /* iOrder is either sequential, or is listed for each particle */
-    *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
-
 
     /*
     ** Next particle.  If we are at the end of this species,
@@ -3735,12 +3734,6 @@ static int hdf5ReadStar(
     field_get_double(pdPos,&base->fldFields[STAR_POSITION],base->iIndex);
     field_get_double(pdVel,&base->fldFields[STAR_VELOCITY],base->iIndex);
 
-    /* If each particles has a unique class, use that */
-    if ( !field_get_float(pfMass,&base->fldFields[STAR_MASS],base->iIndex) )
-        //abort();
-        class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
-
-
     /* Potential is optional */
     if ( !field_get_float(pfPot,&base->fldFields[STAR_POTENTIAL],base->iIndex) )
         *pfPot = 0.0f;
@@ -3748,6 +3741,15 @@ static int hdf5ReadStar(
     /* Density is optional */
     if ( !field_get_float(pfDen,&base->fldFields[STAR_DENSITY],base->iIndex) )
         *pfDen = 0.0f;
+
+    /* iOrder is either sequential, or is listed for each particle */
+    *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
+
+    /* If each particles has a unique class, use that */
+    class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
+
+    /* But the mass can still be overriden by that given in the input file */
+    field_get_float(pfMass,&base->fldFields[STAR_MASS],base->iIndex)
 
     /* Formation time is optional when stellar evolution is off */
     if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) )
@@ -3777,10 +3779,6 @@ static int hdf5ReadStar(
     if ( !field_get_float(&pfOtherData[3],&base->fldFields[STAR_SNEFFICIENCY],base->iIndex) )
         pfOtherData[3] = -1.0f;
 #endif
-
-    /* iOrder is either sequential, or is listed for each particle */
-    *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
-
 
     /*
     ** Next particle.  If we are at the end of this species,
@@ -3821,13 +3819,6 @@ static int hdf5ReadBH(
     field_get_double(pdPos,&base->fldFields[BH_POSITION],base->iIndex);
     field_get_double(pdVel,&base->fldFields[BH_VELOCITY],base->iIndex);
 
-
-    /* If each particles has a unique class, use that */
-    if ( !field_get_float(pfMass,&base->fldFields[BH_MASS],base->iIndex) )
-        //abort();
-        class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
-
-
     // IA: We will left for now a few dummy IO fields, that may be used in the future
     //  If I delete them I will need to add them again... so I will just left them here:)
 
@@ -3838,6 +3829,15 @@ static int hdf5ReadBH(
     /* Density is optional */
     if ( !field_get_float(pfDen,&base->fldFields[BH_DENSITY],base->iIndex) )
         *pfDen = 0.0f;
+
+    /* iOrder is either sequential, or is listed for each particle */
+    *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
+
+    /* If each particles has a unique class, use that */
+    class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
+
+    /* But the mass can still be overriden by that given in the input file */
+    field_get_float(pfMass,&base->fldFields[BH_MASS],base->iIndex)
 
     /* Internal mass is optional, but advised */
     if ( !field_get_float(&pfOtherData[0],&base->fldFields[BH_INT_MASS],base->iIndex) ) {
@@ -3855,10 +3855,6 @@ static int hdf5ReadBH(
     /* Formation time is optional */
     if ( !field_get_float(pfTform,&base->fldFields[BH_AGE],base->iIndex) )
         *pfTform = 0.0f;
-
-    /* iOrder is either sequential, or is listed for each particle */
-    *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
-
 
     /*
     ** Next particle.  If we are at the end of this species,
