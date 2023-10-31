@@ -2783,7 +2783,6 @@ enum DARK_FIELDS {
     DARK_VELOCITY    = 1,
     DARK_POTENTIAL   = 2,
     DARK_DENSITY     = 3,
-    DARK_MASS,
     DARK_GROUP,
     DARK_N,
 };
@@ -2802,7 +2801,6 @@ enum SPH_FIELDS {
     SPH_VELOCITY    = 1,
     SPH_POTENTIAL   = 2,
     SPH_DENSITY     = 3,
-    SPH_MASS,
     SPH_TEMPERATURE,
     SPH_ABUNDANCES,
 #ifdef HAVE_METALLICITY
@@ -2820,7 +2818,6 @@ enum STAR_FIELDS {
     STAR_VELOCITY    = 1,
     STAR_POTENTIAL   = 2,
     STAR_DENSITY     = 3,
-    STAR_MASS,
 #ifdef STELLAR_EVOLUTION
     STAR_ABUNDANCES,
     STAR_METALLICITY,
@@ -2840,7 +2837,6 @@ enum BH_FIEDS {
     BH_VELOCITY    = 1,
     BH_POTENTIAL   = 2,
     BH_DENSITY     = 3,
-    BH_MASS,
     BH_ACCRETION,
     BH_EDD_RATIO,
     BH_INT_MASS,
@@ -3607,9 +3603,6 @@ static int hdf5ReadDark(
     /* If each particles has a unique class, use that */
     class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
 
-    /* But the mass can still be overriden by that given in the input file */
-    field_get_float(pfMass,&base->fldFields[DARK_MASS],base->iIndex);
-
     /*
     ** Next particle.  If we are at the end of this species,
     ** advance to the start of the next species.
@@ -3661,9 +3654,6 @@ static int hdf5ReadSph(
 
     /* If each particles has a unique class, use that */
     class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
-
-    /* But the mass can still be overriden by that given in the input file */
-    field_get_float(pfMass,&base->fldFields[SPH_MASS],base->iIndex);
 
     /* Smoothing length is optional */
     if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_SMOOTHING],base->iIndex) )
@@ -3747,9 +3737,6 @@ static int hdf5ReadStar(
 
     /* If each particles has a unique class, use that */
     class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
-
-    /* But the mass can still be overriden by that given in the input file */
-    field_get_float(pfMass,&base->fldFields[STAR_MASS],base->iIndex)
 
     /* Formation time is optional when stellar evolution is off */
     if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) )
@@ -3835,9 +3822,6 @@ static int hdf5ReadBH(
 
     /* If each particles has a unique class, use that */
     class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
-
-    /* But the mass can still be overriden by that given in the input file */
-    field_get_float(pfMass,&base->fldFields[BH_MASS],base->iIndex)
 
     /* Internal mass is optional, but advised */
     if ( !field_get_float(&pfOtherData[0],&base->fldFields[BH_INT_MASS],base->iIndex) ) {
@@ -4195,8 +4179,6 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
                            FIELD_POSITION, H5T_NATIVE_DOUBLE,3 );
                 field_open(&base->fldFields[DARK_VELOCITY],base->group_id,
                            FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
-                field_open(&base->fldFields[DARK_MASS],base->group_id,
-                           FIELD_MASS, H5T_NATIVE_FLOAT,1 );
                 field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
                            FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
                 if (base->fldFields[DARK_POTENTIAL].setId == H5I_INVALID_HID)
@@ -4225,8 +4207,6 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
                            FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
                 field_open(&base->fldFields[SPH_POTENTIAL],base->group_id,
                            FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
-                field_open(&base->fldFields[SPH_MASS],base->group_id,
-                           FIELD_MASS, H5T_NATIVE_FLOAT,1 );
                 field_open(&base->fldFields[SPH_TEMPERATURE],base->group_id,
                            FIELD_TEMPERATURE, H5T_NATIVE_FLOAT,1 );
                 field_open(&base->fldFields[SPH_INTERNALENERGY],base->group_id,
@@ -4265,8 +4245,6 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
                            FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
                 field_open(&base->fldFields[STAR_POTENTIAL],base->group_id,
                            FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
-                field_open(&base->fldFields[STAR_MASS],base->group_id,
-                           FIELD_MASS, H5T_NATIVE_FLOAT,1 );
                 field_open(&base->fldFields[STAR_AGE],base->group_id,
                            FIELD_STARAGE, H5T_NATIVE_FLOAT,1 );
                 if (base->fldFields[STAR_POTENTIAL].setId == H5I_INVALID_HID)
@@ -4310,8 +4288,6 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
                            FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
                 field_open(&base->fldFields[BH_POTENTIAL],base->group_id,
                            FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
-                field_open(&base->fldFields[BH_MASS],base->group_id,
-                           FIELD_MASS, H5T_NATIVE_FLOAT,1 );
                 field_open(&base->fldFields[BH_INT_MASS],base->group_id,
                            FIELD_BHMASS, H5T_NATIVE_FLOAT,1 );
                 field_open(&base->fldFields[BH_FEED_ENERGY],base->group_id,
