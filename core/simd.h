@@ -40,6 +40,12 @@
         #ifdef __FMA4__
             #include <x86intrin.h>
         #endif
+    #elif defined(__ARM_NEON)
+        #include "sse2neon.h"
+        #define __SSE__
+        #define __SSE2__
+        #define __SSE3__
+        #define __SSE4_1__
     #endif/*__SSE__*/
 #endif/*USE_SIMD*/
 
@@ -762,6 +768,6 @@ inline mmask<bool> operator&(mmask<bool> const &a, int const &b) { return (int)a
     #pragma GCC diagnostic pop
 #endif
 
-#endif/*defined(__cplusplus)*/
+#endif/*__CUDACC__*/
 
 #endif/*SIMD_H*/

@@ -84,6 +84,21 @@ public:
     ServiceBuffer() = delete;
     ServiceBuffer(const ServiceBuffer &) = delete;
     ServiceBuffer &operator=(const ServiceBuffer &) = delete;
+
+    // Move constructor
+    ServiceBuffer(ServiceBuffer&& other) noexcept
+        : offsets(std::move(other.offsets)), buffer(std::move(other.buffer))
+    {}
+
+    // Move assignment
+    ServiceBuffer &operator=(ServiceBuffer&& other) noexcept {
+        if (&other != this) {
+            offsets = std::move(other.offsets);
+            buffer = std::move(other.buffer);
+        }
+        return *this;
+    }
+
     ServiceBuffer(std::initializer_list<BasicField> t) {
         for (auto &i : t) offsets.push_back(offsets.back() + i.size());
         buffer = std::make_unique<char[]>(offsets.back());
@@ -91,6 +106,11 @@ public:
     void *data(int i=0) {return static_cast<void *>(buffer.get() + offsets[i]);}
     auto size() {return offsets.back();}
     auto size(int i) {return offsets[i+1]-offsets[i];}
+};
+
+class ServiceBufferOut : public ServiceBuffer {
+public:
+    using ServiceBuffer::ServiceBuffer;
 };
 
 class BasicService {
@@ -184,6 +204,9 @@ public:
     void AddService(std::unique_ptr<BasicService> &&service);
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
     int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
+    int  RunService(int sid, int nIn, void *pIn, ServiceBufferOut &out) { return RunService(sid,nIn,pIn,out.data());}
+    int  RunService(int sid, ServiceBuffer &b, ServiceBufferOut &out) { return RunService(sid,b.size(),b.data(),out.data());}
+    int  RunService(int sid, ServiceBufferOut &out) { return RunService(sid,0,nullptr,out.data());}
     int  RunService(int sid, void *pOut=nullptr) { return RunService(sid,0,nullptr,pOut); }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
 };
@@ -197,7 +220,6 @@ int mdlBaseThreadToProc(mdlBASE *base, int iThread);
 extern "C" {
 #endif
 
-
 int mdlThreads(void *mdl);
 int mdlSelf(void *mdl);
 int mdlCore(void *mdl);
@@ -207,7 +229,6 @@ int mdlProcs(void *mdl);
 const char *mdlName(void *mdl);
 int mdlGetArgc(void *mdl);
 char **mdlGetArgv(void *mdl);
-
 
 void mdlDiag(void *mdl, const char *psz);
 #ifdef MDLASSERT

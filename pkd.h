@@ -693,7 +693,6 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
     return (p->iOrder == IORDERMAX);
 }
 
-
 /*
 ** From tree.c:
 */
@@ -773,7 +772,7 @@ void pkdGravAll(PKD pkd,
 void pkdCalcEandL(PKD pkd,double &T,double &U,double &Eth,blitz::TinyVector<double,3> &L,blitz::TinyVector<double,3> &F,double &W);
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
                          double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,
-                         double hlcp [3],double tanalpha2);
+                         blitz::TinyVector<double,3> hlcp,double tanalpha2);
 void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile, PINFOOUT &Out );
 void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
@@ -790,7 +789,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo);
-void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP);
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdCountRungs(PKD pkd,uint64_t *nRungs);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
@@ -935,6 +934,5 @@ static inline double dot_product(const double *a,const double *b) {
         }                   \
     }                   \
 } while(0)
-
 
 #endif

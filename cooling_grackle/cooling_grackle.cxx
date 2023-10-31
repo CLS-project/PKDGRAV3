@@ -5,8 +5,8 @@ void MSR::GrackleInit(int bComove, double dScaleFactor) {
     struct inGrackleInit in;
     in.bComove = bComove;
     in.dScaleFactor = dScaleFactor;
-    strcpy(in.achCoolingTable,param.achCoolingTables);
-    in.units = param.units;
+    strcpy(in.achCoolingTable,parameters.get_achCoolingTables().data());
+    in.units = units;
 
     pstGrackleInit(pst,&in,sizeof(struct inGrackleInit),NULL,0);
 }

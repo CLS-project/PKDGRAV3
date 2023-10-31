@@ -47,6 +47,53 @@ typedef float  mass_t;
 #define COST_FLOP_SOFT 15
 #define COST_FLOP_OPEN 97 // +-*:55  AND/CMP:42
 
+
+// There are a number of "parameters" that are calculated from regular parameters
+// These are stored in the following structure, but maybe they should be removed
+struct CALC {
+#ifdef COOLING
+    // IA: Cooling parameters
+    double dCoolingMinu;
+    static constexpr double fCa_over_Si_in_Solar = 1;
+    static constexpr double fS_over_Si_in_Solar = 1;
+#endif
+    // Internal energy floor parameters
+#if defined(EEOS_POLYTROPE)
+    double dEOSFloorDen;
+    double dEOSFloorMinBaryonOD;
+    double dEOSFlooru;
+    double dEOSPolyFloorMinBaryonOD;
+    double dEOSPolyFloorExponent;
+    double dEOSPolyFloorDen;
+    double dEOSPolyFlooru;
+#endif
+#ifdef STAR_FORMATION
+    double dSFThresholdu;
+    double dSFThresholdDen;
+    double dSFThresholdOD;
+    double dSFnormalizationKS;
+#endif 
+#ifdef FEEDBACK
+    double dSNFBEffnH0;
+    double dSNFBDu;
+    double dCCSNFBDelay;
+    double dCCSNFBSpecEnergy;
+    double dSNIaFBDelay;
+    double dSNIaFBSpecEnergy;
+#endif
+#ifdef BLACKHOLES
+    double dBHAccretionEddFac;
+    double dBHFBEff;
+    double dBHFBEcrit;
+#endif
+#ifdef STELLAR_EVOLUTION
+    int nSmoothEnrich;
+    double dWindSpecificEkin;
+    double dSNIaNorm;
+    double dSNIaScale;
+#endif
+};
+
 /*
 ** This is an important base type. Alter with care, or even better, leave it alone.
 */
@@ -88,7 +135,6 @@ typedef struct {
     float imbalanceX, imbalanceY, imbalanceZ;
     float corrT, corrP, corr;
 } PINFOOUT;
-
 
 #if defined(USE_SIMD)
     typedef float ewaldFloatType;
@@ -142,7 +188,7 @@ struct pkdLightconeParameters {
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
     double dLookbackFacLCP;
-    double hLCP[3];
+    blitz::TinyVector<double,3> hLCP;
     double tanalpha_2;
     double dBoxSize;
     int bLightConeParticles;
@@ -249,7 +295,6 @@ struct inStarForm {
 
 };
 #endif
-
 
 /*
 ** Accumulates the work for a set of particles

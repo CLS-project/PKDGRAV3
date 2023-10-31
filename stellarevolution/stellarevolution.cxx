@@ -12,29 +12,31 @@ using blitz::TinyVector;
 
 
 void MSR::SetStellarEvolutionParam() {
-    const double dYrToTime = SECONDSPERYEAR / param.units.dSecUnit;
+    const double dYrToTime = SECONDSPERYEAR / units.dSecUnit;
+    auto achSNIaDTDType = parameters.get_achSNIaDTDType();
 
-    if (strcmp(param.achSNIaDTDType, "exponential") == 0) {
-        param.dSNIaNorm = param.dSNIaNumPerMass;
-        param.dSNIaScale = param.dSNIaExpScale * dYrToTime;
+    if (achSNIaDTDType == "exponential") {
+        calc.dSNIaNorm = parameters.get_dSNIaNumPerMass();
+        calc.dSNIaScale = parameters.get_dSNIaExpScale() * dYrToTime;
     }
-    else if (strcmp(param.achSNIaDTDType, "powerlaw") == 0) {
-        param.dSNIaNorm = param.dSNIaNumPerMass /
-                          (pow(param.dSNIaPLFinalTime * dYrToTime, param.dSNIaPLScale + 1.0) -
-                           pow(param.dSNIaPLInitTime * dYrToTime, param.dSNIaPLScale + 1.0));
-        param.dSNIaScale = param.dSNIaPLScale;
+    else if (achSNIaDTDType == "powerlaw") {
+        auto dSNIaPLScale = parameters.get_dSNIaPLScale();
+        calc.dSNIaNorm = parameters.get_dSNIaNumPerMass() /
+                          (pow(parameters.get_dSNIaPLFinalTime() * dYrToTime, dSNIaPLScale + 1.0) -
+                           pow(parameters.get_dSNIaPLInitTime() * dYrToTime, dSNIaPLScale + 1.0));
+        calc.dSNIaScale = dSNIaPLScale;
     }
     else {
         std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
-                  "achSNIaDTDType parameter: " << param.achSNIaDTDType << std::endl;
+                  "achSNIaDTDType parameter: " << achSNIaDTDType << std::endl;
         Exit(1);
     }
 
-    param.dWindSpecificEkin = 0.5 * pow(param.dStellarWindSpeed / param.units.dKmPerSecUnit, 2);
+    calc.dWindSpecificEkin = 0.5 * pow(parameters.get_dStellarWindSpeed() / units.dKmPerSecUnit, 2);
     /* The number of gas particles to enrich is set to the average number of
        neighbours within a smoothing length. The factor 0.5 comes from the cubic
        spline kernel used by the hydro */
-    param.nSmoothEnrich = 0.5 * param.nSmooth;
+    calc.nSmoothEnrich = 0.5 * parameters.get_nSmooth();
 }
 
 
@@ -42,38 +44,39 @@ void MSR::StellarEvolutionInit(double dTime) {
     char achPath[280];
     struct inStellarEvolutionInit in;
     STEV_RAWDATA *CCSNData, *AGBData, *SNIaData, *LifetimeData;
+    auto achStelEvolPath = parameters.get_achStelEvolPath();
 
     /* Read the tables */
-    snprintf(achPath, sizeof(achPath), "%s/CCSN.hdf5", param.achStelEvolPath);
+    snprintf(achPath, sizeof(achPath), "%s/CCSN.hdf5", achStelEvolPath.data());
     CCSNData = stevReadTable(achPath);
     assert(CCSNData->nZs == STEV_CCSN_N_METALLICITY);
     assert(CCSNData->nMasses == STEV_CCSN_N_MASS);
     assert(CCSNData->nElems == ELEMENT_COUNT);
 
-    snprintf(achPath, sizeof(achPath), "%s/AGB.hdf5", param.achStelEvolPath);
+    snprintf(achPath, sizeof(achPath), "%s/AGB.hdf5", achStelEvolPath.data());
     AGBData = stevReadTable(achPath);
     assert(AGBData->nZs == STEV_AGB_N_METALLICITY);
     assert(AGBData->nMasses == STEV_AGB_N_MASS);
     assert(AGBData->nElems == ELEMENT_COUNT);
 
-    snprintf(achPath, sizeof(achPath), "%s/SNIa.hdf5", param.achStelEvolPath);
+    snprintf(achPath, sizeof(achPath), "%s/SNIa.hdf5", achStelEvolPath.data());
     SNIaData = stevReadSNIaTable(achPath);
     assert(SNIaData->nElems == ELEMENT_COUNT);
 
-    snprintf(achPath, sizeof(achPath), "%s/Lifetimes.hdf5", param.achStelEvolPath);
+    snprintf(achPath, sizeof(achPath), "%s/Lifetimes.hdf5", achStelEvolPath.data());
     LifetimeData = stevReadLifetimeTable(achPath);
     assert(LifetimeData->nZs == STEV_LIFETIME_N_METALLICITY);
     assert(LifetimeData->nMasses == STEV_LIFETIME_N_MASS);
 
     /* NOTE: The lowest value of the initial mass array is set to the corresponding value
        of the Lifetime table that is being used, while its highest value to the maximum
-       stellar mass for a CCSN to occur, as set in param.dCCSNMaxMass. The IMF is still
-       normalized in the range [param.dIMFMinMass,param.dIMFMaxMass] */
+       stellar mass for a CCSN to occur, as set in dCCSNMaxMass. The IMF is still
+       normalized in the range [dIMFMinMass,dIMFMaxMass] */
     const double dMinMass = LifetimeData->pfInitialMass[0];
-    const double dMaxMass = param.dCCSNMaxMass;
+    const double dMaxMass = parameters.get_dCCSNMaxMass();
     double adInitialMass[STEV_INTERP_N_MASS], adIMF[STEV_INTERP_N_MASS];
 
-    auto IMF = ChooseIMF(param.achIMFType, param.dIMFMinMass, param.dIMFMaxMass);
+    auto IMF = ChooseIMF(parameters.get_achIMFType().data(), parameters.get_dIMFMinMass(), parameters.get_dIMFMaxMass());
     IMF->MassWeightedSample(dMinMass, dMaxMass, STEV_INTERP_N_MASS, adInitialMass, adIMF);
 
     /* Store the data */
@@ -91,7 +94,7 @@ void MSR::StellarEvolutionInit(double dTime) {
         AGBData->pfInitialMass[i] = log10(AGBData->pfInitialMass[i]);
 
     /* Interpolate yields and ejected masses to the initial mass array */
-    stevInterpToIMFSampling(&in.StelEvolData, CCSNData, AGBData, param.dCCSNMinMass);
+    stevInterpToIMFSampling(&in.StelEvolData, CCSNData, AGBData, parameters.get_dCCSNMinMass());
 
     for (auto i = 0; i < STEV_CCSN_N_METALLICITY; ++i) {
         if (CCSNData->pfMetallicity[i] > 0.0f)
@@ -121,14 +124,14 @@ void MSR::StellarEvolutionInit(double dTime) {
         in.StelEvolData.afLifetimeInitialMass[i] = log10(LifetimeData->pfInitialMass[i]);
     for (auto i = 0; i < STEV_LIFETIME_N_METALLICITY * STEV_LIFETIME_N_MASS; ++i) {
         in.StelEvolData.afLifetime[i] = log10(LifetimeData->pfLifetime[i] * SECONDSPERYEAR /
-                                              param.units.dSecUnit);
+                                              units.dSecUnit);
     }
 
-    strcpy(in.achSNIaDTDType, param.achSNIaDTDType);
+    strcpy(in.achSNIaDTDType, parameters.get_achSNIaDTDType().data());
     in.dTime = dTime;
-    in.dSNIaMaxMass = param.dSNIaMaxMass;
-    in.dCCSNMinMass = param.dCCSNMinMass;
-    in.dCCSNMaxMass = param.dCCSNMaxMass;
+    in.dSNIaMaxMass = parameters.get_dSNIaMaxMass();
+    in.dCCSNMinMass = parameters.get_dCCSNMinMass();
+    in.dCCSNMaxMass = parameters.get_dCCSNMaxMass();
 
     /* Send data and finish */
     pstStellarEvolutionInit(pst, &in, sizeof(struct inStellarEvolutionInit), NULL, 0);

@@ -19,13 +19,31 @@
 #define PYRAMETERS_H
 #include <Python.h>
 #include <stdexcept>
-#include <string>
+#include <string_view>
 #include <cstdint>
+#include <vector>
 #include "blitz/array.h"
 
-#include "param.h"  // This should go away at some point
-
 class pyrameters {
+    template<typename T, typename _ = void>
+    struct is_container : std::false_type {};
+
+    template<typename T>
+    struct is_container<T, std::void_t<typename T::value_type>> : std::true_type {};
+
+    // A helper template to determine if a type is a std::vector of some kind.
+    template<typename>
+    struct is_std_vector : std::false_type {};
+
+    template<typename U>
+    struct is_std_vector<std::vector<U>> : std::true_type {};
+
+    template<typename>
+    struct is_blitz_tinyvector : std::false_type {};
+
+    template<typename U, int N>
+    struct is_blitz_tinyvector<blitz::TinyVector<U, N>> : std::true_type {};
+
 protected:
     PyObject *arguments_=nullptr, *specified_=nullptr;
     PyObject *dynamic_=nullptr;
@@ -38,26 +56,121 @@ protected:
 
     bool has(const char *name) const;
 
-    template<typename T> T get(const char *name);
-    template<typename T> T get(const char *name, PyObject *v);
-    template<typename T,int N> blitz::TinyVector<T,N> get(const char *name);
+    // Generic get function
+    template<typename T>
+    T get(const char *name) const {
+        auto obj = get<PyObject *>(name);  // Look up the attribute (and call if required); specialized
+        T result = get<T>(name, obj);      // Convert the PyObject to the requested type
+        Py_XDECREF(obj);
+        return result;
+    }
+
+    template<typename T>
+    T get(const char *name, PyObject *v) const {
+        if constexpr (is_blitz_tinyvector<T>::value) {
+            if (PyList_Check(v)) {
+                Py_ssize_t size = PyList_Size(v);
+                T result;
+                if (result.length() != size) throw std::domain_error(name);
+                for (Py_ssize_t i = 0; i < size; ++i) {
+                    PyObject *item = PyList_GetItem(v, i);
+                    result[i] = get<typename T::T_numtype>(name, item);
+                }
+                return result;
+            }
+            else return T(get<typename T::T_numtype>(name,v));
+        }
+        else if constexpr (std::is_same<T, std::string_view>::value) {
+            if (PyUnicode_Check(v)) {
+                Py_ssize_t length;
+                auto c_string = PyUnicode_AsUTF8AndSize(v,&length);         // convert to a UTF8 string
+                if (c_string == nullptr) throw std::domain_error(name);     // must be a string
+                return std::string_view(c_string,length);                   // return as a string_view
+            }
+            else if (v == Py_None) return std::string_view("");
+            else throw std::domain_error(name);
+        }
+        else if constexpr (is_std_vector<T>::value) {
+            if (PyList_Check(v)) {
+                Py_ssize_t size = PyList_Size(v);
+                T result(size);
+                for (Py_ssize_t i = 0; i < size; ++i) {
+                    PyObject *item = PyList_GetItem(v, i);
+                    result[i] = get<typename T::value_type>(name, item);
+                }
+                return result;
+            }
+        }
+        else if constexpr (std::is_same<T, bool>::value) {
+            return PyObject_IsTrue(v)>0;
+        }
+        else if constexpr (std::is_integral<T>::value) {
+            if (PyLong_Check(v)) return PyLong_AsLong(v);
+            else if (PyFloat_Check(v)) return static_cast<std::int64_t>(PyFloat_AsDouble(v));
+        }
+        else if constexpr (std::is_floating_point<T>::value) {
+            if (PyFloat_Check(v)) return PyFloat_AsDouble(v);
+            else if (PyLong_Check(v)) return PyLong_AsLong(v);
+        }
+        else {
+            throw std::runtime_error("Unsupported type for get");
+        }
+        throw std::runtime_error("Failed to convert PyObject to requested type.");
+    }
+
+protected:
+    template<typename T>
+    auto get_value(const char *name, const T &value) {
+        if constexpr (std::is_same<T, bool>::value) {
+            return Py_NewRef(value ? Py_True : Py_False);
+        }
+        else if constexpr (std::is_integral<T>::value) {
+            if (std::is_signed<T>::value) {
+                return PyLong_FromSsize_t(value);
+            }
+            else if constexpr (std::is_unsigned<T>::value) {
+                return PyLong_FromSize_t(value);
+            }
+        }
+        else if constexpr (std::is_floating_point<T>::value) {
+            return PyFloat_FromDouble(value);
+        }
+        else if constexpr (std::is_same<T, const char *>::value) {
+            return PyUnicode_FromString(value);
+        }
+        else if constexpr (std::is_same<T, std::string_view>::value) {
+            return PyUnicode_FromString(value.data());
+        }
+        else if constexpr (std::is_same<T, PyObject *>::value) {
+            return Py_NewRef(value);
+        }
+        else if constexpr (is_blitz_tinyvector<T>::value) {
+            auto py_object = PyList_New(value.length());
+            for (int i = 0; i < value.length(); ++i) {
+                auto item = get_value(name,value[i]);
+                PyList_SetItem(py_object,i,item);
+            }
+            return py_object;
+        }
+        else if constexpr (is_std_vector<T>::value) {
+            auto py_object = PyList_New(value.size());
+            for (int i = 0; i < value.size(); ++i) {
+                auto item = get_value(name,value[i]);
+                PyList_SetItem(py_object,i,item);
+            }
+            return py_object;
+        }
+        else {
+            static_assert(std::is_same_v<T, void>, "Unsupported type for set");
+        }
+    }
 
 public:
-    template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_signed<T>::value&& !std::is_same<T, bool>::value, int>::type = 0>
-    void set(const char *name, T value) {
-        PyObject_SetAttrString(arguments_,name,PyLong_FromSsize_t(value));
-    }
-    template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_unsigned<T>::value&& !std::is_same<T, bool>::value, int>::type = 0>
-    void set(const char *name, T value) {
-        PyObject_SetAttrString(arguments_,name,PyLong_FromSize_t(value));
-    }
-    template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
-    void set(const char *name, T value) {
-        PyObject_SetAttrString(arguments_,name,PyFloat_FromDouble(value));
-    }
-    template<typename T, typename std::enable_if<std::is_same<T, bool>::value, int>::type = 0>
-    void set(const char *name, T value) {
-        PyObject_SetAttrString(arguments_,name,value ? Py_True : Py_False);
+    template<typename T>
+    void set(const char *name, const T &value) {
+        auto py_object = get_value(name,value);
+        PyObject_SetAttrString(arguments_,name,py_object);
+        Py_DECREF(py_object);
     }
 
 public:
@@ -141,22 +254,11 @@ public:
     bool update(PyObject *kwobj,bool bIgnoreUnknown=false);
 
 public:
-    void prm2ppy(PRM prm);
-    bool ppy2prm(PRM prm);
-
-public:
     template<typename T> void set_dynamic(const char *name, T value);
 
 };
 
-template<> PyObject    *pyrameters::get<PyObject *>(const char *name);
-template<> double       pyrameters::get<double>(const char *name, PyObject *v);
-template<> double       pyrameters::get<double>(const char *name);
-template<> std::int64_t pyrameters::get<std::int64_t>(const char *name, PyObject *v);
-template<> std::int64_t pyrameters::get<std::int64_t>(const char *name);
-template<> std::string  pyrameters::get<std::string>(const char *name, PyObject *v);
-template<> std::string  pyrameters::get<std::string>(const char *name);
-template<> bool         pyrameters::get<bool>(const char *name);
+template<> PyObject    *pyrameters::get<PyObject *>(const char *name) const;
 
 template<> void pyrameters::set_dynamic(const char *name, float         value);
 template<> void pyrameters::set_dynamic(const char *name, double        value);

@@ -6,10 +6,10 @@ void MSR::StarFormInit(double dTime) {
     struct inStarFormInit in;
     struct outStarForm out;
     in.dTime = dTime;
-    in.bCCSNFeedback = param.bCCSNFeedback;
-    in.bSNIaFeedback = param.bSNIaFeedback;
-    in.dCCSNFBDelay = param.dCCSNFBDelay;
-    in.dSNIaFBDelay = param.dSNIaFBDelay;
+    in.bCCSNFeedback = parameters.get_bCCSNFeedback();
+    in.bSNIaFeedback = parameters.get_bSNIaFeedback();
+    in.dCCSNFBDelay = calc.dCCSNFBDelay;
+    in.dSNIaFBDelay = calc.dSNIaFBDelay;
 
     pstStarFormInit(pst, &in, sizeof(in), &out, sizeof(out));
 

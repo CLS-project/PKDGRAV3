@@ -5,24 +5,22 @@
 #include "imf.h"
 
 void MSR::SetFeedbackParam() {
-    param.dSNFBDu = param.dSNFBDT * dTuFacPrimIonised;
+    calc.dSNFBDu = parameters.get_dSNFBDT() * dTuFacPrimIonised;
 
-    auto IMF = ChooseIMF(param.achIMFType, param.dIMFMinMass, param.dIMFMaxMass);
+    auto IMF = ChooseIMF(parameters.get_achIMFType().data(), parameters.get_dIMFMinMass(), parameters.get_dIMFMaxMass());
     const double dCCSNNumPerMass =
-        IMF->UnweightedIntegration(param.dCCSNMinMass, param.dCCSNMaxMass);
-    param.dCCSNFBSpecEnergy = (param.dCCSNEnergy / MSOLG) * dCCSNNumPerMass /
-                              param.units.dErgPerGmUnit;
+        IMF->UnweightedIntegration(parameters.get_dCCSNMinMass(), parameters.get_dCCSNMaxMass());
+    calc.dCCSNFBSpecEnergy = (parameters.get_dCCSNEnergy() / MSOLG) * dCCSNNumPerMass /
+                              units.dErgPerGmUnit;
 
-    param.dSNIaFBSpecEnergy = (param.dSNIaEnergy / MSOLG) * param.dSNIaNumPerMass /
-                              param.units.dErgPerGmUnit;
+    calc.dSNIaFBSpecEnergy = (parameters.get_dSNIaEnergy() / MSOLG) * parameters.get_dSNIaNumPerMass() /
+                              units.dErgPerGmUnit;
 
-    if (!param.bRestart) {
-        param.dCCSNFBDelay *= SECONDSPERYEAR / param.units.dSecUnit;
-        param.dSNIaFBDelay *= SECONDSPERYEAR / param.units.dSecUnit;
+    calc.dCCSNFBDelay = parameters.get_dCCSNFBDelay() * SECONDSPERYEAR / units.dSecUnit;
+    calc.dSNIaFBDelay = parameters.get_dSNIaFBDelay() * SECONDSPERYEAR / units.dSecUnit;
 
-        const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
-        param.dSNFBEffnH0 *= dnHToRho;
-    }
+    const double dnHToRho = MHYDR / parameters.get_dInitialH() / units.dGmPerCcUnit;
+    calc.dSNFBEffnH0 = parameters.get_dSNFBEffnH0() * dnHToRho;
 }
 
 

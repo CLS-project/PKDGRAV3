@@ -6,7 +6,7 @@
 
 void MSR::BHStep(double dTime, double dDelta) {
 #ifndef DEBUG_BH_ONLY
-    Smooth(dTime, dDelta,SMX_BH_STEP,0,param.nSmooth);
+    Smooth(dTime, dDelta,SMX_BH_STEP,0,parameters.get_nSmooth());
 #endif
 }
 

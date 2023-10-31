@@ -9,8 +9,8 @@ Power Spectrum Measurement
 --------------------------
 
 The code can measure the power spectrum P(k) of a periodic simulation.
-It uses grid interlacing and high order mass assignment as described
-in :cite:p:`2016MNRAS.460.3624S`.
+It uses grid interlacing (see :cite:t:`HockneyEastwood1988`, section 7-8 "Interlacing")
+and high order mass assignment (see :cite:t:`2016MNRAS.460.3624S`).
 
 Parameters
 ==========
@@ -50,7 +50,7 @@ The code can output light cone data as either healpix maps, or raw particle data
 Parameters
 ==========
 
-.. show_parameters:: bLightCone dRedshiftLCP nSideHealpix bLightConeParticles bBowtie sqdegLCP hxLCP hyLCP hzLCP
+.. show_parameters:: bLightCone dRedshiftLCP nSideHealpix bLightConeParticles bBowtie sqdegLCP hLCP
 
 
 Output
