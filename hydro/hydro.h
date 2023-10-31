@@ -121,7 +121,9 @@ struct hydroFluxesFlush {
     blitz::TinyVector<double,3> mom;
     double E;
     double Uint;
+#ifndef USE_MFM
     float fMass;
+#endif
 };
 
 void packHydroFluxes(void *vpkd,void *dst,const void *src);

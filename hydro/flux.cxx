@@ -153,7 +153,9 @@ void initHydroFluxesCached(void *vpkd,void *dst) {
         sph.E = 0.0;
         sph.Uint = 0.0;
 
+#ifndef USE_MFM
         p.set_mass(0.0);
+#endif
     }
 }
 
@@ -176,7 +178,9 @@ void flushHydroFluxes(void *vpkd,void *dst,const void *src) {
         p1->E = sph.E;
         p1->Uint = sph.Uint;
 
+#ifndef USE_MFM
         p1->fMass = p2.mass();
+#endif
     }
 }
 
@@ -200,7 +204,9 @@ void combHydroFluxes(void *vpkd,void *dst,const void *src) {
         sph.E += p2->E;
         sph.Uint += p2->Uint;
 
+#ifndef USE_MFM
         p1.set_mass(p1.mass() + p2->fMass);
+#endif
     }
 }
 
@@ -211,7 +217,6 @@ void combHydroFluxes(void *vpkd,void *dst,const void *src) {
  * always used
  */
 enum q_data {
-    q_mass,
     q_ball,
     q_dx, q_dy, q_dz, q_dr,
     q_rung,
@@ -905,7 +910,6 @@ void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *qIn, int i, int nBuff,
     double dDelta = smf->dDelta;
     double qH = Q.ball();
     auto &qsph = Q.sph();
-    q(mass) = Q.mass();
     q(ball) = qH;
     q(dx) = dr[0];
     q(dy) = dr[1];
@@ -967,7 +971,9 @@ void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
     const auto &dDelta = smf->dDelta;
     const auto &aFac = smf->a;
     if (dDelta>0) {
+#ifndef USE_MFM
         P.set_mass(P.mass() - qout(minDt) * qout(Frho));
+#endif
 
         psph.mom[0] -= qout(minDt) * qout(FmomX);
         psph.mom[1] -= qout(minDt) * qout(FmomY);
@@ -1016,7 +1022,9 @@ void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
         // If this is not the case, something VERY odd must have happened
         assert( qsph.P == q(P) );
         if (dDelta>0) {
+#ifndef USE_MFM
             Q.set_mass(Q.mass() + qout(minDt) * qout(Frho));
+#endif
 
             qsph.mom[0] += qout(minDt) * qout(FmomX);
             qsph.mom[1] += qout(minDt) * qout(FmomY);
