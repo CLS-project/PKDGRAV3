@@ -47,6 +47,8 @@
 #ifdef GRACKLE
     #include <grackle.h>
 #endif
+#include "eEOS/eEOS_struct.h"
+#include "chemistry.h"
 
 typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
 typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
@@ -368,8 +370,8 @@ public:
     treeStore tree;
     int FreeStore() { return particles.FreeStore(); }
     int Local() { return particles.Local(); }
-    int SetLocal(int n) {return particles.SetLocal(n);}
-    int AddLocal(int n) {return particles.AddLocal(n);}
+    int SetLocal(int n);
+    int AddLocal(int n);
     auto EphemeralBytes() {return nEphemeralBytes; }
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(Bound) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return tree.ElementSize(); }
@@ -604,6 +606,20 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
 
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 
+#if defined(FEEDBACK) || defined(BLACKHOLES)
+static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double dConstGamma) {
+#ifndef OLD_FB_SCHEME
+    psph->Uint += psph->fAccFBEnergy;
+    psph->E += psph->fAccFBEnergy;
+#ifdef ENTROPY_SWITCH
+    psph->S += psph->fAccFBEnergy*(dConstGamma-1.) *
+               pow(p.density(), -dConstGamma+1);
+#endif
+    psph->fAccFBEnergy = 0.0;
+#endif //OLD_FB_SCHEME
+}
+#endif
+
 /*
 ** The size of a particle is variable based on the memory model.
 ** The following three routines must be used instead of accessing pStore
@@ -670,13 +686,12 @@ static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
 #endif
 
 static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
-    return (pkdSpecies(pkd,p) == FIO_SPECIES_LAST);
+    return (pkdSpecies(pkd,p) == FIO_SPECIES_UNKNOWN);
 }
 
 static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
     return (p->iOrder == IORDERMAX);
 }
-
 
 /*
 ** From tree.c:
@@ -711,7 +726,7 @@ int pkdWeight(PKD,int,double,int,int,int,int *,int *,double *,double *);
 void pkdCountVA(PKD,int,double,int *,int *);
 double pkdTotalMass(PKD pkd);
 uint8_t pkdGetMinDt(PKD pkd);
-void   pkdSetGlobalDt(PKD pkd, uint8_t minDt);
+void pkdSetGlobalDt(PKD pkd, uint8_t minDt);
 int pkdLowerPart(PKD,int,double,int,int);
 int pkdUpperPart(PKD,int,double,int,int);
 int pkdWeightWrap(PKD,int,double,double,int,int,int,int *,int *);
@@ -757,7 +772,7 @@ void pkdGravAll(PKD pkd,
 void pkdCalcEandL(PKD pkd,double &T,double &U,double &Eth,blitz::TinyVector<double,3> &L,blitz::TinyVector<double,3> &F,double &W);
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
                          double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,
-                         double hlcp [3],double tanalpha2);
+                         blitz::TinyVector<double,3> hlcp,double tanalpha2);
 void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile, PINFOOUT &Out );
 void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
@@ -774,7 +789,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo);
-void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP);
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdCountRungs(PKD pkd,uint64_t *nRungs);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
@@ -811,7 +826,6 @@ static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRu
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
                  int *pnLow,int *pnHigh);
 void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p);
-void pkdNewParticle(PKD pkd, PARTICLE *p);
 int pkdIsGas(PKD,PARTICLE *);
 int pkdIsDark(PKD,PARTICLE *);
 int pkdIsStar(PKD,PARTICLE *);
@@ -919,6 +933,5 @@ static inline double dot_product(const double *a,const double *b) {
         }                   \
     }                   \
 } while(0)
-
 
 #endif

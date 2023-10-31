@@ -547,7 +547,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
     }
     if (nHighTot < NUM_SAFETY*pst->nUpper) {
-        snprintf(ach,sizeof(ach),"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
+        snprintf(ach,sizeof(ach),"id: %d: nHighTot < NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
                  pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));

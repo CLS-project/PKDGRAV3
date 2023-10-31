@@ -40,6 +40,12 @@
         #ifdef __FMA4__
             #include <x86intrin.h>
         #endif
+    #elif defined(__ARM_NEON)
+        #include "sse2neon.h"
+        #define __SSE__
+        #define __SSE2__
+        #define __SSE3__
+        #define __SSE4_1__
     #endif/*__SSE__*/
 #endif/*USE_SIMD*/
 
@@ -174,7 +180,6 @@ template<typename v> inline mmask<v> &operator&=(mmask<v> &a,mmask<v> const &b) 
 template<typename v> inline mmask<v> &operator|=(mmask<v> &a,mmask<v> const &b) { return a = a | b; }
 template<typename v> inline mmask<v> &operator^=(mmask<v> &a,mmask<v> const &b) { return a = a ^ b; }
 
-
 #if defined(__AVX512F__) && defined(USE_SIMD)
 
 /**********************************************************************\
@@ -251,7 +256,6 @@ inline vec<__m512,float> mask_mov(vec<__m512,float> const &src,mmask<__mmask16> 
 inline vec<__m512,float> maskz_mov(mmask<__mmask16> const &k,vec<__m512,float> const &a)
 { return _mm512_maskz_mov_ps(k,a); }
 
-
 /**********************************************************************\
 * AVX512 32-bit integer
 \**********************************************************************/
@@ -277,7 +281,6 @@ inline mmask<__mmask16> operator<=(vec<__m512i,std::int32_t> const &a,vec<__m512
 
 inline vec<__m512i,std::int32_t> mask_mov(vec<__m512i,std::int32_t> const &src,mmask<__mmask16> const &k,vec<__m512i,std::int32_t> const &a)
 { return _mm512_mask_mov_epi32(src,k,a); }
-
 
 /**********************************************************************\
 * AVX512 64-bit integer
@@ -389,7 +392,6 @@ template<typename v,typename ftype,typename mtype> inline
 vec<v,ftype> mask_sub(const mtype &k,vec<v,ftype> &a,vec<v,ftype> const &b)
 { return a - (b&k); }
 
-
 #if defined(__AVX__) && defined(USE_SIMD)
 /**********************************************************************\
 * AVX single precision
@@ -478,7 +480,6 @@ inline vec<__m256i,std::int32_t> operator>(vec<__m256i,std::int32_t> const &a,ve
 //inline vec<__m256i,std::int32_t> operator<=(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_cmple_epi32(a,b); }
 #else
 #endif
-
 
 /**********************************************************************\
 * AVX double precision
@@ -756,7 +757,6 @@ inline vec<std::int32_t,std::int32_t> mask_mov(vec<std::int32_t,std::int32_t> co
 #if __GNUC__ > 4
     #pragma GCC diagnostic pop
 #endif
-
 
 #endif/*__CUDACC__*/
 

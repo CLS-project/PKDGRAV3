@@ -68,7 +68,7 @@ endif()
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
+find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter Development NumPy)
 set(PYTHON ${Python3_EXECUTABLE})
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -192,7 +192,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c param.c pyrameters.cxx ${CMAKE_BINARY_DIR}/pkd_parameters.h
+	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c units.cxx
+	pyrameters.cxx ${CMAKE_BINARY_DIR}/pkd_parameters.h
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
 	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
@@ -408,7 +409,7 @@ endif(FIXED_NSMOOTH_STRICT)
 
 option(COOLING "Activate the chemistry and the cooling for the gas particles. Also makes effective a internal energy floor" OFF)
 if (COOLING)
-   target_sources(${PROJECT_NAME} PRIVATE  cooling/cooling.cxx cooling/cooling_tables.c )
+   target_sources(${PROJECT_NAME} PRIVATE  cooling/cooling.cxx cooling/cooling_tables.cxx )
    target_compile_options(${PROJECT_NAME} PRIVATE -DCOOLING)
    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_HELIUM -DHAVE_CARBON -DHAVE_NITROGEN -DHAVE_OXYGEN -DHAVE_NEON -DHAVE_MAGNESIUM -DHAVE_SILICON -DHAVE_IRON)
    message("-- Cooling is ACTIVE")
@@ -473,6 +474,7 @@ if (BLACKHOLES)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/seed.cxx)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/evolve.cxx)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/init.cxx)
+  target_sources(${PROJECT_NAME} PRIVATE  blackhole/step.cxx)
   message("-- Black holes are ACTIVE")
 endif(BLACKHOLES)
 option(DEBUG_BH_NODRIFT "Deactivate BH drift by the gas" OFF)
@@ -485,6 +487,10 @@ if (DEBUG_BH_ONLY)
    target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_BH_ONLY)
    message("-- Allow for BH-only simulations for debugging purposes")
 endif(DEBUG_BH_ONLY)
+
+if (FEEDBACK OR STELLAR_EVOLUTION)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DSTELLAR_IMF)
+endif()
 
 #### OPTIMIZATION OPTIONS
 option(OPTIM_NO_REDUNDANT_FLUXES "Avoid any redundant flux computation using the particle IDs" ON)

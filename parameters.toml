@@ -7,6 +7,12 @@
 #     flag:    the command line flag used to override the parameter
 #     default: the default value. NB: The type of "default" determines the
 #              type of the parameter. String, int, float or Boolean.
+#              A list type can be specified in one of three ways:
+#                []      - generic object returned (does not have to be a list)
+#                [1,1,1] - returns a TinyVector of exactly this length.
+#                          Types must be identical for all elements.
+#                [1.0]   - Returns a std::vector of the given type.
+#                          The default is empty (value is used only for the type)
 #     omitted: The "default" value if the parameter is ommited if it is
 #              different from "default". Parsed as restructured text.
 #              Needs to be small to fit beside the parameter (default whatever)
@@ -139,7 +145,7 @@ docs='''
 If enabled, the power spectrum measurement tool creates two mass assignment grids.
 The second contains the mass with the particles offset by half a grid cell.
 The results of the two mass assignment grids are combined to reduce grid aliasing effects.
-See :cite:t:`HockneyEastwood1988`.
+See :cite:t:`HockneyEastwood1988`, section 7-8 "Interlacing" for details..
 '''
 
 ["Analysis"."Power Spectrum Measurement".iPkOrder]
@@ -154,48 +160,50 @@ Selects the mass assignment method:
 3. Triangular Shaped Cloud (TSC), and
 4. Piecewise Cubic Spline (PSC).
 
-The recommended method is PCS.
+The recommended method is PCS. See :cite:t:`2016MNRAS.460.3624S` for details.
 '''
 
 ["Analysis"."Light Cone".bLightCone]
 flag="lc"
 default=false
 help="output light cone data"
+docs='''
+Enable or disable light cone output.
+'''
+
+["Analysis"."Light Cone".dRedshiftLCP]
+flag="zlcp"
+default=0.0
+help="starting redshift to output light cone"
+
+["Analysis"."Light Cone".nSideHealpix]
+flag="healpix"
+default=0
+help="Number per side of the healpix map"
+docs='''
+Sets the "nSide" parameter for healpix, and if non-zero
+enables the output of the healpix maps.
+'''
+
+["Analysis"."Light Cone".bLightConeParticles]
+flag="lcp"
+default=false
+help="output light cone particles"
 
 ["Analysis"."Light Cone".bBowtie]
 flag="bbt"
 default=false
 help="output +++ and --- octants of the cone; a bowtie"
 
-["Analysis"."Light Cone".dRedshiftLCP]
-flag="zlcp"
-default=0.0
-help="starting redshift to output light cone particles"
-
 ["Analysis"."Light Cone".sqdegLCP]
 flag="sqdeg"
 default=50.0
 help="square degrees of lightcone (if (<0 || >41253) then all sky)"
 
-["Analysis"."Light Cone".hxLCP]
-flag="hx"
-default=0.749
-help="x-component of lightcone direction vector"
-
-["Analysis"."Light Cone".hyLCP]
-flag="hy"
-default=0.454
-help="y-component of lightcone direction vector"
-
-["Analysis"."Light Cone".hzLCP]
-flag="hz"
-default=1.0
-help="z-component of lightcone direction vector"
-
-["Analysis"."Light Cone".bLightConeParticles]
-flag="lcp"
-default=false
-help="output light cone particles"
+["Analysis"."Light Cone".hLCP]
+flag="hr"
+default=[0.749,0.454,1.0]
+help="lightcone direction vector"
 
 ["Analysis"."Group Finding"]
 docs='''
@@ -241,11 +249,14 @@ The Friends-of-friends group finder is enabled when this is true.
 
 ["Analysis"."Group Finding"."Friends of Friends".dTau]
 flag="tau"
-default=0.164
-help="linking length for FOF in units of mean particle separation"
+default=0.0
+help="linking length for FOF in code units"
 docs='''
 The linking length :math:`\tau`. This is normally set to one fifth of
-the mean particle separation.
+the mean particle separation. For example, if you use the built-in IC
+generator you could set this parameter with::
+
+  dTau = 0.2 / nGrid
 '''
 
 ["Analysis"."Group Finding"."Grasshopper"]
@@ -267,11 +278,6 @@ help="linking length for Gasshopper (negative for multiples of softening)"
 flag="zdel"
 default=0.0
 help="starting redshift to output delta(k) field"
-
-["Analysis".nSideHealpix]
-flag="healpix"
-default=0
-help="Number per side of the healpix map"
 
 ################################################################################
 ########## I/O Parameters
@@ -307,6 +313,11 @@ flag="dsp"
 default=""
 help="sub-path for data"
 
+["I/O Parameters".achOutTimes]
+flag="ot"
+default=""
+help="input file containing the sequence of output redshift|time|a"
+
 ["I/O Parameters".bInFileLC]
 flag="lcin"
 default=false
@@ -336,11 +347,6 @@ help="number of threads to write with during parallel write (0=unlimited)"
 flag="oi"
 default=0
 help="number of timesteps between snapshots"
-
-["I/O Parameters".iFofInterval]
-flag="fof"
-default=0
-help="number of timesteps between FOF group finding"
 
 ["I/O Parameters".iCheckInterval]
 flag="ci"
@@ -434,8 +440,9 @@ help="restart from checkpoint"
 
 ["I/O Parameters".lstOrbits]
 flag="orbit"
-default=[]
-help="Particle ID of particle to write to orbit file (repeatable)"
+type=0
+default=[0]
+help="List of particle IDs of particle to write to orbit file"
 
 ################################################################################
 ########## Time Stepping
@@ -475,6 +482,17 @@ help="time step criterion"
 flag="gs"
 default=false
 help="Gravity timestepping according to iTimeStep Criterion"
+
+["Time Stepping".time_step]
+flag="ts"
+default=1
+ommited="TimeStep.epsilon_over_a"
+help="Which timestep scheme to use"
+
+["Time Stepping".bAccelStep]
+flag="as"
+default=false
+help="Acceleration timestepping"
 
 ["Time Stepping".bEpsAccStep]
 flag="ea"
@@ -600,23 +618,13 @@ This turns on periodic boundary conditions. If you have gravity turned on
 
 ["Periodic Boundaries".dPeriod]
 flag="L"
-default=1.0
+default=[1.0,1.0,1.0]
 help="periodic box length"
-
-["Periodic Boundaries".dxPeriod]
-flag="Lx"
-default=1.0
-help="periodic box length in x-dimension"
-
-["Periodic Boundaries".dyPeriod]
-flag="Ly"
-default=1.0
-help="periodic box length in y-dimension"
-
-["Periodic Boundaries".dzPeriod]
-flag="Lz"
-default=1.0
-help="periodic box length in z-dimension"
+docs='''
+Length of the periodic box in code units.
+This can be scalar float in which case all three dimensions have the same length,
+or it can be a list of three numbers for the x, y and z period.
+'''
 
 ################################################################################
 ########## Cosmology
@@ -1045,20 +1053,20 @@ flag="gas"
 default=false
 help="calculate gas/do not calculate gas"
 
-["Gas".bGasAdiabatic]
-flag="GasAdiabatic"
-default=true
-help="Gas is Adiabatic"
+#["Gas".bGasAdiabatic]
+#flag="GasAdiabatic"
+#default=true
+#help="Gas is Adiabatic"
 
 ["Gas".bGasIsentropic]
 flag="GasIsentropic"
 default=true
 help="Gas is evolved isentropically"
 
-["Gas".bGasIsothermal]
-flag="GasIsothermal"
-default=false
-help="Gas is Isothermal"
+#["Gas".bGasIsothermal]
+#flag="GasIsothermal"
+#default=false
+#help="Gas is Isothermal"
 
 ["Gas".dEtaCourant]
 flag="etaC"
@@ -1286,17 +1294,56 @@ flag="T_CMB_0"
 default=2.725
 help="Temperature of the CMB at z=0"
 
-["Cooling".dCoolingFloorDen]
-flag="CoolingFloorDen"
+["Cooling".dCoolingMinTemp]
+flag="CoolingMinTemp"
+default=1e2
+help="Minimum allowed temperature, K"
+
+################################################################################
+########## Effective equation of state
+################################################################################
+
+["Effective equation of state".dEOSFloornH]
+flag="EOSFloornH"
 default=1e-5
 omitted=':math:`10^{-5}`'
 help="Minimum density at which the internal energy floor will be applied, n_H cm-3"
 
-["Cooling".dCoolingFloorT]
-flag="CoolingFloorT"
+["Effective equation of state".dEOSFloorMinOD]
+flag="EOSFloorMinOD"
+default=10
+help="Minimum baryonic overdensity at which the internal energy floor will be applied"
+
+["Effective equation of state".dEOSFloorTemp]
+flag="EOSFloorTemp"
 default=1e4
-omitted=':math:`10^4`'
 help="Temperature at the internal energy floor, K"
+
+["Effective equation of state".dEOSPolyFloornH]
+flag="EOSPolyFloornH"
+default=0.1
+help="Density threshold beyond which the polytropic effective EOS will be applied, nH cm-3)"
+
+["Effective equation of state".dEOSPolyFloorMinOD]
+flag="EOSPolyFloorMinOD"
+default=10
+help="Minimum baryonic overdensity at which the polytropic effective EOS will be applied"
+
+["Effective equation of state".dEOSPolyFloorIndex]
+flag="EOSPolyFloorIndex"
+default=1.3333333333333333
+omitted=':math:`\frac{4}{3}`'
+help="Index of the polytropic effective EOS"
+
+["Effective equation of state".dEOSPolyFloorTemp]
+flag="EOSPolyFloorTemp"
+default=1e4
+help="Temperature at the density threshold for the effective EOS, K"
+
+["Effective equation of state".dEOSNJeans]
+flag="EOSNJeans"
+default=8.75
+help="Number of elements to resolve the Jeans length"
 
 ################################################################################
 ########## Star formation
@@ -1306,6 +1353,11 @@ help="Temperature at the internal energy floor, K"
 flag="SFThresholdDen"
 default=0.1
 help="Minimum density at which the star formation can happen, nH cm-3"
+
+["Star formation".bSFThresholdDenSchaye2004]
+flag="SFThresholdDenSchaye2004"
+default=false
+help="Use the metallicity-dependent star-formation density threshold of Schaye (2004)"
 
 ["Star formation".dSFThresholdT]
 flag="SFThresholdT"
@@ -1325,60 +1377,82 @@ help="Gas fraction assumed for the star formation"
 ["Star formation".dSFindexKS]
 flag="SFindexKS"
 default=1.4
-help="Index of the KS law for star formation"
+help="Index of the Kennicutt-Schmidt star-formation law"
 
 ["Star formation".dSFnormalizationKS]
 flag="SFnormalizationKS"
-default=2.5e-4
-omitted=':math:`2.5\times 10^{-4}`'
-help="Normalization of the KS law for star formation"
+default=1.515e-4
+omitted=':math:`1.515\times 10^{-4}`'
+help="Normalization of the Kennicutt-Schmidt star-formation law. Value must be consistent with the chosen IMF"
 
 ["Star formation".dSFEfficiency]
 flag="SFEfficiency"
 default=0.0
 help="Star formation efficiency per free-fall time; set >0 to use density-based SFR"
 
-
 ################################################################################
 ########## Supernova feedback
 ################################################################################
 
-["Supernova feedback".dSNFBDT]
-flag="SNFBDT"
-default=31622776.60168379 # 10**7.5
-omitted=':math:`10^{7.5}`'
-help="Increment in tempertue per supernova event, K"
+["Supernova feedback".bCCSNFeedback]
+flag="bCCSNFeedback"
+default=true
+help="Activate energy feedback from CCSN events"
 
-["Supernova feedback".dSNFBEff]
-flag="SNFBEff"
+["Supernova feedback".bSNIaFeedback]
+flag="bSNIaFeedback"
+default=false
+help="Activate energy feedback from SNIa events"
+
+["Supernova feedback".dSNFBEfficiency]
+flag="SNFBEfficiency"
 default=1.0
-help="Efficiency of the SN feedback. Minimum efficiency of dSNFBMaxEff is provided"
-
-["Supernova feedback".dSNFBDelay]
-flag="SNFBDelay"
-default=3e7
-omitted=':math:`3\times 10^7`'
-help="Time between star formation and injection of SN energy, yr"
-
-["Supernova feedback".dSNFBNumberSNperMass]
-flag="SNFBNumberSNperMass"
-default=1.736e-2
-help="Number of stars that will end their life as SNII events, per mass 1/Mo"
+help="Efficiency of SN feedback. Asymptotic minimum efficiency if dSNFBMaxEff is provided"
 
 ["Supernova feedback".dSNFBMaxEff]
 flag="SNFBMaxEff"
 default=0.0
-help="Asymptotic maximum efficiency for SNe II feedback"
+help="Asymptotic maximum efficiency of SN feedback"
+
+["Supernova feedback".dSNFBEffIndex]
+flag="SNFBEffIndex"
+default=0.87
+help="Metallicity and density index for the feedback efficiency"
 
 ["Supernova feedback".dSNFBEffnH0]
 flag="SNFBEffnH0"
 default=0.67
 help="Hydrogen number density normalization of the feedback efficiency, nH cm-3"
 
-["Supernova feedback".dSNFBEffIndex]
-flag="SNFBEffIndex"
-default=0.87
-help="Metallicity and density index for the feedback efficiency"
+["Supernova feedback".dSNFBDT]
+flag="SNFBDT"
+default=31622776.60168379 # 10**7.5
+omitted=':math:`10^{7.5}`'
+help="Gas-particle temperature increment per SN feedback event, K"
+
+["Supernova feedback".dCCSNFBDelay]
+flag="CCSNFBDelay"
+default=3e7
+omitted=':math:`3\times 10^7`'
+help="Time between star formation and injection of CCSN energy, yr"
+
+["Supernova feedback".dCCSNEnergy]
+flag="CCSNEnergy"
+default=1e51
+omitted=':math:`10^{51}`'
+help="CCSN event energy, erg"
+
+["Supernova feedback".dSNIaFBDelay]
+flag="dSNIaFBDelay"
+default=2e8
+omitted=':math:`2\times 10^8`'
+help="Time between star formation and injection of SNIa energy, yr"
+
+["Supernova feedback".dSNIaEnergy]
+flag="dSNIaEnergy"
+default=1e51
+omitted=':math:`10^{51}`'
+help="SNIa event energy, erg"
 
 ################################################################################
 ########## Blackholes
@@ -1402,23 +1476,28 @@ help="Activate the BH feedback"
 ["Blackholes".dBHAccretionAlpha]
 flag="BHAccretionAlpha"
 default=1.0
-help="Accretion efficiency parameter"
+help="Accretion boost parameter"
+
+["Blackholes".dBHAccretionCvisc]
+flag="BHAccretionCvisc"
+default=0.0
+help="Accretion viscosity parameter"
 
 ["Blackholes".dBHRadiativeEff]
 flag="dBHRadiativeEff"
 default=0.1
-help="Radiative efficiency of the blackholes"
+help="AGN radiative efficiency"
 
 ["Blackholes".dBHFBEff]
 flag="BHFBEff"
 default=0.1
-help="Coupling efficiency of the BH with its surroundings"
+help="AGN coupling efficiency with its surroundings"
 
 ["Blackholes".dBHFBDT]
 flag="BHFBDT"
 default=1e8
 omitted=':math:`10^8`'
-help="Temperature change in the blackhole feedback events"
+help="Gas-particle temperature increment per AGN feedback event, K"
 
 ["Blackholes".dBHAccretionEddFac]
 flag="BHAccretionEddFac"
@@ -1427,9 +1506,9 @@ omitted=':math:`\frac{4\pi\times m_p}{\sigma_t\times c} = 1.05391277\times 10^{-
 help="4pi * m_p / sigma_T / c , kg m^-3 s"
 
 ["Blackholes".bBHPlaceSeed]
-flag="BHPlaceSeed"
+flag="bBHPlaceSeed"
 default=true
-help="Place BH seeds in the FOF groups"
+help="Place BH seeds in FOF groups"
 
 ["Blackholes".dBHSeedMass]
 flag="BHSeedMass"
@@ -1496,6 +1575,35 @@ default=0.0
 help="Initial metallicity"
 
 ################################################################################
+########## Stellar Initial-Mass Function (IMF)
+################################################################################
+
+["Stellar Initial-Mass Function (IMF)".achIMFType]
+flag="imftype"
+default="chabrier"
+help="Type of IMF"
+
+["Stellar Initial-Mass Function (IMF)".dIMFMinMass]
+flag="IMFMinMass"
+default=0.1
+help="Lower-mass limit of the IMF, Msol"
+
+["Stellar Initial-Mass Function (IMF)".dIMFMaxMass]
+flag="IMFMaxMass"
+default=100.0
+help="Upper-mass limit of the IMF, Msol"
+
+["Stellar Initial-Mass Function (IMF)".dCCSNMinMass]
+flag="CCSNMinMass"
+default=6.0
+help="Minimum mass for a star to end its life as a Core Collapse Supernova, Msol"
+
+["Stellar Initial-Mass Function (IMF)".dCCSNMaxMass]
+flag="CCSNMaxMass"
+default=100.0
+help="Maximum mass for a star to end its life as a Core Collapse Supernova, Msol"
+
+################################################################################
 ########## Stellar evolution
 ################################################################################
 
@@ -1506,77 +1614,51 @@ help="Path to stellar evolution tables"
 
 ["Stellar evolution".achSNIaDTDType]
 flag="dtdtype"
-default=""
-help="Type of Delay Time Distribution function for SNIa events"
-
-["Stellar evolution".achIMFType]
-flag="imftype"
-default=""
-help="Type of Initial Mass Function"
+default="exponential"
+help="Type of Delay-Time Distribution function for SNIa events"
 
 ["Stellar evolution".bChemEnrich]
 flag="bChemEnrich"
 default=true
 help="Activate chemical enrichment of gas particles surrounding a star particle"
 
-["Stellar evolution".dIMFMinMass]
-flag="IMFMinMass"
-default=0.1
-help="Lower mass limit of the Initial Mass Function <Mo>"
+["Stellar evolution".dSNIaExpScale]
+flag="SNIaExpScale"
+default=2e9
+omitted=':math:`2\times 10^9`'
+help="Time scale of the exponential Delay-Time Distribution function, yr"
 
-["Stellar evolution".dIMFMaxMass]
-flag="IMFMaxMass"
-default=100.0
-help="Upper mass limit of the Initial Mass Function <Mo>"
+["Stellar evolution".dSNIaPLScale]
+flag="SNIaPLScale"
+default=-1.1
+help="Index of the power-law Delay-Time Distribution function"
 
-["Stellar evolution".dCCSNMinMass]
-flag="CCSNMinMass"
-default=6.0
-help="Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>"
+["Stellar evolution".dSNIaPLInitTime]
+flag="SNIaPLInitTime"
+default=40e6
+omitted=':math:`40\times 10^6`'
+help="Initial time for the normalization of the power-law Delay-Time Distribution function, yr"
 
-["Stellar evolution".dCCSNMaxMass]
-flag="CCSNMaxMass"
-default=100.0
-help="Maximum mass for a star to end its life as a Core Collapse Supernova <Mo>"
+["Stellar evolution".dSNIaPLFinalTime]
+flag="SNIaPLFinalTime"
+default=13.7e9
+omitted=':math:`13.7\times 10^9`'
+help="Final time for the normalization of the power-law Delay-Time Distribution function, yr"
+
+["Stellar evolution".dSNIaNumPerMass]
+flag="SNIaNumPerMass"
+default=2e-3
+help="Number of SNIa events per stellar mass, 1/Msol"
 
 ["Stellar evolution".dSNIaMaxMass]
 flag="SNIaMaxMass"
 default=8.0
-help="Maximum mass for the likely progenitors of SNIa events <Mo>"
-
-["Stellar evolution".dSNIaNorm]
-flag="SNIaNorm"
-default=2e-3
-help="Normalization of the Delay Time Distribution function <1/Mo>"
-
-["Stellar evolution".dSNIaScale]
-flag="SNIaScale"
-default=2e9
-omitted=':math:`2\times 10^9`'
-help="Scale of the Delay Time Distribution function (Exponential: <yr>. Powerlaw: <dimensionless>)"
-
-["Stellar evolution".dSNIaNormInitTime]
-flag="SNIaNormInitTime"
-default=40e6
-omitted=':math:`40\times 10^6`'
-help="Initial time for the normalization of the Delay Time Distribution function <yr>"
-
-["Stellar evolution".dSNIaNormFinalTime]
-flag="SNIaNormFinalTime"
-default=13.7e9
-omitted=':math:`13.7\times 10^9`'
-help="Final time for the normalization of the Delay Time Distribution function <yr>"
-
-["Stellar evolution".dSNIaEnergy]
-flag="SNIaEnergy"
-default=1e51
-omitted=':math:`10^{51}`'
-help="SNIa event energy <erg>"
+help="Maximum mass for the likely progenitors of SNIa events, Msol"
 
 ["Stellar evolution".dStellarWindSpeed]
 flag="StellarWindSpeed"
 default=10.0
-help="Stellar wind speed <km/s>"
+help="Stellar wind speed, km/s"
 
 ################################################################################
 ########## Debugging/Testing/Diagnostics
@@ -1639,11 +1721,6 @@ docs='''
 Provides verbose tracing information which is normally not useful except to a
 developer debugging an issue with the code.
 '''
-
-["Debugging/Testing/Diagnostics".nDigits]
-flag="nd"
-default=5
-help="number of digits to use in output filenames"
 
 ["Debugging/Testing/Diagnostics".iCacheSize]
 flag="cs"

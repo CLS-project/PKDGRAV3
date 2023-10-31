@@ -2,54 +2,22 @@
 Analysis
 ========
 
+.. load_parameters:: ../parameters.toml
+
 --------------------------
 Power Spectrum Measurement
 --------------------------
 
 The code can measure the power spectrum P(k) of a periodic simulation.
-It uses grid interlacing and high order mass assignment as described
-in :cite:p:`2016MNRAS.460.3624S`.
+It uses grid interlacing (see :cite:t:`HockneyEastwood1988`, section 7-8 "Interlacing")
+and high order mass assignment (see :cite:t:`2016MNRAS.460.3624S`).
 
 Parameters
 ==========
 
 The following parameters control P(k) measurement:
 
-.. index:: single: parameters ; nGridPk
-
-nGridPk (default 0 or off)
-    This is the width of the 3D mass assignment grid used to measure P(k).
-    A good value for this is the same as the simulation IC grid size
-    give or take a factor of two::
-
-        nGridPk = nGrid // 2
-
-.. index:: single: parameters ; iPkInterval
-
-iPkInterval (default 1)
-    Measure and output P(k) every step. You can change this to have P(k)
-    measurements done less frequently. For example, setting iPkInterval to 10
-    will cause P(k) to be measured every 10 steps (10, 20, 30, etc.).
-
-.. index:: single: parameters ; iPkOrder
-
-iPkOrder (default 4)
-    This selects the mass assignment scheme. Possible values are:
-
-    1. Nearest Grid Point (NGP)
-    2. Cloud in Cell (CIC)
-    3. Triangular Shaped Cloud (TSC)
-    4. Piecewise Cubic Spline (PCS)
-
-    It is recommended to keep the default (PCS).
-
-.. index:: single: parameters ; bPkInterlace
-
-bPkInterlace (default True)
-    This controls the use of interlaced grids to reduce aliasing. If enabled
-    (the default), it creates two mass assignment grids and deposits the mass
-    on the second grid offset by half a grid spacing. This greatly reduces the
-    aliasing effect at the cost of additional memory. We recommend that this be left on.
+.. show_parameters:: nGridPk iPkInterval iPkOrder bPkInterlace
 
 Output
 ======
@@ -73,3 +41,42 @@ Linear P(k)
     This is the same as the P(k) column, except it includes the linear part (if present),
     for example if you are using the linear neutrino treatment.
 
+----------
+Light Cone
+----------
+
+The code can output light cone data as either healpix maps, or raw particle data (or both).
+
+Parameters
+==========
+
+.. show_parameters:: bLightCone dRedshiftLCP nSideHealpix bLightConeParticles bBowtie sqdegLCP hLCP
+
+
+Output
+======
+
+Healpix
+=======
+
+The healpix output is a binary format consisting of 32-bit integer counts of grouped and ungrouped particles
+(grouped is only valid if group finding is enabled) as well as the potential. The following script
+(found in tools/hpb2fits.py) will convert the file to fits format.
+
+.. literalinclude:: ../tools/hpb2fits.py
+
+Particles
+---------
+
+The particle output is also a binary format. Note that files may be empty if the assigned processor does not
+output any particles during the step. This is normal. Each output particle is 40 bytes as follows.
+
+.. tabularcolumns:: |r|l|l|
+.. csv-table::    
+   :header: Offset, Type, Field
+
+   0,  64-bit integer, particle ID
+   8,  3 x float,      position (x y z)
+   20, 3 x float,      velocity (x y z)
+   32, float,          potential
+   36, 4 bytes,        padding

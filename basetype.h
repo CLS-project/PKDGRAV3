@@ -28,6 +28,7 @@
 #include "gravity/ilc.h"
 #include "SPH/SPHOptions.h"
 #include "units.h"
+#include "eEOS/eEOS_struct.h"
 
 typedef double pos_t;
 typedef float  vel_t;
@@ -45,6 +46,53 @@ typedef float  mass_t;
 #define COST_FLOP_HLOOP 62 // +-*:46  AND/CMP:16 div: rsqrt:0
 #define COST_FLOP_SOFT 15
 #define COST_FLOP_OPEN 97 // +-*:55  AND/CMP:42
+
+
+// There are a number of "parameters" that are calculated from regular parameters
+// These are stored in the following structure, but maybe they should be removed
+struct CALC {
+#ifdef COOLING
+    // IA: Cooling parameters
+    double dCoolingMinu;
+    static constexpr double fCa_over_Si_in_Solar = 1;
+    static constexpr double fS_over_Si_in_Solar = 1;
+#endif
+    // Internal energy floor parameters
+#if defined(EEOS_POLYTROPE)
+    double dEOSFloorDen;
+    double dEOSFloorMinBaryonOD;
+    double dEOSFlooru;
+    double dEOSPolyFloorMinBaryonOD;
+    double dEOSPolyFloorExponent;
+    double dEOSPolyFloorDen;
+    double dEOSPolyFlooru;
+#endif
+#ifdef STAR_FORMATION
+    double dSFThresholdu;
+    double dSFThresholdDen;
+    double dSFThresholdOD;
+    double dSFnormalizationKS;
+#endif 
+#ifdef FEEDBACK
+    double dSNFBEffnH0;
+    double dSNFBDu;
+    double dCCSNFBDelay;
+    double dCCSNFBSpecEnergy;
+    double dSNIaFBDelay;
+    double dSNIaFBSpecEnergy;
+#endif
+#ifdef BLACKHOLES
+    double dBHAccretionEddFac;
+    double dBHFBEff;
+    double dBHFBEcrit;
+#endif
+#ifdef STELLAR_EVOLUTION
+    int nSmoothEnrich;
+    double dWindSpecificEkin;
+    double dSNIaNorm;
+    double dSNIaScale;
+#endif
+};
 
 /*
 ** This is an important base type. Alter with care, or even better, leave it alone.
@@ -87,7 +135,6 @@ typedef struct {
     float imbalanceX, imbalanceY, imbalanceZ;
     float corrT, corrP, corr;
 } PINFOOUT;
-
 
 #if defined(USE_SIMD)
     typedef float ewaldFloatType;
@@ -141,7 +188,7 @@ struct pkdLightconeParameters {
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
     double dLookbackFacLCP;
-    double hLCP[3];
+    blitz::TinyVector<double,3> hLCP;
     double tanalpha_2;
     double dBoxSize;
     int bLightConeParticles;
@@ -188,19 +235,15 @@ struct inEndTimestep {
     double dConstGamma;
     double dTuFac;
 #ifdef STAR_FORMATION
-    double dSFMinOverDensity;
+    double dSFThresholdOD;
 #endif
 #ifdef COOLING
+    double dCoolingFloorOD;
     double dCoolingFloorDen;
     double dCoolingFlooru;
 #endif
-#ifdef EEOS_POLYTROPE
-    double dEOSPolyFloorIndex;
-    double dEOSPolyFloorDen;
-    double dEOSPolyFlooru;
-#endif
-#ifdef EEOS_JEANS
-    double dEOSNJeans;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    struct eEOSparam eEOS;
 #endif
 #ifdef BLACKHOLES
     double dBHRadiativeEff;
@@ -212,7 +255,11 @@ struct inEndTimestep {
 
 #ifdef STAR_FORMATION
 struct inStarForm {
-    double dDenMin;
+#ifdef HAVE_METALLICITY
+    int bSFThresholdDenSchaye2004;
+#endif
+
+    double dHubble;
     double dDelta;
     double dTime;
     double dScaleFactor;
@@ -221,6 +268,8 @@ struct inStarForm {
     double dSFnormalizationKS;
     double dConstGamma;
     double dSFGasFraction;
+    double dSFThresholdDen;
+    double dSFThresholdOD;
     double dSFThresholdu;
     double dSFEfficiency;
 
@@ -229,10 +278,12 @@ struct inStarForm {
     double dEOSPolyFlooru;
 
 #ifdef FEEDBACK
+    int bCCSNFeedback;
+    int bSNIaFeedback;
     double dSNFBEfficiency;
     double dSNFBMaxEff;
-    double dSNFBEffnH0;
     double dSNFBEffIndex;
+    double dSNFBEffnH0;
 #endif
 
 #ifdef STELLAR_EVOLUTION
@@ -240,9 +291,10 @@ struct inStarForm {
     double dCCSNMinMass;
     double dCCSNMaxMass;
 #endif
+    struct eEOSparam eEOS;
+
 };
 #endif
-
 
 /*
 ** Accumulates the work for a set of particles

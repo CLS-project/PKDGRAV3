@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.12)
+cmake_policy(VERSION 3.12...3.27)
 project(blitz)
 
 

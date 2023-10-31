@@ -161,6 +161,8 @@ struct cooling_function_data {
 
     double dConstGamma;
 
+    double dCoolingMinu;
+
     /*! Internal energy conversion from internal units to CGS (for quick access)
      */
     double internal_energy_to_cgs;

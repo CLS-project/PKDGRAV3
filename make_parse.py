@@ -24,7 +24,10 @@ def emit_section(section,parse_py):
         else:
           print(f"    add_flag(s,'{flag}', dest='{k}',help='{help}')",file=parse_py)
       elif isinstance(default,list):
-        print(f"    s.add_argument('-{flag}',dest='{k}',type=int,action='append',help='{help}')",file=parse_py)
+        if (len(default) > 1):
+          print(f"    add_list(s,'{flag}',default={default},dest='{k}',list_type={default[0].__class__.__name__},help='{help}')",file=parse_py)
+        else:
+          print(f"    add_list(s,'{flag}',dest='{k}',list_type={default[0].__class__.__name__},help='{help}')",file=parse_py)
       else:
         print(type(default),file=parse_py)
     else:
@@ -74,6 +77,22 @@ cdef public tuple parse():
                 parser.setSpecified(self.dest)
                 setattr(namespace, self.dest, values)
         return self.add_argument('-'+name,default=default,action=FlagAction,**kwargs)
+        
+    def add_list(self,name,default=None,**kwargs):
+        class SplitAndTypeCheck(Action):
+            def __init__(self, list_type, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.list_type = list_type
+
+            def __call__(self, parser, namespace, values, option_string=None):
+                split_values = values.split(',')
+                try:
+                    typed_values = [self.list_type(value) for value in split_values]
+                except ValueError:
+                    parser.error("Value(s) for {} must be of type {}. Received: {}".format(option_string, self.list_type, values))
+                parser.setSpecified(self.dest)
+                setattr(namespace, self.dest, typed_values)
+        return self.add_argument('-'+name,default=default,action=SplitAndTypeCheck,**kwargs)
 
     parser = PkdParser(description='PKDGRAV3 n-body code',prefix_chars='-+',add_help=False)
     parser.add_argument('--help',action='help',help='show this help message and exit')

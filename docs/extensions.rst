@@ -2,6 +2,9 @@
 Extensions
 ==========
 
+.. index:: accuracy
+  :name: accuracy-module
+
 Accuracy
 --------
 

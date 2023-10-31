@@ -1,6 +1,6 @@
 tomli; python_version < '3.11'
-Cython >= 3.0b
+Cython >= 3.0
 numpy >= 1.7
-xmlrunner
+unittest-xml-reporting
 ddt
 nose

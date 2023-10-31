@@ -181,7 +181,7 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
         break;
     case OUT_PHASEDENS_ARRAY:
         assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        v = pkdDensity(pkd,p)*pow(pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).veldisp2,-1.5);
+        v = pkd->particles.density(p)*pow(pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).veldisp2,-1.5);
         break;
     case OUT_C_ARRAY:
         v = pkd->particles.sph(p).c;

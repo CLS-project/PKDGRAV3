@@ -51,11 +51,11 @@
 
 /* Regular particle with order and all the goodies */
 struct PARTICLE {
-uint64_t  uRung      :  IRUNGBITS;
+    uint64_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
+    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
 #ifdef NN_FLAG_IN_PARTICLE
     uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
 #endif
@@ -67,9 +67,9 @@ static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
 #define IGROUPMAX ((1<<IGROUPBITS)-1)
 
 typedef struct uparticle {
-uint32_t  uRung      :  IRUNGBITS;
+    uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
-uint32_t  iGroup     :  IGROUPBITS;
+    uint32_t  iGroup     :  IGROUPBITS;
 } UPARTICLE;
 static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 
@@ -100,11 +100,6 @@ static_assert(std::is_trivial<PARTCLASS>());
 typedef double myreal;
 
 struct SPHFIELDS {
-    char *pNeighborList; /* pointer to nearest neighbor list - compressed */
-    blitz::TinyVector<double,3> vPred;
-
-    float c;        /* sound speed */
-
     /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
     blitz::TinyVector<double,6> B;
 
@@ -124,6 +119,8 @@ struct SPHFIELDS {
 #ifndef USE_MFM
     blitz::TinyVector<myreal,3> lastDrDotFrho;
 #endif
+    float c;        /* sound speed */
+
     float lastMass;
 
     /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
@@ -135,7 +132,7 @@ struct SPHFIELDS {
     myreal Fene;
 
 #ifndef USE_MFM
-    double drDotFrho[3];
+    blitz::TinyVector<double,3> drDotFrho;
 #endif
     /* IA: Conserved variables */
     blitz::TinyVector<double,3>  mom;
@@ -161,31 +158,32 @@ struct SPHFIELDS {
     //uint8_t uNewRung;
 
 #ifdef STAR_FORMATION
-    myreal SFR;
+    float SFR;
 #endif
 
-    float afElemMass[ELEMENT_COUNT];
-
-#ifdef COOLING
-    myreal lastCooling;
-    float cooling_dudt;
-#endif
-
+    blitz::TinyVector<float,ELEMENT_COUNT> ElemMass;
 #ifdef HAVE_METALLICITY
     float fMetalMass;
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    float afReceivedMom[3];
+    blitz::TinyVector<float,3> ReceivedMom;
     float fReceivedMass;
     float fReceivedE;
 #endif
 
-
-#ifdef FEEDBACK
+#if defined(FEEDBACK) || defined(BLACKHOLES)
     float fAccFBEnergy;
 #endif
 
+#ifdef BLACKHOLES
+    // This could ideally be stored in a temporal buffer (pLite), but it has some
+    // limitations as it has to be shared when doing mdlAcquire.
+    struct {
+        int iPid;
+        int iIndex;
+    } BHAccretor;
+#endif
 
     uint8_t uWake;
 
@@ -207,7 +205,7 @@ struct NEWSPHFIELDS {
 struct STARFIELDS {
     double omega;
 #ifdef STELLAR_EVOLUTION
-    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
+    blitz::TinyVector<float,ELEMENT_COUNT> ElemAbun; /* Formation abundances */
     float fMetalAbun;            /* Formation metallicity */
     float fInitialMass;
     float fLastEnrichTime;
@@ -222,8 +220,12 @@ struct STARFIELDS {
 #endif
 
     float fTimer;  /* Time of formation */
+
+#ifdef FEEDBACK
+    int bCCSNFBDone;
+    int bSNIaFBDone;
     float fSNEfficiency;
-    int hasExploded; /* Has exploded as a supernova? */
+#endif
 };
 
 struct BHFIELDS {
@@ -237,6 +239,7 @@ struct BHFIELDS {
     double dFeedbackRate;
     double dAccEnergy;
     float fTimer;    /* Time of formation */
+    int   doReposition; // = 0 no; > 0 do it ; = 2 ignore gas criteria
 };
 
 #ifdef OPTIM_UNION_EXTRAFIELDS
@@ -471,14 +474,11 @@ public:
         return get<BHFIELDS>(p,PKD_FIELD::oBH);
 #endif
     }
-    auto pNeighborList( PARTICLE *p ) const {
-        return &get<SPHFIELDS>(p,PKD_FIELD::oSph).pNeighborList;
-    }
     auto Timer( PARTICLE *p ) const {
         return &get<STARFIELDS>(p,PKD_FIELD::oStar).fTimer;
     }
     auto is_deleted(PARTICLE *p) const {
-        return (species(p) == FIO_SPECIES_LAST);
+        return (species(p) == FIO_SPECIES_UNKNOWN);
     }
     auto isNew(PARTICLE *p) const {
         return (p->iOrder == IORDERMAX);
@@ -575,8 +575,6 @@ public:
         auto &newsph()      const { return store().newsph(p); }
         auto &star()        const { return store().star(p); }
         auto &BH()          const { return store().BH(p); }
-        // auto vPred()        const { return store().vPred(p); }
-        auto pNeighborList()const { return store().pNeighborList(p); }
         auto Timer()        const { return store().Timer(p); }
         auto isNew()        const { return store().isNew(p); }
         auto isMarked()     const { return store().isMarked(p); }
@@ -620,7 +618,7 @@ public:
     auto NewParticle() {
         assert(Local()<FreeStore());
         auto i = Local();
-        AddLocal(1);
+        SetLocal(Local()+1);
         auto p = ParticlePointer(*this,i);
         if (!bNoParticleOrder) p->set_order(IORDERMAX);
         return p;

@@ -58,11 +58,7 @@ static inline void get_redshift_index(const float z, int *z_index, float *dz,
                                       struct cooling_function_data *restrict cooling);
 
 void MSR::SetCoolingParam() {
-    const double dHydFrac = param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
-    if (!param.bRestart)
-        param.dCoolingFloorDen *= dnHToRho;
-    param.dCoolingFlooru = param.dCoolingFloorT*dTuFac;
+    calc.dCoolingMinu = parameters.get_dCoolingMinTemp() * dTuFacPrimNeutral;
 }
 
 /**
@@ -178,27 +174,27 @@ void MSR::CoolingInit(float redshift) {
 
     /* Read model parameters */
 
-    strcpy(cooling->cooling_table_path, param.achCoolingTables);
+    strcpy(cooling->cooling_table_path, parameters.get_achCoolingTables().data());
 
     /* Despite the names, the values of H_reion_heat_cgs and He_reion_heat_cgs
      * that are read in are actually in units of electron volts per proton mass.
      * We later convert to units just below */
 
-    if (redshift < param.fH_reion_z) {
+    cooling->H_reion_z = parameters.get_fH_reion_z();
+    if (redshift < cooling->H_reion_z) {
         cooling->H_reion_done = 1;
     }
     else {
         cooling->H_reion_done = 0;
     }
-    cooling->H_reion_z = param.fH_reion_z;
-    cooling->H_reion_heat_cgs = param.fH_reion_eV_p_H;
-    cooling->He_reion_z_centre = param.fHe_reion_z_centre;
-    cooling->He_reion_z_sigma = param.fHe_reion_z_sigma;
-    cooling->He_reion_heat_cgs = param.fHe_reion_eV_p_H;
+    cooling->H_reion_heat_cgs = parameters.get_fH_reion_eV_p_H();
+    cooling->He_reion_z_centre = parameters.get_fHe_reion_z_centre();
+    cooling->He_reion_z_sigma = parameters.get_fHe_reion_z_sigma();
+    cooling->He_reion_heat_cgs = parameters.get_fHe_reion_eV_p_H();
 
     /* Optional parameters to correct the abundances */
-    cooling->Ca_over_Si_ratio_in_solar = param.fCa_over_Si_in_Solar;
-    cooling->S_over_Si_ratio_in_solar = param.fS_over_Si_in_Solar;
+    cooling->Ca_over_Si_ratio_in_solar = calc.fCa_over_Si_in_Solar;
+    cooling->S_over_Si_ratio_in_solar = calc.fS_over_Si_in_Solar;
 
     /* Convert H_reion_heat_cgs and He_reion_heat_cgs to cgs
      * (units used internally by the cooling routines). This is done by
@@ -225,16 +221,17 @@ void MSR::CoolingInit(float redshift) {
     /* Compute conversion factors */
     // This is not ideal, and does not follow PKDGRAV3 philosophy... someday
     // it should be reworked
-    cooling->internal_energy_to_cgs = param.units.dErgPerGmUnit;
+    cooling->internal_energy_to_cgs = units.dErgPerGmUnit;
     cooling->internal_energy_from_cgs = 1. / cooling->internal_energy_to_cgs;
-    cooling->number_density_to_cgs = pow(param.units.dKpcUnit*KPCCM,-3.);
-    cooling->units = param.units;
-    cooling->dConstGamma = param.dConstGamma;
+    cooling->number_density_to_cgs = pow(units.dKpcUnit*KPCCM,-3.);
+    cooling->units = units;
+    cooling->dConstGamma = parameters.get_dConstGamma();
+    cooling->dCoolingMinu = calc.dCoolingMinu;
 
     /* Store some constants in CGS units */
     const double proton_mass_cgs = MHYDR;
     cooling->inv_proton_mass_cgs = 1. / proton_mass_cgs;
-    cooling->T_CMB_0 = param.fT_CMB_0;
+    cooling->T_CMB_0 = parameters.get_fT_CMB_0();
 
     const double compton_coefficient_cgs = 1.0178085e-37;
 
@@ -555,12 +552,11 @@ void cooling_cool_part(PKD pkd,
     /* IA: In our case we are using operator splitting so this is simpler */
     const float fMass = p.mass();
     double u_0 = psph->Uint / fMass;
+    if (u_0 < cooling->dCoolingMinu) u_0 = cooling->dCoolingMinu;
 
 
     /* Convert to CGS units */
     double u_0_cgs = u_0 * cooling->internal_energy_to_cgs;
-    if (u_0_cgs < 1e10)  u_0_cgs = 1e10;
-
     const double dt_cgs =  cooling->units.dSecUnit * dt;
 
     /* Change in redshift over the course of this time-step
@@ -575,7 +571,7 @@ void cooling_cool_part(PKD pkd,
     abundance_ratio_to_solar(psph, fMass, cooling, abundance_ratio);
 
     /* Get the Hydrogen and Helium mass fractions */
-    const float *const elem_mass = psph->afElemMass;
+    const auto &elem_mass = psph->ElemMass;
     //chemistry_get_metal_mass_fraction_for_cooling(p);
     const float XH = elem_mass[ELEMENT_H] / fMass;
     const float XHe = elem_mass[ELEMENT_He] / fMass;
@@ -630,14 +626,9 @@ void cooling_cool_part(PKD pkd,
     /* if cooling rate is small, take the explicit solution */
     if (fabs(ratefact_cgs * LambdaNet_cgs * dt_cgs) <
             explicit_tolerance * u_0_cgs) {
-
         u_final_cgs = u_0_cgs + ratefact_cgs * LambdaNet_cgs * dt_cgs;
-        //IA: This would be the second order scheme
-        //u_final_cgs = u_0_cgs + 0.5*(ratefact_cgs * LambdaNet_cgs + psph->lastCooling)* dt_cgs;
-
     }
     else {
-
         /* Otherwise, go the bisection route. */
         u_final_cgs =
             bisection_iter(u_0_cgs, n_H_cgs, redshift, n_H_index, d_n_H, He_index,
@@ -646,9 +637,8 @@ void cooling_cool_part(PKD pkd,
     }
 
     /* Convert back to internal units */
-    // IA: We set a minimum internal energy to avoid reaching the end of the table (~100 K)
-    if (u_final_cgs < 1e10) u_final_cgs = 2e10;
     double u_final = u_final_cgs * cooling->internal_energy_from_cgs;
+    if (u_final < cooling->dCoolingMinu) u_final = cooling->dCoolingMinu;
     psph->E = psph->E - psph->Uint;
     psph->Uint = u_final * fMass;
     psph->E = psph->E + psph->Uint;
@@ -656,29 +646,9 @@ void cooling_cool_part(PKD pkd,
 #ifdef ENTROPY_SWITCH
     psph->S = psph->Uint *
               (cooling->dConstGamma -1.) *
-              pow(pkdDensity(pkd,p), -cooling->dConstGamma+1);
+              pow(p.density(), -cooling->dConstGamma+1);
 #endif
 
-    /* We now need to check that we are not going to go below any of the limits */
-
-    /* Absolute minimum */
-    const double u_minimal = 0.0; /* IA: TODO define minimum temperature */ //hydro_properties->minimal_internal_energy;
-    u_final = std::max(u_final, u_minimal);
-
-    /* Expected change in energy over the next kick step
-       (assuming no change in dt) */
-    const float u_floor = 0.;
-    const double delta_u = u_final - std::max(u_start, u_floor);
-
-    /* Turn this into a rate of change (including cosmology term) */
-    const float cooling_du_dt = delta_u / dt;
-
-    /* Update the internal energy time derivative */
-    // IA: TODO, do we use this?
-    psph->cooling_dudt = cooling_du_dt;
-
-    /* Store the radiated energy */
-    //xp->cooling_data.radiated_energy -= hydro_get_mass(p) * cooling_du_dt * dt;
 }
 
 /**
@@ -764,7 +734,7 @@ float cooling_get_temperature(PKD pkd, const float redshift,
     //printf("u_cgs %e \n", u_cgs);
 
     /* Get the Hydrogen and Helium mass fractions */
-    const float *const elem_mass = psph->afElemMass;
+    const auto &elem_mass = psph->ElemMass;
     //chemistry_get_metal_mass_fraction_for_cooling(p);
     const float XH = elem_mass[ELEMENT_H] / fMass;
     const float XHe = elem_mass[ELEMENT_He] / fMass;
@@ -797,6 +767,9 @@ float cooling_get_temperature(PKD pkd, const float redshift,
     /* Undo the log! */
     return exp(log_10_T * M_LN10);
 }
+#ifdef __cplusplus
+}
+#endif
 
 /**
  * @brief Returns the total radiated energy by this particle.
@@ -846,13 +819,13 @@ void cooling_Hydrogen_reionization(PKD pkd) {
             const double old_u = sph.Uint ;
 
             /* IA: Mass in hydrogen */
-            const double extra_heat = extra_heat_per_proton * sph.afElemMass[ELEMENT_H];
+            const double extra_heat = extra_heat_per_proton * sph.ElemMass[ELEMENT_H];
             const double new_u = old_u + extra_heat;
 
             //printf("Applying extra energy for H reionization! U=%e dU=%e \n", old_u, extra_heat);
 #ifdef ENTROPY_SWITCH
             sph.S += extra_heat * (cooling->dConstGamma-1.) *
-                     pow(pkdDensity(pkd,p), -cooling->dConstGamma+1);
+                     pow(p.density(), -cooling->dConstGamma+1);
 #endif
 
             //hydro_set_physical_internal_energy(p, xp, cosmo, new_u);
@@ -1049,6 +1022,3 @@ void cooling_clean(struct cooling_function_data *cooling) {
 //
 //  cooling_restore_tables(cooling, cosmo);
 //}
-#ifdef __cplusplus
-}
-#endif

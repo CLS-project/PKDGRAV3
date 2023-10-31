@@ -29,7 +29,6 @@
 #define MASTER_MODULE_NAME "MASTER"
 #define MASTER_TYPE_NAME "MSR"
 
-
 /******************************************************************************\
 *   Flush stdout and stderr
 \******************************************************************************/
@@ -54,7 +53,6 @@ static void flush_std_files(void) {
 \******************************************************************************/
 
 void MSR::SaveParameters() {
-    parameters.prm2ppy(prm);
 }
 
 /******************************************************************************\
@@ -75,7 +73,6 @@ static struct PyModuleDef msrModule = {
     NULL, // Slots
     NULL, NULL, NULL
 };
-
 
 /******************************************************************************\
 *   Ephemeral OBJECT Instance
@@ -245,7 +242,6 @@ bool MSR::setParameters(PyObject *kwobj,bool bIgnoreUnknown) {
     auto allow = PyDict_GetItemString(kwobj,"bIgnoreUnknown");
     if (allow) bIgnoreUnknown = PyObject_IsTrue(allow)>0;
     auto bSuccess = parameters.update(kwobj,bIgnoreUnknown);
-    parameters.ppy2prm(prm);
     ValidateParameters();
     return bSuccess;
 }
@@ -358,7 +354,6 @@ static int run_script(MSRINSTANCE *self,const char *filename) {
     }
     return 0;
 }
-
 
 static PyObject *
 ppy_msr_load_checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
@@ -579,7 +574,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char const *kwlist[]= {"time","delta","theta","rung","ewald","step","KickClose","KickOpen", "onlyMarked", NULL};
     double dTime = 0.0;
     double dDelta = 0.0;
-    // double dTheta = msr->param.dTheta;
+    // double dTheta = msr->parameters.get_dTheta();
     double dTheta = 0.7;
 
     int bEwald = msr->parameters.get_bEwald();
@@ -598,10 +593,11 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         return NULL;
     if (onlyMarked) iRoot2 = FIXROOT;
 
-    SPHOptions SPHoptions = initializeSPHOptions(msr->param,msr->csm,dTime);
-    SPHoptions.doGravity = msr->param.bDoGravity;
+    SPHOptions SPHoptions = initializeSPHOptions(msr->parameters,msr->csm,dTime);
+    SPHoptions.doGravity = msr->parameters.get_bDoGravity();
     uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,bKickClose,bKickOpen,bEwald,
-                                    msr->param.bGravStep, msr->param.nPartRhoLoc, msr->param.iTimeStepCrit, SPHoptions);
+                                    msr->parameters.get_bGravStep(), msr->parameters.get_nPartRhoLoc(),
+                                    msr->parameters.get_iTimeStepCrit(), SPHoptions);
     return Py_BuildValue("i", uRungMax);
 }
 
@@ -616,7 +612,7 @@ ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int bResmooth = 0;
     double dTime = 0.0;
     double dDelta = 0.0;
-    int nSmooth = self->msr->param.nSmooth;
+    int nSmooth = self->msr->parameters.get_nSmooth();
 
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "i|ipddp:Smooth", const_cast<char **>(kwlist),
@@ -783,28 +779,23 @@ ppy_msr_add_linear_signal(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     Py_RETURN_NONE;
 }
 
-
 static PyObject *
 ppy_msr_grid_bin_k(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"source", "bins",NULL};
     int nBins = -1;
     int iGrid;
-    std::vector<float> fK,fPk;
-    std::vector<uint64_t> nK;
 
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "ii:grid_bin_k", const_cast<char **>(kwlist),
                 &iGrid, &nBins ) )
         return NULL;
-    fPk.resize(nBins+1);
-    fK.resize(nBins+1);
-    nK.resize(nBins+1);
-    self->msr->GridBinK(nBins,iGrid,nK.data(),fK.data(),fPk.data());
-    auto ListK = PyList_New( nBins+1 );
-    auto ListPk = PyList_New( nBins+1 );
-    auto ListNk = PyList_New( nBins+1 );
-    for ( auto i=0; i<=nBins; i++ ) {
+
+    auto [nK,fK,fPk] = self->msr->GridBinK(nBins,iGrid);
+    auto ListK = PyList_New( nBins );
+    auto ListPk = PyList_New( nBins );
+    auto ListNk = PyList_New( nBins );
+    for ( auto i=0; i<nBins; i++ ) {
         PyList_SetItem(ListK,i,Py_BuildValue("f",fK[i]));
         PyList_SetItem(ListPk,i,Py_BuildValue("f",fPk[i]));
         PyList_SetItem(ListNk,i,Py_BuildValue("L",nK[i]));
@@ -821,8 +812,6 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int bInterlace = 1;
     int iOrder = 4;
     int nGrid, i;
-    std::vector<float> fK,fPk,fPkAll;
-    std::vector<uint64_t> nK;
 
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "i|idpi:MeasurePk", const_cast<char **>(kwlist),
@@ -830,11 +819,7 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         return NULL;
     if (nBins<0) nBins = nGrid/2;
 
-    fPk.resize(nBins+1);
-    fPkAll.resize(nBins+1);
-    fK.resize(nBins+1);
-    nK.resize(nBins+1);
-    self->msr->MeasurePk(iOrder,bInterlace,nGrid,a,nBins,nK.data(),fK.data(),fPk.data(),fPkAll.data());
+    auto [nK,fK,fPk,fPkAll] = self->msr->MeasurePk(iOrder,bInterlace,nGrid,a,nBins);
     auto ListK = PyList_New( nBins+1 );
     auto ListPk = PyList_New( nBins+1 );
     auto ListPkAll = PyList_New( nBins+1 );
@@ -1414,7 +1399,6 @@ static PyObject *initModuleMSR(void) {
     return msr_module;
 }
 
-
 /******************************************************************************\
 *   Analysis callback
 \******************************************************************************/
@@ -1457,12 +1441,12 @@ int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("PKDGRAV",PyInit_PKDGRAV);
     PyImport_AppendInittab("cosmology",PyInit_cosmology);
-    PKDGRAV_msr0 = this;
     PyImport_AppendInittab("CSM",PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
     PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
     PyImport_AppendInittab("accuracy", PyInit_accuracy);
-#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
+
+    PKDGRAV_msr0 = this;
     PyStatus status;
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
@@ -1471,7 +1455,6 @@ int MSR::Python(int argc, char *argv[]) {
     config.user_site_directory = 1;
     config.parse_argv = 0;
     status = PyConfig_SetBytesArgv(&config, argc, argv);
-#endif
     // I don't like this, but it works for pyenv. See:
     //   https://bugs.python.org/issue22213
     //   https://www.python.org/dev/peps/pep-0432/
@@ -1479,23 +1462,11 @@ int MSR::Python(int argc, char *argv[]) {
     if (PYENV_VIRTUAL_ENV) {
         std::string exec = PYENV_VIRTUAL_ENV;
         exec += "/bin/python";
-#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
         status = PyConfig_SetBytesString(&config,&config.program_name,exec.c_str());
-#else
-        Py_SetProgramName(Py_DecodeLocale(exec.c_str(),NULL));
-#endif
     }
-#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
     status = Py_InitializeFromConfig(&config);
     PyConfig_Clear(&config);
-#else
-    Py_InitializeEx(0);
-    // Convert program arguments to unicode
-    auto wargv = new wchar_t *[argc];
-    for (int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
-    PySys_SetArgv(argc, wargv);
-    delete[] wargv;
-#endif
+
     // Contruct the "MSR" context and module
     auto msr_module = PyModule_Create(&msrModule);
     PyState_AddModule(msr_module,&msrModule);
@@ -1508,7 +1479,6 @@ int MSR::Python(int argc, char *argv[]) {
     auto globals = PyModule_GetDict(main_module);
     auto locals = globals;
     PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
-
 
     if (!PyImport_ImportModule("checkpoint")) {
         PyErr_Print();
@@ -1538,7 +1508,6 @@ int MSR::Python(int argc, char *argv[]) {
     Py_DECREF(result);
     PyObject *script = PyObject_GetAttrString(arguments,"script");
 
-    parameters.ppy2prm(prm); // Update the pkdgrav parameter state
     bVDetails = parameters.get_bVDetails();
 
     // If a script was specified then we run it.
@@ -1595,7 +1564,6 @@ int MSR::Python(int argc, char *argv[]) {
             PyErr_Print();
             exit(1);
         }
-        parameters.ppy2prm(prm); // Update the pkdgrav parameter state
         bVDetails = parameters.get_bVDetails();
     }
 

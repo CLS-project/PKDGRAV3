@@ -2,10 +2,6 @@
 
 #include "pst.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define STEV_CCSN_N_METALLICITY               5
 #define STEV_CCSN_N_MASS                     11
 #define STEV_AGB_N_METALLICITY                3
@@ -26,7 +22,7 @@ extern "C" {
 
 typedef struct StellarEvolutionData {
     /* Pointer to function that gives the number of SNIa per Msol in [fInitialTime, fFinalTime] */
-    float (*fcnNumSNIa)(SMF *smf, STARFIELDS *pStar, float fInitialTime, float fFinalTime);
+    float (*fcnNumSNIa)(SMF *smf, STARFIELDS &star, float fInitialTime, float fFinalTime);
 
     /* Initial mass array for CCSN and AGB tables */
     float afInitialMass[STEV_INTERP_N_MASS];
@@ -82,6 +78,22 @@ struct inStellarEvolutionInit {
     STEV_DATA StelEvolData;
 };
 
+
+struct stevPack {
+    blitz::TinyVector<double,3> position;
+    float fDensity;
+    uint8_t iClass;
+};
+
+
+struct stevFlush {
+    blitz::TinyVector<float,3> ReceivedMom;
+    float fReceivedMass;
+    float fReceivedE;
+    blitz::TinyVector<float,ELEMENT_COUNT> ElemMass;
+    float fMetalMass;
+};
+
 /*
  * --------------
  * MAIN FUNCTIONS
@@ -90,13 +102,14 @@ struct inStellarEvolutionInit {
 
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
-void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, SPHFIELDS *, const double);
+void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, SPHFIELDS &, const double);
 
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
-void initChemEnrich(void *vpkd, void *vp);
-void combChemEnrich(void *vpkd, void *vp1, const void *vp2);
-
-
+void packChemEnrich(void *vpkd, void *dst, const void *src);
+void unpackChemEnrich(void *vpkd, void *dst, const void *src);
+void initChemEnrich(void *vpkd, void *dst);
+void flushChemEnrich(void *vpkd, void *dst, const void *src);
+void combChemEnrich(void *vpkd, void *dst, const void *src);
 
 /*
  * ----------------
@@ -111,8 +124,8 @@ void stevFreeTable(STEV_RAWDATA *);
 void stevFreeSNIaTable(STEV_RAWDATA *);
 void stevFreeLifetimeTable(STEV_RAWDATA *);
 
-float stevExponentialNumSNIa(SMF *, STARFIELDS *, float, float);
-float stevPowerlawNumSNIa(SMF *, STARFIELDS *, float, float);
+float stevExponentialNumSNIa(SMF *, STARFIELDS &, float, float);
+float stevPowerlawNumSNIa(SMF *, STARFIELDS &, float, float);
 
 
 
@@ -121,36 +134,6 @@ float stevPowerlawNumSNIa(SMF *, STARFIELDS *, float, float);
  * INLINES
  * -------
  */
-
-static inline void stevChabrierIMF(const double *restrict pdMass, const int nSize,
-                                   const double dMinMass, const double dMaxMass,
-                                   double *restrict pdIMF) {
-    const double dMc = 0.079;
-    const double dSigma = 0.69;
-    const double dSlope = -2.3;
-
-    const double dLogMc = log10(dMc);
-    const double dSigmaSq = dSigma * dSigma;
-    const double dConstFac = exp(-0.5 * dLogMc * dLogMc / dSigmaSq);
-
-    const double dLogNormInt = sqrt(0.5 * M_PI) * exp(0.5 * dSigmaSq * M_LN10 * M_LN10) *
-                               M_LN10 * dSigma * dMc *
-                               (erf((-dLogMc / dSigma - M_LN10 * dSigma) / sqrt(2.0)) -
-                                erf(((log10(dMinMass) - dLogMc) / dSigma - M_LN10 * dSigma) /
-                                    sqrt(2.0)));
-    const double dPowerLawInt = dConstFac * (pow(dMaxMass, dSlope + 2.0) - 1.0) / (dSlope + 2.0);
-
-    const double dLogNormFac = 1.0 / (dLogNormInt + dPowerLawInt);
-    const double dPowerLawFac = dLogNormFac * dConstFac;
-    for (int i = 0; i < nSize; i++) {
-        if (pdMass[i] < 1.0)
-            pdIMF[i] = dLogNormFac * exp(-0.5 * pow(log10(pdMass[i]) - dLogMc, 2.0) / dSigmaSq) /
-                       pdMass[i];
-        else
-            pdIMF[i] = dPowerLawFac * pow(pdMass[i], dSlope);
-    }
-}
-
 
 static inline void stevGetIndex1D(const float *restrict pfTable, const int nSize,
                                   const float fVal, int *restrict piIdx,
@@ -171,7 +154,7 @@ static inline void stevGetIndex1D(const float *restrict pfTable, const int nSize
     else {
         /* Normal case */
         int i;
-        for (i = 1; (i < nSize - 1) && (fVal > pfTable[i]); i++)
+        for (i = 1; (i < nSize - 1) && (fVal > pfTable[i]); ++i)
             ;
 
         *piIdx = --i;
@@ -234,19 +217,19 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
        and EjectedMass arrays, on the other hand, are ordered as (Metallicity, Mass).
        To change this, the arguments of every call to stevRowMajorIndex that set the
        variable iData must be swapped appropriately. */
-    int i, j, k, iMass, iTable, iData;
-    float fDeltaMass, fLogMass;
+    int iMass, iTable, iData;
+    float fDeltaMass;
 
     const int iCCSNMinMass = stevGetIMFMassIndex(Data->afInitialMass, STEV_INTERP_N_MASS,
                              fCCSNMinMass, STEV_INTERP_N_MASS - 1);
 
-    for (i = 0; i < STEV_INTERP_N_MASS; i++) {
-        fLogMass = log10(Data->afInitialMass[i]);
+    for (auto i = 0; i < STEV_INTERP_N_MASS; ++i) {
+        const float fLogMass = log10(Data->afInitialMass[i]);
         if (i <= iCCSNMinMass) {
             stevGetIndex1D(AGB->pfInitialMass, STEV_AGB_N_MASS, fLogMass, &iMass, &fDeltaMass);
 
-            for (j = 0; j < ELEMENT_COUNT; j++) {
-                for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+            for (auto j = 0; j < ELEMENT_COUNT; ++j) {
+                for (auto k = 0; k < STEV_CCSN_N_METALLICITY; ++k) {
                     iData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
                                               STEV_INTERP_N_MASS, ELEMENT_COUNT);
                     if (i < iCCSNMinMass) {
@@ -259,7 +242,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                     }
                 }
 
-                for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+                for (auto k = 0; k < STEV_AGB_N_METALLICITY; ++k) {
                     iTable = stevRowMajorIndex(k, j, iMass, STEV_AGB_N_METALLICITY,
                                                ELEMENT_COUNT, STEV_AGB_N_MASS);
                     iData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
@@ -272,7 +255,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                 }
             }
 
-            for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+            for (auto k = 0; k < STEV_CCSN_N_METALLICITY; ++k) {
                 iData = stevRowMajorIndex(k, i, 0, STEV_CCSN_N_METALLICITY,
                                           STEV_INTERP_N_MASS, 1);
                 if (i < iCCSNMinMass) {
@@ -287,7 +270,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                 }
             }
 
-            for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+            for (auto k = 0; k < STEV_AGB_N_METALLICITY; ++k) {
                 iTable = stevRowMajorIndex(k, iMass, 0, STEV_AGB_N_METALLICITY,
                                            STEV_AGB_N_MASS, 1);
                 iData = stevRowMajorIndex(k, i, 0, STEV_AGB_N_METALLICITY,
@@ -305,8 +288,8 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
         else {
             stevGetIndex1D(CCSN->pfInitialMass, STEV_CCSN_N_MASS, fLogMass, &iMass, &fDeltaMass);
 
-            for (j = 0; j < ELEMENT_COUNT; j++) {
-                for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+            for (auto j = 0; j < ELEMENT_COUNT; ++j) {
+                for (auto k = 0; k < STEV_CCSN_N_METALLICITY; ++k) {
                     iTable = stevRowMajorIndex(k, j, iMass, STEV_CCSN_N_METALLICITY,
                                                ELEMENT_COUNT, STEV_CCSN_N_MASS);
                     iData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
@@ -318,7 +301,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                                                CCSN->pfYield[iTable + 1] * fDeltaMass;
                 }
 
-                for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+                for (auto k = 0; k < STEV_AGB_N_METALLICITY; ++k) {
                     iData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
                                               STEV_INTERP_N_MASS, ELEMENT_COUNT);
                     if (i > iCCSNMinMass + 1) {
@@ -332,7 +315,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                 }
             }
 
-            for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+            for (auto k = 0; k < STEV_CCSN_N_METALLICITY; ++k) {
                 iTable = stevRowMajorIndex(k, iMass, 0, STEV_CCSN_N_METALLICITY,
                                            STEV_CCSN_N_MASS, 1);
                 iData = stevRowMajorIndex(k, i, 0, STEV_CCSN_N_METALLICITY,
@@ -349,7 +332,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                     CCSN->pfEjectedMass[iTable + 1] * fDeltaMass;
             }
 
-            for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+            for (auto k = 0; k < STEV_AGB_N_METALLICITY; ++k) {
                 iData = stevRowMajorIndex(k, i, 0, STEV_AGB_N_METALLICITY,
                                           STEV_INTERP_N_MASS, 1);
                 if (i > iCCSNMinMass + 1) {
@@ -381,7 +364,7 @@ static inline void stevInterpolateXAxis(const float *restrict pfTable, const int
     const float *restrict pfLower = pfTable + iOffset * nZ;
     const float *restrict pfUpper = pfLower + nY * nZ;
 
-    for (int i = 0; i < nSize * nZ; i++)
+    for (int i = 0; i < nSize * nZ; ++i)
         pfResult[i] = pfLower[i] * (1.0f - fWeight) + pfUpper[i] * fWeight;
 }
 
@@ -395,11 +378,11 @@ static inline void stevComputeAndCorrectSimulEjecta(
     float *restrict pfMetalEjMass) {
 
     int i;
-    for (i = 0; i < nElems; i++)
+    for (i = 0; i < nElems; ++i)
         pfElemEjMass[i] = pfYield[i] + pfElemAbun[i] * fEjectedMass;
     *pfMetalEjMass = fMetalYield + fMetalAbun * fEjectedMass;
 
-    for (i = 0; i < nElems; i++) {
+    for (i = 0; i < nElems; ++i) {
         if (pfElemEjMass[i] < 0.0f) {
             if (i != ELEMENT_H && i != ELEMENT_He) *pfMetalEjMass -= pfElemEjMass[i];
             pfElemEjMass[i] = 0.0f;
@@ -410,7 +393,7 @@ static inline void stevComputeAndCorrectSimulEjecta(
     const float fTotalMass = pfElemEjMass[ELEMENT_H] + pfElemEjMass[ELEMENT_He] +
                              *pfMetalEjMass;
     const float fNormFactor = fEjectedMass / fTotalMass;
-    for (i = 0; i < nElems; i++) pfElemEjMass[i] *= fNormFactor;
+    for (i = 0; i < nElems; ++i) pfElemEjMass[i] *= fNormFactor;
     *pfMetalEjMass *= fNormFactor;
 }
 
@@ -448,7 +431,7 @@ static inline void stevComputeMassToEject(
        of stevComputeAndCorrectSimulEjecta must be removed */
     float afElemSimulEjecta[nSize * nElems];
     float afMetalSimulEjecta[nSize];
-    for (i = 0, j = 0; i < nSize; i++, j += nElems) {
+    for (i = 0, j = 0; i < nSize; ++i, j += nElems) {
         stevComputeAndCorrectSimulEjecta(afInterpYield + j, afInterpMetalYield[i],
                                          afInterpEjectedMass[i], nElems, pfElemAbun, fMetalAbun,
                                          afElemSimulEjecta + j, afMetalSimulEjecta + i);
@@ -457,8 +440,8 @@ static inline void stevComputeMassToEject(
     pfIMFLogWeight += iStart;
     pfInitialMass += iStart;
 
-    for (i = 0, j = 0; i < nSize; i++) {
-        for (k = 0; k < nElems; j++, k++)
+    for (i = 0, j = 0; i < nSize; ++i) {
+        for (k = 0; k < nElems; ++j, ++k)
             afElemSimulEjecta[j] *= pfIMFLogWeight[i];
         afMetalSimulEjecta[i] *= pfIMFLogWeight[i];
     }
@@ -469,28 +452,28 @@ static inline void stevComputeMassToEject(
     float afElemMassTemp[nElems], fMetalMassTemp;
 
     /* Contribution from the first and last values */
-    for (i = 0; i < nElems; i++) {
+    for (i = 0; i < nElems; ++i) {
         afElemMassTemp[i] = 0.5f * (afElemSimulEjecta[i] +
                                     afElemSimulEjecta[i + (nSize - 1) * nElems]);
     }
     fMetalMassTemp = 0.5f * (afMetalSimulEjecta[0] + afMetalSimulEjecta[nSize - 1]);
 
     /* Contribution from the middle values */
-    for (i = 1, j = nElems; i < nSize - 1; i++) {
-        for (k = 0; k < nElems; j++, k++)
+    for (i = 1, j = nElems; i < nSize - 1; ++i) {
+        for (k = 0; k < nElems; ++j, ++k)
             afElemMassTemp[k] += afElemSimulEjecta[j];
         fMetalMassTemp += afMetalSimulEjecta[i];
     }
 
     /* Multiply by the logarithm of the spacing */
-    for (i = 0; i < nElems; i++)
+    for (i = 0; i < nElems; ++i)
         afElemMassTemp[i] *= fDeltaLogMass;
     fMetalMassTemp *= fDeltaLogMass;
 
     /* Correction for initial and final values mismatch */
     const float fWeightStart = log10f(fMassStart / pfInitialMass[0]);
     const float fWeightEnd = log10f(pfInitialMass[nSize - 1] / fMassEnd);
-    for (i = 0; i < nElems; i++) {
+    for (i = 0; i < nElems; ++i) {
         afElemMassTemp[i] -=
             0.5f * (fWeightStart * (afElemSimulEjecta[i] +
                                     afElemSimulEjecta[i + nElems]) +
@@ -504,21 +487,21 @@ static inline void stevComputeMassToEject(
                               afMetalSimulEjecta[nSize - 1]));
 
     /* Multiply by natural logarithm of 10 */
-    for (i = 0; i < nElems; i++)
+    for (i = 0; i < nElems; ++i)
         pfElemMass[i] += M_LN10 * afElemMassTemp[i];
     *pfMetalMass += M_LN10 * fMetalMassTemp;
 }
 
 
-static inline float stevLifetimeFunction(PKD pkd, STARFIELDS *pStar, const double dMass) {
+static inline float stevLifetimeFunction(PKD pkd, STARFIELDS &star, const double dMass) {
     int iMass;
     float fDeltaMass;
     stevGetIndex1D(pkd->StelEvolData->afLifetimeInitialMass, STEV_LIFETIME_N_MASS,
                    log10(dMass), &iMass, &fDeltaMass);
 
-    const float fDeltaZ = pStar->Lifetime.fDeltaZ;
+    const float fDeltaZ = star.Lifetime.fDeltaZ;
 
-    const float *afTimeLowerZ = pkd->StelEvolData->afLifetime + pStar->Lifetime.oZ;
+    const float *afTimeLowerZ = pkd->StelEvolData->afLifetime + star.Lifetime.oZ;
     const float *afTimeUpperZ = afTimeLowerZ + STEV_LIFETIME_N_MASS;
 
     float fLogTime = afTimeLowerZ[iMass] * (1.0f - fDeltaZ) * (1.0f - fDeltaMass) +
@@ -530,8 +513,8 @@ static inline float stevLifetimeFunction(PKD pkd, STARFIELDS *pStar, const doubl
 }
 
 
-static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, const float fTime) {
-    const float *afTimeLowerZ = pkd->StelEvolData->afLifetime + pStar->Lifetime.oZ;
+static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS &star, const float fTime) {
+    const float *afTimeLowerZ = pkd->StelEvolData->afLifetime + star.Lifetime.oZ;
     const float *afTimeUpperZ = afTimeLowerZ + STEV_LIFETIME_N_MASS;
 
     int iTimeLowerZ;
@@ -544,7 +527,7 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, cons
     stevGetIndex1DReversed(afTimeUpperZ, STEV_LIFETIME_N_MASS, log10(fTime),
                            &iTimeUpperZ, &fDeltaTimeUpperZ);
 
-    const float fDeltaZ = pStar->Lifetime.fDeltaZ;
+    const float fDeltaZ = star.Lifetime.fDeltaZ;
     const float *afMass = pkd->StelEvolData->afLifetimeInitialMass;
 
     float fLogMass = afMass[iTimeLowerZ] * (1.0f - fDeltaZ) * (1.0f - fDeltaTimeLowerZ) +
@@ -559,11 +542,11 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, cons
 /* Function that estimates the time it will take a star particle to lose all
  * its initial mass by estimating its current ejecta rate. This is then used
  * to compute the time it needs to eject fMinMassFrac of its mass. */
-static inline float stevComputeFirstEnrichTime(PKD pkd, STARFIELDS *pStar,
+static inline float stevComputeFirstEnrichTime(PKD pkd, STARFIELDS &star,
         const double dCCSNMinMass) {
     const float fMinMassFrac = 1e-3f;
 
-    const int iEnd = pStar->iLastEnrichMass;
+    const int iEnd = star.iLastEnrichMass;
     const int iStart = iEnd - 1;
     const float fMassStart = pkd->StelEvolData->afInitialMass[iStart];
     const float fMassEnd = pkd->StelEvolData->afInitialMass[iEnd];
@@ -571,32 +554,32 @@ static inline float stevComputeFirstEnrichTime(PKD pkd, STARFIELDS *pStar,
     float afTblEjMass[2];
     if (fMassStart > dCCSNMinMass) {
         stevInterpolateXAxis(pkd->StelEvolData->afCCSNEjectedMass, STEV_INTERP_N_MASS,
-                             1, 2, pStar->CCSN.oZ + iStart, pStar->CCSN.fDeltaZ, afTblEjMass);
+                             1, 2, star.CCSN.oZ + iStart, star.CCSN.fDeltaZ, afTblEjMass);
     }
     else {
         stevInterpolateXAxis(pkd->StelEvolData->afAGBEjectedMass, STEV_INTERP_N_MASS,
-                             1, 2, pStar->AGB.oZ + iStart, pStar->AGB.fDeltaZ, afTblEjMass);
+                             1, 2, star.AGB.oZ + iStart, star.AGB.fDeltaZ, afTblEjMass);
     }
     const float *const pfIMFLogWeight = pkd->StelEvolData->afIMFLogWeight + iStart;
     const float fEjMassFrac = 0.5f * M_LN10 * pkd->StelEvolData->fDeltaLogMass *
                               (afTblEjMass[0] * pfIMFLogWeight[0] +
                                afTblEjMass[1] * pfIMFLogWeight[1]);
 
-    const float fTimeStart = stevLifetimeFunction(pkd, pStar, fMassEnd);
-    const float fTimeEnd = stevLifetimeFunction(pkd, pStar, fMassStart);
+    const float fTimeStart = stevLifetimeFunction(pkd, star, fMassEnd);
+    const float fTimeEnd = stevLifetimeFunction(pkd, star, fMassStart);
     const float fDepletionTime = (fTimeEnd - fTimeStart) / fEjMassFrac;
-    float fNextTime = pStar->fLastEnrichTime + fMinMassFrac * fDepletionTime;
+    float fNextTime = star.fLastEnrichTime + fMinMassFrac * fDepletionTime;
 
     /* Here we make sure fNextTime is beyond the numerical artifacts of the
      * Lifetime and Inverse Lifetime functions */
-    float fMass = stevInverseLifetimeFunction(pkd, pStar, fNextTime);
+    float fMass = stevInverseLifetimeFunction(pkd, star, fNextTime);
     const float fStep = 1.05f;
-    while (fMass > pStar->fLastEnrichMass) {
+    while (fMass > star.fLastEnrichMass) {
         fNextTime *= fStep;
-        fMass = stevInverseLifetimeFunction(pkd, pStar, fNextTime);
+        fMass = stevInverseLifetimeFunction(pkd, star, fNextTime);
     }
 
-    return pStar->fTimer + fNextTime;
+    return star.fTimer + fNextTime;
 }
 
 
@@ -611,52 +594,48 @@ static inline float stevComputeNextEnrichTime(const float fTime, const float fSt
 }
 
 
-static inline void stevStarParticleInit(PKD pkd, STARFIELDS *pStar, const double dSNIaMaxMass,
+static inline void stevStarParticleInit(PKD pkd, STARFIELDS &star, const double dSNIaMaxMass,
                                         const double dCCSNMinMass, const double dCCSNMaxMass) {
     int iZ;
     float fLogZ;
-    if (pStar->fMetalAbun > 0.0f)
-        fLogZ = log10f(pStar->fMetalAbun);
+    if (star.fMetalAbun > 0.0f)
+        fLogZ = log10f(star.fMetalAbun);
     else
         fLogZ = STEV_MIN_LOG_METALLICITY;
 
     stevGetIndex1D(pkd->StelEvolData->afCCSNMetallicity, STEV_CCSN_N_METALLICITY,
-                   fLogZ, &iZ, &pStar->CCSN.fDeltaZ);
-    pStar->CCSN.oZ = iZ * STEV_INTERP_N_MASS;
+                   fLogZ, &iZ, &star.CCSN.fDeltaZ);
+    star.CCSN.oZ = iZ * STEV_INTERP_N_MASS;
     stevGetIndex1D(pkd->StelEvolData->afAGBMetallicity, STEV_AGB_N_METALLICITY,
-                   fLogZ, &iZ, &pStar->AGB.fDeltaZ);
-    pStar->AGB.oZ = iZ * STEV_INTERP_N_MASS;
+                   fLogZ, &iZ, &star.AGB.fDeltaZ);
+    star.AGB.oZ = iZ * STEV_INTERP_N_MASS;
     stevGetIndex1D(pkd->StelEvolData->afLifetimeMetallicity, STEV_LIFETIME_N_METALLICITY,
-                   fLogZ, &iZ, &pStar->Lifetime.fDeltaZ);
-    pStar->Lifetime.oZ = iZ * STEV_LIFETIME_N_MASS;
+                   fLogZ, &iZ, &star.Lifetime.fDeltaZ);
+    star.Lifetime.oZ = iZ * STEV_LIFETIME_N_MASS;
 
-    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, dSNIaMaxMass);
+    star.fSNIaOnsetTime = stevLifetimeFunction(pkd, star, dSNIaMaxMass);
 
-    const float fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, dCCSNMaxMass);
-    if (pStar->fLastEnrichTime < fCCSNOnsetTime) {
-        pStar->fLastEnrichTime = fCCSNOnsetTime;
-        pStar->fLastEnrichMass = dCCSNMaxMass;
-        pStar->iLastEnrichMass = STEV_INTERP_N_MASS - 1;
+    const float fCCSNOnsetTime = stevLifetimeFunction(pkd, star, dCCSNMaxMass);
+    if (star.fLastEnrichTime < fCCSNOnsetTime) {
+        star.fLastEnrichTime = fCCSNOnsetTime;
+        star.fLastEnrichMass = dCCSNMaxMass;
+        star.iLastEnrichMass = STEV_INTERP_N_MASS - 1;
     }
     else {
-        pStar->fLastEnrichMass = stevInverseLifetimeFunction(pkd, pStar, pStar->fLastEnrichTime);
-        if (pStar->fLastEnrichMass < dCCSNMaxMass) {
-            pStar->iLastEnrichMass =
+        star.fLastEnrichMass = stevInverseLifetimeFunction(pkd, star, star.fLastEnrichTime);
+        if (star.fLastEnrichMass < dCCSNMaxMass) {
+            star.iLastEnrichMass =
                 stevGetIMFMassIndex(pkd->StelEvolData->afInitialMass, STEV_INTERP_N_MASS,
-                                    pStar->fLastEnrichMass, STEV_INTERP_N_MASS - 1) + 1;
+                                    star.fLastEnrichMass, STEV_INTERP_N_MASS - 1) + 1;
         }
         else {
-            pStar->fLastEnrichTime = fCCSNOnsetTime;
-            pStar->fLastEnrichMass = dCCSNMaxMass;
-            pStar->iLastEnrichMass = STEV_INTERP_N_MASS - 1;
+            star.fLastEnrichTime = fCCSNOnsetTime;
+            star.fLastEnrichMass = dCCSNMaxMass;
+            star.iLastEnrichMass = STEV_INTERP_N_MASS - 1;
         }
     }
 
-    pStar->fNextEnrichTime = stevComputeFirstEnrichTime(pkd, pStar, dCCSNMinMass);
+    star.fNextEnrichTime = stevComputeFirstEnrichTime(pkd, star, dCCSNMinMass);
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  /* STELLAR_EVOLUTION */

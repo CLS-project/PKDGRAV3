@@ -8,6 +8,18 @@ pipelines:
           - cmake .
           - make
   pull-requests:
+    'PKDGRAV-*':
+       - step:
+           script:
+             - >
+               cmake -DCOOLING=on
+               -DSTAR_FORMATION=on
+               -DFEEDBACK=on
+               -DEEOS_POLYTROPE=on
+               -DBLACKHOLES=on
+               -DSTELLAR_EVOLUTION=on
+               .
+             - make
     '**':
       - step:
            size: 2x
@@ -47,7 +59,7 @@ pipelines:
              - ln -s /build/sph-data/* ./
              - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
 
-     IA_dev_optim:
+     iac-hydro:
        - step:
            size: 2x
            script:
