@@ -108,6 +108,8 @@ typedef enum {
 #define FIO_FLAG_POTENTIAL     32 /* Include the potential */
 #define FIO_FLAG_DENSITY       64 /* Include the density */
 #define FIO_FLAG_ID           128
+#define FIO_FLAG_GLOBAL_SOFT  256
+#define FIO_FLAG_UNORDERED    512
 
 typedef enum {
     FIO_MODE_READING,

@@ -3210,16 +3210,28 @@ static void class_open(IOCLASS *ioClass, hid_t groupID) {
     field_open(&ioClass->fldSoft,groupID, FIELD_SOFTENING, H5T_NATIVE_FLOAT, 1 );
 }
 
-static void class_create(IOCLASS *ioClass, hid_t groupID,int bMass, int bSoft) {
+static void class_create(IOCLASS *ioClass, hid_t groupID, int bFieldMass, int bFieldSoft,
+                         int bGlobalSoft, int bUnordered) {
+    int bClassMass, bClassSoft, bFieldClass;
+
     field_reset(&ioClass->fldClasses);
     field_reset(&ioClass->fldMass);
     field_reset(&ioClass->fldSoft);
     ioClass->nClasses = 0;
-    if (bMass) {
+
+    bClassMass = !bFieldMass;
+    if (bGlobalSoft) bClassSoft = bFieldSoft = 0;
+    else bClassSoft = !bFieldSoft;
+    bFieldClass = bUnordered && (bClassMass || bClassSoft);
+
+    if (bFieldMass) {
         field_create(&ioClass->fldMass,groupID, FIELD_MASS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
     }
-    if (bSoft) {
+    if (bFieldSoft) {
         field_create(&ioClass->fldSoft,groupID, FIELD_SOFTENING, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+    }
+    if (bFieldClass) {
+        field_create(&ioClass->fldClasses,groupID, FIELD_CLASS, H5T_NATIVE_UINT8, H5T_NATIVE_UINT8, 1 );
     }
 }
 
@@ -3558,7 +3570,9 @@ static void base_create(fioHDF5 *hio,IOBASE *base,int iSpecies,int nFields,uint6
     field_reset(&base->ioOrder.fldOrder);
     class_create(&base->ioClass,base->group_id,
                  !(hio->mFlags&FIO_FLAG_COMPRESS_MASS),
-                 !(hio->mFlags&FIO_FLAG_COMPRESS_SOFT));
+                 !(hio->mFlags&FIO_FLAG_COMPRESS_SOFT),
+                 hio->mFlags&FIO_FLAG_GLOBAL_SOFT,
+                 hio->mFlags&FIO_FLAG_UNORDERED);
     alloc_fields(base,nFields);
     field_create(&base->fldFields[DARK_POSITION],base->group_id,
                  FIELD_POSITION, H5T_NATIVE_DOUBLE, posType, 3 );
