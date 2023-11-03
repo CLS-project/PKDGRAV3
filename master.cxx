@@ -328,6 +328,7 @@ uint64_t MSR::getMemoryModel() {
     if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
     if (parameters.get_bDoGas() && !NewSPH())  mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
+
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
@@ -556,6 +557,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     mMemoryModel = getMemoryModel();
     if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
     if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (DoGas() && NewSPH() && parameters.get_bStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     Restore(baseName,nSizeParticle);
@@ -3855,6 +3857,7 @@ double MSR::Read(std::string_view achInFile) {
 
     if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
     if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (DoGas() && NewSPH() && parameters.get_bStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     if (nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
 
     read->nNodeStart = 0;

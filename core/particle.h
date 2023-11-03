@@ -51,11 +51,11 @@
 
 /* Regular particle with order and all the goodies */
 struct PARTICLE {
-    uint64_t  uRung      :  IRUNGBITS;
+uint64_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
+uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
 #ifdef NN_FLAG_IN_PARTICLE
     uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
 #endif
@@ -67,9 +67,9 @@ static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
 #define IGROUPMAX ((1<<IGROUPBITS)-1)
 
 typedef struct uparticle {
-    uint32_t  uRung      :  IRUNGBITS;
+uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
-    uint32_t  iGroup     :  IGROUPBITS;
+uint32_t  iGroup     :  IGROUPBITS;
 } UPARTICLE;
 static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 
@@ -202,6 +202,12 @@ struct NEWSPHFIELDS {
     float vpredx, vpredy, vpredz;     /* predicted velocities */
 };
 
+struct NEWSPHSTRENGTHFIELDS {
+    float Sxx, Syy, Sxy, Sxz, Syz; /* Deviatoric stress tensor (tracefree, symmetric) */
+    float SDotxx, SDotyy, SDotxy, SDotxz, SDotyz; /* Time derivative of deviatoric stress tensor (tracefree, symmetric) */
+    float Spredxx, Spredyy, Spredxy, Spredxz, Spredyz; /* Predicted deviatoric stress tensor (tracefree, symmetric) */
+};
+
 struct STARFIELDS {
     double omega;
 #ifdef STELLAR_EVOLUTION
@@ -272,6 +278,7 @@ enum PKD_FIELD {
     oBall, /* One float */
     oSph, /* Sph structure */
     oNewSph, /* NewSph structure */
+    oNewSphStr, /* NewSph strength structure */
     oStar, /* Star structure */
     oBH, /* BH structure */
     oVelSmooth,
@@ -434,6 +441,14 @@ public:
         return get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
     }
 
+    /* NewSphStrength variables */
+    auto &newsphstr( PARTICLE *p ) const {
+        return get<NEWSPHSTRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
+    }
+    const auto &newsphstr( const PARTICLE *p ) const {
+        return get<NEWSPHSTRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
+    }
+
     auto &star( PARTICLE *p ) const {
 #ifdef OPTIM_UNION_EXTRAFIELDS
 #ifdef DEBUG_UNION_EXTRAFIELDS
@@ -513,6 +528,7 @@ public:
         bool have_potential()    const {return have(PKD_FIELD::oPotential);}
         bool have_sph()          const {return have(PKD_FIELD::oSph);}
         bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
+        bool have_newsphstr()    const {return have(PKD_FIELD::oNewSphStr);}
         bool have_star()         const {return have(PKD_FIELD::oStar);}
         bool have_ball()         const {return have(PKD_FIELD::oBall);}
         bool have_mass()         const {return have(PKD_FIELD::oMass);}
@@ -573,6 +589,7 @@ public:
         auto imaterial()    const {return store().iMat(p);}
         auto &sph()         const { return store().sph(p); }
         auto &newsph()      const { return store().newsph(p); }
+        auto &newsphstr()   const { return store().newsphstr(p); }
         auto &star()        const { return store().star(p); }
         auto &BH()          const { return store().BH(p); }
         auto Timer()        const { return store().Timer(p); }

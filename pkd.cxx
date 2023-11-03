@@ -368,6 +368,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #endif
 
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<NEWSPHFIELDS>(PKD_FIELD::oNewSph);
+    if ( mMemoryModel & PKD_MODEL_STRENGTH ) particles.add<NEWSPHSTRENGTHFIELDS>(PKD_FIELD::oNewSphStr);
     if ( mMemoryModel & PKD_MODEL_STAR ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
         particles.add<void>(PKD_FIELD::oStar); // this value is of no relevance as long as it is >0
@@ -732,6 +733,13 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         if (p.have_newsph()) {
             auto &NewSph = p.newsph();
             NewSph.u = NewSph.uDot = NewSph.divv = NewSph.Omega = 0.0;
+        }
+
+        if (p.have_newsphstr()) {
+            auto &NewSphStr = p.newsphstr();
+            NewSphStr.Sxx = NewSphStr.Syy = NewSphStr.Sxy = NewSphStr.Sxz = NewSphStr.Syz = 0.0f;
+            NewSphStr.SDotxx = NewSphStr.SDotyy = NewSphStr.SDotxy = NewSphStr.SDotxz = NewSphStr.SDotyz = 0.0f;
+            NewSphStr.Spredxx = NewSphStr.Spredyy = NewSphStr.Spredxy = NewSphStr.Spredxz = NewSphStr.Spredyz = 0.0f;
         }
 
         /* Initialize Star fields if present */

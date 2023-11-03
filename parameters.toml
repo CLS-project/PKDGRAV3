@@ -1212,6 +1212,11 @@ flag="GasDoExtensiveILPTest"
 default=false
 help="Extensively test the ILP for completeness. Very costly."
 
+["Gas".bStrengthModel]
+flag="StrengthModel"
+default=false
+help="Enable the material strength model in NewSPH."
+
 ["Gas".bMeshlessHydro]
 flag="meshless"
 default=false
