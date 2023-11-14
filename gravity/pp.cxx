@@ -149,12 +149,15 @@ void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out
 template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
     typedef ResultSPHForces<fvec> result_type;
     const fvec fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c;
+    const fvec Sxx, Syy, Sxy, Sxz, Syz;
     const SPHOptions *const SPHoptions;
     EvalBlock() = default;
     EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,fvec Omega,fvec vx,fvec vy,fvec vz,
-              fvec rho,fvec P,fvec c,SPHOptions *SPHoptions)
+              fvec rho,fvec P,fvec c,
+              fvec Sxx, fvec Syy, fvec Sxy, fvec Sxz, fvec Syz, SPHOptions *SPHoptions)
         : fx(fx),fy(fy),fz(fz),fBall(fBall),Omega(Omega),vx(vx),vy(vy),vz(vz),
-          rho(rho),P(P),c(c), SPHoptions(SPHoptions) {}
+          rho(rho),P(P),c(c),
+          Sxx(Sxx),Syy(Syy),Sxy(Sxy),Sxz(Sxz),Syz(Syz), SPHoptions(SPHoptions) {}
 
     result_type operator()(int n,BLOCK &blk) {
         // Sentinal values
@@ -170,6 +173,11 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
             blk.P.s[n] = 0.0f;
             blk.c.s[n] = 0.0f;
             blk.uRung.s[n] = 0.0f;
+            blk.Sxx.s[n] = 0.0f;
+            blk.Syy.s[n] = 0.0f;
+            blk.Sxy.s[n] = 0.0f;
+            blk.Sxz.s[n] = 0.0f;
+            blk.Syz.s[n] = 0.0f;
             ++n;
         }
         n /= fvec::width(); // Now number of blocks
@@ -178,10 +186,12 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
         for (auto i=0; i<n; ++i) {
             result += EvalSPHForces<fvec,fmask>(
                           fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,
+                          Sxx, Syy, Sxy, Sxz, Syz,
                           blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.fBall.v[i],blk.Omega.v[i],
                           blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],
+                          blk.Sxx.v[i], blk.Syy.v[i], blk.Sxy.v[i], blk.Sxz.v[i], blk.Syz.v[i],
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
-                          SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
+                          SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic,SPHoptions->doShearStrengthModel);
         }
         return result;
     }
@@ -191,6 +201,7 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
     ilist::EvalBlock<ResultSPHForces<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
                 Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
                 Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,
+                Part.Sxx, Part.Syy, Part.Sxy, Part.Sxz, Part.Syz,
                 SPHoptions);
     auto result = EvalTile(tile,eval);
     Out.uDot += hadd(result.uDot);
@@ -206,6 +217,15 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
         Out.maxRung = std::max(Out.maxRung,result.maxRung[k]);
     }
     assert(Out.dtEst > 0);
+    Out.dvxdx += hadd(result.dvxdx);
+    Out.dvxdy += hadd(result.dvxdy);
+    Out.dvxdz += hadd(result.dvxdz);
+    Out.dvydx += hadd(result.dvydx);
+    Out.dvydy += hadd(result.dvydy);
+    Out.dvydz += hadd(result.dvydz);
+    Out.dvzdx += hadd(result.dvzdx);
+    Out.dvzdy += hadd(result.dvzdy);
+    Out.dvzdz += hadd(result.dvzdz);
 }
 
 #endif/*USE_SIMD_PP*/

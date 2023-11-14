@@ -770,6 +770,11 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].Omega = NewSph.Omega;
             wp->pInfoIn[nP].iMat = p.imaterial();
             SPHpredictOnTheFly(pkd, p, kick, wp->SPHoptions->nPredictRung, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, SPHoptions);
+            wp->pInfoIn[nP].Sxx = 0.0f;
+            wp->pInfoIn[nP].Syy = 0.0f;
+            wp->pInfoIn[nP].Sxy = 0.0f;
+            wp->pInfoIn[nP].Sxz = 0.0f;
+            wp->pInfoIn[nP].Syz = 0.0f;
             wp->pInfoIn[nP].rho = p.density();
             wp->pInfoIn[nP].species = p.species();
 
@@ -789,6 +794,15 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].corrT = 0.0f;
             wp->pInfoOut[nP].corrP = 0.0f;
             wp->pInfoOut[nP].corr = 0.0f;
+            wp->pInfoOut[nP].dvxdx = 0.0f;
+            wp->pInfoOut[nP].dvxdy = 0.0f;
+            wp->pInfoOut[nP].dvxdz = 0.0f;
+            wp->pInfoOut[nP].dvydx = 0.0f;
+            wp->pInfoOut[nP].dvydy = 0.0f;
+            wp->pInfoOut[nP].dvydz = 0.0f;
+            wp->pInfoOut[nP].dvzdx = 0.0f;
+            wp->pInfoOut[nP].dvzdy = 0.0f;
+            wp->pInfoOut[nP].dvzdz = 0.0f;
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;

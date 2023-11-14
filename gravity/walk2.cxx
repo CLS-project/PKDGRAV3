@@ -221,6 +221,11 @@ found_it:
                                             float cs = 0.0f;
                                             float T = 0.0f;
                                             float expImb2 = NewSph.expImb2;
+                                            float Sxx = 0.0f;
+                                            float Syy = 0.0f;
+                                            float Sxy = 0.0f;
+                                            float Sxz = 0.0f;
+                                            float Syz = 0.0f;
                                             SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
@@ -228,7 +233,8 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 vpred[0], vpred[1], vpred[2],
-                                                p.ball(), Omega, p.density(), P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2);
+                                                p.ball(), Omega, p.density(), P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2,
+                                                Sxx, Syy, Sxy, Sxz, Syz);
                                         }
                                         else {
                                             auto v = p.velocity();
@@ -238,7 +244,7 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 v[0], v[1], v[2],
-                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f);
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
                                         }
                                     }
                                 }
@@ -275,6 +281,11 @@ found_it:
                                                 float cs = 0.0f;
                                                 float T = 0.0f;
                                                 float expImb2 = NewSph.expImb2;
+                                                float Sxx = 0.0f;
+                                                float Syy = 0.0f;
+                                                float Sxy = 0.0f;
+                                                float Sxz = 0.0f;
+                                                float Syz = 0.0f;
                                                 SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
@@ -282,7 +293,8 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     vpred[0], vpred[1], vpred[2],
-                                                    p.ball(), Omega, p.density(), P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2);
+                                                    p.ball(), Omega, p.density(), P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2,
+                                                    Sxx, Syy, Sxy, Sxz, Syz);
                                             }
                                             else {
                                                 auto v = p.velocity();
@@ -292,7 +304,7 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     v[0], v[1], v[2],
-                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f);
+                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
                                             }
                                         }
                                     }

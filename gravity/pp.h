@@ -212,7 +212,12 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
 template<class F=float>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
-    PP_CUDA_BOTH void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=1e14f; }
+    F dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, dvzdx, dvzdy, dvzdz;
+    PP_CUDA_BOTH void zero() {
+        uDot=ax=ay=az=divv=maxRung=0.0f;
+        dtEst=1e14f;
+        dvxdx=dvxdy=dvxdz=dvydx=dvydy=dvydz=dvzdx=dvzdy=dvzdz=0.0f;
+    }
     PP_CUDA_BOTH ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
         uDot += rhs.uDot;
         ax += rhs.ax;
@@ -221,6 +226,15 @@ struct ResultSPHForces {
         divv += rhs.divv;
         dtEst = min(dtEst,rhs.dtEst); // CAREFUL! We use "min" here
         maxRung = max(maxRung,rhs.maxRung);
+        dvxdx += rhs.dvxdx;
+        dvxdy += rhs.dvxdy;
+        dvxdz += rhs.dvxdz;
+        dvydx += rhs.dvydx;
+        dvydy += rhs.dvydy;
+        dvydz += rhs.dvydz;
+        dvzdx += rhs.dvzdx;
+        dvzdy += rhs.dvzdy;
+        dvzdz += rhs.dvzdz;
         return *this;
     }
 };
@@ -228,10 +242,12 @@ template<class F,class M>
 PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
     F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc,
+    F PSxx, F PSyy, F PSxy, F PSxz, F PSyz,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
     F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung,
+    F ISxx, F ISyy, F ISxy, F ISxz, F ISyz,
     int kernelType, float epsilon, float alpha, float beta,
-    float EtaCourant,float a,float H,bool useIsentropic) {
+    float EtaCourant,float a,float H,bool useIsentropic, bool doShearStrengthModel) {
     ResultSPHForces<F> result;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -322,6 +338,21 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         result.ax = - Im * (PPoverRho2 * PdWdx + IPoverRho2 * IdWdx + Piij * dWdx) * aFac;
         result.ay = - Im * (PPoverRho2 * PdWdy + IPoverRho2 * IdWdy + Piij * dWdy) * aFac;
         result.az = - Im * (PPoverRho2 * PdWdz + IPoverRho2 * IdWdz + Piij * dWdz) * aFac;
+
+        if (doShearStrengthModel) {
+            result.ax += 0.0f;
+            result.ay += 0.0f;
+            result.az += 0.0f;
+            result.dvxdx = 0.0f;
+            result.dvxdy = 0.0f;
+            result.dvxdz = 0.0f;
+            result.dvydx = 0.0f;
+            result.dvydy = 0.0f;
+            result.dvydz = 0.0f;
+            result.dvzdx = 0.0f;
+            result.dvzdy = 0.0f;
+            result.dvzdz = 0.0f;
+        }
 
         // divv
         result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
