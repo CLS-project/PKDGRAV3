@@ -83,6 +83,7 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     SPHoptions.CentrifugalT1 = parameters.get_dCentrifT1();
     SPHoptions.CentrifugalOmega0 = parameters.get_dCentrifOmega0();
     SPHoptions.doExtensiveILPTest = parameters.get_bGasDoExtensiveILPTest();
+    SPHoptions.doShearStrengthModel = parameters.get_bShearStrengthModel();
     return SPHoptions;
 }
 
@@ -128,6 +129,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->CentrifugalT1 = source->CentrifugalT1;
     target->CentrifugalOmega0 = source->CentrifugalOmega0;
     target->doExtensiveILPTest = source->doExtensiveILPTest;
+    target->doShearStrengthModel = source->doShearStrengthModel;
 }
 
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {
