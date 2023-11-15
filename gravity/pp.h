@@ -262,7 +262,7 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
     F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, fBallij, dvdotdx, muij, Piij;
-    F PPoverRho2, IPoverRho2, dtC, dtMu;
+    F POneOverRho2, IOneOverRho2, dtC, dtMu;
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
 
@@ -298,23 +298,29 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         // at some point. If we don't, can save some operations, by combining earlier.
         t1 = PdWdr * PifBall / d;
         mask1 = Pr > 0.0f;
-        t1 = maskz_mov(mask1,t1);
+        t1 = maskz_mov(mask1,t1); // 1/Omega will go here later
         PdWdx = t1 * dx;
         PdWdy = t1 * dy;
         PdWdz = t1 * dz;
         t1 = IdWdr * IifBall / d;
         mask1 = Ir > 0.0f;
-        t1 = maskz_mov(mask1,t1);
+        t1 = maskz_mov(mask1,t1); // 1/Omega will go here later
         IdWdx = t1 * dx;
         IdWdy = t1 * dy;
         IdWdz = t1 * dz;
         dWdx = 0.5f * (PdWdx + IdWdx);
         dWdy = 0.5f * (PdWdy + IdWdy);
         dWdz = 0.5f * (PdWdz + IdWdz);
+        PdWdx /= POmega; // Only for now, temporary
+        PdWdy /= POmega;
+        PdWdz /= POmega;
+        IdWdx /= IOmega;
+        IdWdy /= IOmega;
+        IdWdz /= IOmega;
 
-        // PoverRho2
-        PPoverRho2 = PP / (POmega * Prho * Prho);
-        IPoverRho2 = IP / (IOmega * Irho * Irho);
+        // OneOverRho2
+        POneOverRho2 = 1.0f / (Prho * Prho);
+        IOneOverRho2 = 1.0f / (Irho * Irho);
 
         // Artificial viscosity
         cij = 0.5f * (Pc + Ic);
@@ -331,13 +337,13 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
             result.uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
         else {
-            result.uDot = Im * (PPoverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz) + 0.5f * Piij * (dvx * dWdx + dvy * dWdy + dvz * dWdz));
+            result.uDot = Im * (PP * POneOverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz) + 0.5f * Piij * (dvx * dWdx + dvy * dWdy + dvz * dWdz));
         }
 
         // acceleration
-        result.ax = - Im * (PPoverRho2 * PdWdx + IPoverRho2 * IdWdx + Piij * dWdx) * aFac;
-        result.ay = - Im * (PPoverRho2 * PdWdy + IPoverRho2 * IdWdy + Piij * dWdy) * aFac;
-        result.az = - Im * (PPoverRho2 * PdWdz + IPoverRho2 * IdWdz + Piij * dWdz) * aFac;
+        result.ax = - Im * (PP * POneOverRho2 * PdWdx + IP * IOneOverRho2 * IdWdx + Piij * dWdx) * aFac;
+        result.ay = - Im * (PP * POneOverRho2 * PdWdy + IP * IOneOverRho2 * IdWdy + Piij * dWdy) * aFac;
+        result.az = - Im * (PP * POneOverRho2 * PdWdz + IP * IOneOverRho2 * IdWdz + Piij * dWdz) * aFac;
 
         if (doShearStrengthModel) {
             result.ax += 0.0f;
