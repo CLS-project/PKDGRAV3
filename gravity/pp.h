@@ -296,27 +296,22 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
 
         // Kernel gradients, separate at the moment, as i am not sure if we need them separately
         // at some point. If we don't, can save some operations, by combining earlier.
-        t1 = PdWdr * PifBall / d;
+        t1 = PdWdr * PifBall / (d * POmega);
         mask1 = Pr > 0.0f;
-        t1 = maskz_mov(mask1,t1); // 1/Omega will go here later
+        t1 = maskz_mov(mask1,t1);
         PdWdx = t1 * dx;
         PdWdy = t1 * dy;
         PdWdz = t1 * dz;
-        t1 = IdWdr * IifBall / d;
+        t1 = IdWdr * IifBall / (d * IOmega);
         mask1 = Ir > 0.0f;
-        t1 = maskz_mov(mask1,t1); // 1/Omega will go here later
+        t1 = maskz_mov(mask1,t1);
         IdWdx = t1 * dx;
         IdWdy = t1 * dy;
         IdWdz = t1 * dz;
-        dWdx = 0.5f * (PdWdx + IdWdx);
-        dWdy = 0.5f * (PdWdy + IdWdy);
-        dWdz = 0.5f * (PdWdz + IdWdz);
-        PdWdx /= POmega; // Only for now, temporary
-        PdWdy /= POmega;
-        PdWdz /= POmega;
-        IdWdx /= IOmega;
-        IdWdy /= IOmega;
-        IdWdz /= IOmega;
+        // The symmetrized kernel does for now not use the Omega correction, so we multiply it out again
+        dWdx = 0.5f * (PdWdx * POmega + IdWdx * IOmega);
+        dWdy = 0.5f * (PdWdy * POmega + IdWdy * IOmega);
+        dWdz = 0.5f * (PdWdz * POmega + IdWdz * IOmega);
 
         // OneOverRho2
         POneOverRho2 = 1.0f / (Prho * Prho);
