@@ -138,6 +138,9 @@ typedef struct {
     float dvxdx, dvxdy, dvxdz;
     float dvydx, dvydy, dvydz;
     float dvzdx, dvzdy, dvzdz;
+    float Cinvxx, Cinvxy, Cinvxz;
+    float Cinvyx, Cinvyy, Cinvyz;
+    float Cinvzx, Cinvzy, Cinvzz;
 } PINFOOUT;
 
 #if defined(USE_SIMD)

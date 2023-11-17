@@ -213,10 +213,12 @@ template<class F=float>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
     F dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, dvzdx, dvzdy, dvzdz;
+    F Cinvxx, Cinvxy, Cinvxz, Cinvyx, Cinvyy, Cinvyz, Cinvzx, Cinvzy, Cinvzz;
     PP_CUDA_BOTH void zero() {
         uDot=ax=ay=az=divv=maxRung=0.0f;
         dtEst=1e14f;
         dvxdx=dvxdy=dvxdz=dvydx=dvydy=dvydz=dvzdx=dvzdy=dvzdz=0.0f;
+        Cinvxx=Cinvxy=Cinvxz=Cinvyx=Cinvyy=Cinvyz=Cinvzx=Cinvzy=Cinvzz=0.0f;
     }
     PP_CUDA_BOTH ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
         uDot += rhs.uDot;
@@ -235,6 +237,15 @@ struct ResultSPHForces {
         dvzdx += rhs.dvzdx;
         dvzdy += rhs.dvzdy;
         dvzdz += rhs.dvzdz;
+        Cinvxx += rhs.Cinvxx;
+        Cinvxy += rhs.Cinvxy;
+        Cinvxz += rhs.Cinvxz;
+        Cinvyx += rhs.Cinvyx;
+        Cinvyy += rhs.Cinvyy;
+        Cinvyz += rhs.Cinvyz;
+        Cinvzx += rhs.Cinvzx;
+        Cinvzy += rhs.Cinvzy;
+        Cinvzz += rhs.Cinvzz;
         return *this;
     }
 };
@@ -353,6 +364,15 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
             result.dvzdx = 0.0f;
             result.dvzdy = 0.0f;
             result.dvzdz = 0.0f;
+            result.Cinvxx = 0.0f;
+            result.Cinvxy = 0.0f;
+            result.Cinvxz = 0.0f;
+            result.Cinvyx = 0.0f;
+            result.Cinvyy = 0.0f;
+            result.Cinvyz = 0.0f;
+            result.Cinvzx = 0.0f;
+            result.Cinvzy = 0.0f;
+            result.Cinvzz = 0.0f;
         }
 
         // divv

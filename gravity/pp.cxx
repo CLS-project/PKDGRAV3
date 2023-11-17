@@ -217,15 +217,26 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
         Out.maxRung = std::max(Out.maxRung,result.maxRung[k]);
     }
     assert(Out.dtEst > 0);
-    Out.dvxdx += hadd(result.dvxdx);
-    Out.dvxdy += hadd(result.dvxdy);
-    Out.dvxdz += hadd(result.dvxdz);
-    Out.dvydx += hadd(result.dvydx);
-    Out.dvydy += hadd(result.dvydy);
-    Out.dvydz += hadd(result.dvydz);
-    Out.dvzdx += hadd(result.dvzdx);
-    Out.dvzdy += hadd(result.dvzdy);
-    Out.dvzdz += hadd(result.dvzdz);
+    if (SPHoptions->doShearStrengthModel) {
+        Out.dvxdx += hadd(result.dvxdx);
+        Out.dvxdy += hadd(result.dvxdy);
+        Out.dvxdz += hadd(result.dvxdz);
+        Out.dvydx += hadd(result.dvydx);
+        Out.dvydy += hadd(result.dvydy);
+        Out.dvydz += hadd(result.dvydz);
+        Out.dvzdx += hadd(result.dvzdx);
+        Out.dvzdy += hadd(result.dvzdy);
+        Out.dvzdz += hadd(result.dvzdz);
+        Out.Cinvxx += hadd(result.Cinvxx);
+        Out.Cinvxy += hadd(result.Cinvxy);
+        Out.Cinvxz += hadd(result.Cinvxz);
+        Out.Cinvyx += hadd(result.Cinvyx);
+        Out.Cinvyy += hadd(result.Cinvyy);
+        Out.Cinvyz += hadd(result.Cinvyz);
+        Out.Cinvzx += hadd(result.Cinvzx);
+        Out.Cinvzy += hadd(result.Cinvzy);
+        Out.Cinvzz += hadd(result.Cinvzz);
+    }
 }
 
 #endif/*USE_SIMD_PP*/

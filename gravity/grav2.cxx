@@ -794,15 +794,26 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].corrT = 0.0f;
             wp->pInfoOut[nP].corrP = 0.0f;
             wp->pInfoOut[nP].corr = 0.0f;
-            wp->pInfoOut[nP].dvxdx = 0.0f;
-            wp->pInfoOut[nP].dvxdy = 0.0f;
-            wp->pInfoOut[nP].dvxdz = 0.0f;
-            wp->pInfoOut[nP].dvydx = 0.0f;
-            wp->pInfoOut[nP].dvydy = 0.0f;
-            wp->pInfoOut[nP].dvydz = 0.0f;
-            wp->pInfoOut[nP].dvzdx = 0.0f;
-            wp->pInfoOut[nP].dvzdy = 0.0f;
-            wp->pInfoOut[nP].dvzdz = 0.0f;
+            if (SPHoptions->doShearStrengthModel) {
+                wp->pInfoOut[nP].dvxdx = 0.0f;
+                wp->pInfoOut[nP].dvxdy = 0.0f;
+                wp->pInfoOut[nP].dvxdz = 0.0f;
+                wp->pInfoOut[nP].dvydx = 0.0f;
+                wp->pInfoOut[nP].dvydy = 0.0f;
+                wp->pInfoOut[nP].dvydz = 0.0f;
+                wp->pInfoOut[nP].dvzdx = 0.0f;
+                wp->pInfoOut[nP].dvzdy = 0.0f;
+                wp->pInfoOut[nP].dvzdz = 0.0f;
+                wp->pInfoOut[nP].Cinvxx = 0.0f;
+                wp->pInfoOut[nP].Cinvxy = 0.0f;
+                wp->pInfoOut[nP].Cinvxz = 0.0f;
+                wp->pInfoOut[nP].Cinvyx = 0.0f;
+                wp->pInfoOut[nP].Cinvyy = 0.0f;
+                wp->pInfoOut[nP].Cinvyz = 0.0f;
+                wp->pInfoOut[nP].Cinvzx = 0.0f;
+                wp->pInfoOut[nP].Cinvzy = 0.0f;
+                wp->pInfoOut[nP].Cinvzz = 0.0f;
+            }
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;
