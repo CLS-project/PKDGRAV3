@@ -273,7 +273,7 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
     F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, fBallij, dvdotdx, muij, Piij;
-    F POneOverRho2, IOneOverRho2, dtC, dtMu;
+    F POneOverRho2, IOneOverRho2, minusImOverRho, dtC, dtMu;
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
 
@@ -351,28 +351,35 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         result.ay = - Im * (PP * POneOverRho2 * PdWdy + IP * IOneOverRho2 * IdWdy + Piij * dWdy) * aFac;
         result.az = - Im * (PP * POneOverRho2 * PdWdz + IP * IOneOverRho2 * IdWdz + Piij * dWdz) * aFac;
 
+        // No transformation back into cosmology units, as strength makes no sense in cosmology. This saves multiplications.
         if (doShearStrengthModel) {
-            result.ax += 0.0f;
-            result.ay += 0.0f;
-            result.az += 0.0f;
-            result.dvxdx = 0.0f;
-            result.dvxdy = 0.0f;
-            result.dvxdz = 0.0f;
-            result.dvydx = 0.0f;
-            result.dvydy = 0.0f;
-            result.dvydz = 0.0f;
-            result.dvzdx = 0.0f;
-            result.dvzdy = 0.0f;
-            result.dvzdz = 0.0f;
-            result.Cinvxx = 0.0f;
-            result.Cinvxy = 0.0f;
-            result.Cinvxz = 0.0f;
-            result.Cinvyx = 0.0f;
-            result.Cinvyy = 0.0f;
-            result.Cinvyz = 0.0f;
-            result.Cinvzx = 0.0f;
-            result.Cinvzy = 0.0f;
-            result.Cinvzz = 0.0f;
+            result.ax += Im * (POneOverRho2 * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + IOneOverRho2 * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz));
+            result.ay += Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
+            result.az += Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
+
+            result.uDot -= Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
+
+            minusImOverRho = - Im / Irho;
+
+            result.dvxdx = minusImOverRho * dvx * PdWdx;
+            result.dvxdy = minusImOverRho * dvx * PdWdy;
+            result.dvxdz = minusImOverRho * dvx * PdWdz;
+            result.dvydx = minusImOverRho * dvy * PdWdx;
+            result.dvydy = minusImOverRho * dvy * PdWdy;
+            result.dvydz = minusImOverRho * dvy * PdWdz;
+            result.dvzdx = minusImOverRho * dvz * PdWdx;
+            result.dvzdy = minusImOverRho * dvz * PdWdy;
+            result.dvzdz = minusImOverRho * dvz * PdWdz;
+
+            result.Cinvxx = minusImOverRho * dx * PdWdx;
+            result.Cinvxy = minusImOverRho * dx * PdWdy;
+            result.Cinvxz = minusImOverRho * dx * PdWdz;
+            result.Cinvyx = minusImOverRho * dy * PdWdx;
+            result.Cinvyy = minusImOverRho * dy * PdWdy;
+            result.Cinvyz = minusImOverRho * dy * PdWdz;
+            result.Cinvzx = minusImOverRho * dz * PdWdx;
+            result.Cinvzy = minusImOverRho * dz * PdWdy;
+            result.Cinvzz = minusImOverRho * dz * PdWdz;
         }
 
         // divv
