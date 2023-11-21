@@ -82,6 +82,75 @@ static inline float rsqrtf(float v) {
     }
 
 static void reQueueDensity( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU);
+
+void calcSDot(PINFOIN pInfoIn, PINFOOUT pInfoOut, float Gamma, float *SDotxx, float *SDotyy, float *SDotxy, float *SDotxz, float *SDotyz) {
+    // This is all done in double precision
+    double Cxx, Cxy, Cxz, Cyx, Cyy, Cyz, Czx, Czy, Czz;
+
+    double Dxx = double(pInfoOut.Cinvxx);
+    double Dxy = double(pInfoOut.Cinvxy);
+    double Dxz = double(pInfoOut.Cinvxz);
+    double Dyx = double(pInfoOut.Cinvyx);
+    double Dyy = double(pInfoOut.Cinvyy);
+    double Dyz = double(pInfoOut.Cinvyz);
+    double Dzx = double(pInfoOut.Cinvzx);
+    double Dzy = double(pInfoOut.Cinvzy);
+    double Dzz = double(pInfoOut.Cinvzz);
+
+    double det = Dxx * Dyy * Dzz - Dxx * Dyz * Dzy - Dxy * Dyx * Dzz + Dxy * Dyz * Dzx + Dxz * Dyx * Dzy - Dxz * Dyy * Dzx;
+
+    if (det != 0.0) {
+        det = 1.0 / det;
+        Cxx = det * (Dyy * Dzz - Dyz * Dzy);
+        Cxy = det * (Dxz * Dzy - Dxy * Dzz);
+        Cxz = det * (Dxy * Dyz - Dxz * Dyy);
+        Cyx = det * (Dyz * Dzx - Dyx * Dzz);
+        Cyy = det * (Dxx * Dzz - Dxz * Dzx);
+        Cyz = det * (Dxz * Dyx - Dxx * Dyz);
+        Czx = det * (Dyx * Dzy - Dyy * Dzx);
+        Czy = det * (Dxy * Dzx - Dxx * Dzy);
+        Czz = det * (Dxx * Dyy - Dxy * Dyx);
+    }
+    else {
+        Cxx = 1.0;
+        Cyy = 1.0;
+        Czz = 1.0;
+        Cxy = Cxz = Cyx = Cyz = Czx = Czy = 0.0;
+    }
+
+    double Fxx = double(pInfoOut.dvxdx);
+    double Fxy = double(pInfoOut.dvxdy);
+    double Fxz = double(pInfoOut.dvxdz);
+    double Fyx = double(pInfoOut.dvydx);
+    double Fyy = double(pInfoOut.dvydy);
+    double Fyz = double(pInfoOut.dvydz);
+    double Fzx = double(pInfoOut.dvzdx);
+    double Fzy = double(pInfoOut.dvzdy);
+    double Fzz = double(pInfoOut.dvzdz);
+
+    double Gxx = Fxx * Cxx + Fxy * Cyx + Fxz * Czx;
+    double Gxy = Fxx * Cxy + Fxy * Cyy + Fxz * Czy;
+    double Gxz = Fxx * Cxz + Fxy * Cyz + Fxz * Czz;
+    double Gyx = Fyx * Cxx + Fyy * Cyx + Fyz * Czx;
+    double Gyy = Fyx * Cxy + Fyy * Cyy + Fyz * Czy;
+    double Gyz = Fyx * Cxz + Fyy * Cyz + Fyz * Czz;
+    double Gzx = Fzx * Cxx + Fzy * Cyx + Fzz * Czx;
+    double Gzy = Fzx * Cxy + Fzy * Cyy + Fzz * Czy;
+    double Gzz = Fzx * Cxz + Fzy * Cyz + Fzz * Czz;
+
+    double Sxx = double(pInfoIn.Sxx);
+    double Syy = double(pInfoIn.Syy);
+    double Sxy = double(pInfoIn.Sxy);
+    double Sxz = double(pInfoIn.Sxz);
+    double Syz = double(pInfoIn.Syz);
+
+    *SDotxx = float(Sxy * (Gyx - Gxy) + Sxz * (Gzx - Gxz) - 2.0 / 3.0 * Gamma * (Gyy + Gzz - 2.0 * Gxx));
+    *SDotyy = float(Sxy * (Gxy - Gyx) + Syz * (Gzy - Gyz) - 2.0 / 3.0 * Gamma * (Gxx + Gzz - 2.0 * Gyy));
+    *SDotxy = float(Gamma * (Gxy - Gyx) + 0.5 * (Sxx * (Gxy - Gyx) + Syy * (Gyx - Gxy) + Syz * (Gzx - Gxz) + Sxz * (Gzy - Gyz)));
+    *SDotxz = float(Gamma * (Gxz + Gzx) + 0.5 * ((Sxx + Syy) * (Gxz - Gzx) + Sxx * (Gxz - Gzx) + Syz * (Gyx - Gxy) + Sxy * (Gyz - Gzy)));
+    *SDotyz = float(Gamma * (Gyz + Gzy) + 0.5 * ((Sxx + Syy) * (Gyz - Gzy) + Sxz * (Gxy - Gyx) + Sxy * (Gxz - Gzx) + Syy * (Gyz - Gzx)));
+};
+
 /*
 ** This is called after work has been done for this particle group.
 ** If everyone has finished, then the particle is updated.
@@ -214,6 +283,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                     else {
                         NewSph.uDot = wp->pInfoOut[i].uDot;
                     }
+                }
+                if (wp->SPHoptions->doShearStrengthModel) {
+                    auto &NewSphStr = p.newsphstr();
+                    float Gamma = 0.0f; // EOS call
+                    calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz);
                 }
             }
 
