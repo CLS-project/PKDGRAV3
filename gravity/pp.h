@@ -209,7 +209,7 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
     return result;
 }
 
-template<class F=float>
+template<class F,bool doShearStrengthModel>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
     F dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, dvzdx, dvzdy, dvzdz;
@@ -217,10 +217,12 @@ struct ResultSPHForces {
     PP_CUDA_BOTH void zero() {
         uDot=ax=ay=az=divv=maxRung=0.0f;
         dtEst=1e14f;
-        dvxdx=dvxdy=dvxdz=dvydx=dvydy=dvydz=dvzdx=dvzdy=dvzdz=0.0f;
-        Cinvxx=Cinvxy=Cinvxz=Cinvyx=Cinvyy=Cinvyz=Cinvzx=Cinvzy=Cinvzz=0.0f;
+        if (doShearStrengthModel) {
+            dvxdx=dvxdy=dvxdz=dvydx=dvydy=dvydz=dvzdx=dvzdy=dvzdz=0.0f;
+            Cinvxx=Cinvxy=Cinvxz=Cinvyx=Cinvyy=Cinvyz=Cinvzx=Cinvzy=Cinvzz=0.0f;
+        }
     }
-    PP_CUDA_BOTH ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
+    PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> operator+=(const ResultSPHForces<F,doShearStrengthModel> rhs) {
         uDot += rhs.uDot;
         ax += rhs.ax;
         ay += rhs.ay;
@@ -228,29 +230,31 @@ struct ResultSPHForces {
         divv += rhs.divv;
         dtEst = min(dtEst,rhs.dtEst); // CAREFUL! We use "min" here
         maxRung = max(maxRung,rhs.maxRung);
-        dvxdx += rhs.dvxdx;
-        dvxdy += rhs.dvxdy;
-        dvxdz += rhs.dvxdz;
-        dvydx += rhs.dvydx;
-        dvydy += rhs.dvydy;
-        dvydz += rhs.dvydz;
-        dvzdx += rhs.dvzdx;
-        dvzdy += rhs.dvzdy;
-        dvzdz += rhs.dvzdz;
-        Cinvxx += rhs.Cinvxx;
-        Cinvxy += rhs.Cinvxy;
-        Cinvxz += rhs.Cinvxz;
-        Cinvyx += rhs.Cinvyx;
-        Cinvyy += rhs.Cinvyy;
-        Cinvyz += rhs.Cinvyz;
-        Cinvzx += rhs.Cinvzx;
-        Cinvzy += rhs.Cinvzy;
-        Cinvzz += rhs.Cinvzz;
+        if (doShearStrengthModel) {
+            dvxdx += rhs.dvxdx;
+            dvxdy += rhs.dvxdy;
+            dvxdz += rhs.dvxdz;
+            dvydx += rhs.dvydx;
+            dvydy += rhs.dvydy;
+            dvydz += rhs.dvydz;
+            dvzdx += rhs.dvzdx;
+            dvzdy += rhs.dvzdy;
+            dvzdz += rhs.dvzdz;
+            Cinvxx += rhs.Cinvxx;
+            Cinvxy += rhs.Cinvxy;
+            Cinvxz += rhs.Cinvxz;
+            Cinvyx += rhs.Cinvyx;
+            Cinvyy += rhs.Cinvyy;
+            Cinvyz += rhs.Cinvyz;
+            Cinvzx += rhs.Cinvzx;
+            Cinvzy += rhs.Cinvzy;
+            Cinvzz += rhs.Cinvzz;
+        }
         return *this;
     }
 };
-template<class F,class M>
-PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
+template<class F,class M, bool doShearStrengthModel>
+PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
     F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc,
     F PSxx, F PSyy, F PSxy, F PSxz, F PSyz,
@@ -258,8 +262,8 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
     F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung,
     F ISxx, F ISyy, F ISxy, F ISxz, F ISyz,
     int kernelType, float epsilon, float alpha, float beta,
-    float EtaCourant,float a,float H,bool useIsentropic, bool doShearStrengthModel) {
-    ResultSPHForces<F> result;
+    float EtaCourant,float a,float H,bool useIsentropic) {
+    ResultSPHForces<F,doShearStrengthModel> result;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;

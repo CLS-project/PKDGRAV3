@@ -146,8 +146,8 @@ void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out
     Out.corr += hadd(result.corr);
 }
 
-template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
-    typedef ResultSPHForces<fvec> result_type;
+template<typename BLOCK, bool doShearStrengthModel> struct ilist::EvalBlock<ResultSPHForces<fvec,doShearStrengthModel>,BLOCK> {
+    typedef ResultSPHForces<fvec,doShearStrengthModel> result_type;
     const fvec fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c;
     const fvec Sxx, Syy, Sxy, Sxz, Syz;
     const SPHOptions *const SPHoptions;
@@ -184,26 +184,21 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
         result_type result;
         result.zero();
         for (auto i=0; i<n; ++i) {
-            result += EvalSPHForces<fvec,fmask>(
+            result += EvalSPHForces<fvec,fmask,doShearStrengthModel>(
                           fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,
                           Sxx, Syy, Sxy, Sxz, Syz,
                           blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.fBall.v[i],blk.Omega.v[i],
                           blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],
                           blk.Sxx.v[i], blk.Syy.v[i], blk.Sxy.v[i], blk.Sxz.v[i], blk.Syz.v[i],
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
-                          SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic,SPHoptions->doShearStrengthModel);
+                          SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
         }
         return result;
     }
 };
 
-void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
-    ilist::EvalBlock<ResultSPHForces<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
-                Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
-                Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,
-                Part.Sxx, Part.Syy, Part.Sxy, Part.Sxz, Part.Syz,
-                SPHoptions);
-    auto result = EvalTile(tile,eval);
+template<bool doShearStrengthModel>
+void combineSPHForcesResult(PINFOOUT &Out, ResultSPHForces<fvec,doShearStrengthModel> &result, SPHOptions *SPHoptions) {
     Out.uDot += hadd(result.uDot);
     Out.a[0] += hadd(result.ax);
     Out.a[1] += hadd(result.ay);
@@ -217,7 +212,7 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
         Out.maxRung = std::max(Out.maxRung,result.maxRung[k]);
     }
     assert(Out.dtEst > 0);
-    if (SPHoptions->doShearStrengthModel) {
+    if (doShearStrengthModel) {
         Out.dvxdx += hadd(result.dvxdx);
         Out.dvxdy += hadd(result.dvxdy);
         Out.dvxdz += hadd(result.dvxdz);
@@ -236,6 +231,27 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
         Out.Cinvzx += hadd(result.Cinvzx);
         Out.Cinvzy += hadd(result.Cinvzy);
         Out.Cinvzz += hadd(result.Cinvzz);
+    }
+};
+
+void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
+    if (SPHoptions->doShearStrengthModel) {
+        ilist::EvalBlock<ResultSPHForces<fvec,true>,BlockPP<ILC_PART_PER_BLK>> eval(
+                    Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
+                    Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,
+                    Part.Sxx, Part.Syy, Part.Sxy, Part.Sxz, Part.Syz,
+                    SPHoptions);
+        auto result = EvalTile(tile,eval);
+        combineSPHForcesResult<true>(Out, result, SPHoptions);
+    }
+    else {
+        ilist::EvalBlock<ResultSPHForces<fvec,false>,BlockPP<ILC_PART_PER_BLK>> eval(
+                    Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
+                    Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,
+                    Part.Sxx, Part.Syy, Part.Sxy, Part.Sxz, Part.Syz,
+                    SPHoptions);
+        auto result = EvalTile(tile,eval);
+        combineSPHForcesResult<false>(Out, result, SPHoptions);
     }
 }
 
