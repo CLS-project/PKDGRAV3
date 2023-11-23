@@ -38,9 +38,11 @@ CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)
 if (HAVE_NUMA_H)
   CHECK_LIBRARY_EXISTS(numa numa_setlocal_memory "" HAVE_NUMA)
 endif()
+CHECK_INCLUDE_FILES(mach/mach_time.h HAVE_MACH_MACH_TIME_H)
 
 INCLUDE(CheckSymbolExists)
 check_symbol_exists(backtrace execinfo.h USE_BT)
+check_symbol_exists(mach_absolute_time mach/mach_time.h HAVE_MACH_ABSOLUTE_TIME)
 
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
