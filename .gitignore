@@ -1,4 +1,6 @@
 *~
+*.orig
+*.swp
 \.lockfile
 \.tipsy_history
 \.python-version
