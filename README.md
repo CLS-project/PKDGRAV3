@@ -9,11 +9,13 @@ The User Guide for pkdgrav3 can be found at: [https://pkdgrav3.readthedocs.io/](
 
 The pkdgrav3 code uses the "cmake" build system. It is recommended to
 use an "out of source" build. The easiest way to accomplish this is to
-create a subdirectory in the pkdgrav3 source directory::
+create a subdirectory in the pkdgrav3 source directory:
 
-    cd /path/to/pkdgrav3
-    cmake -S . -B build
-    cmake --build build
+```
+cd /path/to/pkdgrav3
+cmake -S . -B build
+cmake --build build
+```
 
 This will build a single executable ``pkdgrav3`` which will be found in the ``build`` directory as well as other utility programs.
 
@@ -26,10 +28,12 @@ Detailed instructions for building pkdgrav3, as well as advice for specific syst
 
 Most modern systems already have cmake installed.
 Pkdgrav3 requires version 3.14 or newer of cmake.
-You can check with::
+You can check with:
 
-    pkdgrav3:~> cmake --version
-    cmake version 3.27.8
+```
+pkdgrav3:~> cmake --version
+cmake version 3.27.8
+```
 
 If you need a more recent version is can be found at: [https://cmake.org/](https://cmake.org/)
 
@@ -44,24 +48,32 @@ Versions of Python that are "end-of-life" are not necessarily supported, and in 
 This library is usually available on HPC systems, but if not it must be downloaded and compiled, and can be found at this URL: [https://www.gnu.org/software/gsl/](https://www.gnu.org/software/gsl/)
 
 pkdgrav3 will locate the GSL installation by invoking gsl-config, so make sure that it is in your PATH.
-Alternatively, you can tell CMake where to find it by defining GSL_ROOT_ROOT::
+Alternatively, you can tell CMake where to find it by defining ``GSL_ROOT_ROOT``:
 
-    cmake -DGSL_ROOT_DIR=/opt/gsl/2.5
+```
+cmake -DGSL_ROOT_DIR=/opt/gsl/2.5
+```
 
 ### Boost - C++ Template Lirary
 This library is usually available on HPC systems, but if not it must be downloaded and compiled, and can be found at this URL: [https://www.boost.org](https://www.boost.org)
 
 pkdgrav3 will locate the Boost installation by using the CMake module: [https://cmake.org/cmake/help/latest/module/FindBoost.html](https://cmake.org/cmake/help/latest/module/FindBoost.html)
 
-Generally setting BOOST_ROOT is required for user installations.
+Generally setting ``BOOST_ROOT`` is required for user installations:
+
+```
+cmake -DBOOST_ROOT=/path/to/boost ...
+```
 
 ### FFTW3 - Fast Fourier Transform Library
 
 If FFTW3 is is not available on your system it can be obtained from: [http://www.fftw.org/](http://www.fftw.org/)
 
-If CMake does not automatically find FFTW then you can define FFTW_ROOT::
+If CMake does not automatically find FFTW then you can define ``FFTW_ROOT``:
 
-    cmake -DFFTW_ROOT=/path/to/fftw
+```
+cmake -DFFTW_ROOT=/path/to/fftw ...
+```
 
 If you build it yourself you must enable support for float and MPI transforms.
 You will need to have a working MPI and provide ``--enable-mpi`` to the ``configure`` script to compile and build MPI support.
@@ -79,41 +91,50 @@ The necessary toolkits can be downloaded from nVidia:
 
 
 The potential for each particle can be output for the lightcone.
-Enable by setting POTENTIAL_IN_LIGHTCONE when running cmake::
+Enable by setting ``POTENTIAL_IN_LIGHTCONE`` when running cmake:
 
-    cmake -DPOTENTIAL_IN_LIGHTCONE=True ...
-
+```
+cmake -DPOTENTIAL_IN_LIGHTCONE=True ...
+```
 
 ## Build
 
 Once CMake has been run to produce a Makefile and associated files,
-the "make" command is used to build the program, as in::
+the "make" command is used to build the program, as in:
 
-    cmake --build build
+```
+cmake --build build
+```
 
 The build can be done in parallel so if you are on, for example,
 a 16 core machine, the build process can be sped up with::
 
-    cmake --build -j 16 build
+```
+cmake --build -j 16 build
+```
 
 ## Running
 
 This version is run using the MPI system on the cluster in question.
 Normally this involves a special command (often "mpirun" or "mpiexec"),
-for example::
+for example:
 
-    mpiexec pkdgrav3 simfile.par
+```
+mpiexec pkdgrav3 simfile.par
+```
 
 Consult your cluster documentation on how to run MPI programs.
 
 ## IA annotations
 
 For the CUDA compiler, the GNU compiler must be older than 6.0
-This is the command used for preparing and compiling my version, on virus::
+This is the command used for preparing and compiling my version, on virus:
 
-    mkdir build
-    cd build
-    CC=/scratch/isaacaa/opt/gcc53/bin/gcc CXX=/scratch/isaacaa/opt/gcc53/bin/g++ cmake -DFFTW_ROOT=/scratch/isaacaa/opt/fftw3  ..
-    make
+```
+mkdir build
+cd build
+CC=/scratch/isaacaa/opt/gcc53/bin/gcc CXX=/scratch/isaacaa/opt/gcc53/bin/g++ cmake -DFFTW_ROOT=/scratch/isaacaa/opt/fftw3  ..
+make
+```
 
 The newly added compile-time flags are described in README.hydro
