@@ -1433,8 +1433,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                 float ph = 0.5 * p.ball();
                 float otherData[3];
                 otherData[0] = SFR;
-                // We may have problem if the number of groups increses more than 2^24, but should be enough
-                otherData[1] = p.have_group() ? p.group() : 0;
+                // Casting integers to floats will become a problem if the number of groups
+                // reaches 2^24, but for the moment we have to live with it
+                otherData[1] = p.have_global_gid() ? p.global_gid() : -1.;
 #ifdef HAVE_METALLICITY
                 otherData[2] = Sph.fMetalMass / fMass;
 #endif
@@ -1446,7 +1447,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
         break;
     case FIO_SPECIES_DARK: {
         float otherData[2];
-        otherData[0] = p.have_group() ? p.group() : 0;
+        otherData[0] = p.have_global_gid() ? p.global_gid() : -1.;
         fioWriteDark(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity, &otherData[0]);
     }
     break;
@@ -1457,7 +1458,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
 #endif
         float otherData[6];
         otherData[0] = Star.fTimer;
-        otherData[1] = p.have_group() ? p.group() : 0;
+        otherData[1] = p.have_global_gid() ? p.global_gid() : -1.;
 #ifdef STELLAR_EVOLUTION
         otherData[2] = Star.fMetalAbun;
         otherData[3] = Star.fInitialMass;
@@ -1479,7 +1480,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
         otherData[2] = BH.dEddingtonRatio;
         otherData[3] = BH.dFeedbackRate;
         otherData[4] = BH.dAccEnergy;
-        otherData[5] = p.have_group() ? p.group() : 0;
+        otherData[5] = p.have_global_gid() ? p.global_gid() : -1.;
         fioWriteBH(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
                    otherData,fTimer);
     }
