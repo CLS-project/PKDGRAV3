@@ -273,14 +273,14 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
                 // We need to double check this, as the particle may have
                 // been marked for deletion just before this
                 if (partj.is_marked()) {
-                    const float fBall2_p = 4.*partj.soft()*partj.soft();
+                    const double fBall2_p = 4.*partj.soft()*partj.soft();
                     TinyVector<double,3> dr_node{bnd_node.center() - partj.position()};
                     int nCnt_p = 0;
                     for (auto pk = 0; pk < nCnt; ++pk) {
                         if (P == smx->nnList[pk].pPart) continue;
                         TinyVector<double,3> dr{smx->nnList[pk].dr - dr_node};
                         const auto fDist2 = dot(dr,dr);
-                        if (fDist2 <= fBall2_p) {
+                        if (fDist2 < fBall2_p) {
                             if (nCnt_p >= nnListMax_p) {
                                 nnListMax_p += NNLIST_INCREMENT;
                                 nnList_p = static_cast<NN *>(realloc(nnList_p,nnListMax_p*sizeof(NN)));
