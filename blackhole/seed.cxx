@@ -56,7 +56,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             float dTauSearch = dTau*0.02;
             while (!(smx->nnListSize > 100 || dTauSearch >= dTau)) {
                 smx->nnListSize = 0;
-                smGather(smx,dTauSearch,pkd->veryTinyGroupTable[gid].rPot);
+                smGather(smx,dTauSearch*dTauSearch,pkd->veryTinyGroupTable[gid].rPot);
                 dTauSearch *= 2.0;
             }
 
@@ -78,6 +78,10 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             assert(ii < smx->nnList+smx->nnListSize);
             assert(ii->iPid == pkd->Self());
             auto pLowPot = pkd->particles[ii->pPart];
+
+            // Since we looked for neighbours within a distance at most equal to the
+            // linking length, the selected particle MUST be part of the group
+            assert(pLowPot.group() == gid);
 
             // IA: We require the density to be above the SF threshold
             if (pLowPot.density() < dDenMin) continue;
