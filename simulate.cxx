@@ -638,12 +638,6 @@ int MSR::ValidateParameters() {
     }
 
     /*
-    ** Check if fast gas boundaries are needed.
-    */
-    if (parameters.get_bDoGas() && !NewSPH()) {
-        parameters.set_bMemNodeSphBounds(1);
-    }
-    /*
     ** Check timestepping and gravity combinations.
     */
     const auto iMaxRung = parameters.get_iMaxRung();
