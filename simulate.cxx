@@ -212,6 +212,13 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             GridDeleteFFT();
         }
     }
+
+    const bool bDoStartOutput = parameters.get_bWriteIC() && !parameters.has_nGrid() && !NewSPH();
+    const bool bDoStartFof = parameters.get_bBHPlaceSeed() || (parameters.get_bFindGroups() && bDoStartOutput);
+    if (bDoStartFof) {
+        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
+    }
+
     if (DoGas() && NewSPH()) {
         // Calculate Density
         SelAll(-1,1);
@@ -267,11 +274,11 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
-    if (parameters.get_bFindGroups() && parameters.get_bBHPlaceSeed()) {
-        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
+#endif
+
+    if (bDoStartFof) {
         GroupStats();
     }
-#endif
 
     double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -283,18 +290,12 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                        E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
     }
 
-    if (parameters.get_bWriteIC() && !parameters.has_nGrid() && !NewSPH()) {
-#ifndef BLACKHOLES
-        if (parameters.get_bFindGroups()) {
-            NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
-            GroupStats();
-        }
-#endif
+    if (bDoStartOutput) {
         Output(iStartStep,dTime,dDelta,0);
     }
 
     // Make sure that the tree is usable before the start of the simulation
-    if (parameters.get_bFindGroups() || parameters.get_bWriteIC()) {
+    if (bDoStartFof || bDoStartOutput) {
         DomainDecomp();
         BuildTree(bEwald);
     }

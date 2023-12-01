@@ -3191,6 +3191,11 @@ void MSR::TopStepKDK(
             msrprintf("%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
             BuildTree(bEwald);
         }
+
+        if (!iKickRung && parameters.get_bFindGroups()) {
+            NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
+        }
+
         if (DoGravity()) {
             SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
             SPHoptions.doGravity = 1;
@@ -3248,7 +3253,6 @@ void MSR::TopStepKDK(
     dTime += 0.5*dDeltaRung; /* Important to have correct time at step end for SF! */
 
     if (!iKickRung && !iRung && parameters.get_bFindGroups()) {
-        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
         GroupStats();
         BuildTree(bEwald);
     }
