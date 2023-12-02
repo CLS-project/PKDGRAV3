@@ -483,12 +483,50 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
+    if (parameters.get_bMeshlessHydro()) {
+        if (parameters.get_bNewKDK()) {
+            parameters.set_bNewKDK(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bNewKDK. "
+                    "Setting bNewKDK to false\n");
+        }
+        if (parameters.get_bDualTree()) {
+            parameters.set_bDualTree(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bDualTree. "
+                    "Setting bDualTree to false\n");
+        }
+        if (parameters.get_bMemIntegerPosition()) {
+            parameters.set_bMemIntegerPosition(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bMemIntegerPosition. "
+                    "Setting bMemIntegerPosition to false\n");
+        }
+        if (!parameters.get_bMemUnordered()) {
+            parameters.set_bMemUnordered(true);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics requires bMemUnordered. "
+                    "Setting bMemUnordered to true\n");
+        }
+#ifndef USE_MFM
+        if (!parameters.get_bMemMass()) {
+            parameters.set_bMemMass(true);
+            fprintf(stderr,"WARNING: Meshless Finite Volume scheme requires bMemMass. "
+                    "Setting bMemMass to true\n");
+        }
+#endif
+    }
+
 #ifdef BLACKHOLES
-    if  (!ValidateBlackholeParam()) return 0;
+    if (!ValidateBlackholeParam()) return 0;
 #endif
 
 #ifdef STAR_FORMATION
-    if  (!ValidateStarFormationParam()) return 0;
+    if (!ValidateStarFormationParam()) return 0;
+#endif
+
+#ifdef STELLAR_EVOLUTION
+    if (parameters.get_bChemEnrich() && !parameters.get_bMemMass()) {
+        parameters.set_bMemMass(true);
+        fprintf(stderr,"WARNING: Chemical enrichment requires bMemMass. "
+                "Setting bMemMass to true\n");
+    }
 #endif
 
     if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {
@@ -511,7 +549,7 @@ int MSR::ValidateParameters() {
 
 #ifndef USE_HDF5
     if (parameters.get_bHDF5()) {
-        printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
+        printf("WARNING: HDF5 output was requested but it is not supported: using Tipsy format\n");
         parameters.set_bHDF5(false);
     }
 #endif

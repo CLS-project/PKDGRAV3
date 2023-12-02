@@ -3,8 +3,8 @@
 
 void MSR::SetBlackholeParam() {
     calc.dBHAccretionEddFac = parameters.get_dBHAccretionEddFac() * (1e3/MSOLG/units.dMsolUnit )  /
-                                pow( 100. / KPCCM / units.dKpcUnit, 3) /
-                                units.dSecUnit / parameters.get_dBHRadiativeEff() ;
+                              pow( 100. / KPCCM / units.dKpcUnit, 3) /
+                              units.dSecUnit / parameters.get_dBHRadiativeEff() ;
     // We precompute the factor such that we only need to multiply
     // AccretionRate by this amount to get E_feed
     calc.dBHFBEff = parameters.get_dBHFBEff() * parameters.get_dBHRadiativeEff() *
@@ -27,6 +27,21 @@ int MSR::ValidateBlackholeParam() {
                     "just set dBHAccretionAlpha=1.0\n");
             return 0;
         }
+    }
+    if (parameters.get_bBHPlaceSeed() && !parameters.get_bFindGroups()) {
+        parameters.set_bFindGroups(true);
+        fprintf(stderr,"WARNING: Blackhole seeding requires Friends-of-friends group finding. "
+                "Setting bFindGroups to true\n");
+    }
+    if (!parameters.get_bMemMass()) {
+        parameters.set_bMemMass(true);
+        fprintf(stderr,"WARNING: The blackhole module requires bMemMass. "
+                "Setting bMemMass to true\n");
+    }
+    if ((parameters.get_bBHMerger() || parameters.get_bBHAccretion()) && !parameters.get_bAddDelete()) {
+        parameters.set_bAddDelete(true);
+        fprintf(stderr,"WARNING: Blackhole mergers and gas accretion require bAddDelete. "
+                "Setting bAddDelete to true\n");
     }
     return 1;
 }
