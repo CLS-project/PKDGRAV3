@@ -3002,8 +3002,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
     if (doUConversion) SPHoptions->doUConversion = 0;
     for (auto &p : pkd->particles) {
         if (SPHoptions->useDensityFlags && p.rung() < SPHoptions->nPredictRung && !p.marked()) continue;
-        auto &NewSph = p.newsph();
-        SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, &NewSph.P, &NewSph.cs, &NewSph.T, SPHoptions);
+        SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, SPHoptions);
     }
     if (doUConversion) SPHoptions->doUConversion = 1;
 }

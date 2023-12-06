@@ -89,12 +89,12 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
     }
 }
 
-void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *P, float *cs, float *T, SPHOptions *SPHoptions) {
+void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, SPHOptions *SPHoptions) {
     // CAREFUL!! When this is called, p.marked() does not mean "has been kicked", but it is a fastgas marker
     auto &NewSph = p.newsph();
     if (SPHoptions->doUConversion && SPHoptions->doInterfaceCorrection) {
-        *T = NewSph.u;
-        *P = SPHEOSPofRhoT(pkd, p.density(), NewSph.u, p.imaterial(), SPHoptions);
+        NewSph.T = NewSph.u;
+        NewSph.P = SPHEOSPofRhoT(pkd, p.density(), NewSph.u, p.imaterial(), SPHoptions);
     }
     else {
         float dtPredDrift = getDtPredDrift(kick,0,uRungLo,p.rung());
@@ -112,7 +112,7 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
         else {
             uPred = NewSph.u + dtPredDrift * NewSph.uDot;
         }
-        *P = SPHEOSPCTofRhoU(pkd,p.density(),uPred,cs,T,p.imaterial(),SPHoptions);
+        NewSph.P = SPHEOSPCTofRhoU(pkd,p.density(),uPred,&NewSph.cs,&NewSph.T,p.imaterial(),SPHoptions);
         if (SPHoptions->doConsistentPrediction) {
             const auto &v = p.velocity();
             const auto &ap = p.acceleration();

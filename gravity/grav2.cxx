@@ -264,7 +264,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         NewSph.oldRho = p.density();
                     }
                     if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &NewSph.P, &NewSph.cs, &NewSph.T, wp->SPHoptions);
+                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, wp->SPHoptions);
                     }
                 }
                 if (wp->SPHoptions->doDensityCorrection) {
