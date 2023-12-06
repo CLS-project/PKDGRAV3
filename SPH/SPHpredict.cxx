@@ -37,7 +37,7 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
     }
 }
 
-void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, float *T, SPHOptions *SPHoptions) {
+void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, float *T, float *Spredxx, float *Spredyy, float *Spredxy, float *Spredxz, float *Spredyz, SPHOptions *SPHoptions) {
     auto &NewSph = p.newsph();
     float dtPredDrift = getDtPredDrift(kick,p.marked(),uRungLo,p.rung());
     const auto &ap = p.acceleration();
@@ -86,6 +86,21 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
             *cs = NewSph.cs;
             if (T) *T = NewSph.T;
         }
+        if (SPHoptions->doShearStrengthModel) {
+            auto &NewSphStr = p.newsphstr();
+            if (Spredxx) *Spredxx = NewSphStr.Spredxx;
+            if (Spredyy) *Spredyy = NewSphStr.Spredyy;
+            if (Spredxy) *Spredxy = NewSphStr.Spredxy;
+            if (Spredxz) *Spredxz = NewSphStr.Spredxz;
+            if (Spredyz) *Spredyz = NewSphStr.Spredyz;
+        }
+        else {
+            if (Spredxx) *Spredxx = 0.0f;
+            if (Spredyy) *Spredyy = 0.0f;
+            if (Spredxy) *Spredxy = 0.0f;
+            if (Spredxz) *Spredxz = 0.0f;
+            if (Spredyz) *Spredyz = 0.0f;
+        }
     }
 }
 
@@ -119,6 +134,15 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
             NewSph.vpredx = v[0] + dtPredDrift * ap[0];
             NewSph.vpredy = v[1] + dtPredDrift * ap[1];
             NewSph.vpredz = v[2] + dtPredDrift * ap[2];
+        }
+        if (SPHoptions->doShearStrengthModel) {
+            auto &NewSphStr = p.newsphstr();
+            NewSphStr.Spredxx = NewSphStr.Sxx + dtPredDrift * NewSphStr.SDotxx;
+            NewSphStr.Spredyy = NewSphStr.Syy + dtPredDrift * NewSphStr.SDotyy;
+            NewSphStr.Spredxy = NewSphStr.Sxy + dtPredDrift * NewSphStr.SDotxy;
+            NewSphStr.Spredxz = NewSphStr.Sxz + dtPredDrift * NewSphStr.SDotxz;
+            NewSphStr.Spredyz = NewSphStr.Syz + dtPredDrift * NewSphStr.SDotyz;
+            // Here will go limiting when we implement that.
         }
     }
 }

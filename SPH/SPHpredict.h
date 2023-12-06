@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung);
-void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, float *T, SPHOptions *SPHoptions);
+void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, float *T, float *Spredxx, float *Spredyy, float *Spredxy, float *Spredxz, float *Spredyz, SPHOptions *SPHoptions);
 void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, SPHOptions *SPHoptions);
 #ifdef __cplusplus
 }

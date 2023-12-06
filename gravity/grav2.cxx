@@ -290,7 +290,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     float P;
                     float cs;
                     float T;
-                    SPHpredictOnTheFly(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, vpred, &P, &cs, &T, wp->SPHoptions);
+                    SPHpredictOnTheFly(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, vpred, &P, &cs, &T, NULL, NULL, NULL, NULL, NULL, wp->SPHoptions);
                     float Gamma = SPHEOSGammaofRhoT(pkd, wp->pInfoIn[i].rho, T, p.imaterial(), wp->SPHoptions);
                     calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz);
                 }
@@ -848,12 +848,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].isTooLarge = 0;
             wp->pInfoIn[nP].Omega = NewSph.Omega;
             wp->pInfoIn[nP].iMat = p.imaterial();
-            SPHpredictOnTheFly(pkd, p, kick, wp->SPHoptions->nPredictRung, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, SPHoptions);
-            wp->pInfoIn[nP].Sxx = 0.0f;
-            wp->pInfoIn[nP].Syy = 0.0f;
-            wp->pInfoIn[nP].Sxy = 0.0f;
-            wp->pInfoIn[nP].Sxz = 0.0f;
-            wp->pInfoIn[nP].Syz = 0.0f;
+            SPHpredictOnTheFly(pkd, p, kick, wp->SPHoptions->nPredictRung, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, &wp->pInfoIn[nP].Sxx, &wp->pInfoIn[nP].Syy, &wp->pInfoIn[nP].Sxy, &wp->pInfoIn[nP].Sxz, &wp->pInfoIn[nP].Syz, SPHoptions);
             wp->pInfoIn[nP].rho = p.density();
             wp->pInfoIn[nP].species = p.species();
 

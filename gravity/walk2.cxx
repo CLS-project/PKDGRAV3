@@ -226,7 +226,7 @@ found_it:
                                             float Sxy = 0.0f;
                                             float Sxz = 0.0f;
                                             float Syz = 0.0f;
-                                            SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
+                                            SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, &Sxx, &Syy, &Sxy, &Sxz, &Syz, SPHoptions);
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
                                                 r[1] + blk.yOffset[jTile],
@@ -286,7 +286,7 @@ found_it:
                                                 float Sxy = 0.0f;
                                                 float Sxz = 0.0f;
                                                 float Syz = 0.0f;
-                                                SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
+                                                SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, &Sxx, &Syy, &Sxy, &Sxz, &Syz, SPHoptions);
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
                                                     r[1] + blk.yOffset[jTile],
