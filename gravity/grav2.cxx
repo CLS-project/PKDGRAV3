@@ -286,7 +286,12 @@ void pkdParticleWorkDone(workParticle *wp) {
                 }
                 if (wp->SPHoptions->doShearStrengthModel) {
                     auto &NewSphStr = p.newsphstr();
-                    float Gamma = 0.0f; // EOS call
+                    float vpred[3];
+                    float P;
+                    float cs;
+                    float T;
+                    SPHpredictOnTheFly(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, vpred, &P, &cs, &T, wp->SPHoptions);
+                    float Gamma = SPHEOSGammaofRhoT(pkd, wp->pInfoIn[i].rho, T, p.imaterial(), wp->SPHoptions);
                     calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz);
                 }
             }

@@ -120,3 +120,16 @@ float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHO
     }
     return u2;
 }
+
+float SPHEOSGammaofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions) {
+    float Gamma = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        // Builtin ideal gas does not have a shear modulus and will have zero yield strength.
+        Gamma = 0.0f;
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        Gamma = (float)EOSGammaofRhoT(pkd->materials[iMat], rho, T);
+#endif
+    }
+}
