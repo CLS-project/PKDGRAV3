@@ -519,6 +519,7 @@ inline vec<__m256d,double> operator|(vec<__m256d,double> const &a,vec<__m256d,do
 inline vec<__m256d,double> operator^(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_xor_pd(a,b); }
 inline vec<__m256d,double> operator~(vec<__m256d,double> const &a) { return _mm256_xor_pd(a,_mm256_castsi256_pd(_mm256_set1_epi32(0xffffffff))); }
 
+inline vec<__m256d,double> maskz_mov(vec<__m256d,double> const &p,vec<__m256d, double> const &a) { return a & p; }
 inline int movemask(vec<__m256d,double> const &r2) { return _mm256_movemask_pd(r2); }
 inline vec<__m256d,double> mask_mov(vec<__m256d,double> const &src,vec<__m256d,double> const &k,vec<__m256d,double> const &a)
 { return _mm256_blendv_pd(src,a,k); }

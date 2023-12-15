@@ -49,7 +49,22 @@ if(USE_GTEST)
    )
    if(HAVE_MM_POW)
       target_compile_options(hydro PRIVATE -DHAVE_MM_POW)
-   endif()
+   else(HAVE_MM_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m128d _ZGVbN2vv_pow(__m128d x, __m128d y);
+           int main() {
+             __m128d a, b;
+             __m128d tmp = _ZGVbN2vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM_POW
+       )
+       if(HAVE_LIBVECM_POW)
+           target_compile_options(hydro PRIVATE -DHAVE_LIBVECM_POW)
+       endif(HAVE_LIBVECM_POW)
+   endif(HAVE_MM_POW)
    check_c_source_compiles("
        #include <immintrin.h>
        int main() {
@@ -62,7 +77,22 @@ if(USE_GTEST)
    )
    if(HAVE_MM256_POW)
       target_compile_options(hydro PRIVATE -DHAVE_MM256_POW)
-   endif()
+   else(HAVE_MM256_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m256d _ZGVdN4vv_pow(__m256d x, __m256d y);
+           int main() {
+             __m256d a, b;
+             __m256d tmp = _ZGVdN4vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM256_POW
+       )
+       if(HAVE_LIBVECM256_POW)
+           target_compile_options(hydro PRIVATE -DHAVE_LIBVECM256_POW)
+       endif(HAVE_LIBVECM256_POW)
+   endif(HAVE_MM256_POW)
    check_c_source_compiles("
        #include <immintrin.h>
        int main() {
@@ -75,6 +105,21 @@ if(USE_GTEST)
    )
    if(HAVE_MM512_POW)
       target_compile_options(hydro PRIVATE -DHAVE_MM512_POW)
+   else(HAVE_MM512_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m512d _ZGVeN8vv_pow(__m512d x, __m512d y);
+           int main() {
+             __m512d a, b;
+             __m512d tmp = _ZGVeN8vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM512_POW
+       )
+       if(HAVE_LIBVECM512_POW)
+           target_compile_options(hydro PRIVATE -DHAVE_LIBVECM512_POW)
+       endif(HAVE_LIBVECM512_POW)
    endif()
   target_include_directories(hydro PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../ ${CMAKE_CURRENT_SOURCE_DIR}/../)
   set_target_properties(hydro PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)

@@ -75,7 +75,9 @@ protected:
 typedef RiemannTest<vec<double,double>,mmask<bool>> RiemannTestNoVec;
 typedef RiemannTest<dvec,dmask> RiemannTestVec;
 
-#if ( defined(HAVE_MM_POW) || defined(HAVE_MM256_POW) || defined(HAVE_MM512_POW) )
+#if   defined(HAVE_MM_POW) || defined(HAVE_LIBVECM_POW) || \
+      defined(HAVE_MM256_POW) || defined(HAVE_LIBVECM256_POW) || \
+      defined(HAVE_MM512_POW) || defined(HAVE_LIBVECM512_POW)
 TEST_F(RiemannTestVec, ToroVec1) {
 
     set_vec_R(0.125, 0.1, {0.,0.,0.});
