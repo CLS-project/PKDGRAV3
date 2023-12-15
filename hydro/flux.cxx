@@ -351,14 +351,15 @@ private:
             modApq += Apq[j]*Apq[j];
         }
         modApq = sqrt(modApq);
-        dtype zero = 0.;
-        mtype cond = modApq>zero;
         for (auto j=0; j<3; j++) {
             unit[j] = Apq[j]/modApq;
         }
-        if (testz(cond)) { // Some of the elements are zero
+        // Avoid NaNs when the face has zero area
+        dtype zero = 0.;
+        mtype cond = modApq==zero;
+        if (movemask(cond)) {
             for (auto j=0; j<3; j++)
-                unit[j] = 0.0;
+                unit[j] = mask_mov(unit[j], cond, zero);
         }
     }
 
@@ -580,25 +581,28 @@ private:
         /*
         int nan;
         // Only works if compiling with -fno-finite-math-only !!
-        nan = nan_guard(S_M, zero);
-        nan = nan_guard(P_M, zero);
-        if (nan){
-           printf("-----\n");
-           dump(S_M);
-           dump(P_M);
-           dump(R_rho);
-           dump(L_rho);
-           dump(R_p);
-           dump(L_p);
-           dump(R_v[0]);
-           dump(L_v[0]);
-           dump(R_v[1]);
-           dump(L_v[1]);
-           dump(R_v[2]);
-           dump(L_v[2]);
-           dump(face_unit[0]);
-           dump(face_unit[1]);
-           dump(face_unit[2]);
+        auto aa = maskz_mov(mask, P_M);
+        auto bb = maskz_mov(mask, S_M);
+        auto cc = maskz_mov(mask, modApq);
+        nan = nan_guard(aa, zero) | nan_guard(bb, zero) | nan_guard(cc, zero);
+        if (nan) {
+            printf("-----\n");
+            dump(S_M);
+            dump(P_M);
+            dump(R_rho);
+            dump(L_rho);
+            dump(R_p);
+            dump(L_p);
+            dump(R_v[0]);
+            dump(L_v[0]);
+            dump(R_v[1]);
+            dump(L_v[1]);
+            dump(R_v[2]);
+            dump(L_v[2]);
+            dump(face_unit[0]);
+            dump(face_unit[1]);
+            dump(face_unit[2]);
+            dump(modApq);
         }
         */
 
@@ -642,14 +646,6 @@ private:
 #ifdef FORCE_2D
         F_v[2] = 0.;
 #endif
-
-        /*
-        // Check for NAN fluxes
-        if (F_rho!=F_rho)
-            F_rho = 0.;//abort();
-        if (F_p!=F_p)
-            F_p = 0.;//abort();
-        */
 
         // Now we de-boost the fluxes following Eq. A8 Hopkins 2015
         for (auto j=0; j<3; j++) {
