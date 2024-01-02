@@ -214,7 +214,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     }
 
     const bool bDoStartOutput = parameters.get_bWriteIC() && !parameters.has_nGrid() && !NewSPH();
-    const bool bDoStartFof = parameters.get_bBHPlaceSeed() || (parameters.get_bFindGroups() && bDoStartOutput);
+    const bool bDoStartFof =  parameters.get_bFindGroups() && ( bDoStartOutput || parameters.get_bBHPlaceSeed() );
     if (bDoStartFof) {
         NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
     }
