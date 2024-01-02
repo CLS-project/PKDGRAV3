@@ -11,6 +11,9 @@ __pycache__
 /windows*/*\.user
 /windows*/*\.filters
 build*
+**Testing*
 test-reports
 .vscode/
+.cache/
 run-tests/
+compile_commands.json
