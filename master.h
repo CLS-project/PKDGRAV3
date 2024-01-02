@@ -448,7 +448,6 @@ protected:
     // Meshless hydrodynamics
     void MeshlessGradients(double dTime, double dDelta);
     void MeshlessFluxes(double dTime,double dDelta);
-    void ResetFluxes(double dTime,double dDelta);
     void HydroStep(double dTime, double dDelta);
     void ComputeSmoothing(double dTime, double dDelta);
     void ChemCompInit();

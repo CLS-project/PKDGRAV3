@@ -15,7 +15,6 @@ using blitz::dot;
  * ----------------
  */
 
-
 /* We use a cubic spline kernel.
  * See, for example:
  * https://pysph.readthedocs.io/en/latest/reference/kernels.html
@@ -50,7 +49,6 @@ void inverseMatrix(double *E, double *B) {
     B[XZ] = (E[XY]*E[YZ] - E[YY]*E[XZ])*det;
     B[YZ] = -(E[XX]*E[YZ] - E[XY]*E[XZ])*det;
 
-
 }
 
 double conditionNumber(double *E, double *B) {
@@ -73,8 +71,6 @@ double conditionNumber(double *E, double *B) {
     return sqrt(modB*modE)/3.;
 }
 
-
-
 // Equation 10.39
 inline void compute_Ustar(double rho_K, double S_K, double v_K,
                           double p_K, double h_K, double S_s,
@@ -88,13 +84,6 @@ inline void compute_Ustar(double rho_K, double S_K, double v_K,
     double e_K = rho_K*h_K - p_K;
     *e_sK = fac * ( e_K/rho_K + (S_s - v_K)*(S_s + p_K/(rho_K*(S_K - v_K))) );
 }
-
-
-
-
-
-
-
 
 void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                         double pDelta, TinyVector<double,3> &pa, double dScaleFactor,
@@ -129,9 +118,6 @@ void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS 
     psph->E += gravE - 0.5*gravE_dmdt;
 }
 
-
-
-
 void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma) {
@@ -156,10 +142,6 @@ void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELD
     }
 
 }
-
-
-
-
 
 void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                        const TinyVector<double,3> &pa, double dConstGamma) {
@@ -207,9 +189,6 @@ void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *
     }
 }
 
-
-
-
 void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                         double dTuFac, double dConstGamma) {
 
@@ -231,10 +210,6 @@ void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS 
     psph->c = sqrt(psph->P*dConstGamma/p.density());
     p.velocity() = psph->mom / p.mass();
 }
-
-
-
-
 
 void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                       const TinyVector<double,3> &pa, double dScaleFactor, double dTime,
@@ -259,4 +234,8 @@ void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *p
 #endif
 }
 
-
+void hydroResetFluxes(SPHFIELDS *psph) {
+    psph->Frho = 0.0;
+    psph->Fene = 0.0;
+    psph->Fmom = 0.0;
+}

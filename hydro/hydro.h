@@ -189,6 +189,7 @@ void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS 
 void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                       const blitz::TinyVector<double,3> &pa, double dScaleFactor,
                       double dTime, double dDelta, double dConstGamma);
+void hydroResetFluxes(SPHFIELDS *psph);
 
 /* -----------------
  * HELPERS

@@ -129,10 +129,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   0,sizeof(struct outCalcEandL));
     mdlAddService(mdl,PST_DRIFT,pst,(fcnService_t *)pstDrift,
                   sizeof(struct inDrift),0);
-    // IA: New PST functions
-    mdlAddService(mdl,PST_RESETFLUXES,pst,
-                  (fcnService_t *) pstResetFluxes,
-                  sizeof(struct inDrift),0);
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
                   (fcnService_t *) pstEndTimestepIntegration,
                   sizeof(struct inEndTimestep),0);
@@ -1451,22 +1447,6 @@ int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 #endif
-
-int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inDrift *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESETFLUXES,in,nIn);
-        pstResetFluxes(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        pkdResetFluxes(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
-    }
-    return 0;
-}
 
 #ifdef DEBUG_CACHED_FLUXES
 int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {

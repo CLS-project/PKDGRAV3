@@ -2808,7 +2808,6 @@ int MSR::NewTopStepKDK(
     dDeltaRung = dDelta/(1 << *puRungMax);
     ActiveRung(uRung,1);
     if (DoGas() && MeshlessHydro()) {
-        ResetFluxes(dTime, dDelta);
         MeshlessFluxes(dTime, dDelta);
     }
     ZeroNewRung(uRung,MAX_RUNG,uRung);
@@ -3126,7 +3125,6 @@ void MSR::TopStepKDK(
     else if (CurrMaxRung() == iRung) {
         if (DoGas() && MeshlessHydro()) {
             ActiveRung(iKickRung,1);
-            ResetFluxes(dTime, dDeltaStep);
             MeshlessFluxes(dTime, dDeltaStep);
         }
 

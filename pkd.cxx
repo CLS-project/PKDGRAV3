@@ -2340,6 +2340,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             // Set 'last*' variables for next timestep
             hydroSetLastVars(pkd, p, &sph, pa, dScaleFactor, in.dTime, in.dDelta, in.dConstGamma);
 
+            hydroResetFluxes(&sph);
         }
         else if (p.is_bh() && p.is_active()) {
 #ifdef BLACKHOLES

@@ -6,42 +6,6 @@
 using blitz::TinyVector;
 using blitz::dot;
 
-/* TODO: This function probably can be eliminated, and the fluxes reset when
- *   starting the ReSmooth
- */
-void MSR::ResetFluxes(double dTime,double dDelta) {
-    struct inDrift in;
-
-    if (csm->val.bComove) {
-        in.dDelta = csmComoveDriftFac(csm,dTime,dDelta);
-        in.dDeltaVPred = csmComoveKickFac(csm,dTime,dDelta);
-    }
-    else {
-        in.dDelta = dDelta;
-        in.dDeltaVPred = dDelta;
-    }
-    in.dTime = dTime;
-    in.dDeltaUPred = dDelta;
-    pstResetFluxes(pst,&in,sizeof(in),NULL,0);
-}
-
-void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
-    /*
-    ** Add the computed flux to the conserved variables for each gas particle
-    */
-    assert(pkd->particles.present(PKD_FIELD::oVelocity));
-    assert(pkd->particles.present(PKD_FIELD::oSph));
-    for (auto &P : pkd->particles) {
-        if (P.is_gas() && P.is_active() ) {
-            auto &sph = P.sph();
-            sph.Frho = 0.0;
-            sph.Fene = 0.0;
-            sph.Fmom = 0.0;
-        }
-    }
-
-}
-
 void MSR::MeshlessFluxes(double dTime,double dDelta) {
     double dsec;
     printf("Computing fluxes... ");

@@ -70,7 +70,6 @@ typedef struct pstContext {
     uint64_t nLowerGroups;  /* count of number of groups in the lower sub-tree, used for making global group ids. */
 } *PST;
 
-
 #define PST_SERVICES        100
 #define PST_FILENAME_SIZE   512
 #define PST_MAX_FILES           16384
@@ -113,7 +112,6 @@ enum pst_service {
     PST_LIGHTCONE,
     PST_CALCEANDL,
     PST_DRIFT,
-    PST_RESETFLUXES,
     PST_COMPUTEPRIMVARS,
     PST_WAKEPARTICLES,
 #ifdef DEBUG_CACHED_FLUXES
@@ -273,7 +271,6 @@ struct outInitializePStore {
     int nSizeNode;
 };
 int pstInitializePStore(PST,void *,int,void *,int);
-
 
 /* PST_READFILE */
 struct inReadFile {
@@ -553,7 +550,6 @@ struct inGravity {
     SPHOptions SPHoptions;
 };
 
-
 typedef struct StatsCollector {
     double dSum;
     double dSum2;
@@ -561,7 +557,6 @@ typedef struct StatsCollector {
     int idMax;
     int n;
 } STAT;
-
 
 /*
 ** The outGravityReduct structure is at the beginning of the output message,
@@ -618,7 +613,6 @@ struct inDrift {
     int bDoGas;
 };
 int pstDrift(PST,void *,int,void *,int);
-int pstResetFluxes(PST,void *,int,void *,int);
 int pstEndTimestepIntegration(PST,void *,int,void *,int);
 int pstWakeParticles(PST,void *,int,void *,int);
 struct outFluxStats {
@@ -1160,7 +1154,6 @@ struct outTotalMass {
     double dMass;
 };
 int pstTotalMass(PST pst,void *vin,int nIn,void *vout,int nOut);
-
 
 /* PST_GETMINDT */
 struct outGetMinDt {
