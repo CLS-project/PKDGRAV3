@@ -304,11 +304,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                     dtGrav += wp->ts->dPreFacRhoLoc*wp->pInfoIn[i].fDensity;
                     dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
                     if (dtGrav > 0.0) {
-                        dT = std::min(dT,fEta * rsqrtf(dtGrav*wp->ts->dRhoFac));
+                        dT = std::min(dT, fEta * rsqrtf(dtGrav*wp->ts->dRhoFac));
                     }
                     else if (maga > 0.0f && pkd->particles.present(PKD_FIELD::oNewSph)) {
                         float imaga = rsqrtf(maga) * fiAccFac;
-                        dT = std::min(dT,fEta*asqrtf(0.5f * p.ball() * imaga));
+                        dT = std::min(dT, fEta*asqrtf(0.5f * p.ball() * imaga));
                     }
                 } /* end of wp->bGravStep */
                 else {
@@ -319,27 +319,33 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (maga > 0.0f) {
                         float imaga = rsqrtf(maga) * fiAccFac;
                         if (wp->SPHoptions->doGravity) {
-                            dT = std::min(dT,fEta*asqrtf(p.soft()*imaga));
+                            dT = std::min(dT, fEta*asqrtf(p.soft()*imaga));
                         }
                         else if (p.have_newsph()) {
-                            dT = std::min(dT,fEta*asqrtf(0.5f * p.ball() * imaga));
+                            dT = std::min(dT, fEta*asqrtf(0.5f * p.ball() * imaga));
                         }
                     }
                 }
 
                 // Courant criterium
                 if (p.have_newsph()) {
-                    dT = std::min(dT,wp->pInfoOut[i].dtEst);
+                    dT = std::min(dT, wp->pInfoOut[i].dtEst);
                 }
 
                 // Further timestep criteria go here
+                if (p.have_newsph()) {
+                    auto &NewSph = p.newsph();
+                    if (fabsf(NewSph.u) > 0.0f && fabsf(NewSph.uDot) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtauDot * fabsf(NewSph.u/NewSph.uDot));
+                    }
+                }
 
                 // Calculate rung from timestep size
                 uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
 
                 // Limit rung according to rung of interacting particles
                 if (p.have_newsph()) {
-                    uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                    uNewRung = std::max(std::max((int)uNewRung, (int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection), 0);
                 }
 
                 /*
