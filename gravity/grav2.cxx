@@ -332,13 +332,15 @@ void pkdParticleWorkDone(workParticle *wp) {
                     dT = std::min(dT, wp->pInfoOut[i].dtEst);
                 }
 
-                // Further timestep criteria go here
+                // Timestep criterion on the internal energy
                 if (p.have_newsph()) {
                     auto &NewSph = p.newsph();
                     if (fabsf(NewSph.u) > 0.0f && fabsf(NewSph.uDot) > 0.0f) {
                         dT = std::min(dT, wp->SPHoptions->EtauDot * fabsf(NewSph.u/NewSph.uDot));
                     }
                 }
+
+                // Further timestep criteria go here
 
                 // Calculate rung from timestep size
                 uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
