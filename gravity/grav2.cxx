@@ -90,7 +90,6 @@ void pkdParticleWorkDone(workParticle *wp) {
     auto pkd = static_cast<PKD>(wp->ctx);
     int i,gid;
     vel_t v2;
-    float fx, fy, fz;
     float maga, dT, dtGrav;
     unsigned char uNewRung;
 
@@ -280,7 +279,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                 pkd->dEnergyF += m * wp->pInfoOut[i].a;
 
                 // Begin calculation of timestep size, initializing dT and uNewRung
-                dT = HUGE_VALF;
+                dT = 2.0f * wp->ts->dDelta;
                 uNewRung = 0;
 
                 // Gravity timestep criteria
@@ -345,7 +344,8 @@ void pkdParticleWorkDone(workParticle *wp) {
                 // Calculate rung from timestep size
                 uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
 
-                // Limit rung according to rung of interacting particles
+                // Limit rung such that it only differs by a maximum of nRungCorrection from those it is interacting with
+                // See doi:10.1088/0004-637X/697/2/L99 for an explanation
                 if (p.have_newsph()) {
                     uNewRung = std::max(std::max((int)uNewRung, (int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection), 0);
                 }
