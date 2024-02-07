@@ -121,6 +121,7 @@ public:
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
+    void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
     void OutArray(const char *pszFile,int iType,int iFileType);
     void OutArray(const char *pszFile,int iType);
     void OutVector(const char *pszFile,int iType,int iFileType);
@@ -491,7 +492,6 @@ protected:
 
     void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
-    void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
     void DomainDecompOld(int iRung);
 
     void SaveParameters();

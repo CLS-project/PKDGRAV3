@@ -148,6 +148,18 @@ def fof(tau,minmembers=10):
     msr0.NewFof(tau,minmembers)
     msr0.GroupStats()
 
+def smooth(type,n=32,time=1.0,delta=0.0,symmetric=False):
+    """
+    Smooths the density field with a given kernel
+
+    :param integer type: smoothing kernel type
+    :param integer n: smoothing kernel size
+    :param number time: simulation time
+    :param number delta: density contrast
+    :param Boolean symmetric: use symmetric smoothing
+    """
+    msr0.Smooth(time,delta,type,symmetric,n)
+
 def get_array(field,time=1.0,marked=False):
     """
     Retrieves an array with requested field.
@@ -204,6 +216,9 @@ def get_array(field,time=1.0,marked=False):
     msr0.RecvArray(v,field,N[1]*a.itemsize,time,marked)
     if N[1] == 1: a = np.reshape(a,(N[0]))
     return a
+
+def write_array(filename,field):
+    msr0.OutASCII(filename.encode('UTF-8'),field,3 if field in [OUT_POS_VECTOR,OUT_VEL_VECTOR,OUT_MEANVEL_VECTOR,OUT_ACCEL_VECTOR] else 1,0)
 
 def mark_box(center,apothem,set_if_true=1,clear_if_false=1):
     """
