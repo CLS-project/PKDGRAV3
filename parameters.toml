@@ -1075,8 +1075,8 @@ help="Courant criterion"
 
 ["Gas".dEtauDot]
 flag="etau"
-default=0.4
-help="Timestepping criterion for internal energy"
+default=-1.0
+help="Timestepping criterion for internal energy (negative = deactivated)"
 
 ["Gas".dCFLacc]
 flag="etaAcc"

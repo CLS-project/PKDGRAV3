@@ -333,7 +333,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                 }
 
                 // Timestep criterion on the internal energy
-                if (p.have_newsph()) {
+                if (wp->SPHoptions->EtauDot > 0.0f && p.have_newsph()) {
                     auto &NewSph = p.newsph();
                     if (fabsf(NewSph.u) > 0.0f && fabsf(NewSph.uDot) > 0.0f) {
                         dT = std::min(dT, wp->SPHoptions->EtauDot * fabsf(NewSph.u/NewSph.uDot));
