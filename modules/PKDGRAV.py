@@ -155,8 +155,29 @@ def smooth(type,n=32,time=1.0,delta=0.0,symmetric=False):
     :param integer type: smoothing kernel type
     :param integer n: smoothing kernel size
     :param number time: simulation time
-    :param number delta: density contrast
+    :param number delta: time step delta
     :param Boolean symmetric: use symmetric smoothing
+
+    Values for the smoothing kernel type are:
+
+    * SMOOTH_TYPE_DENSITY
+    * SMOOTH_TYPE_F1
+    * SMOOTH_TYPE_M3
+    * SMOOTH_TYPE_GRADIENT_M3
+    * SMOOTH_TYPE_HOP_LINK
+    * SMOOTH_TYPE_BALL
+    * SMOOTH_TYPE_PRINTNN
+    * SMOOTH_TYPE_HYDRO_DENSITY
+    * SMOOTH_TYPE_HYDRO_DENSITY_FINAL
+    * SMOOTH_TYPE_HYDRO_GRADIENT
+    * SMOOTH_TYPE_HYDRO_FLUX
+    * SMOOTH_TYPE_HYDRO_STEP
+    * SMOOTH_TYPE_HYDRO_FLUX_VEC
+    * SMOOTH_TYPE_SN_FEEDBACK
+    * SMOOTH_TYPE_BH_MERGER
+    * SMOOTH_TYPE_BH_DRIFT
+    * SMOOTH_TYPE_BH_STEP
+    * SMOOTH_TYPE_CHEM_ENRICHMENT
     """
     msr0.Smooth(time,delta,type,symmetric,n)
 
@@ -218,6 +239,42 @@ def get_array(field,time=1.0,marked=False):
     return a
 
 def write_array(filename,field):
+    """
+    Writes an array to a file.
+
+    :param str filename: the name of the file
+    :param number field: the field to write. Values are:
+
+    * OUT_DENSITY_ARRAY
+    * OUT_POT_ARRAY
+    * OUT_AMAG_ARRAY
+    * OUT_IMASS_ARRAY
+    * OUT_RUNG_ARRAY
+    * OUT_DIVV_ARRAY
+    * OUT_VELDISP2_ARRAY
+    * OUT_VELDISP_ARRAY
+    * OUT_PHASEDENS_ARRAY
+    * OUT_SOFT_ARRAY
+    * OUT_POS_VECTOR
+    * OUT_VEL_VECTOR
+    * OUT_ACCEL_VECTOR
+    * OUT_MEANVEL_VECTOR
+    * OUT_IORDER_ARRAY
+    * OUT_C_ARRAY
+    * OUT_HSPH_ARRAY
+    * OUT_RUNGDEST_ARRAY
+    * OUT_MARKED_ARRAY
+    * OUT_CACHEFLUX_ARRAY
+    * OUT_CACHECOLL_ARRAY
+    * OUT_AVOIDEDFLUXES_ARRAY
+    * OUT_COMPUTEDFLUXES_ARRAY
+    * OUT_HOP_STATS
+    * OUT_GROUP_ARRAY
+    * OUT_GLOBALGID_ARRAY
+    * OUT_BALL_ARRAY
+    * OUT_PSGROUP_ARRAY
+    * OUT_PSGROUP_STATS
+    """
     msr0.OutASCII(filename.encode('UTF-8'),field,3 if field in [OUT_POS_VECTOR,OUT_VEL_VECTOR,OUT_MEANVEL_VECTOR,OUT_ACCEL_VECTOR] else 1,0)
 
 def mark_box(center,apothem,set_if_true=1,clear_if_false=1):
