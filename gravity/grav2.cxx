@@ -282,16 +282,16 @@ void pkdParticleWorkDone(workParticle *wp) {
                     else {
                         NewSph.uDot = wp->pInfoOut[i].uDot;
                     }
-                }
-                if (wp->SPHoptions->doShearStrengthModel) {
-                    auto &NewSphStr = p.newsphstr();
-                    float vpred[3];
-                    float P;
-                    float cs;
-                    float T;
-                    SPHpredictOnTheFly(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, vpred, &P, &cs, &T, NULL, NULL, NULL, NULL, NULL, wp->SPHoptions);
-                    float Gamma = SPHEOSGammaofRhoT(pkd, wp->pInfoIn[i].rho, T, p.imaterial(), wp->SPHoptions);
-                    calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz);
+                    if (wp->SPHoptions->doShearStrengthModel) {
+                        auto &NewSphStr = p.newsphstr();
+                        float vpred[3];
+                        float P;
+                        float cs;
+                        float T;
+                        SPHpredictOnTheFly(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, vpred, &P, &cs, &T, NULL, NULL, NULL, NULL, NULL, wp->SPHoptions);
+                        float Gamma = SPHEOSGammaofRhoT(pkd, wp->pInfoIn[i].rho, T, p.imaterial(), wp->SPHoptions);
+                        calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz);
+                    }
                 }
             }
 
@@ -467,15 +467,15 @@ void pkdParticleWorkDone(workParticle *wp) {
                             if (!wp->SPHoptions->doOnTheFlyPrediction && !wp->SPHoptions->doConsistentPrediction) {
                                 NewSph.P = SPHEOSPCTofRhoU(pkd,p.density(),NewSph.u,&NewSph.cs,&NewSph.T,p.imaterial(),wp->SPHoptions);
                             }
-                        }
-                        if (wp->SPHoptions->doShearStrengthModel) {
-                            auto &NewSphStr = p.newsphstr();
-                            NewSphStr.Sxx += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxx;
-                            NewSphStr.Syy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyy;
-                            NewSphStr.Sxy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxy;
-                            NewSphStr.Sxz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxz;
-                            NewSphStr.Syz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyz;
-                            // Here will go limiting when we implement that.
+                            if (wp->SPHoptions->doShearStrengthModel) {
+                                auto &NewSphStr = p.newsphstr();
+                                NewSphStr.Sxx += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxx;
+                                NewSphStr.Syy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyy;
+                                NewSphStr.Sxy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxy;
+                                NewSphStr.Sxz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxz;
+                                NewSphStr.Syz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyz;
+                                // Here will go limiting when we implement that.
+                            }
                         }
                     }
                     v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
@@ -502,14 +502,14 @@ void pkdParticleWorkDone(workParticle *wp) {
                         if (wp->SPHoptions->doSPHForces) {
                             auto &NewSph = p.newsph();
                             NewSph.u += wp->kick->dtOpen[p.rung()] * NewSph.uDot;
-                        }
-                        if (wp->SPHoptions->doShearStrengthModel) {
-                            auto &NewSphStr = p.newsphstr();
-                            NewSphStr.Sxx += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxx;
-                            NewSphStr.Syy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyy;
-                            NewSphStr.Sxy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxy;
-                            NewSphStr.Sxz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxz;
-                            NewSphStr.Syz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyz;
+                            if (wp->SPHoptions->doShearStrengthModel) {
+                                auto &NewSphStr = p.newsphstr();
+                                NewSphStr.Sxx += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxx;
+                                NewSphStr.Syy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyy;
+                                NewSphStr.Sxy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxy;
+                                NewSphStr.Sxz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxz;
+                                NewSphStr.Syz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyz;
+                            }
                         }
                         /*
                         ** On KickOpen we also always check for intersection with the lightcone
