@@ -468,6 +468,15 @@ void pkdParticleWorkDone(workParticle *wp) {
                                 NewSph.P = SPHEOSPCTofRhoU(pkd,p.density(),NewSph.u,&NewSph.cs,&NewSph.T,p.imaterial(),wp->SPHoptions);
                             }
                         }
+                        if (wp->SPHoptions->doShearStrengthModel) {
+                            auto &NewSphStr = p.newsphstr();
+                            NewSphStr.Sxx += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxx;
+                            NewSphStr.Syy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyy;
+                            NewSphStr.Sxy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxy;
+                            NewSphStr.Sxz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxz;
+                            NewSphStr.Syz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyz;
+                            // Here will go limiting when we implement that.
+                        }
                     }
                     v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
                     /*
@@ -493,6 +502,14 @@ void pkdParticleWorkDone(workParticle *wp) {
                         if (wp->SPHoptions->doSPHForces) {
                             auto &NewSph = p.newsph();
                             NewSph.u += wp->kick->dtOpen[p.rung()] * NewSph.uDot;
+                        }
+                        if (wp->SPHoptions->doShearStrengthModel) {
+                            auto &NewSphStr = p.newsphstr();
+                            NewSphStr.Sxx += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxx;
+                            NewSphStr.Syy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyy;
+                            NewSphStr.Sxy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxy;
+                            NewSphStr.Sxz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxz;
+                            NewSphStr.Syz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyz;
                         }
                         /*
                         ** On KickOpen we also always check for intersection with the lightcone
