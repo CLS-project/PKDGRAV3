@@ -277,7 +277,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, hij, dvdotdx, muij, Piij;
-    F POneOverRho2, IOneOverRho2, minusImOverRho, dtC, dtMu;
+    F POneOverRho2, IOneOverRho2, minusImOverRho;
 
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
@@ -391,9 +391,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
         result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
 
         // timestep
-        dtC = 1.0f + 0.6f * alpha;
-        dtMu = 0.6f * beta;
-        result.dtEst = aFac * EtaCourant * 0.5f * PfBall / (dtC * Pc - dtMu * muij);
+        result.dtEst = aFac * EtaCourant * 0.5f * PfBall / ((1.0f + 0.6f * alpha) * Pc - 0.6f * beta * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
         result.dtEst = mask_mov(1e14f,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);

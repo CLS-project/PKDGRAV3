@@ -132,4 +132,5 @@ float SPHEOSGammaofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHop
         Gamma = (float)EOSGammaofRhoT(pkd->materials[iMat], rho, T);
 #endif
     }
+    return Gamma;
 }
