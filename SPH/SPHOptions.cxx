@@ -34,6 +34,7 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     SPHoptions.alpha = parameters.get_dConstAlpha();
     SPHoptions.beta = parameters.get_dConstBeta();
     SPHoptions.EtaCourant = parameters.get_dEtaCourant();
+    SPHoptions.EtauDot = parameters.get_dEtauDot();
     SPHoptions.gamma = parameters.get_dConstGamma();
     SPHoptions.TuFac = units.dGasConst/(SPHoptions.gamma - 1)/parameters.get_dMeanMolWeight();
     SPHoptions.FastGasFraction = parameters.get_dFastGasFraction();
@@ -93,6 +94,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->alpha = source->alpha;
     target->beta = source->beta;
     target->EtaCourant = source->EtaCourant;
+    target->EtauDot = source->EtauDot;
     target->gamma = source->gamma;
     target->TuFac = source->TuFac;
     target->FastGasFraction = source->FastGasFraction;

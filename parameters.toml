@@ -1073,6 +1073,11 @@ flag="etaC"
 default=0.4
 help="Courant criterion"
 
+["Gas".dEtauDot]
+flag="etau"
+default=-1.0
+help="Timestepping criterion for internal energy (negative = deactivated)"
+
 ["Gas".dCFLacc]
 flag="etaAcc"
 default=0.01

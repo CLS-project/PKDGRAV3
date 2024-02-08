@@ -103,6 +103,7 @@ typedef struct {
     float alpha;
     float beta;
     float EtaCourant;
+    float EtauDot;
     float a;
     float H;
     float gamma;
