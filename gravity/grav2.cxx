@@ -146,7 +146,7 @@ void calcSDot(PINFOIN pInfoIn, PINFOOUT pInfoOut, float Gamma, float *SDotxx, fl
 
     *SDotxx = float(Sxy * (Gyx - Gxy) + Sxz * (Gzx - Gxz) - 2.0 / 3.0 * Gamma * (Gyy + Gzz - 2.0 * Gxx));
     *SDotyy = float(Sxy * (Gxy - Gyx) + Syz * (Gzy - Gyz) - 2.0 / 3.0 * Gamma * (Gxx + Gzz - 2.0 * Gyy));
-    *SDotxy = float(Gamma * (Gxy - Gyx) + 0.5 * (Sxx * (Gxy - Gyx) + Syy * (Gyx - Gxy) + Syz * (Gzx - Gxz) + Sxz * (Gzy - Gyz)));
+    *SDotxy = float(Gamma * (Gxy + Gyx) + 0.5 * (Sxx * (Gxy - Gyx) + Syy * (Gyx - Gxy) + Syz * (Gzx - Gxz) + Sxz * (Gzy - Gyz)));
     *SDotxz = float(Gamma * (Gxz + Gzx) + 0.5 * ((Sxx + Syy) * (Gxz - Gzx) + Sxx * (Gxz - Gzx) + Syz * (Gyx - Gxy) + Sxy * (Gyz - Gzy)));
     *SDotyz = float(Gamma * (Gyz + Gzy) + 0.5 * ((Sxx + Syy) * (Gyz - Gzy) + Sxz * (Gxy - Gyx) + Sxy * (Gxz - Gzx) + Syy * (Gyz - Gzy)));
 };
