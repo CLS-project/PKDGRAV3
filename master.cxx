@@ -638,13 +638,14 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
         strcat( p, baseName + n + 2 );
     }
     else {
-        strcat(achOutName,".par");
+        p  = achOutName + strlen(achOutName);
+        strcpy(p++,".par");
     }
+    // Now p should point to "par"
 
     PyObject *main_module = PyImport_ImportModule("__main__");
     auto globals = PyModule_GetDict(main_module);
     print_imports(achOutName, globals);
-    Py_DECREF(main_module);
 
     FILE *fp = fopen(achOutName,"a");
     if (fp==NULL) {
@@ -659,30 +660,57 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     nSpecies[FIO_SPECIES_STAR] = nStar;
     nSpecies[FIO_SPECIES_BH]   = nBH;
 
-    fprintf(fp,"arguments=");
+    // Create a list with a count of each species
+    auto species_list = PyList_New(FIO_SPECIES_LAST);
+    for (int i = 0; i < FIO_SPECIES_LAST; ++i) {
+        PyList_SetItem(species_list, i, PyLong_FromUnsignedLongLong(nSpecies[i])); // PyList_SetItem steals a reference to num
+    }
+
+    // Create a list with the checkpoint classes
+    auto classes_list = PyList_New(nCheckpointClasses);
+    for (int i = 0; i < nCheckpointClasses; ++i) {
+        auto class_list = PyList_New(4); // Each inner list has 4 elements
+
+        // Convert structure members to Python objects and add them to the class_list
+        PyObject* eSpecies = PyLong_FromLong(aCheckpointClasses[i].eSpecies);
+        PyObject* fMass = PyFloat_FromDouble(aCheckpointClasses[i].fMass);
+        PyObject* fSoft = PyFloat_FromDouble(aCheckpointClasses[i].fSoft);
+        PyObject* iMat = PyLong_FromLong(aCheckpointClasses[i].iMat);
+
+        // Note: PyList_SetItem steals a reference to the item
+        PyList_SetItem(class_list, 0, eSpecies);
+        PyList_SetItem(class_list, 1, fMass);
+        PyList_SetItem(class_list, 2, fSoft);
+        PyList_SetItem(class_list, 3, iMat);
+
+        // Add the inner list to the outer list
+        PyList_SetItem(classes_list, i, class_list); // This also steals a reference
+    }
     auto a = parameters.arguments();
+    auto s = parameters.specified();
+
+    fprintf(fp,"arguments=");
     PyObject_Print(a,fp,0);
     Py_DECREF(a);
     fprintf(fp,"\n%s","specified=");
-    auto s = parameters.specified();
     PyObject_Print(s,fp,0);
     Py_DECREF(s);
-    fprintf(fp,"\nspecies=[ ");
-    for (i=0; i<FIO_SPECIES_LAST; ++i) fprintf(fp,"%" PRIu64 ",",nSpecies[i]);
-    fprintf(fp," ]\n");
-    fprintf(fp,"classes=[ ");
-    for (i=0; i<nCheckpointClasses; ++i) {
-        fprintf(fp, "[%d,%.17g,%.17g,%d], ", aCheckpointClasses[i].eSpecies,
-                aCheckpointClasses[i].fMass, aCheckpointClasses[i].fSoft, aCheckpointClasses[i].iMat);
-    }
-    fprintf(fp," ]\n");
-    fprintf(fp,"msr=MSR()\n");
-    fprintf(fp,"msr.Restart(arguments=arguments, specified=specified, species=species, classes=classes,\n"
+    fprintf(fp,"\nspecies=");
+    PyObject_Print(species_list,fp,0);
+    fprintf(fp,"\nclasses=");
+    PyObject_Print(classes_list,fp,0);
+
+    fprintf(fp,"\nmsr.restart(arguments=arguments, specified=specified, species=species, classes=classes,\n"
             "            n=%d,name='%s',step=%d,steps=%d,time=%.17g,delta=%.17g,\n"
             "            E=%.17g,U=%.17g,Utime=%.17g)\n",
             mdlThreads(mdl),baseName,iStep,nSteps,dTime,dDelta,dEcosmo,dUOld,dTimeOld);
 
     fclose(fp);
+
+    Py_DECREF(species_list);
+    Py_DECREF(classes_list);
+
+    Py_DECREF(main_module);
 }
 
 void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
