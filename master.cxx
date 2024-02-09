@@ -732,7 +732,6 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 
     TimerStart(TIMER_IO);
 
-    SaveParameters();
     writeParameters(in.achOutFile,iStep,nSteps,dTime,dDelta);
 
     pstCheckpoint(pst,&in,sizeof(in),NULL,0);

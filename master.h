@@ -494,7 +494,6 @@ protected:
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
     void DomainDecompOld(int iRung);
 
-    void SaveParameters();
     int CountRungs(uint64_t *nRungs);
     void SetSoft(double);
     void InitBall();
