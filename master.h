@@ -227,6 +227,12 @@ public: // should be private
         parameters.set_dynamic("theta",dTheta);
         return dTheta;
     }
+private:
+    PyObject *pDill = nullptr;              // The "dill" module
+    PyObject *pDill_load = nullptr;         // The "dill.load" function
+    PyObject *pDill_dump = nullptr;         // The "dill.dump" function
+    PyObject *pDill_load_module = nullptr;  // The "dill.load_module" function
+    PyObject *pDill_dump_module = nullptr;  // The "dill.dump_module" function
 public:
     struct CALC calc;
 
