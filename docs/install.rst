@@ -171,6 +171,7 @@ Eiger
 
 The GNU programming environment is recommended, thus issue the following commands::
 
+    module load cray
     module swap PrgEnv-cray PrgEnv-gnu
     module load cpeGNU GSL Boost cray-hdf5 cray-fftw CMake cray-python hwloc
 
