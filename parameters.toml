@@ -1078,6 +1078,11 @@ flag="etau"
 default=-1.0
 help="Timestepping criterion for internal energy (negative = deactivated)"
 
+["Gas".dEtaSdot]
+flag="etaS"
+default=-1.0
+help="Timestepping criterion for deviatorich stress (negative = deactivated)"
+
 ["Gas".dCFLacc]
 flag="etaAcc"
 default=0.01
