@@ -83,7 +83,6 @@ typedef struct smfParameters {
 #endif
 } SMF;
 
-
 typedef struct pqNode {
     struct pqNode *pqLoser;
     struct pqNode *pqFromInt;
@@ -97,7 +96,6 @@ typedef struct pqNode {
     int iIndex;
     int iPid;
 } PQ;
-
 
 typedef PQ NN;
 
@@ -116,7 +114,6 @@ typedef PQ NN;
             }\
         }\
     }
-
 
 #define PQ_BUILD(pq,n,q)\
 {\
@@ -142,7 +139,6 @@ typedef PQ NN;
     else (q) = (pq)[1].pqWinner;\
     }
 
-
 #define PQ_REPLACE(q)\
 {\
     PQ *t,*lt;\
@@ -157,57 +153,68 @@ typedef PQ NN;
         }\
     }
 
+enum SMOOTH_TYPE {
+    SMX_NULL,
+    SMX_DENSITY,
+    SMX_DENSITY_F1,
+    SMX_DENSITY_M3,
+    SMX_GRADIENT_M3,
+    SMX_HOP_LINK,
+    SMX_BALL,
+    SMX_PRINTNN,
+    SMX_HYDRO_DENSITY,
+    SMX_HYDRO_DENSITY_FINAL,
+    SMX_HYDRO_GRADIENT,
+    SMX_HYDRO_FLUX,
+    SMX_HYDRO_STEP,
+    SMX_HYDRO_FLUX_VEC,
+    SMX_SN_FEEDBACK,
+    SMX_BH_MERGER,
+    SMX_BH_DRIFT,
+    SMX_BH_STEP,
+    SMX_CHEM_ENRICHMENT, // #ifdef STELLAR_EVOLUTION
+};
 
-#define SMX_NULL                            0
+//#define SMX_NULL                            0
 void NullSmooth(PARTICLE *,float fBall,int,NN *,SMF *);
 
-#define SMX_DENSITY             1
+//#define SMX_DENSITY             1
 void initDensity(void *,void *);
 void combDensity(void *,void *,const void *);
 void Density(PARTICLE *,float fBall,int,NN *,SMF *);
 void DensitySym(PARTICLE *,float fBall,int,NN *,SMF *);
 
-#define SMX_HYDRO_DENSITY     40
-#define SMX_HYDRO_DENSITY_FINAL 41
-#define SMX_HYDRO_GRADIENT    42
-#define SMX_HYDRO_FLUX        43
-#define SMX_HYDRO_STEP        44
-#define SMX_HYDRO_FLUX_VEC    45
+//#define SMX_HYDRO_DENSITY     40
+//#define SMX_HYDRO_DENSITY_FINAL 41
+//#define SMX_HYDRO_GRADIENT    42
+//#define SMX_HYDRO_FLUX        43
+//#define SMX_HYDRO_STEP        44
+//#define SMX_HYDRO_FLUX_VEC    45
 
-#define SMX_SN_FEEDBACK       50
+//#define SMX_SN_FEEDBACK       50
 
-#define SMX_BH_MERGER         55
-#define SMX_BH_DRIFT          56
-#define SMX_BH_STEP           57
+//#define SMX_BH_MERGER         55
+//#define SMX_BH_DRIFT          56
+//#define SMX_BH_STEP           57
 
-#ifdef STELLAR_EVOLUTION
-    #define SMX_CHEM_ENRICHMENT   60
-#endif
+//#ifdef STELLAR_EVOLUTION
+//    #define SMX_CHEM_ENRICHMENT   60
+//#endif
 
-#define SMX_PRINTNN                            9
+//#define SMX_PRINTNN                            9
 void PrintNN(PARTICLE *,float fBall,int,NN *,SMF *);
 
-#define SMX_DENSITY_F1          28
+//#define SMX_DENSITY_F1          28
 void DensityF1(PARTICLE *,float fBall,int,NN *,SMF *);
 
-#define SMX_DENSITY_M3          29
+//#define SMX_DENSITY_M3          29
 void DensityM3(PARTICLE *,float fBall,int,NN *,SMF *);
-#define SMX_GRADIENT_M3         30
+//#define SMX_GRADIENT_M3         30
 void LinkGradientM3(PARTICLE *,float fBall,int,NN *,SMF *);
-#define SMX_HOP_LINK            31
+//#define SMX_HOP_LINK            31
 void LinkHopChains(PARTICLE *,float fBall,int,NN *,SMF *);
 
-#define SMX_BALL                33
+//#define SMX_BALL                33
 void initBall(void *,void *);
 void BallSmooth(PARTICLE *,float fBall,int,NN *,SMF *);
 #endif
-
-
-
-
-
-
-
-
-
-
