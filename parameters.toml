@@ -1081,7 +1081,12 @@ help="Timestepping criterion for internal energy (negative = deactivated)"
 ["Gas".dEtaSdot]
 flag="etaS"
 default=-1.0
-help="Timestepping criterion for deviatorich stress (negative = deactivated)"
+help="Timestepping criterion for deviatoric stress (negative = deactivated)"
+
+["Gas".dTimeStepSmin]
+flag="timeStepSmin"
+default=0.0
+help="Minimum S value used in the timestepping criterion for deviatoric stress"
 
 ["Gas".dCFLacc]
 flag="etaAcc"

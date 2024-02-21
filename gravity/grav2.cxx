@@ -421,20 +421,20 @@ void pkdParticleWorkDone(workParticle *wp) {
                 // Timestep criterion on the deviatoric stress
                 if (wp->SPHoptions->EtaSdot > 0.0f && p.have_newsph()) {
                     auto &NewSphStr = p.newsphstr();
-                    if (fabsf(NewSphStr.Sxx) > -0.1f && fabsf(NewSphStr.SDotxx) > 0.0f) {
-                        dT = std::min(dT, wp->SPHoptions->EtaSdot * fabsf(NewSphStr.Sxx/NewSphStr.SDotxx));
+                    if (fabsf(NewSphStr.Sxx) > 0.0f && fabsf(NewSphStr.SDotxx) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Sxx) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotxx));
                     }
-                    if (fabsf(NewSphStr.Syy) > -0.1f && fabsf(NewSphStr.SDotyy) > 0.0f) {
-                        dT = std::min(dT, wp->SPHoptions->EtaSdot * fabsf(NewSphStr.Syy/NewSphStr.SDotyy));
+                    if (fabsf(NewSphStr.Syy) > 0.0f && fabsf(NewSphStr.SDotyy) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Syy) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotyy));
                     }
-                    if (fabsf(NewSphStr.Sxy) > -0.1f && fabsf(NewSphStr.SDotxy) > 0.0f) {
-                        dT = std::min(dT, wp->SPHoptions->EtaSdot * fabsf(NewSphStr.Sxy/NewSphStr.SDotxy));
+                    if (fabsf(NewSphStr.Sxy) > 0.0f && fabsf(NewSphStr.SDotxy) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Sxy) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotxy));
                     }
-                    if (fabsf(NewSphStr.Sxz) > -0.1f && fabsf(NewSphStr.SDotxz) > 0.0f) {
-                        dT = std::min(dT, wp->SPHoptions->EtaSdot * fabsf(NewSphStr.Sxz/NewSphStr.SDotxz));
+                    if (fabsf(NewSphStr.Sxz) > 0.0f && fabsf(NewSphStr.SDotxz) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Sxz) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotxz));
                     }
-                    if (fabsf(NewSphStr.Syz) > -0.1f && fabsf(NewSphStr.SDotyz) > 0.0f) {
-                        dT = std::min(dT, wp->SPHoptions->EtaSdot * fabsf(NewSphStr.Syz/NewSphStr.SDotyz));
+                    if (fabsf(NewSphStr.Syz) > 0.0f && fabsf(NewSphStr.SDotyz) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Syz) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotyz));
                     }
                 }
 

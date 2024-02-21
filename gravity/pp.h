@@ -362,8 +362,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
             result.ay += Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
             result.az += Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
 
-            result.uDot -= 0.5f * Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
-            result.uDot -= 0.5f * Im * IOneOverRho2 * (dvx * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz) + dvy * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz) + dvz * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
+            result.uDot -= Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
 
             minusImOverRho = - Im / Irho;
 

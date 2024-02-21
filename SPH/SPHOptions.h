@@ -105,6 +105,7 @@ typedef struct {
     float EtaCourant;
     float EtauDot;
     float EtaSdot;
+    float timeStepSmin;
     float a;
     float H;
     float gamma;
