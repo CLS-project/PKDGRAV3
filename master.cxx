@@ -672,10 +672,10 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
         auto class_list = PyList_New(4); // Each inner list has 4 elements
 
         // Convert structure members to Python objects and add them to the class_list
-        PyObject* eSpecies = PyLong_FromLong(aCheckpointClasses[i].eSpecies);
-        PyObject* fMass = PyFloat_FromDouble(aCheckpointClasses[i].fMass);
-        PyObject* fSoft = PyFloat_FromDouble(aCheckpointClasses[i].fSoft);
-        PyObject* iMat = PyLong_FromLong(aCheckpointClasses[i].iMat);
+        PyObject *eSpecies = PyLong_FromLong(aCheckpointClasses[i].eSpecies);
+        PyObject *fMass = PyFloat_FromDouble(aCheckpointClasses[i].fMass);
+        PyObject *fSoft = PyFloat_FromDouble(aCheckpointClasses[i].fSoft);
+        PyObject *iMat = PyLong_FromLong(aCheckpointClasses[i].iMat);
 
         // Note: PyList_SetItem steals a reference to the item
         PyList_SetItem(class_list, 0, eSpecies);
@@ -2815,7 +2815,7 @@ int MSR::NewTopStepKDK(
                 ServiceDumpTrees::input dump(iRungDT);
                 mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
                 msrprintf("Half Drift, uRung: %d\n",iRungDT);
-                dDeltaRung = dDelta/(1 << iRungDT); // Main tree step
+                dDeltaRung = dDelta/(uintmax_t(1) << iRungDT); // Main tree step
                 Drift(dTime,0.5 * dDeltaRung,FIXROOT);
                 dTimeFixed = dTime + 0.5 * dDeltaRung;
                 BuildTreeFixed(bEwald,iRungDT);
@@ -2827,7 +2827,7 @@ int MSR::NewTopStepKDK(
         bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
     }
 
-    dDeltaRung = dDelta/(1 << *puRungMax);
+    dDeltaRung = dDelta/(uintmax_t(1) << *puRungMax);
     ActiveRung(uRung,1);
     if (DoGas() && MeshlessHydro()) {
         ResetFluxes(dTime, dDelta);
@@ -2850,7 +2850,7 @@ int MSR::NewTopStepKDK(
         Drift(dTime,dDeltaRung,-1);
     }
     dTime += dDeltaRung;
-    *pdStep += 1.0/(1 << *puRungMax);
+    *pdStep += 1.0/(uintmax_t(1) << *puRungMax);
 #ifdef COOLING
     int sync = (nRung[0]!=0 && uRung==0) || ( (nRung[uRung] > 0) && (nRung[uRung-1] == 0) );
     if (csm->val.bComove) {
@@ -3075,7 +3075,7 @@ int MSR::NewTopStepKDK(
     if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
     if (bDualTree && uRung==iRungDT+1) {
         msrprintf("Half Drift, uRung: %d\n",iRungDT);
-        dDeltaRung = dDelta/(1 << iRungDT);
+        dDeltaRung = dDelta/(uintmax_t(1) << iRungDT);
         Drift(dTimeFixed,0.5 * dDeltaRung,FIXROOT);
     }
 
@@ -3090,7 +3090,7 @@ void MSR::TopStepKDK(
     int iRung,       /* Rung level */
     int iKickRung,   /* Gravity on all rungs from iRung to iKickRung */
     int iAdjust) {   /* Do an adjust? */
-    double dDeltaStep = dDeltaRung * (1 << iRung);
+    double dDeltaStep = dDeltaRung * (uintmax_t(1) << iRung);
     const auto bEwald = parameters.get_bEwald();
     const auto bGravStep = parameters.get_bGravStep();
     const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
@@ -3164,7 +3164,7 @@ void MSR::TopStepKDK(
         msrprintf("%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
         Drift(dTime,dDeltaRung,ROOT);
         dTime += dDeltaRung;
-        dStep += 1.0/(1 << iRung);
+        dStep += 1.0/(uintmax_t(1) << iRung);
 #ifdef COOLING
         int sync = (nRung[0]!=0 && iRung==0) || ( (nRung[iKickRung] > 0) && (nRung[iKickRung-1] == 0) );
         if (csm->val.bComove) {
@@ -4414,7 +4414,7 @@ void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungL
                 ** For particles with a step larger than the current rung, the temporal position of
                 ** the velocity in relation to the current time is nontrivial, so we calculate it here
                 */
-                double substepSize = 1.0 / pow(2,i); // 1.0 / (1 << i);
+                double substepSize = 1.0 / (uintmax_t(1) << i); // 1.0 / (1 << i);
                 double substepsDoneAtThisSize = floor(substepWeAreAt / substepSize);
                 double TPredDrift = stepStartTime + (substepsDoneAtThisSize + 0.5) * substepSize * dDelta;
                 double dtPredDrift = dTime - TPredDrift;
@@ -4453,7 +4453,7 @@ void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungL
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= parameters.get_iMaxRung(); ++i) {
-            double substepSize = 1.0 / pow(2,i); // 1.0 / (1 << i);
+            double substepSize = 1.0 / (uintmax_t(1) << i); // 1.0 / (1 << i);
             double substepsDoneAtThisSize = floor(substepWeAreAt / substepSize);
             double TSubStepStart, TSubStepKicked;
             /* The start of the step is different if the time step is larger than the current */

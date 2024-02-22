@@ -245,7 +245,7 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
     F t1, t2, t3;
     F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
-    F cij, rhoij, fBallij, dvdotdx, muij, Piij;
+    F cij, rhoij, hij, dvdotdx, muij, Piij;
     F PPoverRho2, IPoverRho2, dtC, dtMu;
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
@@ -303,10 +303,10 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         // Artificial viscosity
         cij = 0.5f * (Pc + Ic);
         rhoij = 0.5f * (Prho + Irho);
-        fBallij = 0.25f * (PfBall + IfBall); // here we need h, not fBall
+        hij = 0.25f * (PfBall + IfBall); // here we need h, not fBall
         dvdotdx = dvx * dx + dvy * dy + dvz * dz + H * d2;
         dvdotdx_st_zero = dvdotdx < 0.0f;
-        muij = fBallij * dvdotdx * aFac / (d2 + epsilon * fBallij * fBallij);
+        muij = hij * dvdotdx * aFac / (d2 + epsilon * hij * hij);
         muij = maskz_mov(dvdotdx_st_zero,muij);
         Piij = (-alpha * cij * muij + beta * muij * muij) / rhoij;
 
@@ -315,7 +315,7 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
             result.uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
         else {
-            result.uDot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+            result.uDot = Im * (PPoverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz) + 0.5f * Piij * (dvx * dWdx + dvy * dWdy + dvz * dWdz));
         }
 
         // acceleration
@@ -327,9 +327,9 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
 
         // timestep
-        dtC = (1.0f + 0.6f * alpha) / (aFac * EtaCourant);
-        dtMu = 0.6f * beta / (aFac * EtaCourant);
-        result.dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
+        dtC = 1.0f + 0.6f * alpha;
+        dtMu = 0.6f * beta;
+        result.dtEst = aFac * EtaCourant * 0.5f * PfBall / (dtC * Pc - dtMu * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
         result.dtEst = mask_mov(1e14f,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);
