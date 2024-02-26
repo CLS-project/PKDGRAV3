@@ -203,7 +203,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     float Ttilde = NewSph.expImb2 * NewSph.T + (1.0f - NewSph.expImb2) * Tbar;
                     float Ptilde = NewSph.expImb2 * NewSph.P + (1.0f - NewSph.expImb2) * Pbar;
                     float newRho = SPHEOSRhoofPT(pkd, Ptilde, Ttilde, p.imaterial(), wp->SPHoptions);
-                    p.set_density(newRho);
+                    if (newRho > 0.0f) p.set_density(newRho);
                 }
                 if (wp->SPHoptions->doSPHForces) {
                     NewSph.divv = wp->pInfoOut[i].divv;
