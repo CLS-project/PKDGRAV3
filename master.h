@@ -457,7 +457,7 @@ protected:
 #ifdef COOLING
     // Cooling
     void SetCoolingParam();
-    void CoolingUpdate(float redshift, int sync);
+    void CoolingUpdate(float redshift);
     void CoolingInit(float redshift);
 #endif
 #ifdef GRACKLE

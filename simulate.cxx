@@ -154,7 +154,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         redshift = 0.0;
 
     CoolingInit(redshift);
-    CoolingUpdate(redshift, 1);
+    CoolingUpdate(redshift);
 #endif
 
 #ifdef GRACKLE
@@ -469,6 +469,12 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
+    if (parameters.has_dRedSync() && !parameters.has_nStepsSync()) {
+        fprintf(stderr, "ERROR: dRedSync is given but not nStepsSync. Please set nStepsSync or\n");
+        fprintf(stderr, "       unset dRedSync.\n");
+        return 0;
+    }
+
     if (!parameters.has_bDoGas()) parameters.set_bDoGas(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH());
     if (parameters.get_bDoGas() && !(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) ) {
         fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
@@ -509,6 +515,21 @@ int MSR::ValidateParameters() {
             parameters.set_bMemMass(true);
             fprintf(stderr,"WARNING: Meshless Finite Volume scheme requires bMemMass. "
                     "Setting bMemMass to true\n");
+        }
+#endif
+#ifdef COOLING
+        if (parameters.get_bComove()) {
+            if (!parameters.has_nStepsSync()) {
+                fprintf(stderr,"ERROR: Meshless hydrodynamics with cooling requires nStepsSync, "
+                        "please set it.\n");
+                return 0;
+            }
+            if (parameters.has_dRedSync()) {
+                fprintf(stderr,"WARNING: Meshless hydrodynamics with cooling requires dRedSync "
+                        "to be set to the redshift of Hydrogen reionization, as set in parameter "
+                        "fH_reion_z. Setting dRedSync to the value of fH_reion_z.\n");
+            }
+            parameters.set_dRedSync(parameters.get_fH_reion_z());
         }
 #endif
     }

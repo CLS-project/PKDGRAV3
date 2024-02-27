@@ -923,12 +923,12 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
 
 double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
     if (csm->val.bComove && parameters.has_dRedTo()
-            && parameters.has_nSteps() && parameters.has_nSteps10()) {
+            && parameters.has_nSteps() && parameters.has_nStepsSync()) {
         double aTo,tTo;
-        const auto nSteps10 = parameters.get_nSteps10();
-        if (iStep < nSteps10) {
-            aTo = 1.0 / (10.0 + 1.0);
-            nSteps = nSteps10 - iStep;
+        const auto nStepsSync = parameters.get_nStepsSync();
+        if (iStep < nStepsSync) {
+            aTo = 1.0 / (parameters.get_dRedSync() + 1.0);
+            nSteps = nStepsSync - iStep;
         }
         else {
             aTo = 1.0/(parameters.get_dRedTo() + 1.0);
@@ -937,7 +937,7 @@ double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
         assert(nSteps>0);
         tTo = csmExp2Time(csm,aTo);
         dDelta = (tTo-dTime) / nSteps;
-        if (iStep == nSteps10 && bVDetails)
+        if (iStep == nStepsSync && bVDetails)
             printf("dDelta changed to %g at z=10\n",dDelta);
     }
     else if ( dOutTimes.size()>1) {
@@ -2747,7 +2747,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
         *pbDoOutput = 1  | (iStop<<1);
     }
 
-    return (iStep==parameters.get_nSteps10()) || *pbDoOutput || *pbDoCheckpoint;
+    return (iStep==parameters.get_nStepsSync()) || *pbDoOutput || *pbDoCheckpoint;
 }
 
 int MSR::NewTopStepKDK(
@@ -2830,15 +2830,14 @@ int MSR::NewTopStepKDK(
     dTime += dDeltaRung;
     *pdStep += 1.0/(1 << *puRungMax);
 #ifdef COOLING
-    int sync = (nRung[0]!=0 && uRung==0) || ( (nRung[uRung] > 0) && (nRung[uRung-1] == 0) );
     if (csm->val.bComove) {
         const float a = csmTime2Exp(csm,dTime);
         const float z = 1./a - 1.;
 
-        CoolingUpdate(z, sync);
+        CoolingUpdate(z);
     }
     else {
-        CoolingUpdate(0., sync);
+        CoolingUpdate(0.);
     }
 #endif
 #ifdef STAR_FORMATION
@@ -3139,15 +3138,14 @@ void MSR::TopStepKDK(
         dStep += 1.0/(1 << iRung);
 
 #ifdef COOLING
-        int sync = (nRung[0]!=0 && iRung==0) || ( (nRung[iKickRung] > 0) && (nRung[iKickRung-1] == 0) );
         if (csm->val.bComove) {
             const float a = csmTime2Exp(csm,dTime);
             const float z = 1./a - 1.;
 
-            CoolingUpdate(z, sync);
+            CoolingUpdate(z);
         }
         else {
-            CoolingUpdate(0., sync);
+            CoolingUpdate(0.);
         }
 #endif
 

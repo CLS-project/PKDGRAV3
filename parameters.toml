@@ -458,10 +458,15 @@ flag="n"
 default=0
 help="number of timesteps"
 
-["Time Stepping".nSteps10]
-flag="n10"
+["Time Stepping".nStepsSync]
+flag="nsync"
 default=0
-help="number of timesteps to z=10"
+help="number of timesteps to redshift dRedSync"
+
+["Time Stepping".dRedSync]
+flag="zsync"
+default=10.0
+help="specifies a redshift prior to dRedTo where it is useful to have particles synchonized"
 
 ["Time Stepping".dRedTo]
 flag="zto"

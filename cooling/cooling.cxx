@@ -57,7 +57,7 @@ void MSR::SetCoolingParam() {
  * given time-step or redshift. Predominantly used to read cooling tables
  * above and below the current redshift, if not already read in.
  *
- * Also calls the additional H reionisation energy injection if need be.
+ * Also calls the additional H reionization energy injection if need be.
  *
  * @param cosmo The current cosmological model.
  * @param cooling The #cooling_function_data used in the run.
@@ -65,8 +65,8 @@ void MSR::SetCoolingParam() {
  *
  *
  */
-void MSR::CoolingUpdate(float redshift, int sync) {
-    printf("Updating cooling.. z=%f (sync=%d) \n", redshift, sync);
+void MSR::CoolingUpdate(float redshift) {
+    printf("Updating cooling.. z=%f\n", redshift);
 
     /* Current redshift */
     //const float redshift = cosmo->z;
@@ -80,50 +80,34 @@ void MSR::CoolingUpdate(float redshift, int sync) {
     // We update dz in each process
     pstCoolingUpdateZ(pst, &dz, sizeof(float), NULL, 0);
 
-    /* Extra energy for reionization? */
-    if (!cooling->H_reion_done && redshift !=0.0) {
+    /* Do we already have the correct tables loaded? */
+    if (cooling->z_index == z_index) return;
 
-        /* Does this timestep straddle Hydrogen reionization? If so, we need to
-         * input extra heat */
-        //if (cosmo->z <= cooling->H_reion_z && cosmo->z_old > cooling->H_reion_z) {
-        if (redshift <= cooling->H_reion_z && sync /* IA: && cosmo->z_old > cooling->H_reion_z */) {
+    /* Which table should we load ? */
+    if (z_index == eagle_cooling_N_redshifts) {
+        /* Before reionization. Just load the corresponding table */
+        get_redshift_invariant_table(cooling, /* photodis=*/1);
+    }
+    else {
+        /* After reionization. Just load the corresponding table */
+        if (z_index > eagle_cooling_N_redshifts) {
+            /* Between reionization and first z-dependent table */
+            get_redshift_invariant_table(cooling, /* photodis=*/0);
+        }
+        else {
+            /* Normal case: two tables bracketing the current z */
+            get_cooling_table(cooling, z_index, z_index+1);
+        }
 
-            //if (s == NULL) error("Trying to do H reionization on an empty space!");
-
-            /* Inject energy to all particles */
+        /* Extra energy for reionization */
+        if (!cooling->H_reion_done) {
+            printf("Hydrogen reionization! Injecting %.1f eV per proton\n",
+                    parameters.get_fH_reion_eV_p_H());
             pstCoolingHydReion(pst, NULL, 0, NULL, 0);
 
             /* Flag that reionization happened */
             cooling->H_reion_done = 1;
         }
-    }
-
-    /* Do we already have the correct tables loaded? */
-    if (cooling->z_index == z_index) return;
-
-    /* Which table should we load ? */
-    if (z_index >= eagle_cooling_N_redshifts) {
-
-        if (z_index == eagle_cooling_N_redshifts + 1) {
-
-            /* Bewtween re-ionization and first table */
-            get_redshift_invariant_table(cooling, /* photodis=*/0);
-
-        }
-        else {
-
-            /* Above re-ionization */
-            get_redshift_invariant_table(cooling, /* photodis=*/1);
-        }
-
-    }
-    else {
-
-        /* Normal case: two tables bracketing the current z */
-        const int low_z_index = z_index;
-        const int high_z_index = z_index + 1;
-
-        get_cooling_table(cooling, low_z_index, high_z_index);
     }
 
     /* Store the currently loaded index */
@@ -172,7 +156,7 @@ void MSR::CoolingInit(float redshift) {
      * We later convert to units just below */
 
     cooling->H_reion_z = parameters.get_fH_reion_z();
-    if (redshift < cooling->H_reion_z) {
+    if (redshift <= cooling->H_reion_z) {
         cooling->H_reion_done = 1;
     }
     else {
@@ -592,7 +576,7 @@ void cooling_cool_part(PKD pkd,
                  &d_n_H);
 
     /* Start by computing the cooling (heating actually) rate from Helium
-       re-ionization as this needs to be added on no matter what */
+       reionization as this needs to be added on no matter what */
 
     /* Get helium and hydrogen reheating term */
     const double Helium_reion_heat_cgs =
