@@ -206,10 +206,10 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         // TODO: The differences could be computed outside of this loop
 #ifdef LIMITER_BARTH
         BarthJespersenLimiter(&limRho, psph.gradRho.data(), rho_max-p.density(), rho_min-p.density(), dx, dy, dz);
-        BarthJespersenLimiter(&limVx, psph.gradV.data()x, vx_max-pv[0], vx_min-pv[0], dx, dy, dz);
-        BarthJespersenLimiter(&limVy, psph.gradV.data()y, vy_max-pv[1], vy_min-pv[1], dx, dy, dz);
-        BarthJespersenLimiter(&limVz, psph.gradV.data()z, vz_max-pv[2], vz_min-pv[2], dx, dy, dz);
-        BarthJespersenLimiter(&limP, psph.grad.data()P, p_max-psph.P, p_min-psph.P, dx, dy, dz);
+        BarthJespersenLimiter(&limVx, psph.gradVx.data(), vx_max-pv[0], vx_min-pv[0], dx, dy, dz);
+        BarthJespersenLimiter(&limVy, psph.gradVy.data(), vy_max-pv[1], vy_min-pv[1], dx, dy, dz);
+        BarthJespersenLimiter(&limVz, psph.gradVz.data(), vz_max-pv[2], vz_min-pv[2], dx, dy, dz);
+        BarthJespersenLimiter(&limP, psph.gradP.data(), p_max-psph.P, p_min-psph.P, dx, dy, dz);
 #endif
 
 #ifdef LIMITER_CONDBARTH
