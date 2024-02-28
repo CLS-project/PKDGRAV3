@@ -91,6 +91,27 @@ cdef extern from "core/particle.h":
         FIELD_PARTICLE_ID  "PKD_FIELD::oParticleID"
         FIELD_GLOBAL_GID   "PKD_FIELD::oGlobalGid"
 
+cdef extern from "smooth/smoothfcn.h":
+    cpdef enum SMOOTH_TYPE:
+        SMOOTH_TYPE_DENSITY "SMX_DENSITY"
+        SMOOTH_TYPE_F1      "SMX_DENSITY_F1"
+        SMOOTH_TYPE_M3      "SMX_DENSITY_M3"
+        SMOOTH_TYPE_GRADIENT_M3 "SMX_GRADIENT_M3"
+        SMOOTH_TYPE_HOP_LINK "SMX_HOP_LINK"
+        SMOOTH_TYPE_BALL    "SMX_BALL"
+        SMOOTH_TYPE_PRINTNN "SMX_PRINTNN"
+        SMOOTH_TYPE_HYDRO_DENSITY "SMX_HYDRO_DENSITY"
+        SMOOTH_TYPE_HYDRO_DENSITY_FINAL "SMX_HYDRO_DENSITY_FINAL"
+        SMOOTH_TYPE_HYDRO_GRADIENT "SMX_HYDRO_GRADIENT"
+        SMOOTH_TYPE_HYDRO_FLUX "SMX_HYDRO_FLUX"
+        SMOOTH_TYPE_HYDRO_STEP "SMX_HYDRO_STEP"
+        SMOOTH_TYPE_HYDRO_FLUX_VEC "SMX_HYDRO_FLUX_VEC"
+        SMOOTH_TYPE_SN_FEEDBACK "SMX_SN_FEEDBACK"
+        SMOOTH_TYPE_BH_MERGER "SMX_BH_MERGER"
+        SMOOTH_TYPE_BH_DRIFT "SMX_BH_DRIFT"
+        SMOOTH_TYPE_BH_STEP "SMX_BH_STEP"
+        SMOOTH_TYPE_CHEM_ENRICHMENT "SMX_CHEM_ENRICHMENT"
+
 include "pkd_parameters.pxi"
 
 cdef extern from "master.h":
@@ -121,6 +142,8 @@ cdef extern from "master.h":
         void *MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins)
         void NewFof(double dTau,int nMinMembers)
         void GroupStats()
+        void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth)
+        void OutASCII(const char *pszFile,int iType,int nDims,int iFileType)
         uint64_t CountSelected()
         void RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,bool bMarked)
         uint64_t SelBox(TinyVector[double,BLITZ3] center, TinyVector[double,BLITZ3] size,int setIfTrue,int clearIfFalse)
@@ -176,7 +199,9 @@ cpdef reorder()
 #cpdef simulate()
 cpdef measure_pk(int grid,int bins=*,double a=*,bool interlace=*,int order=*,double L=*)
 cpdef fof(double tau,int minmembers=*)
+cpdef smooth(SMOOTH_TYPE type,n=*,time=*,delta=*,symmetric=*)
 cpdef get_array(PKD_FIELD field,double time=*,bool marked=*)
+cpdef write_array(filename,OUT_TYPE field)
 
 cdef inline vector[PARTCLASS] new_partclass_vector():
     return vector[PARTCLASS]()

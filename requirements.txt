@@ -4,3 +4,4 @@ numpy >= 1.7
 unittest-xml-reporting
 ddt
 nose
+dill

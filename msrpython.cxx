@@ -49,13 +49,6 @@ static void flush_std_files(void) {
 }
 
 /******************************************************************************\
-*   Copy parameters from pkdgrav3 to Python (may go away eventually)
-\******************************************************************************/
-
-void MSR::SaveParameters() {
-}
-
-/******************************************************************************\
 *   MSR Module Definition
 \******************************************************************************/
 
@@ -1483,6 +1476,31 @@ int MSR::Python(int argc, char *argv[]) {
     if (!PyImport_ImportModule("checkpoint")) {
         PyErr_Print();
         abort();
+    }
+
+    // This module is used for checkpointing and restoring the state
+    pDill = PyImport_ImportModule("dill");
+    if (pDill) {
+        pDill_load = PyObject_GetAttrString(pDill, "load");
+        if (!pDill_load || !PyCallable_Check(pDill_load)) {
+            PyErr_Print();
+            abort();
+        }
+        pDill_dump = PyObject_GetAttrString(pDill, "dump");
+        if (!pDill_dump || !PyCallable_Check(pDill_dump)) {
+            PyErr_Print();
+            abort();
+        }
+        pDill_load_module = PyObject_GetAttrString(pDill, "load_module");
+        if (!pDill_load_module || !PyCallable_Check(pDill_load_module)) {
+            PyErr_Print();
+            abort();
+        }
+        pDill_dump_module = PyObject_GetAttrString(pDill, "dump_module");
+        if (!pDill_dump_module || !PyCallable_Check(pDill_dump_module)) {
+            PyErr_Print();
+            abort();
+        }
     }
 
     // Parse the command line

@@ -52,7 +52,7 @@
 #if defined(USE_SIMD) && defined(__SSE2__)
 /* Caution: This uses v/sqrt(v) so v cannot be zero! */
 static inline float asqrtf(float v) {
-    __m128 r2 = _mm_set_ss(v);
+    __m128 r2 = _mm_max_ss(_mm_set_ss(v),_mm_set_ss(FLT_MIN));
     __m128 r = _mm_rsqrt_ps(r2);
     r = _mm_mul_ss(r,_mm_sub_ss(_mm_set_ss(3.0/2.0),_mm_mul_ss(_mm_mul_ss(r,r),_mm_mul_ss(r2,_mm_set_ss(0.5)))));
     r = _mm_mul_ss(r,r2);
@@ -60,7 +60,7 @@ static inline float asqrtf(float v) {
     return v;
 }
 static inline float rsqrtf(float v) {
-    __m128 r2 = _mm_set_ss(v);
+    __m128 r2 = _mm_max_ss(_mm_set_ss(v),_mm_set_ss(FLT_MIN));
     __m128 r = _mm_rsqrt_ps(r2);
     r = _mm_mul_ss(r,_mm_sub_ss(_mm_set_ss(3.0/2.0),_mm_mul_ss(_mm_mul_ss(r,r),_mm_mul_ss(r2,_mm_set_ss(0.5)))));
     v =_mm_cvtss_f32(r);
@@ -272,7 +272,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     float Ttilde = NewSph.expImb2 * NewSph.T + (1.0f - NewSph.expImb2) * Tbar;
                     float Ptilde = NewSph.expImb2 * NewSph.P + (1.0f - NewSph.expImb2) * Pbar;
                     float newRho = SPHEOSRhoofPT(pkd, Ptilde, Ttilde, p.imaterial(), wp->SPHoptions);
-                    p.set_density(newRho);
+                    if (newRho > 0.0f) p.set_density(newRho);
                 }
                 if (wp->SPHoptions->doSPHForces) {
                     NewSph.divv = wp->pInfoOut[i].divv;
@@ -321,9 +321,6 @@ void pkdParticleWorkDone(workParticle *wp) {
                 const double epsilon =  0.2/dKpcUnit;
                 const double epsilon2 = epsilon*epsilon;
 
-
-
-
                 /* Calculate the acceleration */
                 const float rr = sqrtf(blitz::dot(r,r) + epsilon2);
                 const float r_plus_a_inv = 1.f / (rr + al);
@@ -333,8 +330,6 @@ void pkdParticleWorkDone(workParticle *wp) {
                 /* Calculate the circular orbital period */
                 const float period = 2.f * M_PI * sqrtf(rr) * al *
                                      (1 + rr / al) * sqrtgm_inv;
-
-
 
                 wp->pInfoOut[i].a[0] += term * r[0];
                 wp->pInfoOut[i].a[1] += term * r[1];
