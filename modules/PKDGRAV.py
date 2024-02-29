@@ -8,7 +8,8 @@ import numpy as np
 from cosmology import Cosmology
 
 def set_parameters(**kwargs):
-    msr0.parameters.update(kwargs,True)
+    if not msr0.parameters.update(kwargs,False):
+        raise ValueError("invalid parameter")
 
 def restart(arguments,specified,species,classes,n,name,step,steps,time,delta,E,U,Utime):
     ndark = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_DARK])
