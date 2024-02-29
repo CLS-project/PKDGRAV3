@@ -132,6 +132,7 @@ struct alignas(64) sphForceInput {
     float Sxx, Syy, Sxy, Sxz, Syz;
 };
 static_assert(sizeof(sphForceInput)==64,"Check size of sphForceInput");
+static_assert(sizeof(sphForceInput)/sizeof(float)<=32,"sphForceInput cannot exceed 32 floats");
 
 struct alignas(128) sphForceResult {
     float uDot;
