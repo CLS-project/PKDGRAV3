@@ -3824,8 +3824,6 @@ double MSR::Read(std::string_view achInFile) {
     std::unique_ptr<char[]> buffer {new char[sizeof(inReadFile) + nBytes]};
     auto read = new (buffer.get()) inReadFile;
 
-    std::cout << parameters.get_achDataSubPath() << std::endl;
-
     /* Add Data Subpath for local and non-local names. */
     MSR::MakePath(parameters.get_achDataSubPath(),achInFile.data(),achFilename);
     fio = fioOpen(achFilename,csm->val.dOmega0,csm->val.dOmegab);
