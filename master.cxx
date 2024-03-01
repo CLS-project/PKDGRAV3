@@ -71,6 +71,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #define CYTHON_EXTERN_C extern "C++"
 #include "modules/checkpoint.h"
 
+#include "core/memory.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -365,55 +366,31 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
            SHOW(NODE_MOMENT),SHOW(NODE_ACCEL),SHOW(NODE_VEL),SHOW(NODE_SPHBNDS),
            SHOW(NODE_BND),SHOW(NODE_VBND),SHOW(NODE_BOB));
 #undef SHOW
-    ps.nMinEphemeral = 0;
-    ps.nMinTotalStore = 0;
 
-    /* Various features require more or less ephemeral storage */
-    ps.nEphemeralBytes = nEphemeral;
-    if (parameters.get_bFindGroups()    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
-    if (parameters.get_bFindHopGroups() && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (parameters.get_iPkInterval()    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
-    if (parameters.get_bGravStep()      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (parameters.get_bDoGas()         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (parameters.get_bMemBall() && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (parameters.get_bDoDensity()     && ps.nEphemeralBytes < 12) ps.nEphemeralBytes = 12;
+    // Calculate the Ephemeris memory requirements
+    EphemeralMemory e(nEphemeral);
+    if (parameters.get_bFindGroups()    ) e |= EphemeralMemory(4);
+    if (parameters.get_bFindHopGroups() ) e |= EphemeralMemory(8);
+    if (parameters.get_iPkInterval()    ) e |= EphemeralMemory(4);
+    if (parameters.get_bGravStep()      ) e |= EphemeralMemory(8);
+    if (parameters.get_bDoGas()         ) e |= EphemeralMemory(8);
+    if (parameters.get_bMemBall()       ) e |= EphemeralMemory(8);
+    if (parameters.get_bDoDensity()     ) e |= EphemeralMemory(12);
 #ifdef BLACKHOLES
-    if (ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    e |= EphemeralMemory(8);
 #endif
-#ifdef MDL_FFTW
-    auto nGridPk = parameters.get_nGridPk();
-    if (nGridPk>0) {
-        struct inGetFFTMaxSizes inFFTSizes;
-        struct outGetFFTMaxSizes outFFTSizes;
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGridPk;
-        pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
-        /* The new MeasurePk requires two FFTs to eliminate aliasing */
-        ps.nMinEphemeral = (parameters.get_bPkInterlace()?2:1)*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
-    /*
-     * Add some ephemeral memory (if needed) for the linGrid.
-     * 3 grids are stored : forceX, forceY, forceZ
-     */
-    if (parameters.get_achLinSpecies().length()) {
-        struct inGetFFTMaxSizes inFFTSizes;
-        struct outGetFFTMaxSizes outFFTSizes;
+    // We need one grid to measure P(k); two if we are interlacing
+    e |= EphemeralMemory(this,parameters.get_nGridPk(),parameters.get_bPkInterlace() ? 2 : 1);
+    // Add some ephemeral memory (if needed) for the linGrid. 3 grids are stored : forceX, forceY, forceZ
+    e |= EphemeralMemory(this,parameters.get_nGridLin(),3);
 
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = parameters.get_nGridLin();
-        pstGetFFTMaxSizes(pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, sizeof(outFFTSizes));
+    // Calculate constraint for generating initial conditions. We need 10 grids for the initial conditions
+    EphemeralMemory ic_memory(this,parameters.get_nGrid(),10);
 
-        if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
-            ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
+    ps.nEphemeralBytes = e.per_particle;
+    ps.nMinEphemeral = e.per_process;
+    ps.nMinTotalStore = ic_memory.per_process;
 
-    int nGrid = parameters.get_nGrid();
-    if (nGrid>0) {
-        struct inGetFFTMaxSizes inFFTSizes;
-        struct outGetFFTMaxSizes outFFTSizes;
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGrid;
-        pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
-        ps.nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
-#endif
     // Check all registered Python analysis routines and account for their memory requirements
     for ( msr_analysis_callback &i : analysis_callbacks) {
         auto attr_per_node = PyObject_GetAttrString(i.memory,"bytes_per_node");
