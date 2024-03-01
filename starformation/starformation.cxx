@@ -289,7 +289,7 @@ static inline double pressure_SFR(const float fMass, const float fDens,
     const double dUint = sph.Uint;
 #endif
 
-    if (dUint > maxUint || fDens < dThreshDen) {
+    if (std::max(dUint,sph.lastUint) > maxUint || fDens < dThreshDen) {
         return 0.0;
     }
 
