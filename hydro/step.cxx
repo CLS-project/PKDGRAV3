@@ -75,6 +75,12 @@ void unpackHydroStep(void *vpkd,void *dst,const void *src) {
 }
 
 void initHydroStep(void *vpkd,void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+
+    if (p.is_gas()) {
+        p.sph().uWake = 0;
+    }
 }
 
 void flushHydroStep(void *vpkd,void *dst,const void *src) {
@@ -95,7 +101,7 @@ void combHydroStep(void *vpkd,void *dst,const void *src) {
     assert(!pkd->bNoParticleOrder);
     if (p1.is_gas()) {
         if (p2->uNewRung > p1.new_rung()) p1.set_new_rung(p2->uNewRung);
-        p1.sph().uWake = p2->uWake;
+        if (p2->uWake > p1.sph().uWake) p1.sph().uWake = p2->uWake;
     }
 }
 
@@ -175,7 +181,7 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     const double dtAcc = smf->dCFLacc * sqrt(2.*h/acc);
 
     if (dtAcc < dtEst) dtEst = dtAcc;
-    const uint8_t uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
+    uint8_t uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
     if (uNewRung > p.new_rung()) p.set_new_rung(uNewRung);
 
     /* Timestep limiter that imposes that the particle must have a dt
@@ -184,15 +190,14 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      * This is implemented as a scatter approach, in which the maximum dt of the
      * neighbours is set given the dt computed from this particle
      */
+    uNewRung = std::max(p.rung(),p.new_rung());
     if (smf->dDelta >= 0) {
         for (auto i = 0; i < nSmooth; ++i) {
             auto q = pkd->particles[nnList[i].pPart];
-            if (p.new_rung() > q.new_rung() + 2) {
-                q.set_new_rung(p.new_rung() - 1);
-                if (!q.is_active()) {
-                    // DEBUG: The number of wake up request and IDs must match!
-                    //printf("Need to wake up! %"PRIu64" \n", q.order());
-                    q.sph().uWake = p.new_rung();
+            if (uNewRung > q.new_rung() + 2) {
+                q.set_new_rung(uNewRung - 1);
+                if (!q.is_active() && q.new_rung() > q.sph().uWake) {
+                    q.sph().uWake = q.new_rung();
                 }
             }
         }
@@ -207,18 +212,20 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
     for (auto &p : pkd->particles) {
         if (p.is_gas()) {
             auto &sph = p.sph();
-            uint8_t uWake = sph.uWake;
+            auto &uWake = sph.uWake;
             if (uWake) {
                 p.set_rung(uWake);
                 p.set_new_rung(uWake);
-                sph.uWake = 0;
-                sph.lastUpdateTime = dTime;
+                assert(p.is_active());
 
                 // We revert to the state at the end of the previous timestep
-                sph.E    = sph.lastE;
-                sph.Uint = sph.lastUint;
                 p.set_mass(sph.lastMass);
+                sph.lastUpdateTime = dTime;
                 sph.mom = sph.lastMom;
+                sph.E = sph.lastE;
+                sph.Uint = sph.lastUint;
+
+                uWake = 0;
 
                 /* NOTE: What do we do with the variables?
                  *  We could integrate the source terms without major problems.
