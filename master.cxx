@@ -508,6 +508,29 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
     ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
+    // Restore interpreter state
+    // if (pDill_load_module) {
+    //     auto name = fmt::format("{}.pkl",baseName);
+
+    //     PyObject *py_file_name = PyUnicode_FromString(name.c_str());
+    //     if (!py_file_name) {
+    //         PyErr_Print();
+    //         abort();
+    //     }
+    //     PyObject *main_module = PyImport_ImportModule("__main__");
+    //     PyObject *args = PyTuple_Pack(2, py_file_name, main_module);
+    //     PyObject *result = PyObject_CallObject(pDill_load_module, args);
+    //     Py_DECREF(main_module);
+
+    //     Py_DECREF(args);
+    //     Py_DECREF(py_file_name);
+    //     if (!result) {
+    //         PyErr_Print();
+    //         abort();
+    //     }
+    //     Py_DECREF(result);
+    // }
+
     bVDetails = parameters.get_bVDetails();
     if (parameters.get_bVStart())
         printf("Restoring from checkpoint\n");
@@ -611,7 +634,7 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
         p  = achOutName + strlen(achOutName);
         strcpy(p++,".par");
     }
-    // Now p should point to "par"
+    // Now p should point to "par" which will be replaced with "pkl" below
 
     PyObject *main_module = PyImport_ImportModule("__main__");
     auto globals = PyModule_GetDict(main_module);
@@ -676,6 +699,41 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
             mdlThreads(mdl),baseName,iStep,nSteps,dTime,dDelta,dEcosmo,dUOld,dTimeOld);
 
     fclose(fp);
+
+    if (pDill_dump_module) {
+        // Write the interpreter state to a file
+        memcpy(p, "pkl", 3);
+        // auto pFile = PyObject_CallMethod(PyImport_ImportModule("builtins"), "open", "ss", achOutName, "wb");
+        auto pFile = PyObject_CallFunction(PyDict_GetItemString(PyEval_GetBuiltins(), "open"), "ss", achOutName, "wb");
+        if (!pFile) {
+            PyErr_Print();
+            abort();
+        }
+
+        // Persist the interpreter state
+        PyObject *args = PyTuple_Pack(3, pFile, main_module, Py_True);
+        PyObject *result = PyObject_CallObject(pDill_dump_module, args);
+        Py_DECREF(args);
+        if (!result) { PyErr_Print(); abort(); }
+        Py_DECREF(result);
+
+        // Persist the arguments, specified, species, and classes
+        auto persist = [pFile,this](PyObject *obj) -> auto {
+            auto args = PyTuple_Pack(3, obj, pFile, Py_True);
+            auto result = PyObject_CallObject(pDill_dump, args);
+            Py_DECREF(args);
+            if (!result) { PyErr_Print(); abort(); }
+            Py_DECREF(result);
+            return obj;
+        };
+        persist(a);
+        persist(s);
+        persist(species_list);
+        persist(classes_list);
+
+        PyObject_CallMethod(pFile, "close", NULL);
+        Py_DECREF(pFile);
+    }
 
     Py_DECREF(species_list);
     Py_DECREF(classes_list);
