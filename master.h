@@ -109,8 +109,6 @@ protected:
     void Restore(const std::string &filename,int nSizeParticle);
 
 public:
-    size_t getLocalGridMemory(int nGrid);
-
     // I/O and IC Generation
     double GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm=nullptr);
     void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,

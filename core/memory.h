@@ -3,6 +3,7 @@
 
 #include <algorithm> // For std::max
 #include <cstdint> // For std::uint64_t
+#include "mdl.h" // For mdl::mdlClass
 
 class EphemeralMemory {
 public:
@@ -13,7 +14,7 @@ public:
     EphemeralMemory(std::uint64_t per_particle = 0, std::uint64_t per_process = 0) : per_particle(per_particle), per_process(per_process) {}
 
     // Constructor with MSR, grid, and count
-    EphemeralMemory(class MSR *msr, int grid, int count = 1);
+    EphemeralMemory(mdl::mdlClass *mdl, int grid, int count = 1);
 
     // Overload | operator for union-like behavior
     EphemeralMemory operator|(const EphemeralMemory &other) const {

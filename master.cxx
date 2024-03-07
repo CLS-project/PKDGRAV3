@@ -77,6 +77,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/hostname.h"
 #include "core/calcroot.h"
 #include "core/select.h"
+#include "core/fftsizes.h"
 #include "io/restore.h"
 #include "initlightcone.h"
 
@@ -263,14 +264,6 @@ std::string MSR::BuildCpName(int iStep,const char *type) {
     else return BuildName(iStep,type);
 }
 
-size_t MSR::getLocalGridMemory(int nGrid) {
-    struct inGetFFTMaxSizes inFFTSizes;
-    struct outGetFFTMaxSizes outFFTSizes;
-    inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGrid;
-    pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
-    return outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-}
-
 void MSR::MakePath(std::string_view dir,std::string_view base,char *path) {
     /*
     ** Prepends "dir" to "base" and returns the result in "path". It is the
@@ -380,12 +373,12 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     e |= EphemeralMemory(8);
 #endif
     // We need one grid to measure P(k); two if we are interlacing
-    e |= EphemeralMemory(this,parameters.get_nGridPk(),parameters.get_bPkInterlace() ? 2 : 1);
+    e |= EphemeralMemory(mdl,parameters.get_nGridPk(),parameters.get_bPkInterlace() ? 2 : 1);
     // Add some ephemeral memory (if needed) for the linGrid. 3 grids are stored : forceX, forceY, forceZ
-    e |= EphemeralMemory(this,parameters.get_nGridLin(),3);
+    e |= EphemeralMemory(mdl,parameters.get_nGridLin(),3);
 
     // Calculate constraint for generating initial conditions. We need 10 grids for the initial conditions
-    EphemeralMemory ic_memory(this,parameters.get_nGrid(),10);
+    EphemeralMemory ic_memory(mdl,parameters.get_nGrid(),10);
 
     ps.nEphemeralBytes = e.per_particle;
     ps.nMinEphemeral = e.per_process;
@@ -3629,8 +3622,8 @@ void MSR::GroupStats() {
 double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     struct inGenerateIC in;
     struct outGenerateIC out;
-    struct inGetFFTMaxSizes inFFTSizes;
-    struct outGetFFTMaxSizes outFFTSizes;
+    ServiceFftSizes::input inFFTSizes;
+    ServiceFftSizes::output outFFTSizes;
     fioSpeciesList nSpecies;
     double sec,dsec;
     double mean, rms;
@@ -3760,7 +3753,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
 
     /* Figure out the minimum number of particles */
     inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = in.nGrid;
-    pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
+    mdl->RunService(PST_GETFFTMAXSIZES,sizeof(inFFTSizes),&inFFTSizes,&outFFTSizes);
     printf("Grid size %d x %d x %d, per node %d x %d x %d and %d x %d x %d\n",
            inFFTSizes.nx, inFFTSizes.ny, inFFTSizes.nz,
            inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,

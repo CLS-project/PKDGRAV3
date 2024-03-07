@@ -68,164 +68,6 @@ static struct PyModuleDef msrModule = {
 };
 
 /******************************************************************************\
-*   Ephemeral OBJECT Instance
-\******************************************************************************/
-
-struct EPHEMERALINSTANCE {
-    PyObject_HEAD
-    class MSR *msr;
-    size_t nBytesPerNode;
-    size_t nBytesPerParticle;
-};
-
-/******************************************************************************\
-*   Ephemeral Object methods
-\******************************************************************************/
-static PyObject *
-ephemeral_enter(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    if (!PyArg_ParseTuple(args, "")) return NULL;
-    Py_INCREF(self);
-    return reinterpret_cast<PyObject *>(self);
-}
-
-static PyObject *
-ephemeral_exit(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    Py_RETURN_FALSE;
-}
-
-static PyObject *
-ppy_ephemeral_add_grid(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    MSR *msr = self->msr;
-    static char const *kwlist[]= {"grid","count",NULL};
-    int grid, count=1;
-    if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "i|i:add_grid", const_cast<char **>(kwlist),
-                &grid,&count) )
-        return NULL;
-    auto nBytes = msr->getLocalGridMemory(grid) * count;
-    self->nBytesPerNode += nBytes;
-    return Py_BuildValue("L",nBytes);
-}
-
-/******************************************************************************\
-*   Ephemeral object methods list
-\******************************************************************************/
-
-static PyMethodDef ephemeral_methods[] = {
-    {"__enter__",(PyCFunction)ephemeral_enter,METH_VARARGS,"__enter__"},
-    {"__exit__", (PyCFunction)ephemeral_exit, METH_VARARGS,"__exit__"},
-
-    {
-        "add_grid", (PyCFunction)ppy_ephemeral_add_grid, METH_VARARGS|METH_KEYWORDS,
-        "Add Ephemeral memory for one or more grids"
-    },
-    {NULL, NULL, 0, NULL}
-};
-/******************************************************************************\
-*   Ephemeral OBJECT Boilerplate code - Keeps track of home much Ephemeral
-\******************************************************************************/
-
-static void ephemeral_dealloc(EPHEMERALINSTANCE *self) {
-    Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static PyObject *ephemeral_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
-    auto self = reinterpret_cast<EPHEMERALINSTANCE *>(type->tp_alloc(type, 0));
-    if (self == NULL) {
-        return NULL;
-    }
-    // Make a copy of the MSR object
-    auto msr_module = PyState_FindModule(&msrModule); // We created this already
-    auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
-    self->msr = moduleState->msr;
-    return reinterpret_cast<PyObject *>(self);
-}
-
-static int ephemeral_init(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwds) {
-    MSR *msr = self->msr;
-    self->nBytesPerNode = 0;
-    self->nBytesPerParticle = 0;
-    static char const *kwlist[]= {"grid","count","per_particle",NULL};
-    int grid=0, count=1, per_particle=0;
-    if ( !PyArg_ParseTupleAndKeywords(
-                args, kwds, "|iii:ephemeral", const_cast<char **>(kwlist),
-                &grid, &count, &per_particle) )
-        return -1;
-    if (grid) self->nBytesPerNode += msr->getLocalGridMemory(grid) * count;
-    self->nBytesPerParticle = per_particle;
-    return 0;
-}
-
-static PyMemberDef ephemeral_members[] = {
-    {NULL} /* Sentinel */
-};
-
-static PyObject *ephemeral_get_bytes_per_node(EPHEMERALINSTANCE *self, void *) {
-    return PyLong_FromSize_t(self->nBytesPerNode);
-}
-
-static PyObject *ephemeral_get_bytes_per_particle(EPHEMERALINSTANCE *self, void *) {
-    return PyLong_FromSize_t(self->nBytesPerParticle);
-}
-
-// This warning should be fixed in newer Python versions
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wwrite-strings"
-static PyGetSetDef ephemeral_getseters[] = {
-    {
-        "bytes_per_node", (getter)ephemeral_get_bytes_per_node, NULL,
-        "Number of bytes of ephemeral needed for each node", NULL
-    },
-    {
-        "bytes_per_particle", (getter)ephemeral_get_bytes_per_particle, NULL,
-        "Number of bytes of ephemeral needed for each particle", NULL
-    },
-    {NULL} /* Sentinel */
-};
-#pragma GCC diagnostic pop
-
-static PyTypeObject ephemeralType = {
-    PyVarObject_HEAD_INIT(NULL,0)
-    MASTER_MODULE_NAME ".ephemeral", /*tp_name*/
-    sizeof(EPHEMERALINSTANCE), /*tp_basicsize */
-    0, /*tp_itemsize*/
-    (destructor)ephemeral_dealloc, /*tp_dealloc*/
-    0, /*tp_print*/
-    0, /*tp_getattr*/
-    0, /*tp_setattr*/
-    0, /*tp_compare*/
-    0, /*tp_repr*/
-    0, /*tp_as_number*/
-    0, /*tp_as_sequence*/
-    0, /*tp_as_mapping*/
-    0, /*tp_hash */
-    0, /*tp_call*/
-    0, /*tp_str*/
-    0, /*tp_getattro*/
-    0, /*tp_setattro*/
-    0, /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
-    "Ephemeral objects", /* tp_doc */
-    0, /* tp_traverse */
-    0, /* tp_clear */
-    0, /* tp_richcompare */
-    0, /* tp_weaklistoffset */
-    0, /* tp_iter */
-    0, /* tp_iternext */
-    ephemeral_methods, /* tp_methods */
-    ephemeral_members, /* tp_members */
-    ephemeral_getseters, /* tp_getset */
-    0, /* tp_base */
-    0, /* tp_dict */
-    0, /* tp_descr_get */
-    0, /* tp_descr_set */
-    0, /* tp_dictoffset */
-    (initproc)ephemeral_init, /* tp_init */
-    0, /* tp_alloc */
-    ephemeral_new, /* tp_new */
-};
-
-/******************************************************************************\
 *   MSR Object method
 \******************************************************************************/
 
@@ -250,14 +92,6 @@ ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 }
 
 /********** Analysis Hooks **********/
-
-static PyObject *
-ppy_msr_ephemeral(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    MSR *msr = self->msr;
-    auto ephemeral = reinterpret_cast<EPHEMERALINSTANCE *>(PyObject_Call(reinterpret_cast<PyObject *>(&ephemeralType),args,kwobj));
-    if (ephemeral) ephemeral->msr = msr;
-    return reinterpret_cast<PyObject *>(ephemeral);
-}
 
 static PyObject *
 ppy_msr_add_analysis(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
@@ -1110,10 +944,6 @@ static PyMethodDef msr_methods[] = {
         "add_analysis", (PyCFunction)ppy_msr_add_analysis, METH_VARARGS|METH_KEYWORDS,
         "Add an analysis callback hook"
     },
-    {
-        "ephemeral", (PyCFunction)ppy_msr_ephemeral, METH_VARARGS|METH_KEYWORDS,
-        "Return an Ephemeral class for memory management"
-    },
 
     {
         "simulate", (PyCFunction)ppy_msr_simulate, METH_VARARGS|METH_KEYWORDS,
@@ -1388,7 +1218,6 @@ static PyObject *initModuleMSR(void) {
         Py_INCREF(&msrType);
         PyModule_AddObject(msr_module, MASTER_TYPE_NAME, (PyObject *)&msrType);
     }
-    PyType_Ready(&ephemeralType);
     return msr_module;
 }
 
