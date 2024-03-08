@@ -130,7 +130,7 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         const auto &dr = nnList[i].dr;
 
-        const double dvDotdr = dot(dr,qv - pv);
+        const double dvDotdr = dot(dr,pv - qv);
         double vsig_pq = psph.c + qsph.c;
         if (dvDotdr < 0.) vsig_pq -= dvDotdr/sqrt(nnList[i].fDist2);
 
