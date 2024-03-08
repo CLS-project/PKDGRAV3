@@ -2248,6 +2248,8 @@ void pkdReorderWithinNodes(PKD pkd) {
             node->Nbh() = i - start;
         }
     }
+    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
+    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
 }
 #endif
 
@@ -2756,6 +2758,8 @@ void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
         abort();
     }
     p.set_marked(false);
+    p.set_rung(0);
+    p.set_new_rung(0);
 }
 
 /* IA: We replace the deleted particles with those at the end of the particle array (which are still valid), making the tree

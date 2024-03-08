@@ -3075,15 +3075,8 @@ void MSR::TopStepKDK(
 #ifdef BLACKHOLES
     if (!iKickRung && !iRung && parameters.get_bBHPlaceSeed()) {
         PlaceBHSeed(dTime, CurrMaxRung());
-
 #ifdef OPTIM_REORDER_IN_NODES
-        // This is kind of overkill. Ideally just reseting the CID_CELL
-        // cache would work.
-        //
-        // This is done to prevent a mismatch between the fetched and true
-        // cell data, as it may have been updated if a BH has been placed
-        // into that node
-        BuildTree(bEwald);
+        ReorderWithinNodes();
 #endif
     }
 #endif
@@ -3159,13 +3152,13 @@ void MSR::TopStepKDK(
 #endif
 
         ActiveRung(iKickRung,1);
-
-#ifdef BLACKHOLES
+        DomainDecomp(iKickRung);
+        if (parameters.get_bAddDelete()) MoveDeletedParticles();
         BuildTree(bEwald);
 
-        auto bBHAccretion = parameters.get_bBHAccretion();
-        auto bBHMerger = parameters.get_bBHMerger();
+#ifdef BLACKHOLES
 #ifndef DEBUG_BH_ONLY
+        auto bBHAccretion = parameters.get_bBHAccretion();
         if (bBHAccretion || parameters.get_bBHFeedback()) {
             BHEvolve(dTime, dDeltaStep);
         }
@@ -3173,12 +3166,9 @@ void MSR::TopStepKDK(
             BHAccretion(dTime);
         }
 #endif
-        if (bBHMerger) {
+        if (parameters.get_bBHMerger()) {
             SelActives();
             BHMerger(dTime);
-        }
-        if (bBHAccretion || bBHMerger) {
-            MoveDeletedParticles();
         }
 #endif
 
@@ -3186,8 +3176,9 @@ void MSR::TopStepKDK(
         StarForm(dTime, dDeltaStep, iKickRung);
 #endif
 
-        DomainDecomp(iKickRung);
-        BuildTree(bEwald);
+#if defined(OPTIM_REORDER_IN_NODES) && (defined(STAR_FORMATION) || defined(BLACKHOLES))
+        ReorderWithinNodes();
+#endif
 
         if (!iKickRung && parameters.get_bFindGroups()) {
             NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
@@ -3254,8 +3245,9 @@ void MSR::TopStepKDK(
 
     dTime += 0.5*dDeltaRung; /* Important to have correct time at step end for SF! */
 
-    if (!iKickRung && !iRung && parameters.get_bFindGroups()) {
-        GroupStats();
+    if (!iKickRung && !iRung) {
+        if (parameters.get_bFindGroups()) GroupStats();
+        if (parameters.get_bAddDelete()) MoveDeletedParticles();
         BuildTree(bEwald);
     }
 
