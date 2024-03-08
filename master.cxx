@@ -3137,12 +3137,14 @@ void MSR::TopStepKDK(
             ResetFluxes(dTime, dDeltaStep);
             MeshlessFluxes(dTime, dDeltaStep);
         }
+
         ZeroNewRung(iKickRung,MAX_RUNG,iKickRung); /* brute force */
         /* This Drifts everybody */
         msrprintf("%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
         Drift(dTime,dDeltaRung,ROOT);
         dTime += dDeltaRung;
         dStep += 1.0/(1 << iRung);
+
 #ifdef COOLING
         int sync = (nRung[0]!=0 && iRung==0) || ( (nRung[iKickRung] > 0) && (nRung[iKickRung-1] == 0) );
         if (csm->val.bComove) {
@@ -3157,13 +3159,10 @@ void MSR::TopStepKDK(
 #endif
 
         ActiveRung(iKickRung,1);
-        DomainDecomp(iKickRung);
-
-#ifdef STAR_FORMATION
-        StarForm(dTime, dDeltaStep, iKickRung);
-#endif
 
 #ifdef BLACKHOLES
+        BuildTree(bEwald);
+
         auto bBHAccretion = parameters.get_bBHAccretion();
         auto bBHMerger = parameters.get_bBHMerger();
 #ifndef DEBUG_BH_ONLY
@@ -3183,18 +3182,23 @@ void MSR::TopStepKDK(
         }
 #endif
 
-        if (DoGravity() || DoGas()) {
-            ActiveRung(iKickRung,1);
-            if (DoGravity()) UpdateSoft(dTime);
-            msrprintf("%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
-            BuildTree(bEwald);
-        }
+#ifdef STAR_FORMATION
+        StarForm(dTime, dDeltaStep, iKickRung);
+#endif
+
+        DomainDecomp(iKickRung);
+        BuildTree(bEwald);
 
         if (!iKickRung && parameters.get_bFindGroups()) {
             NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
         }
 
+        if (DoGravity() || DoGas()) {
+            msrprintf("%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
+        }
+
         if (DoGravity()) {
+            UpdateSoft(dTime);
             SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
             SPHoptions.doGravity = 1;
             Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
