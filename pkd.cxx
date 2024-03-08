@@ -833,14 +833,13 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             if (p.have_bh()) {
                 auto &BH = p.BH();
                 BH.omega  = 0.;
-                BH.fTimer = fTimer;
-                BH.pLowPot = NULL;
-                BH.newPos[0] = -1;
-                BH.lastUpdateTime = -1.;
                 BH.dInternalMass = otherData[0];
+                BH.lastUpdateTime = -1.;
                 BH.dAccretionRate = otherData[1];
-                BH.dAccEnergy = otherData[2];
                 BH.dFeedbackRate = 0.0;
+                BH.dAccEnergy = otherData[2];
+                BH.fTimer = fTimer;
+                BH.bForceReposition = false;
             }
             break;
         default:

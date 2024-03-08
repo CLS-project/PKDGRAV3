@@ -230,17 +230,19 @@ struct STARFIELDS {
 };
 
 struct BHFIELDS {
-    PARTICLE *pLowPot;
     double omega;
     double dInternalMass;
-    blitz::TinyVector<double,3> newPos;
     double lastUpdateTime;
     double dAccretionRate;
     double dEddingtonRatio;
     double dFeedbackRate;
     double dAccEnergy;
     float fTimer;    /* Time of formation */
-    int   doReposition; // = 0 no; > 0 do it ; = 2 ignore gas criteria
+    struct {
+        int iPid;
+        int iIndex;
+    } GasPin;
+    bool bForceReposition;
 };
 
 #ifdef OPTIM_UNION_EXTRAFIELDS

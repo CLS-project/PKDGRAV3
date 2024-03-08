@@ -60,6 +60,8 @@
     #include "blackhole/evolve.h"
     #include "blackhole/seed.h"
     #include "blackhole/init.h"
+    #include "blackhole/drift.h"
+    #include "blackhole/accretion.h"
 #endif
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -175,7 +177,7 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstBHInit,
                   sizeof(struct inPlaceBHSeed), 0);
     mdlAddService(mdl,PST_BH_REPOSITION,pst,
-                  (fcnService_t *) pstRepositionBH,
+                  (fcnService_t *) pstBHReposition,
                   0, 0);
     mdlAddService(mdl,PST_BH_ACCRETION,pst,
                   (fcnService_t *) pstBHAccretion,
@@ -1052,15 +1054,15 @@ int pstBHInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 
 }
-int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstBHReposition(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_REPOSITION,NULL,0);
-        pstRepositionBH(pst->pstLower,vin,nIn,vout,nOut);
+        pstBHReposition(pst->pstLower,vin,nIn,vout,nOut);
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
         LCL *plcl = pst->plcl;
-        pkdRepositionBH(plcl->pkd);
+        pkdBHReposition(plcl->pkd);
     }
     return 0;
 

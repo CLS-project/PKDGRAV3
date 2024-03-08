@@ -2245,6 +2245,14 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     struct inDrift in;
     double dsec;
 
+#if defined(BLACKHOLES) and !defined(DEBUG_BH_NODRIFT)
+    TimerStart(TIMER_BHS);
+    BHGasPin(dTime,dDelta);
+    TimerStop(TIMER_BHS);
+#endif
+
+    TimerStart(TIMER_DRIFT);
+
     if (csm->val.bComove) {
         in.dDelta = csmComoveDriftFac(csm,dTime,dDelta);
         in.dDeltaVPred = csmComoveKickFac(csm,dTime,dDelta);
@@ -2257,22 +2265,17 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.bDoGas = DoGas();
     in.iRoot = iRoot;
-    TimerStart(TIMER_DRIFT);
 
     pstDrift(pst,&in,sizeof(in),NULL,0);
 
     TimerStop(TIMER_DRIFT);
     dsec = TimerGet(TIMER_DRIFT);
-
-#if defined(BLACKHOLES) and !defined(DEBUG_BH_ONLY)
-    TimerStart(TIMER_DRIFT);
-    BHDrift(dTime, dDelta);
-
-    TimerStop(TIMER_DRIFT);
-    double dsecBH = TimerGet(TIMER_DRIFT);
-    printf("Drift took %.5f (%.5f for BH) seconds \n", dsec, dsecBH);
-#else
     printf("Drift took %.5f seconds \n", dsec);
+
+#if defined(BLACKHOLES) and !defined(DEBUG_BH_NODRIFT)
+    TimerStart(TIMER_BHS);
+    BHReposition();
+    TimerStop(TIMER_BHS);
 #endif
 }
 
@@ -3161,27 +3164,22 @@ void MSR::TopStepKDK(
 #endif
 
 #ifdef BLACKHOLES
+        auto bBHAccretion = parameters.get_bBHAccretion();
         auto bBHMerger = parameters.get_bBHMerger();
+#ifndef DEBUG_BH_ONLY
+        if (bBHAccretion || parameters.get_bBHFeedback()) {
+            BHEvolve(dTime, dDeltaStep);
+        }
+        if (bBHAccretion) {
+            BHAccretion(dTime);
+        }
+#endif
         if (bBHMerger) {
             SelActives();
             BHMerger(dTime);
         }
-        if (parameters.get_bBHAccretion() && !bBHMerger) {
-            // If there are mergers, this was already done in msrBHMerger, so
-            // there is no need to repeat this.
-            struct outGetNParts Nout;
-
-            Nout.n = 0;
-            Nout.nDark = 0;
-            Nout.nGas = 0;
-            Nout.nStar = 0;
-            Nout.nBH = 0;
-            pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-            N = Nout.n;
-            nDark = Nout.nDark;
-            nGas = Nout.nGas;
-            nStar = Nout.nStar;
-            nBH = Nout.nBH;
+        if (bBHAccretion || bBHMerger) {
+            MoveDeletedParticles();
         }
 #endif
 
@@ -3257,6 +3255,24 @@ void MSR::TopStepKDK(
         BuildTree(bEwald);
     }
 
+}
+
+void MSR::MoveDeletedParticles() {
+    struct outGetNParts Nout;
+
+    Nout.n = 0;
+    Nout.nDark = 0;
+    Nout.nGas = 0;
+    Nout.nStar = 0;
+    Nout.nBH = 0;
+
+    pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+
+    N = Nout.n;
+    nDark = Nout.nDark;
+    nGas = Nout.nGas;
+    nStar = Nout.nStar;
+    nBH = Nout.nBH;
 }
 
 void MSR::GetNParts() { /* JW: Not pretty -- may be better way via fio */

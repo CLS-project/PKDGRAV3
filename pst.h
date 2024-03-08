@@ -519,7 +519,7 @@ struct outPlaceBHSeed {
 };
 int pstPlaceBHSeed(PST,void *,int,void *,int);
 int pstBHInit(PST,void *,int,void *,int);
-int pstRepositionBH(PST,void *,int,void *,int);
+int pstBHReposition(PST,void *,int,void *,int);
 struct inBHAccretion {
     double dScaleFactor;
 };

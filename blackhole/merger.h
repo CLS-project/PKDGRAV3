@@ -6,4 +6,4 @@ void combBHmerger(void *vpkd, void *p1,const void *p2) ;
 int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) ;
 void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCnt_tot,
                               blitz::TinyVector<double,3> r, int ix, int iy, int iz);
-void pkdRepositionBH(PKD pkd);
+

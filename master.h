@@ -401,6 +401,7 @@ protected:
     void ActiveOrder();
     void CalcBound(Bound &bnd);
     void CalcBound();
+    void MoveDeletedParticles();
     void GetNParts();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
@@ -485,7 +486,10 @@ protected:
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);
     void BHMerger(double dTime);
-    void BHDrift(double dTime, double dDelta);
+    void BHEvolve(double dTime, double dDelta);
+    void BHGasPin(double dTime, double dDelta);
+    void BHReposition();
+    void BHAccretion(double dTime);
     void BHStep(double dTime, double dDelta);
 #endif
 

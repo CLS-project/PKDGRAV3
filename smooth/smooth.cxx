@@ -40,6 +40,7 @@
     #include "blackhole/merger.h"
     #include "blackhole/evolve.h"
     #include "blackhole/step.h"
+    #include "blackhole/drift.h"
 #endif
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -402,18 +403,29 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         bPacked = true;
         iPackSize = sizeof(bhStepPack);
         break;
-    case SMX_BH_DRIFT:
-        smx->fcnSmooth = smBHevolve;
+    case SMX_BH_EVOLVE:
+        smx->fcnSmooth = smBHEvolve;
         initParticle = NULL; /* Original Particle */
-        pack = packBHevolve;
-        unpack = unpackBHevolve;
-        init = initBHevolve; /* Cached copies */
-        flush = flushBHevolve;
-        comb = combBHevolve;
+        pack = packBHEvolve;
+        unpack = unpackBHEvolve;
+        init = initBHEvolve; /* Cached copies */
+        flush = flushBHEvolve;
+        comb = combBHEvolve;
         smx->bSearchGasOnly = 1;
         bPacked = true;
         iPackSize = sizeof(bhEvolvePack);
         iFlushSize = sizeof(bhEvolveFlush);
+        break;
+    case SMX_BH_GASPIN:
+        smx->fcnSmooth = smBHGasPin;
+        initParticle = NULL; /* Original Particle */
+        pack = packBHGasPin;
+        unpack = unpackBHGasPin;
+        init = NULL; /* Cached copies */
+        comb = NULL;
+        smx->bSearchGasOnly = 1;
+        bPacked = true;
+        iPackSize = sizeof(bhGasPinPack);
         break;
 #endif
 #ifdef STELLAR_EVOLUTION
@@ -847,14 +859,9 @@ void smSmooth(SMX smx,SMF *smf) {
     smSmoothInitialize(smx);
     smf->pfDensity = NULL;
     switch (smx->iSmoothType) {
-    case SMX_BH_DRIFT:
-        for (auto &p : pkd->particles) {
-            if (p.is_bh()) {
-                smSmoothSingle(smx,smf,p,ROOT,0);
-            }
-        }
-        break;
+    case SMX_BH_EVOLVE:
     case SMX_BH_STEP:
+    case SMX_BH_GASPIN:
         for (auto &p : pkd->particles) {
             if (p.is_bh()) {
                 smSmoothSingle(smx,smf,p,ROOT,0);
@@ -1097,28 +1104,6 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         }
         break;
 
-    case SMX_BH_DRIFT:
-        for (auto &p : pkd->particles) {
-            if (p.is_bh()) {
-                smReSmoothSingle(smx,smf,p,p.ball());
-                nSmoothed++;
-            }
-        }
-        break;
-
-    case SMX_BH_STEP:
-        for (auto &p : pkd->particles) {
-            if (p.is_bh()) {
-                smReSmoothSingle(smx,smf,p,2.*p.soft());
-                nSmoothed++;
-            }
-        }
-        break;
-
-#ifdef FEEDBACK
-    /* IA: If computing the hydrostep, we also do the smooth over the newly formed stars that has not yet exploded, such that
-     *  they can increase the rung of the neighbouring gas particles before exploding
-     */
     case SMX_HYDRO_STEP:
         for (auto &p : pkd->particles) {
             if (p.is_gas()) {
@@ -1127,46 +1112,17 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
                     nSmoothed++;
                 }
             }
-            //else if (p.is_star()) {
-            //    if (!(p.star().bCCSNFBDone && p.star().bSNIaFBDone)) {
-            //         IA: In principle this does NOT improve the Isolated Galaxy case, as we wait until the end of the
-            //         step to update the primitive variables
-            //        smReSmoothSingle(smx,smf,p,p.ball());
-            //        nSmoothed++;
-            //    }
-            //}
         }
         break;
 
     case SMX_SN_FEEDBACK:
-        for (auto &p : pkd->particles) {
-            if (p.is_star()) {
-                const auto &star = p.star();
-                if (!star.bCCSNFBDone && ((smf->dTime - star.fTimer) > smf->dCCSNFBDelay)) {
-                    smSmoothSingle(smx,smf,p,ROOT,0);
-                    nSmoothed++;
-                }
-                if (!star.bSNIaFBDone && ((smf->dTime - star.fTimer) > smf->dSNIaFBDelay)) {
-                    smSmoothSingle(smx,smf,p,ROOT,0);
-                    nSmoothed++;
-                }
-            }
-        }
-        break;
-#endif
-#ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
-        for (auto &p : pkd->particles) {
-            if (p.is_star()) {
-                const auto &star = p.star();
-                if (smf->dTime > star.fNextEnrichTime) {
-                    smReSmoothSingle(smx,smf,p,p.ball());
-                    nSmoothed++;
-                }
-            }
-        }
+    case SMX_BH_EVOLVE:
+    case SMX_BH_STEP:
+    case SMX_BH_GASPIN:
+        assert(0);
         break;
-#endif
+
     default:
         for (auto &p : pkd->particles) {
             if (p.is_active() && p.is_gas()) {

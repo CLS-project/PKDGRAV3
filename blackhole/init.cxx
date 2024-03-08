@@ -33,6 +33,11 @@ int MSR::ValidateBlackholeParam() {
         fprintf(stderr,"WARNING: Blackhole seeding requires Friends-of-friends group finding. "
                 "Setting bFindGroups to true\n");
     }
+    if (!parameters.get_bMemPotential()) {
+        parameters.set_bMemPotential(true);
+        fprintf(stderr,"WARNING: The blackhole module requires bMemPotential. "
+                "Setting bMemPotential to true\n");
+    }
     if (!parameters.get_bMemMass()) {
         parameters.set_bMemMass(true);
         fprintf(stderr,"WARNING: The blackhole module requires bMemMass. "

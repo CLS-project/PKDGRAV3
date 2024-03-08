@@ -170,12 +170,11 @@ void DensitySym(PARTICLE *,float fBall,int,NN *,SMF *);
 #define SMX_SN_FEEDBACK       50
 
 #define SMX_BH_MERGER         55
-#define SMX_BH_DRIFT          56
+#define SMX_BH_EVOLVE         56
 #define SMX_BH_STEP           57
+#define SMX_BH_GASPIN         58
 
-#ifdef STELLAR_EVOLUTION
-    #define SMX_CHEM_ENRICHMENT   60
-#endif
+#define SMX_CHEM_ENRICHMENT   60
 
 #define SMX_PRINTNN                            9
 void PrintNN(PARTICLE *,float fBall,int,NN *,SMF *);
