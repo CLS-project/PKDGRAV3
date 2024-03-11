@@ -11,6 +11,14 @@ def set_parameters(**kwargs):
     if not msr0.parameters.update(kwargs,False):
         raise ValueError("invalid parameter")
 
+def restore(filename,**kwargs):
+    """
+    Restore a simulation from a file.
+
+    :param str filename: the name of the file
+    """
+    msr0.Restart(filename.encode('UTF-8'),kwargs)
+
 def restart(arguments,specified,species,classes,n,name,step,steps,time,delta,E,U,Utime):
     ndark = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_DARK])
     nsph  = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_SPH])
