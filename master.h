@@ -102,6 +102,11 @@ public:
     }
 private:
     int64_t parallel_count(bool bParallel,int64_t nParallel);
+    void persist(PyObject *file,PyObject *obj);
+    void persist(PyObject *file,int n);
+    void persist(PyObject *file,double d);
+    template<typename T>
+    T restore(PyObject *file);
 protected:
     int64_t parallel_read_count();
     int64_t parallel_write_count();
@@ -116,6 +121,7 @@ public:
                  double dEcosmo,double dUOld, double dTimeOld,
                  std::vector<PARTCLASS> &aClasses,
                  PyObject *arguments,PyObject *specified);
+    void Restart(const char *filename,PyObject *kwargs);
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
@@ -495,7 +501,7 @@ protected:
 #endif
 
     void Initialize();
-    void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
+    void writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta);
     void DomainDecompOld(int iRung);
 
     int CountRungs(uint64_t *nRungs);

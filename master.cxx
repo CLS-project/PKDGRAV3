@@ -55,6 +55,7 @@
 #include <numeric>
 #include <functional>
 #include <fstream>
+#include <filesystem>
 #ifdef HAVE_SYS_PARAM_H
     #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
@@ -484,6 +485,176 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
     mdl->RunService(PST_RESTORE,msg);
 }
 
+template<>
+PyObject *MSR::restore(PyObject *file) {
+    auto result = PyObject_CallOneArg(pDill_load, file);
+    if (!result) { PyErr_Print(); abort(); }
+    return result;
+}
+
+// Specialization for int
+template<>
+int MSR::restore(PyObject *file) {
+    auto result = restore<PyObject *>(file);
+    auto value = PyLong_AsLong(result);
+    Py_DECREF(result);
+    return value;
+}
+
+// Specialization for double
+template<>
+double MSR::restore(PyObject *file) {
+    auto result = restore<PyObject *>(file);
+    auto value = PyFloat_AsDouble(result);
+    Py_DECREF(result);
+    return value;
+}
+
+void MSR::Restart(const char *filename,PyObject *kwargs) {
+    auto sec = MSR::Time();
+
+    std::string pkl_filename = filename;
+    pkl_filename += ".pkl";
+
+    bVDetails = parameters.get_bVDetails();
+    if (parameters.get_bVStart())
+        printf("Restoring from checkpoint\n");
+    TimerStart(TIMER_IO);
+
+    auto pFile = PyObject_CallFunction(PyDict_GetItemString(PyEval_GetBuiltins(), "open"), "ss", pkl_filename.c_str(), "rb");
+    if (!pFile) {
+        PyErr_Print();
+        abort();
+    }
+
+    // // Checkpoint the important variables
+    auto version = restore<int>(pFile);
+    if (version != 1) {
+        PyErr_SetString(PyExc_ValueError, "Invalid checkpoint file version");
+        PyErr_Print();
+        abort();
+    }
+
+    auto species_list = restore<PyObject *>(pFile);
+    fioSpeciesList nSpecies;
+    for (auto i = 0; i < FIO_SPECIES_LAST; ++i) {
+        nSpecies[i] = PyLong_AsUnsignedLongLong(PyList_GetItem(species_list, i));
+    }
+    this->nDark = nSpecies[FIO_SPECIES_DARK];
+    this->nGas  = nSpecies[FIO_SPECIES_SPH];
+    this->nStar = nSpecies[FIO_SPECIES_STAR];
+    this->nBH   = nSpecies[FIO_SPECIES_BH];
+    this->N     = nDark + nGas + nStar + nBH;
+    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
+
+    auto classes_list = restore<PyObject *>(pFile);
+    static_assert(PKD_MAX_CLASSES<=256); // Hopefully nobody will be mean to us (we use the stack)
+    PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
+    auto nCheckpointClasses = PyList_Size(classes_list);
+    for (int i = 0; i < nCheckpointClasses; ++i) {
+        auto class_list = PyList_GetItem(classes_list, i); // Borrowed reference, no need to Py_DECREF
+        auto eSpeciesObj = PyList_GetItem(class_list, 0);
+        auto fMassObj = PyList_GetItem(class_list, 1);
+        auto fSoftObj = PyList_GetItem(class_list, 2);
+        auto iMatObj = PyList_GetItem(class_list, 3);
+        aCheckpointClasses[i].eSpecies = FIO_SPECIES(PyLong_AsLong(eSpeciesObj));
+        aCheckpointClasses[i].fMass = PyFloat_AsDouble(fMassObj);
+        aCheckpointClasses[i].fSoft = PyFloat_AsDouble(fSoftObj);
+        aCheckpointClasses[i].iMat = PyLong_AsLong(iMatObj);
+    }
+
+    auto iStep = restore<int>(pFile);
+    auto nSteps = restore<int>(pFile);
+    auto dTime = restore<double>(pFile);
+    auto dDelta = restore<double>(pFile);
+    this->dEcosmo = restore<double>(pFile);
+    this->dUOld = restore<double>(pFile);
+    this->dTimeOld = restore<double>(pFile);
+
+    auto arguments = restore<PyObject *>(pFile);
+    auto specified = restore<PyObject *>(pFile);
+    parameters.merge(pkd_parameters(arguments,specified));
+    parameters.update(kwargs,false);
+    ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
+
+    // Restore the interpreter state
+    PyObject *args = PyTuple_Pack(1, pFile);
+    PyObject *result = PyObject_CallObject(pDill_load_module, args);
+    Py_DECREF(args);
+    if (!result) { PyErr_Print(); abort(); }
+    Py_DECREF(result);
+
+    PyObject_CallMethod(pFile, "close", NULL);
+    Py_DECREF(pFile);
+
+    uint64_t mMemoryModel = 0;
+    mMemoryModel = getMemoryModel();
+    if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
+    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
+
+    Restore(filename,nSizeParticle);
+    pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
+    CalcBound();
+    CountRungs(NULL);
+
+    TimerStop(TIMER_IO);
+    auto dsec = TimerGet(TIMER_IO);
+    double dExp = csmTime2Exp(csm,dTime);
+    if (dsec > 0.0) {
+        double rate = N*nSizeParticle / dsec;
+        const char *units = "B";
+        if (rate > 10000) { rate /= 1024;   units = "KB"; }
+        if (rate > 10000) { rate /= 1024;   units = "MB"; }
+        if (rate > 10000) { rate /= 1024;   units = "GB"; }
+        msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs (%.2f %s/s)\n\n",dExp,dsec,rate,units);
+    }
+    else msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
+
+    /* We can indicate that the DD was already done at rung 0 */
+    iLastRungRT = 0;
+    iLastRungDD = 0;
+
+    InitCosmology(csm);
+
+    SetDerivedParameters(true);
+
+    if (parameters.has_dSoft()) SetSoft(Soft());
+
+    if (DoGas() && NewSPH()) {
+        /*
+        ** Initialize kernel target with either the mean mass or nSmooth
+        */
+        sec = MSR::Time();
+        printf("Initializing Kernel target ...\n");
+        {
+            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+            if (SPHoptions.useNumDen) {
+                parameters.set_fKernelTarget(parameters.get_nSmooth());
+            }
+            else {
+                double Mtot;
+                uint64_t Ntot;
+                CalcMtot(&Mtot, &Ntot);
+                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
+            }
+        }
+        dsec = MSR::Time() - sec;
+        printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+        SetSPHoptions();
+        InitializeEOS();
+    }
+    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.has_achOutTimes()) {
+        nSteps = ReadOuts(dTime);
+    }
+
+    if (bAnalysis) return; // Very cheeserific
+    Simulate(dTime,dDelta,iStep,nSteps,true);
+}
+
+// This is the old style restart, which is not used anymore
+// It is kept here for old checkpoint files, but will be removed soon
 void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
                   size_t nDark, size_t nGas, size_t nStar, size_t nBH,
                   double dEcosmo, double dUOld, double dTimeOld,
@@ -588,40 +759,37 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     Simulate(dTime,dDelta,iStep,nSteps,true);
 }
 
-void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta) {
-    char *p, achOutName[PST_FILENAME_SIZE];
+void MSR::persist(PyObject *file,PyObject *obj) {
+    auto args = PyTuple_Pack(3, obj, file, Py_True);
+    auto result = PyObject_CallObject(pDill_dump, args);
+    Py_DECREF(args);
+    if (!result) { PyErr_Print(); abort(); }
+    Py_DECREF(result);
+}
+void MSR::persist(PyObject *file,int n) {
+    auto number = PyLong_FromLongLong(n);
+    persist(file,number);
+    Py_DECREF(number);
+}
+void MSR::persist(PyObject *file,double d) {
+    auto number = PyFloat_FromDouble(d);
+    persist(file,number);
+    Py_DECREF(number);
+}
+
+void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta) {
     fioSpeciesList nSpecies;
     int i;
     int nBytes;
 
+    // ******************************************************************
+    // Collect the information to checkpoint
+    // ******************************************************************
     static_assert(PKD_MAX_CLASSES<=256); // Hopefully nobody will be mean to us (we use the stack)
     PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
     nBytes = pstGetClasses(pst,NULL,0,aCheckpointClasses,PKD_MAX_CLASSES*sizeof(PARTCLASS));
     int nCheckpointClasses = nBytes / sizeof(PARTCLASS);
     assert(nCheckpointClasses*sizeof(PARTCLASS)==nBytes);
-
-    strcpy( achOutName, baseName );
-    p = strstr( achOutName, "&I" );
-    if ( p ) {
-        int n = p - achOutName;
-        strcpy( p, "par" );
-        strcat( p, baseName + n + 2 );
-    }
-    else {
-        p  = achOutName + strlen(achOutName);
-        strcpy(p++,".par");
-    }
-    // Now p should point to "par"
-
-    PyObject *main_module = PyImport_ImportModule("__main__");
-    auto globals = PyModule_GetDict(main_module);
-    print_imports(achOutName, globals);
-
-    FILE *fp = fopen(achOutName,"a");
-    if (fp==NULL) {
-        perror(achOutName);
-        abort();
-    }
 
     for (i=0; i<=FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = N;
@@ -659,28 +827,61 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     auto a = parameters.arguments();
     auto s = parameters.specified();
 
-    fprintf(fp,"arguments=");
-    PyObject_Print(a,fp,0);
-    Py_DECREF(a);
-    fprintf(fp,"\n%s","specified=");
-    PyObject_Print(s,fp,0);
-    Py_DECREF(s);
-    fprintf(fp,"\nspecies=");
-    PyObject_Print(species_list,fp,0);
-    fprintf(fp,"\nclasses=");
-    PyObject_Print(classes_list,fp,0);
+    // ******************************************************************
+    // Write the interpreter state and the checkpoint variables to a file
+    // ******************************************************************
+    // Write the interpreter and the checkpoint variables to a file
+    auto achOutName = baseName + ".pkl";
+    auto pFile = PyObject_CallFunction(PyDict_GetItemString(PyEval_GetBuiltins(), "open"), "ss", achOutName.c_str(), "wb");
+    if (!pFile) {
+        PyErr_Print();
+        abort();
+    }
 
-    fprintf(fp,"\nmsr.restart(arguments=arguments, specified=specified, species=species, classes=classes,\n"
-            "            n=%d,name='%s',step=%d,steps=%d,time=%.17g,delta=%.17g,\n"
-            "            E=%.17g,U=%.17g,Utime=%.17g)\n",
-            mdlThreads(mdl),baseName,iStep,nSteps,dTime,dDelta,dEcosmo,dUOld,dTimeOld);
+    // Checkpoint the important variables
+    persist(pFile,1);            // checkpoint version
+    persist(pFile,species_list); // 1: species
+    persist(pFile,classes_list); // 1: classes
+    persist(pFile,iStep);        // 1: step
+    persist(pFile,nSteps);       // 1: steps
+    persist(pFile,dTime);        // 1: time
+    persist(pFile,dDelta);       // 1: delta
+    persist(pFile,dEcosmo);      // 1: E
+    persist(pFile,dUOld);        // 1: U
+    persist(pFile,dTimeOld);     // 1: Utime
+    persist(pFile,a);            // 1: arguments
+    persist(pFile,s);            // 1: specified
 
-    fclose(fp);
+    // 1: Persist the interpreter state
+    PyObject *args = PyTuple_Pack(3, pFile, Py_None, Py_True);
+    PyObject *result = PyObject_CallObject(pDill_dump_module, args);
+    Py_DECREF(args);
+    if (!result) { PyErr_Print(); abort(); }
+    Py_DECREF(result);
+
+    PyObject_CallMethod(pFile, "close", NULL);
+    Py_DECREF(pFile);
 
     Py_DECREF(species_list);
     Py_DECREF(classes_list);
 
-    Py_DECREF(main_module);
+    // ******************************************************************
+    // Write the restart file
+    // ******************************************************************
+    std::ofstream restart_file(baseName);
+    if (!restart_file) {
+        perror(baseName.c_str());
+        abort();
+    }
+    restart_file << "import PKDGRAV as msr\n";
+    restart_file << "msr.restore(__file__)\n";
+    restart_file.close();
+    auto par_name = baseName + ".par";
+    // This is temporary. We support the old naming convention for now,
+    // but we will remove it soon
+    std::error_code ec; // We will ignore the error code (creating a symlink is not critical)
+    std::filesystem::remove(par_name,ec);
+    std::filesystem::create_symlink(baseName, par_name,ec);
 }
 
 void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
@@ -702,9 +903,9 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 
     TimerStart(TIMER_IO);
 
-    writeParameters(in.achOutFile,iStep,nSteps,dTime,dDelta);
-
     pstCheckpoint(pst,&in,sizeof(in),NULL,0);
+
+    writeParameters(filename,iStep,nSteps,dTime,dDelta);
 
     /* This is not necessary, but it means the bounds will be identical upon restore */
     CalcBound();

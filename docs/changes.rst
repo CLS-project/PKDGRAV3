@@ -2,7 +2,29 @@
 Changes
 =======
 
-The parameter processing has undergone significant changes.
+**The format of the checkpoint files has been updated.**
+
+Before, the restart parameters write written to checkpoint.chk.par.
+The old behaviour of ommitting the ".par" for the checkpoint
+has been reintroduced. In addition, all of the state variables
+are now saved in Python Dill (Pickle) format in a ".chk.pkl" file.
+To restart, use the ".chk" file as input, for example::
+
+  srun pkdgrav3 checkpoint.00010.chk
+
+To override parameters you can add them as arguments to the ``restore`` call.
+For example if you wanted to turn on parallel reading and update
+the number of readers to 100 you would change::
+
+  msr.restore(__file__)
+
+to::
+
+  msr.restore(__file__,bParaRead=True,nParaRead=100)
+
+The new values of those parameters will persist on subsequent restarts.
+
+**The parameter processing has undergone significant changes.**
 
 .. index::
    single: parameters ; dTheta

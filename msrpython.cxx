@@ -157,10 +157,12 @@ static int run_script(MSRINSTANCE *self,const char *filename) {
         return errno;
     }
 
-    auto module = PyModule_New("restore");
-    PyModule_AddStringConstant(module, "__file__", "restore.py");
-    PyObject *localDict = PyModule_GetDict(module);
-    PyDict_SetItemString(localDict, "__builtins__", PyEval_GetBuiltins());
+    PyObject *main_module = PyImport_ImportModule("__main__");
+    auto localDict = PyModule_GetDict(main_module);
+    auto fileString = PyUnicode_FromString(filename);
+    PyDict_SetItemString(localDict, "__file__", fileString);
+    Py_DECREF(fileString);
+
     auto s = PyRun_FileEx(fp,filename,Py_file_input,localDict,localDict,1); // fp is closed on return
     Py_XDECREF(s);
     if (PyErr_Occurred()) {
@@ -1309,27 +1311,29 @@ int MSR::Python(int argc, char *argv[]) {
 
     // This module is used for checkpointing and restoring the state
     pDill = PyImport_ImportModule("dill");
-    if (pDill) {
-        pDill_load = PyObject_GetAttrString(pDill, "load");
-        if (!pDill_load || !PyCallable_Check(pDill_load)) {
-            PyErr_Print();
-            abort();
-        }
-        pDill_dump = PyObject_GetAttrString(pDill, "dump");
-        if (!pDill_dump || !PyCallable_Check(pDill_dump)) {
-            PyErr_Print();
-            abort();
-        }
-        pDill_load_module = PyObject_GetAttrString(pDill, "load_module");
-        if (!pDill_load_module || !PyCallable_Check(pDill_load_module)) {
-            PyErr_Print();
-            abort();
-        }
-        pDill_dump_module = PyObject_GetAttrString(pDill, "dump_module");
-        if (!pDill_dump_module || !PyCallable_Check(pDill_dump_module)) {
-            PyErr_Print();
-            abort();
-        }
+    if (!pDill) {
+        PyErr_Print();
+        abort();
+    }
+    pDill_load = PyObject_GetAttrString(pDill, "load");
+    if (!pDill_load || !PyCallable_Check(pDill_load)) {
+        PyErr_Print();
+        abort();
+    }
+    pDill_dump = PyObject_GetAttrString(pDill, "dump");
+    if (!pDill_dump || !PyCallable_Check(pDill_dump)) {
+        PyErr_Print();
+        abort();
+    }
+    pDill_load_module = PyObject_GetAttrString(pDill, "load_module");
+    if (!pDill_load_module || !PyCallable_Check(pDill_load_module)) {
+        PyErr_Print();
+        abort();
+    }
+    pDill_dump_module = PyObject_GetAttrString(pDill, "dump_module");
+    if (!pDill_dump_module || !PyCallable_Check(pDill_dump_module)) {
+        PyErr_Print();
+        abort();
     }
 
     // Parse the command line
@@ -1374,6 +1378,7 @@ int MSR::Python(int argc, char *argv[]) {
             perror(filename);
             exit(errno);
         }
+        PyDict_SetItemString(locals, "__file__", script);
         auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
         Py_XDECREF(s);
         if (PyErr_Occurred()) {
