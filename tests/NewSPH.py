@@ -5,6 +5,7 @@ import numpy as np
 import unittest
 import xmlrunner
 import PKDGRAV as msr
+from PKDGRAV import HYDRO_MODEL
 from importlib.machinery import SourceFileLoader
 
 @unittest.skipIf(not os.path.isfile('collision.par'), "missing collision.par")
@@ -22,7 +23,7 @@ class TestNewSPHRead(unittest.TestCase):
         cls.fBall = np.load('initial_fBall.npy')
 
     def testNewSPHRead(self):
-        msr.set_parameters(**self.params)
+        msr.set_parameters(hydro_model=HYDRO_MODEL.SPH,**self.params)
         msr.load(self.params['achInFile'])
         msr.reorder()
         # Get scalar values
@@ -60,7 +61,7 @@ class TestNewSPHStep(unittest.TestCase):
         cls.fBall = np.load('final_fBall.npy')
 
     def testNewSPHStep(self):
-        msr.set_parameters(**self.params)
+        msr.set_parameters(hydro_model=HYDRO_MODEL.SPH,**self.params)
         msr.simulate()
         msr.reorder()
         # Get vector values
@@ -107,7 +108,7 @@ class TestNewSPHExtensive(unittest.TestCase):
         cls.params['bGasDoExtensiveILPTest'] = 1
 
     def testNewSPHExtensive(self):
-        msr.set_parameters(**self.params)
+        msr.set_parameters(hydro_model=HYDRO_MODEL.SPH,**self.params)
         msr.simulate()
         self.assertLess(0.1,1.0)
 

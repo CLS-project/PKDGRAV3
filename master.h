@@ -28,6 +28,7 @@
 #include "pst.h"
 #include "mdl.h"
 #include "pkd_parameters.h"
+#include "pkd_enumerations.h"
 #ifdef COOLING
     #include "cooling/cooling_struct.h"
 #endif
@@ -359,13 +360,14 @@ protected:
         return parameters.get_bDoDensity();
     }
     int DoGas()           const {
-        return parameters.get_bDoGas();
+        return parameters.get_hydro_model() != HYDRO_MODEL::NONE;
     }
     int NewSPH()          const {
-        return parameters.get_bNewSPH();
+        return parameters.get_hydro_model() == HYDRO_MODEL::SPH;
     }
     int MeshlessHydro()   const {
-        return parameters.get_bMeshlessHydro();
+        auto model = parameters.get_hydro_model();
+        return model == HYDRO_MODEL::MFM || model == HYDRO_MODEL::MFV;
     }
     int DoGravity()       const {
         return parameters.get_bDoGravity();

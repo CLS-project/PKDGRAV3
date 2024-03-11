@@ -322,7 +322,7 @@ uint64_t MSR::getMemoryModel() {
 
     if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
-    if (parameters.get_bDoGas() && !NewSPH())  mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
+    if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
@@ -367,7 +367,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     if (parameters.get_bFindHopGroups() ) e |= EphemeralMemory(8);
     if (parameters.get_iPkInterval()    ) e |= EphemeralMemory(4);
     if (parameters.get_bGravStep()      ) e |= EphemeralMemory(8);
-    if (parameters.get_bDoGas()         ) e |= EphemeralMemory(8);
+    if (DoGas()                         ) e |= EphemeralMemory(8);
     if (parameters.get_bMemBall()       ) e |= EphemeralMemory(8);
     if (parameters.get_bDoDensity()     ) e |= EphemeralMemory(12);
 #ifdef BLACKHOLES
@@ -590,7 +590,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs) {
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
     if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
-    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     Restore(filename,nSizeParticle);
@@ -621,7 +621,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs) {
 
     if (parameters.has_dSoft()) SetSoft(Soft());
 
-    if (DoGas() && NewSPH()) {
+    if (NewSPH()) {
         /*
         ** Initialize kernel target with either the mean mass or nSmooth
         */
@@ -696,7 +696,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
     if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
-    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     Restore(baseName,nSizeParticle);
@@ -1249,7 +1249,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,
-                             in.bStandard,parameters.get_bNewSPH() ? in.dTime : in.dExp,
+                             in.bStandard,NewSPH() ? in.dTime : in.dExp,
                              in.nGas, in.nDark, in.nStar);
         fioClose(fio);
     }
@@ -1931,7 +1931,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->gamma = parameters.get_dConstGamma();
     smf->dDelta = dDelta;
     smf->dEtaCourant = parameters.get_dEtaCourant();
-    smf->bMeshlessHydro = parameters.get_bMeshlessHydro();
+    smf->bMeshlessHydro = MeshlessHydro();
     smf->bIterativeSmoothingLength = parameters.get_bIterativeSmoothingLength();
     smf->bUpdateBall = bUpdateBall;
     smf->nBucket = parameters.get_nBucket();
@@ -3048,7 +3048,7 @@ int MSR::NewTopStepKDK(
         DomainDecomp(uRung);
         uRoot2 = 0;
 
-        if (DoGas() && NewSPH()) {
+        if (NewSPH()) {
             SelAll(-1,1);
         }
 
@@ -3115,7 +3115,7 @@ int MSR::NewTopStepKDK(
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
-    if (DoGas() && NewSPH()) {
+    if (NewSPH()) {
         SelAll(-1,1);
         SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
         uint64_t nParticlesOnRung = 0;
@@ -4049,8 +4049,8 @@ double MSR::Read(std::string_view achInFile) {
     if (parameters.get_bInFileLC()) read->dvFac = 1.0;
     else read->dvFac = getVfactor(dExpansion);
 
-    if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
-    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (nGas && !DoGas()) parameters.set_hydro_model(HYDRO_MODEL::SPH);
+    if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
 
     read->nNodeStart = 0;
@@ -4090,7 +4090,7 @@ double MSR::Read(std::string_view achInFile) {
 
     InitCosmology(csm);
 
-    if (DoGas() && NewSPH()) {
+    if (NewSPH()) {
         const auto bEwald = parameters.get_bEwald();
         /*
         ** Initialize kernel target with either the mean mass or nSmooth

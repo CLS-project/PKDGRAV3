@@ -1043,6 +1043,24 @@ help="Particles have ball"
 ########## Gas
 ################################################################################
 
+["Gas".hydro_model]
+flag="hydro"
+enum = { NONE=0, SPH=1, MFM=2, MFV=3 }
+default=0
+omitted="NONE"
+help="Hydro model to use: none, sph, meshless finite mass, meshless finite volume"
+docs='''
+Specifies which Hydro model to use. The models should be imported with::
+
+  from PKDGRAV import HYDRO_MODEL
+
+Possible values are:
+ - ``HYDRO_MODEL.NONE``: Do not use hydrodynamics
+ - ``HYDRO_MODEL.SPH``: Smoothed-Particle Hydrodynamics (SPH)
+ - ``HYDRO_MODEL.MFM``: Meshless Finite-Mass Hydrodynamics (MFM)
+ - ``HYDRO_MODEL.MFM``: Meshless Finite-Volume Hydrodynamics (MFV)
+'''
+
 ["Gas".nSmooth]
 flag="s"
 default=64
