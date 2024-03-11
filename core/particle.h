@@ -97,9 +97,10 @@ struct PARTCLASS {
 };
 static_assert(std::is_trivial<PARTCLASS>());
 
+namespace meshless {
 typedef double myreal;
 
-struct SPHFIELDS {
+struct FIELDS {
     /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
     blitz::TinyVector<double,6> B;
 
@@ -189,7 +190,10 @@ struct SPHFIELDS {
 
 };
 
-struct NEWSPHFIELDS {
+}
+
+namespace sph {
+struct FIELDS {
     float Omega;        /* Correction factor */
     float divv;         /* Divergence of v */
     float u;            /* Thermodynamical variable, can be T, A(s) or u */
@@ -201,6 +205,7 @@ struct NEWSPHFIELDS {
     float T;            /* Temperature */
     float vpredx, vpredy, vpredz;     /* predicted velocities */
 };
+}
 
 struct STARFIELDS {
     double omega;
@@ -244,7 +249,7 @@ struct BHFIELDS {
 
 #ifdef OPTIM_UNION_EXTRAFIELDS
 union EXTRAFIELDS {
-    SPHFIELDS sph;
+    meshless::FIELDS sph;
     STARFIELDS star;
     BHFIELDS bh;
 };
@@ -418,20 +423,20 @@ public:
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
         assert( species(p)==FIO_SPECIES_SPH);
 #endif
-        return get<SPHFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
     }
     const auto &sph( const PARTICLE *p ) const {
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
         assert( species(p)==FIO_SPECIES_SPH);
 #endif
-        return get<SPHFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
     }
     /* NewSph variables */
     auto &newsph( PARTICLE *p ) const {
-        return get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
+        return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
     }
     const auto &newsph( const PARTICLE *p ) const {
-        return get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
+        return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
     }
 
     auto &star( PARTICLE *p ) const {

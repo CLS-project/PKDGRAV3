@@ -607,7 +607,7 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
-static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double dConstGamma) {
+static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph, double dConstGamma) {
 #ifndef OLD_FB_SCHEME
     psph->Uint += psph->fAccFBEnergy;
     psph->E += psph->fAccFBEnergy;

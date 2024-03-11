@@ -364,10 +364,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #ifdef OPTIM_UNION_EXTRAFIELDS
         particles.add<EXTRAFIELDS>(PKD_FIELD::oSph);
 #else
-        particles.add<SPHFIELDS>(PKD_FIELD::oSph);
+        particles.add<meshless::FIELDS>(PKD_FIELD::oSph);
 #endif
 
-    if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<NEWSPHFIELDS>(PKD_FIELD::oNewSph);
+    if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph);
     if ( mMemoryModel & PKD_MODEL_STAR ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
         particles.add<void>(PKD_FIELD::oStar); // this value is of no relevance as long as it is >0
@@ -2665,7 +2665,7 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
 
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirection ) {
     /*PARTICLE *p;
-    SPHFIELDS *sph;
+    meshless::FIELDS *sph;
     int i;
     double T,E;*/
     switch (iDirection)  {

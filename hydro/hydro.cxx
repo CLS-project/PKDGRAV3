@@ -15,7 +15,6 @@ using blitz::dot;
  * ----------------
  */
 
-
 /* We use a cubic spline kernel.
  * See, for example:
  * https://pysph.readthedocs.io/en/latest/reference/kernels.html
@@ -50,7 +49,6 @@ void inverseMatrix(double *E, double *B) {
     B[XZ] = (E[XY]*E[YZ] - E[YY]*E[XZ])*det;
     B[YZ] = -(E[XX]*E[YZ] - E[XY]*E[XZ])*det;
 
-
 }
 
 double conditionNumber(double *E, double *B) {
@@ -72,7 +70,6 @@ double conditionNumber(double *E, double *B) {
 
     return sqrt(modB*modE)/3.;
 }
-
 
 void BarthJespersenLimiter(double *limVar, const TinyVector<double,3> &gradVar,
                            double var_max, double var_min,
@@ -106,7 +103,7 @@ void BarthJespersenLimiter(double *limVar, const TinyVector<double,3> &gradVar,
 /* IA: In this version we take into account the condition number,
  * which give us an idea about how 'well aligned' are the particles
  */
-void ConditionedBarthJespersenLimiter(double *limVar, const TinyVector<myreal,3> &gradVar,
+void ConditionedBarthJespersenLimiter(double *limVar, const TinyVector<meshless::myreal,3> &gradVar,
                                       double var_max, double var_min,
                                       const TinyVector<double,3> &dr,
                                       double Ncrit, double Ncond) {
@@ -120,7 +117,6 @@ void ConditionedBarthJespersenLimiter(double *limVar, const TinyVector<myreal,3>
     diff = diff < 1. ? diff : 1.;
     diff *= 2.;
     beta = (1. < diff) ? diff : 1.;
-
 
     diff = dot(gradVar,dr);
     if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
@@ -157,14 +153,7 @@ inline void compute_Ustar(double rho_K, double S_K, double v_K,
     *e_sK = fac * ( e_K/rho_K + (S_s - v_K)*(S_s + p_K/(rho_K*(S_K - v_K))) );
 }
 
-
-
-
-
-
-
-
-void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                         double pDelta, TinyVector<double,3> &pa, double dScaleFactor,
                         int bComove) {
     double aFac_m2 = 1./(dScaleFactor*dScaleFactor);
@@ -197,10 +186,7 @@ void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS 
     psph->E += gravE - 0.5*gravE_dmdt;
 }
 
-
-
-
-void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma) {
     //  E^{n+1} = E^{n} + dE_flux - dt*(H^{n} E^n + H^{n+1} E^{n+1})
@@ -225,11 +211,7 @@ void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELD
 
 }
 
-
-
-
-
-void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                        const TinyVector<double,3> &pa, double dConstGamma) {
     double Ekin = 0.5 * dot(psph->mom,psph->mom) / p.mass();
     double Egrav = p.mass() * sqrt(dot(pa,pa)) * p.ball();
@@ -275,10 +257,7 @@ void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *
     }
 }
 
-
-
-
-void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                         double dTuFac, double dConstGamma) {
 
     // Temperature minimum of T=0, but could be changed.
@@ -300,11 +279,7 @@ void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS 
     p.velocity() = psph->mom / p.mass();
 }
 
-
-
-
-
-void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                       const TinyVector<double,3> &pa, double dScaleFactor, double dTime,
                       double dDelta, double dConstGamma) {
 #ifndef USE_MFM
@@ -326,5 +301,3 @@ void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *p
     psph->lastS = psph->S;
 #endif
 }
-
-

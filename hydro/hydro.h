@@ -36,7 +36,6 @@ void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void packHydroDensity(void *vpkd,void *dst,const void *src);
 void unpackHydroDensity(void *vpkd,void *dst,const void *src);
 
-
 /* Gradient loop */
 struct hydroGradientsPack {
     blitz::TinyVector<double,3> position;
@@ -52,15 +51,14 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void packHydroGradients(void *vpkd,void *dst,const void *src);
 void unpackHydroGradients(void *vpkd,void *dst,const void *src);
 
-
 /* Flux loop */
 struct hydroFluxesPack {
     blitz::TinyVector<double,3> position;
     blitz::TinyVector<double,3> velocity;
     blitz::TinyVector<double,6> B;
-    blitz::TinyVector<myreal,3> gradRho, gradVx, gradVy, gradVz, gradP;
-    myreal lastUpdateTime;
-    blitz::TinyVector<myreal,3> lastAcc;
+    blitz::TinyVector<meshless::myreal,3> gradRho, gradVx, gradVy, gradVz, gradP;
+    meshless::myreal lastUpdateTime;
+    blitz::TinyVector<meshless::myreal,3> lastAcc;
     double omega;
     double P;
     float fBall;
@@ -71,9 +69,9 @@ struct hydroFluxesPack {
 };
 
 struct hydroFluxesFlush {
-    myreal Frho;
-    blitz::TinyVector<myreal,3> Fmom;
-    myreal Fene;
+    meshless::myreal Frho;
+    blitz::TinyVector<meshless::myreal,3> Fmom;
+    meshless::myreal Fene;
 #ifndef USE_MFM
     blitz::TinyVector<double,3> drDotFrho;
 #endif
@@ -102,7 +100,6 @@ void hydroFluxGetNvars(int *in, int *out);
 
 void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
 
-
 /* Time step loop */
 struct hydroStepPack {
     blitz::TinyVector<double,3> position;
@@ -128,19 +125,18 @@ void flushHydroStep(void *vpkd,void *dst,const void *src);
 void combHydroStep(void *vpkd,void *dst,const void *src);
 void pkdWakeParticles(PKD pkd,int iRoot,double dTime,double dDelta);
 
-
 /* Source terms */
-void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                         double pDelta, blitz::TinyVector<double,3> &pa, double dScaleFactor,
                         int bComove);
-void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma);
-void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                        const blitz::TinyVector<double,3> &pa, double dConstGamma);
-void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                         double dTuFac, double dConstGamma);
-void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                       const blitz::TinyVector<double,3> &pa, double dScaleFactor,
                       double dTime, double dDelta, double dConstGamma);
 
@@ -178,7 +174,7 @@ inline double cubicSplineKernel(double r, double H) {
 void BarthJespersenLimiter(double *limVar, const blitz::TinyVector<double,3> &gradVar,
                            double var_max, double var_min,
                            const blitz::TinyVector<double,3> &dr);
-void ConditionedBarthJespersenLimiter(double *limVar, const blitz::TinyVector<myreal,3> &gradVar,
+void ConditionedBarthJespersenLimiter(double *limVar, const blitz::TinyVector<meshless::myreal,3> &gradVar,
                                       double var_max, double var_min,
                                       const blitz::TinyVector<double,3> &dr,
                                       double Ncrit, double Ncond);
@@ -230,7 +226,6 @@ inline void genericPairwiseLimiter(double Lstate, double Rstate,
         }
 
     }
-
 
 }
 void compute_Ustar(double rho_K, double S_K, double v_K,

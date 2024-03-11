@@ -13,7 +13,6 @@
 
 #define STEV_MIN_LOG_METALLICITY            -20
 
-
 /*
  * ---------------------
  * STRUCTURE DEFINITIONS
@@ -55,7 +54,6 @@ typedef struct StellarEvolutionData {
     float afLifetime[STEV_LIFETIME_N_METALLICITY * STEV_LIFETIME_N_MASS];
 } STEV_DATA;
 
-
 typedef struct StellarEvolutionRawData {
     int nZs;
     int nElems;
@@ -68,7 +66,6 @@ typedef struct StellarEvolutionRawData {
     float *pfLifetime;
 } STEV_RAWDATA;
 
-
 struct inStellarEvolutionInit {
     char achSNIaDTDType[32];
     double dTime;
@@ -78,13 +75,11 @@ struct inStellarEvolutionInit {
     STEV_DATA StelEvolData;
 };
 
-
 struct stevPack {
     blitz::TinyVector<double,3> position;
     float fDensity;
     uint8_t iClass;
 };
-
 
 struct stevFlush {
     blitz::TinyVector<float,3> ReceivedMom;
@@ -102,7 +97,7 @@ struct stevFlush {
 
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
-void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, SPHFIELDS &, const double);
+void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, meshless::FIELDS &, const double);
 
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
 void packChemEnrich(void *vpkd, void *dst, const void *src);
@@ -126,8 +121,6 @@ void stevFreeLifetimeTable(STEV_RAWDATA *);
 
 float stevExponentialNumSNIa(SMF *, STARFIELDS &, float, float);
 float stevPowerlawNumSNIa(SMF *, STARFIELDS &, float, float);
-
-
 
 /*
  * -------
@@ -162,7 +155,6 @@ static inline void stevGetIndex1D(const float *restrict pfTable, const int nSize
     }
 }
 
-
 static inline void stevGetIndex1DReversed(const float *restrict pfTable, const int nSize,
         const float fVal, int *restrict piIdx,
         float *restrict pfDelta) {
@@ -190,13 +182,11 @@ static inline void stevGetIndex1DReversed(const float *restrict pfTable, const i
     }
 }
 
-
 static inline int stevRowMajorIndex(const int iX, const int iY, const int iZ,
                                     const int nX, const int nY, const int nZ) {
 
     return iX * nY * nZ + iY * nZ + iZ;
 }
-
 
 static inline int stevGetIMFMassIndex(const float *restrict pfTable, const int nSize,
                                       const float fVal, const int iStart) {
@@ -208,7 +198,6 @@ static inline int stevGetIMFMassIndex(const float *restrict pfTable, const int n
 
     return pfTemp - pfTable;
 }
-
 
 static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *const CCSN,
         STEV_RAWDATA *const AGB, const float fCCSNMinMass) {
@@ -350,7 +339,6 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
     }
 }
 
-
 /* Function to interpolate nSize numbers from the array pfTable along its rows (first or
    X- axis). The argument iOffset is assumed to represent iX * nY + oY, where iX is the
    lower X-axis index for the interpolation and oY is the Y-axis' offset. When this is
@@ -367,7 +355,6 @@ static inline void stevInterpolateXAxis(const float *restrict pfTable, const int
     for (int i = 0; i < nSize * nZ; ++i)
         pfResult[i] = pfLower[i] * (1.0f - fWeight) + pfUpper[i] * fWeight;
 }
-
 
 static inline void stevComputeAndCorrectSimulEjecta(
     const float *restrict pfYield,
@@ -396,7 +383,6 @@ static inline void stevComputeAndCorrectSimulEjecta(
     for (i = 0; i < nElems; ++i) pfElemEjMass[i] *= fNormFactor;
     *pfMetalEjMass *= fNormFactor;
 }
-
 
 static inline void stevComputeMassToEject(
     const float *restrict pfYield,
@@ -492,7 +478,6 @@ static inline void stevComputeMassToEject(
     *pfMetalMass += M_LN10 * fMetalMassTemp;
 }
 
-
 static inline float stevLifetimeFunction(PKD pkd, STARFIELDS &star, const double dMass) {
     int iMass;
     float fDeltaMass;
@@ -511,7 +496,6 @@ static inline float stevLifetimeFunction(PKD pkd, STARFIELDS &star, const double
 
     return powf(10.0f, fLogTime);
 }
-
 
 static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS &star, const float fTime) {
     const float *afTimeLowerZ = pkd->StelEvolData->afLifetime + star.Lifetime.oZ;
@@ -537,7 +521,6 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS &star, const
 
     return powf(10.0f, fLogMass);
 }
-
 
 /* Function that estimates the time it will take a star particle to lose all
  * its initial mass by estimating its current ejecta rate. This is then used
@@ -582,7 +565,6 @@ static inline float stevComputeFirstEnrichTime(PKD pkd, STARFIELDS &star,
     return star.fTimer + fNextTime;
 }
 
-
 /* Given the ejecta rate of a star particle, use it to compute the time it needs to
  * eject fMinMassFrac of its mass. */
 static inline float stevComputeNextEnrichTime(const float fTime, const float fStarMass,
@@ -592,7 +574,6 @@ static inline float stevComputeNextEnrichTime(const float fTime, const float fSt
 
     return fTime + fMinMassFrac * fStarMass * fEjMassRateInv;
 }
-
 
 static inline void stevStarParticleInit(PKD pkd, STARFIELDS &star, const double dSNIaMaxMass,
                                         const double dCCSNMinMass, const double dCCSNMaxMass) {
