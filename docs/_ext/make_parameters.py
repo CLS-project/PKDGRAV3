@@ -24,7 +24,9 @@ class ParametersDirective(Directive):
           default = f'"{default}"' if len(default)>0 else "none"
         if isinstance(default,list) and len(default) <= 1:
           default = "none"
-      if isinstance(v['default'],float):
+      if 'enum' in v:
+        classifier = key.upper()
+      elif isinstance(v['default'],float):
         classifier = 'float'
       elif isinstance(v['default'],bool):
         classifier = 'Boolean'

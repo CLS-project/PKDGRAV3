@@ -174,11 +174,11 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
+    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h ${CMAKE_BINARY_DIR}/pkd_parameters.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.h
     MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
     DEPENDS ${CMAKE_SOURCE_DIR}/make_parameters.py
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parameters.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/pkd_parameters.h
-    ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
+    ${CMAKE_BINARY_DIR}/pkd_parameters.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )

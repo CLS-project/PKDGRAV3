@@ -113,6 +113,7 @@ cdef extern from "smooth/smoothfcn.h":
         SMOOTH_TYPE_CHEM_ENRICHMENT "SMX_CHEM_ENRICHMENT"
 
 include "pkd_parameters.pxi"
+include "pkd_enumerations.pxi"
 
 cdef extern from "master.h":
     cdef cppclass MSR:
