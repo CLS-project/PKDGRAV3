@@ -3031,7 +3031,7 @@ void pkdInitializeEOS(PKD pkd) {
                 if (pkd->SPHoptions.useIsentropic) {
                     EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
                 }
-                if (pkd->SPHoptions.doShearStrengthModel && EOSYieldModel(pkd->materials[iMat]) < 0) {
+                if (pkd->SPHoptions.doShearStrengthModel && (EOSYieldModel(pkd->materials[iMat]) < 0)) {
                     if (EOSYieldModel(pkd->materials[iMat]) == -1) {
                         printf("Yield strength was requested but material %d has no or faulty parameters.",iMat);
                     }
