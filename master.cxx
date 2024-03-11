@@ -55,6 +55,7 @@
 #include <numeric>
 #include <functional>
 #include <fstream>
+#include <filesystem>
 #ifdef HAVE_SYS_PARAM_H
     #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
@@ -875,6 +876,12 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
     restart_file << "import PKDGRAV as msr\n";
     restart_file << "msr.restore(__file__)\n";
     restart_file.close();
+    auto par_name = baseName + ".par";
+    // This is temporary. We support the old naming convention for now,
+    // but we will remove it soon
+    std::error_code ec; // We will ignore the error code (creating a symlink is not critical)
+    std::filesystem::remove(par_name,ec);
+    std::filesystem::create_symlink(baseName, par_name,ec);
 }
 
 void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
