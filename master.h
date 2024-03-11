@@ -501,7 +501,7 @@ protected:
 #endif
 
     void Initialize();
-    void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
+    void writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta);
     void DomainDecompOld(int iRung);
 
     int CountRungs(uint64_t *nRungs);

@@ -776,8 +776,7 @@ void MSR::persist(PyObject *file,double d) {
     Py_DECREF(number);
 }
 
-void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta) {
-    char *p, achOutName[PST_FILENAME_SIZE];
+void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta) {
     fioSpeciesList nSpecies;
     int i;
     int nBytes;
@@ -828,29 +827,11 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     auto s = parameters.specified();
 
     // ******************************************************************
-    // Write the restart file
-    // ******************************************************************
-
-    strcpy( achOutName, baseName );
-    p  = achOutName + strlen(achOutName);
-    // Now p should point to "par" which will be replaced with "pkl" below
-
-    FILE *fp = fopen(achOutName,"w");
-    if (fp==NULL) {
-        perror(achOutName);
-        abort();
-    }
-    fprintf(fp,"import PKDGRAV as msr\n");
-    fprintf(fp,"msr.restore(__file__)\n");
-
-    fclose(fp);
-
-    // ******************************************************************
     // Write the interpreter state and the checkpoint variables to a file
     // ******************************************************************
     // Write the interpreter and the checkpoint variables to a file
-    strcpy(p, ".pkl");
-    auto pFile = PyObject_CallFunction(PyDict_GetItemString(PyEval_GetBuiltins(), "open"), "ss", achOutName, "wb");
+    auto achOutName = baseName + ".pkl";
+    auto pFile = PyObject_CallFunction(PyDict_GetItemString(PyEval_GetBuiltins(), "open"), "ss", achOutName.c_str(), "wb");
     if (!pFile) {
         PyErr_Print();
         abort();
@@ -882,6 +863,18 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
 
     Py_DECREF(species_list);
     Py_DECREF(classes_list);
+
+    // ******************************************************************
+    // Write the restart file
+    // ******************************************************************
+    std::ofstream restart_file(baseName);
+    if (!restart_file) {
+        perror(baseName.c_str());
+        abort();
+    }
+    restart_file << "import PKDGRAV as msr\n";
+    restart_file << "msr.restore(__file__)\n";
+    restart_file.close();
 }
 
 void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
@@ -903,9 +896,9 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 
     TimerStart(TIMER_IO);
 
-    writeParameters(in.achOutFile,iStep,nSteps,dTime,dDelta);
-
     pstCheckpoint(pst,&in,sizeof(in),NULL,0);
+
+    writeParameters(filename,iStep,nSteps,dTime,dDelta);
 
     /* This is not necessary, but it means the bounds will be identical upon restore */
     CalcBound();
