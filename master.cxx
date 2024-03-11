@@ -2732,7 +2732,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
     if (!iStop && iWallRunTime > 0) {
         if (iWallRunTime*60 - (time(0)-lStart) < ((int) (lSec*1.5)) ) {
             printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
-            printf("    iWallRunTime(sec): %lld   Time running: %ld   Last step: %ld\n",
+            printf("    iWallRunTime(sec): %ld   Time running: %ld   Last step: %ld\n",
                    iWallRunTime*60,time(0)-lStart,lSec);
             iStop = 1;
         }
@@ -2743,7 +2743,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
     if (!iStop && timeGlobalSignalTime>0) { /* USR1 received */
         if ( (time(0)+(lSec*1.5)) > timeGlobalSignalTime+iSignalSeconds) {
             printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
-            printf("    iSignalSeconds: %lld   Time running: %ld   Last step: %ld\n",
+            printf("    iSignalSeconds: %ld   Time running: %ld   Last step: %ld\n",
                    iSignalSeconds,time(0)-lStart,lSec);
             iStop = 1;
         }
