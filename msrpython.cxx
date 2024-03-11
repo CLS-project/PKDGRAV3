@@ -1325,12 +1325,24 @@ int MSR::Python(int argc, char *argv[]) {
         PyErr_Print();
         abort();
     }
-    pDill_load_module = PyObject_GetAttrString(pDill, "load_module");
+    // load_session/dump_session were "renamed" to load_module/dump_module in dill 0.3.6
+    // the old name is still available in 0.3.8, but it is deprecated
+    // we use the old name, and fallback to the new name if the old name is not available
+    // presumably, the old name will be removed in a future version
+    pDill_load_module = PyObject_GetAttrString(pDill, "load_session");
+    if (!pDill_load_module || !PyCallable_Check(pDill_load_module)) {
+        PyErr_Clear();
+        pDill_load_module = PyObject_GetAttrString(pDill, "load_module");
+    }
     if (!pDill_load_module || !PyCallable_Check(pDill_load_module)) {
         PyErr_Print();
         abort();
     }
-    pDill_dump_module = PyObject_GetAttrString(pDill, "dump_module");
+    pDill_dump_module = PyObject_GetAttrString(pDill, "dump_session");
+    if (!pDill_dump_module || !PyCallable_Check(pDill_dump_module)) {
+        PyErr_Clear();
+        pDill_dump_module = PyObject_GetAttrString(pDill, "dump_module");
+    }
     if (!pDill_dump_module || !PyCallable_Check(pDill_dump_module)) {
         PyErr_Print();
         abort();
