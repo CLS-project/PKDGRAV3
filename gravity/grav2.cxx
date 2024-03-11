@@ -489,7 +489,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                                 NewSphStr.Sxy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxy;
                                 NewSphStr.Sxz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxz;
                                 NewSphStr.Syz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyz;
-                                // Here will go limiting when we implement that.
+                                SPHEOSApplyStrengthLimiter(pkd, p.density(), NewSph.u, p.imaterial(), &NewSphStr.Sxx, &NewSphStr.Syy, &NewSphStr.Sxy, &NewSphStr.Sxz, &NewSphStr.Syz, wp->SPHoptions);
                             }
                         }
                     }

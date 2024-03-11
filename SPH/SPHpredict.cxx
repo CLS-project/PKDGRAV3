@@ -142,7 +142,7 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
             NewSphStr.Spredxy = NewSphStr.Sxy + dtPredDrift * NewSphStr.SDotxy;
             NewSphStr.Spredxz = NewSphStr.Sxz + dtPredDrift * NewSphStr.SDotxz;
             NewSphStr.Spredyz = NewSphStr.Syz + dtPredDrift * NewSphStr.SDotyz;
-            // Here will go limiting when we implement that. Careful, only if predicting forward, because when predicting backward, limiting was already applied.
+            SPHEOSApplyStrengthLimiter(pkd, p.density(), uPred, p.imaterial(), &NewSphStr.Spredxx, &NewSphStr.Spredyy, &NewSphStr.Spredxy, &NewSphStr.Spredxz, &NewSphStr.Spredyz, SPHoptions);
         }
     }
 }

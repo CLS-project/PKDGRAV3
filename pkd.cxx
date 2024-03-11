@@ -3024,15 +3024,21 @@ void pkdInitializeEOS(PKD pkd) {
                     param.dConstGamma = pkd->SPHoptions.gamma;
                     param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
                     pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, &param);
-                    if (pkd->SPHoptions.useIsentropic) {
-                        EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
-                    }
                 }
                 else {
                     pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, NULL);
-                    if (pkd->SPHoptions.useIsentropic) {
-                        EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
+                }
+                if (pkd->SPHoptions.useIsentropic) {
+                    EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
+                }
+                if (pkd->SPHoptions.doShearStrengthModel && EOSYieldModel(pkd->materials[iMat]) < 0) {
+                    if (EOSYieldModel(pkd->materials[iMat]) == -1) {
+                        printf("Yield strength was requested but material %d has no or faulty parameters.",iMat);
                     }
+                    else if (EOSYieldModel(pkd->materials[iMat]) == -2) {
+                        printf("Yield strength was requested but for material %d this is not implemented yet.",iMat);
+                    }
+                    assert(0);
                 }
             }
 #else
