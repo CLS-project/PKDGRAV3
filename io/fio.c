@@ -2918,7 +2918,7 @@ const char *fioSpeciesName(enum FIO_SPECIES eSpecies) {
     case FIO_SPECIES_DARK: return "PartType1";
     case FIO_SPECIES_SPH:  return "PartType0";
     case FIO_SPECIES_STAR: return "PartType4";
-    case FIO_SPECIES_BH: return "PartType3";
+    case FIO_SPECIES_BH: return "PartType5";
     default:
         break;
     }
