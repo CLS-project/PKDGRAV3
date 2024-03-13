@@ -102,7 +102,7 @@ void MSR::CoolingUpdate(float redshift) {
         /* Extra energy for reionization */
         if (!cooling->H_reion_done) {
             printf("Hydrogen reionization! Injecting %.1f eV per proton\n",
-                    parameters.get_fH_reion_eV_p_H());
+                   parameters.get_fH_reion_eV_p_H());
             pstCoolingHydReion(pst, NULL, 0, NULL, 0);
 
             /* Flag that reionization happened */
@@ -145,7 +145,6 @@ void MSR::CoolingInit(float redshift) {
 
     /* Allocate the needed structs */
     cooling = (struct cooling_function_data *) malloc(sizeof(struct cooling_function_data));
-
 
     /* Read model parameters */
 
@@ -232,10 +231,8 @@ void MSR::CoolingInit(float redshift) {
     for (int i=0; i<eagle_cooling_N_abundances; i++) in.SolarAbundances[i] = cooling->SolarAbundances[i];
     for (int i=0; i<eagle_cooling_N_abundances; i++) in.SolarAbundances_inv[i] = cooling->SolarAbundances_inv[i];
 
-
     pstCoolingInit(pst,&in,sizeof(in),NULL,0);
 }
-
 
 /**
  * @brief Find the index of the current redshift along the redshift dimension
@@ -496,7 +493,7 @@ inline static double bisection_iter(
 void cooling_cool_part(PKD pkd,
                        const struct cooling_function_data *cooling,
                        //struct part *restrict p, struct xpart *restrict xp,
-                       particleStore::ParticleReference &p, SPHFIELDS *psph,
+                       particleStore::ParticleReference &p, meshless::FIELDS *psph,
                        const float dt, const double time,
                        const float delta_redshift, const double redshift) {
 
@@ -509,7 +506,6 @@ void cooling_cool_part(PKD pkd,
             "Cooling function has not been initialised. Did you forget the "
             "--cooling runtime flag?");
 #endif
-
 
     /* Get internal energy at the last kick step */
     const float u_start = psph->lastUint;
@@ -528,7 +524,6 @@ void cooling_cool_part(PKD pkd,
     const float fMass = p.mass();
     double u_0 = psph->Uint / fMass;
     if (u_0 < cooling->dCoolingMinu) u_0 = cooling->dCoolingMinu;
-
 
     /* Convert to CGS units */
     double u_0_cgs = u_0 * cooling->internal_energy_to_cgs;
@@ -581,7 +576,6 @@ void cooling_cool_part(PKD pkd,
     /* Get helium and hydrogen reheating term */
     const double Helium_reion_heat_cgs =
         eagle_helium_reionization_extraheat(redshift, delta_redshift, cooling);
-
 
     /* Convert this into a rate */
     const double Lambda_He_reion_cgs =
@@ -692,7 +686,7 @@ void cooling_cool_part(PKD pkd,
  */
 float cooling_get_temperature(PKD pkd, const float redshift,
                               const struct cooling_function_data *restrict cooling,
-                              particleStore::Particle &p, SPHFIELDS *psph) {
+                              particleStore::Particle &p, meshless::FIELDS *psph) {
 
 #ifdef SWIFT_DEBUG_CHECKS
     if (cooling->Redshifts == NULL)
@@ -784,7 +778,6 @@ void cooling_Hydrogen_reionization(PKD pkd) {
     const double extra_heat_per_proton =
         cooling->H_reion_heat_cgs * cooling->internal_energy_from_cgs ;
 
-
     cooling->H_reion_done = 1;
     /* Loop through particles and set new heat */
     for (auto &p : pkd->particles) {
@@ -812,7 +805,6 @@ void cooling_Hydrogen_reionization(PKD pkd) {
         }
     }
 }
-
 
 /* IA:
  * The master process will send us the cooling_function_data, which we then need to allocate
@@ -857,16 +849,11 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
     allocate_cooling_tables(pkd->cooling);
 }
 
-
-
-
 void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in) {
-
 
     pkd->cooling->z_index = in->z_index;
     pkd->cooling->previous_z_index = in->previous_z_index;
     pkd->cooling->dz  = in->dz;
-
 
     for (int i=0; i<eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ; i++)
         pkd->cooling->table.metal_heating[i] = in->metal_heating[i];
@@ -884,7 +871,6 @@ void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in) {
         pkd->cooling->table.electron_abundance[i] = in->electron_abundance[i];
 
 }
-
 
 /**
  * @brief Restore cooling tables (if applicable) after

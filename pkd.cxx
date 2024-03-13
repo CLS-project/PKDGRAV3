@@ -319,7 +319,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #define RANDOM_SEED 1
     srand(RANDOM_SEED);
 
-    SetLocal(0);
     this->nDark = nDark;
     this->nGas = nGas;
     this->nBH = nBH;
@@ -365,10 +364,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #ifdef OPTIM_UNION_EXTRAFIELDS
         particles.add<EXTRAFIELDS>(PKD_FIELD::oSph);
 #else
-        particles.add<SPHFIELDS>(PKD_FIELD::oSph);
+        particles.add<meshless::FIELDS>(PKD_FIELD::oSph);
 #endif
 
-    if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<NEWSPHFIELDS>(PKD_FIELD::oNewSph);
+    if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph);
     if ( mMemoryModel & PKD_MODEL_STAR ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
         particles.add<void>(PKD_FIELD::oStar); // this value is of no relevance as long as it is >0
@@ -578,6 +577,23 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     this->SPHoptions.TuFac = -1.0f;
     assert(NodeSize() > 0);
+}
+
+/// @brief Set the number of local particles
+/// @param n number of local particles
+/// @return number of local particles
+int pkdContext::SetLocal(int n) {
+    // It is important that if the particle store has changed that we invalidate the tree
+    // This is done by setting the root node to all particles
+    tree[ROOT]->set_local(0,n - 1);
+    return particles.SetLocal(n);
+}
+
+/// @brief Increment the number of local particles
+/// @param n number of particles to add
+/// @return number of local particles
+int pkdContext::AddLocal(int n) {
+    return SetLocal(Local()+n);
 }
 
 pkdContext::~pkdContext() {
@@ -2652,7 +2668,7 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
 
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirection ) {
     /*PARTICLE *p;
-    SPHFIELDS *sph;
+    meshless::FIELDS *sph;
     int i;
     double T,E;*/
     switch (iDirection)  {
@@ -2770,23 +2786,12 @@ void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
  */
 void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH) {
     auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return !p.is_deleted();});
-    pkd->particles.SetLocal(i - pkd->particles.begin());
-    pkd->tree[ROOT]->set_local(0,pkd->Local() - 1);
+    pkd->SetLocal(i - pkd->particles.begin());
     *n  = pkd->Local();
     *nGas = pkd->nGas;
     *nDark = pkd->nDark;
     *nStar = pkd->nStar;
     *nBH = pkd->nBH;
-}
-
-void pkdNewParticle(PKD pkd, PARTICLE *p) {
-    PARTICLE *newp;
-
-    mdlassert(pkd->mdl,pkd->Local() < pkd->FreeStore());
-    newp = pkd->Particle(pkd->Local());
-    pkd->CopyParticle(newp,p);
-    newp->iOrder = IORDERMAX;
-    pkd->AddLocal(1);
 }
 
 void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,

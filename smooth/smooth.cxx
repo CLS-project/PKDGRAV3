@@ -157,7 +157,6 @@ const int primes[1000] = {
     7841,  7853,  7867,  7873,  7877,  7879,  7883,  7901,  7907,  7919
 };
 
-
 /*
 ** Assumes that p does not already occur in the hash table!!!
 */
@@ -210,7 +209,6 @@ void smHashDel(SMX smx,void *p) {
     }
 }
 
-
 int smHashPresent(SMX smx,void *p) {
     struct hashElement *t;
     uint32_t i = ((intptr_t)(p))%smx->nHash;
@@ -223,7 +221,6 @@ int smHashPresent(SMX smx,void *p) {
     }
     return 0;
 }
-
 
 static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType,int bMakeCache) {
     SMX smx;
@@ -728,7 +725,6 @@ PQ *pqSearch(SMX smx,PQ *pq,TinyVector<double,3> r,int iRoot) {
             }
         }
 
-
 NoIntersect:
         if (sp) {
             --sp;
@@ -839,7 +835,6 @@ float smSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,int iR
 //       if (fBall < smx->pq[i].fDist2) fBall = smx->pq[i].fDist2;
 //    }
 //    fBall = 0.50*sqrt(fBall);
-
 
     /*
     ** Apply smooth funtion to the neighbor list.
@@ -1044,7 +1039,6 @@ NoIntersect:
     }
 }
 
-
 void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,double fBall) {
     PKD pkd = smx->pkd;
     TinyVector<double,3> r;
@@ -1087,7 +1081,6 @@ void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,doubl
         }
     }
 }
-
 
 int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
@@ -1149,8 +1142,7 @@ void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff
 
     *p_buff = new (std::align_val_t(64)) my_real[N*nVar];
     assert(*p_buff!=NULL);
-
-    myreal *buff = *p_buff;
+    meshless::myreal *buff = *p_buff;
 
     // Fill if requested
     if (oldBuff != NULL)
@@ -1215,11 +1207,9 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
         allocNodeBuffer(nnListMax_p, outNvar, &output_buffer, NULL,0);
     }
 
-
     double fBall_factor = 1.;
     if (iSmoothType==SMX_HYDRO_DENSITY)
         fBall_factor *= 1.2; // An small margin is kept in case fBall needs to increase
-
 
     for (auto i = NRESERVED_NODES; i < pkd->Nodes() - 1; ++i) {
         auto node = pkd->tree[i];
@@ -1254,7 +1244,6 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #else
                 int pIsActive = p.is_active();
 #endif
-
 
                 if (pIsActive) {
                     if ( (iSmoothType==SMX_HYDRO_DENSITY) ||
@@ -1317,7 +1306,6 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, 0, 0, 0);
             }
 
-
             // IA: Now we should have inside nnList all the particles in the
             //  bucket (sinks) and those of which can interact with them
             //  from other buckets (smx->nnList)
@@ -1336,8 +1324,6 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
             //      c) we are not computing cell-cell interactions, so there is
             //            no well-defined axis that could be used for projection
             //
-
-
 
             // For the smoothing length determination we can bypass the typical
             //  flow of calling fcnsmooth, as probably we have gathered more
@@ -1455,8 +1441,6 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     //printf("nSmoothed %d \n", nSmoothed);
     return nSmoothed;
 }
-
-
 
 void buildInteractionList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCnt_tot, TinyVector<double,3> r, int ix, int iy, int iz) {
     PKD pkd = smx->pkd;

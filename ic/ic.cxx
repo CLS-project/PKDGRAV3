@@ -54,8 +54,6 @@ static basicParticleArray getOutputArray(PKD pkd,GridInfo &G,real_array_t &R) {
     else return basicParticleArray();
 }
 
-
-
 // A blitz++ friendly wrap function. returns "ik" given array index
 // Range: (-iNyquist,iNyquist] where iNyquist = m/2
 static float fwrap(float v,float m) {
@@ -537,7 +535,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 double a_m1 = 1./in->dExpansion;
                 VelGas *= a_m1;
 
-                /* Fill the SPHFIELDS with some initial values */
+                /* Fill the meshless::FIELDS with some initial values */
                 double u = in->dInitialT * in->dTuFac;
                 assert(pkd->particles.present(PKD_FIELD::oSph));
                 auto &Sph = pgas.sph();

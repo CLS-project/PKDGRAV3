@@ -28,6 +28,7 @@
 #include "pst.h"
 #include "mdl.h"
 #include "pkd_parameters.h"
+#include "pkd_enumerations.h"
 #ifdef COOLING
     #include "cooling/cooling_struct.h"
 #endif
@@ -102,6 +103,11 @@ public:
     }
 private:
     int64_t parallel_count(bool bParallel,int64_t nParallel);
+    void persist(PyObject *file,PyObject *obj);
+    void persist(PyObject *file,int n);
+    void persist(PyObject *file,double d);
+    template<typename T>
+    T restore(PyObject *file);
 protected:
     int64_t parallel_read_count();
     int64_t parallel_write_count();
@@ -109,8 +115,6 @@ protected:
     void Restore(const std::string &filename,int nSizeParticle);
 
 public:
-    size_t getLocalGridMemory(int nGrid);
-
     // I/O and IC Generation
     double GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm=nullptr);
     void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
@@ -118,9 +122,11 @@ public:
                  double dEcosmo,double dUOld, double dTimeOld,
                  std::vector<PARTCLASS> &aClasses,
                  PyObject *arguments,PyObject *specified);
+    void Restart(const char *filename,PyObject *kwargs);
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
+    void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
     void OutArray(const char *pszFile,int iType,int iFileType);
     void OutArray(const char *pszFile,int iType);
     void OutVector(const char *pszFile,int iType,int iFileType);
@@ -160,14 +166,14 @@ public:
     void GroupStats();
     void HopWrite(const char *fname);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
+    MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
     void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
     void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-            GridBinK(int nBins, int iGrid);
+    GridBinK(int nBins, int iGrid);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
     void GridCreateFFT(int nGrid);
@@ -226,6 +232,12 @@ public: // should be private
         parameters.set_dynamic("theta",dTheta);
         return dTheta;
     }
+private:
+    PyObject *pDill = nullptr;              // The "dill" module
+    PyObject *pDill_load = nullptr;         // The "dill.load" function
+    PyObject *pDill_dump = nullptr;         // The "dill.dump" function
+    PyObject *pDill_load_module = nullptr;  // The "dill.load_module" function
+    PyObject *pDill_dump_module = nullptr;  // The "dill.dump_module" function
 public:
     struct CALC calc;
 
@@ -348,13 +360,14 @@ protected:
         return parameters.get_bDoDensity();
     }
     int DoGas()           const {
-        return parameters.get_bDoGas();
+        return parameters.get_hydro_model() != HYDRO_MODEL::NONE;
     }
     int NewSPH()          const {
-        return parameters.get_bNewSPH();
+        return parameters.get_hydro_model() == HYDRO_MODEL::SPH;
     }
     int MeshlessHydro()   const {
-        return parameters.get_bMeshlessHydro();
+        auto model = parameters.get_hydro_model();
+        return model == HYDRO_MODEL::MFM || model == HYDRO_MODEL::MFV;
     }
     int DoGravity()       const {
         return parameters.get_bDoGravity();
@@ -493,17 +506,15 @@ protected:
 #endif
 
     void Initialize();
-    void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
-    void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
+    void writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta);
     void DomainDecompOld(int iRung);
 
-    void SaveParameters();
     int CountRungs(uint64_t *nRungs);
     void SetSoft(double);
     void InitBall();
 
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-            MeasureLinPk(int nGridLin,double a,double dBoxSize);
+    MeasureLinPk(int nGridLin,double a,double dBoxSize);
     void OutputPk(int iStep,double dTime);
     void OutputLinPk(int iStep, double dTime);
 

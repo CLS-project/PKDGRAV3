@@ -8,7 +8,7 @@ from libcpp cimport bool
 cdef public void print_imports(const char * filename, dict keys):
   import inspect
   with open(filename,"w") as fp:
-    print("from MASTER import MSR",file=fp)
+    print("import PKDGRAV as msr",file=fp)
     print("from argparse import Namespace",file=fp)
     for k,v in keys.items():
       if k[0] == '_':

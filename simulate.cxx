@@ -142,7 +142,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*dBoxSize)) - 1.0 );
     }
 
-    if (DoGas() && MeshlessHydro()) {
+    if (MeshlessHydro()) {
         ChemCompInit();
     }
 
@@ -219,7 +219,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
     }
 
-    if (DoGas() && NewSPH()) {
+    if (NewSPH()) {
         // Calculate Density
         SelAll(-1,1);
         SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
@@ -266,7 +266,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                 bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
         MemStatus();
     }
-    if (DoGas() && MeshlessHydro()) {
+    if (MeshlessHydro()) {
         InitSph(dTime, dDelta,bRestart);
     }
 #ifdef BLACKHOLES
@@ -313,7 +313,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             if (bKickOpen) {
                 BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
-                if (DoGas() && NewSPH()) {
+                if (NewSPH()) {
                     // Calculate Density
                     SelAll(-1,1);
                     SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
@@ -392,7 +392,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             bDoCheckpoint = 0;
         }
         if (bDoOutput) {
-            if (DoGas() && NewSPH() && parameters.get_bCentrifugal()) {
+            if (NewSPH() && parameters.get_bCentrifugal()) {
                 ResetCOM();
             }
             Output(iStep,dTime,parameters.get_dDelta(),0);
@@ -446,6 +446,7 @@ static void validate_path(const char *name,const std::string_view &path) {
 ** This routine validates the given parameters and makes any adjustments.
 */
 int MSR::ValidateParameters() {
+    int success = 1;
     try {
         validate_path("achOutPath",       parameters.get_achOutPath());
         validate_path("achCheckpointPath",parameters.get_achCheckpointPath());
@@ -475,21 +476,73 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (!parameters.has_bDoGas()) parameters.set_bDoGas(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH());
-    if (parameters.get_bDoGas() && !(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) ) {
-        fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
-        return 0;
+    HYDRO_MODEL model(HYDRO_MODEL::NONE);
+
+    //****************************************************************************************************************************************************
+    // Remove this block when the old method of specifying hydro is removed
+    //****************************************************************************************************************************************************
+    if (parameters.has_bDoGas() || parameters.has_bMeshlessHydro() || parameters.has_bNewSPH()) {
+        fprintf(stderr, "WARNING: Use hydro_model to select the hydrodynamic solver (omit bDoGas, bMeshlessHydro and bNewSPH).\n");
     }
-    if ((parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) && !parameters.get_bDoGas()) {
-        fprintf(stderr,"ERROR: An hydro scheme is selected but bDoGas=0! Did you forget to add bDoGas=1?\n");
-        return 0;
+    if (parameters.has_hydro_model()) {
+        model = parameters.get_hydro_model();
+        if (parameters.get_bDoGas()) {
+            fprintf(stderr, "ERROR: bDoGas is not compatible with selecting hydro_model.\n");
+            success = 0;
+        }
+        if (parameters.get_bMeshlessHydro()) {
+            fprintf(stderr, "ERROR: bMeshlessHydro is not compatible with selecting hydro_model.\n");
+            success = 0;
+        }
+        if (parameters.get_bNewSPH()) {
+            fprintf(stderr, "ERROR: bNewSPH is not compatible with selecting hydro_model.\n");
+            success = 0;
+        }
     }
-    if (parameters.get_bMeshlessHydro() && parameters.get_bNewSPH()) {
-        fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
+    else {
+        if (parameters.get_bDoGas() && !(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) ) {
+            fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
+            return 0;
+        }
+        if (parameters.get_bMeshlessHydro() && parameters.get_bNewSPH()) {
+            fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
+            return 0;
+        }
+        if (parameters.get_bMeshlessHydro() || parameters.get_bNewSPH()) {
+            if (!parameters.get_bDoGas()) {
+                fprintf(stderr,"WARNING: An hydro scheme is selected but bDoGas=0! Did you forget to add bDoGas=1?\n");
+                parameters.set_bDoGas(true);
+            }
+            if (parameters.get_bNewSPH()) model = HYDRO_MODEL::SPH;
+#ifdef USE_MFM
+            else if (parameters.get_bMeshlessHydro()) model = HYDRO_MODEL::MFM;
+#else
+            else if (parameters.get_bMeshlessHydro()) model = HYDRO_MODEL::MFV;
+#endif
+        }
+        if (model != HYDRO_MODEL::NONE) {
+            parameters.set_bDoGas(false);
+            parameters.set_bMeshlessHydro(false);
+            parameters.set_bNewSPH(false);
+            parameters.set_hydro_model(model);
+        }
+    }
+
+    //**************************************************************************
+    // Verify the hydro model
+    //**************************************************************************
+    switch (model) {
+    case HYDRO_MODEL::NONE:
+    case HYDRO_MODEL::SPH:
+    case HYDRO_MODEL::MFM:
+    case HYDRO_MODEL::MFV:
+        break;
+    default:
+        fprintf(stderr,"ERROR: Unknown hydro_model\n");
         return 0;
     }
 
-    if (parameters.get_bMeshlessHydro()) {
+    if (model == HYDRO_MODEL::MFM || model == HYDRO_MODEL::MFV) {
         if (parameters.get_bNewKDK()) {
             parameters.set_bNewKDK(false);
             fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bNewKDK. "
@@ -556,7 +609,7 @@ int MSR::ValidateParameters() {
     }
 
 #ifndef NN_FLAG_IN_PARTICLE
-    if (parameters.get_bNewSPH() && parameters.get_bGasInterfaceCorrection() && parameters.get_dFastGasFraction() > 0.0f) {
+    if (NewSPH() && parameters.get_bGasInterfaceCorrection() && parameters.get_dFastGasFraction() > 0.0f) {
         fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
         return 0;
     }
@@ -614,8 +667,8 @@ int MSR::ValidateParameters() {
                 puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
                 return 0;
             }
-            if ( !parameters.get_bDoGas() ) {
-                puts("ERROR: Can not generate gas if bDoGas=0");
+            if ( !DoGas() ) {
+                puts("ERROR: Can not generate gas if a hydrodynamic solver is not selected");
                 return 0;
             }
         }
@@ -787,5 +840,5 @@ int MSR::ValidateParameters() {
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
     }
-    return 1;
+    return success;
 }

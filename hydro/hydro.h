@@ -99,9 +99,9 @@ struct hydroFluxesPack {
     blitz::TinyVector<double,3> position;
     blitz::TinyVector<double,3> velocity;
     blitz::TinyVector<double,6> B;
-    blitz::TinyVector<myreal,3> gradRho, gradVx, gradVy, gradVz, gradP;
-    myreal lastUpdateTime;
-    blitz::TinyVector<myreal,3> lastAcc;
+    blitz::TinyVector<meshless::myreal,3> gradRho, gradVx, gradVy, gradVz, gradP;
+    meshless::myreal lastUpdateTime;
+    blitz::TinyVector<meshless::myreal,3> lastAcc;
     double omega;
     double P;
     float fBall;
@@ -112,9 +112,9 @@ struct hydroFluxesPack {
 };
 
 struct hydroFluxesFlush {
-    myreal Frho;
-    blitz::TinyVector<myreal,3> Fmom;
-    myreal Fene;
+    meshless::myreal Frho;
+    blitz::TinyVector<meshless::myreal,3> Fmom;
+    meshless::myreal Fene;
 #ifndef USE_MFM
     blitz::TinyVector<double,3> drDotFrho;
 #endif
@@ -138,8 +138,6 @@ void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
                           my_real *restrict input_buffer,
                           my_real *restrict output_buffer,
                           SMF *smf);
-void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
-
 void flushHydroFluxes(void *vpkd,void *dst,const void *src);
 void combHydroFluxes(void *vpkd,void *p1,const void *p2);
 void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *q, int i, int nBuff,
@@ -147,8 +145,6 @@ void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *q, int i, int nBuff,
 void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
                                PARTICLE *p, PARTICLE *q, int i, int nBuff, SMF *);
 void hydroFluxGetBufferInfo(int *in, int *out);
-
-void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
 
 /* Time step loop */
 struct hydroStepPack {
@@ -176,20 +172,20 @@ void combHydroStep(void *vpkd,void *dst,const void *src);
 void pkdWakeParticles(PKD pkd,int iRoot,double dTime,double dDelta);
 
 /* Source terms */
-void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                         double pDelta, blitz::TinyVector<double,3> &pa, double dScaleFactor,
                         int bComove);
-void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma);
-void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                        const blitz::TinyVector<double,3> &pa, double dConstGamma);
-void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                         double dTuFac, double dConstGamma);
-void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                       const blitz::TinyVector<double,3> &pa, double dScaleFactor,
                       double dTime, double dDelta, double dConstGamma);
-void hydroResetFluxes(SPHFIELDS *psph);
+void hydroResetFluxes(meshless::FIELDS *psph);
 
 /* -----------------
  * HELPERS
@@ -200,7 +196,6 @@ void hydroResetFluxes(SPHFIELDS *psph);
 #define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
-
 void compute_Ustar(double rho_K, double S_K, double v_K,
                    double p_K, double h_K, double S_s,
                    double *rho_sK, double *rhov_sK, double *e_sK);

@@ -259,8 +259,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_INITIALIZEPSTORE,pst,(fcnService_t *)pstInitializePStore,
                   sizeof(struct inInitializePStore),sizeof(struct outInitializePStore));
 #ifdef MDL_FFTW
-    mdlAddService(mdl,PST_GETFFTMAXSIZES,pst,(fcnService_t *)pstGetFFTMaxSizes,
-                  sizeof(struct inGetFFTMaxSizes),sizeof(struct outGetFFTMaxSizes));
     mdlAddService(mdl,PST_GENERATEIC,pst,(fcnService_t *)pstGenerateIC,
                   sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
     mdlAddService(mdl,PLT_GENERATEIC,pst,(fcnService_t *)pltGenerateIC,
@@ -1940,33 +1938,6 @@ int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return sizeof(uint64_t);
 }
-
-#ifdef MDL_FFTW
-int pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<struct inGetFFTMaxSizes *>(vin);
-    auto out = static_cast<struct outGetFFTMaxSizes *>(vout);
-    struct outGetFFTMaxSizes outUp;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inGetFFTMaxSizes));
-    mdlassert(pst->mdl,vout != NULL);
-    assert(mdlCore(pst->mdl)==0);
-
-    if (pstOffNode(pst)) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETFFTMAXSIZES,in,nIn);
-        pstGetFFTMaxSizes(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUp,NULL);
-        if (outUp.nMaxLocal > out->nMaxLocal) out->nMaxLocal = outUp.nMaxLocal;
-        if (outUp.nMaxZ > out->nMaxZ) out->nMaxZ = outUp.nMaxZ;
-        if (outUp.nMaxY > out->nMaxY) out->nMaxY = outUp.nMaxZ;
-    }
-    else {
-        assert(pstAmNode(pst));
-        out->nMaxLocal = mdlFFTlocalCount(pst->mdl,in->nx,in->ny,in->nz,
-                                          &out->nMaxZ,0,&out->nMaxY,0);
-    }
-    return sizeof(struct outGetFFTMaxSizes);
-}
-#endif
 
 int pstMemStatus(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

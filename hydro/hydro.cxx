@@ -85,7 +85,7 @@ inline void compute_Ustar(double rho_K, double S_K, double v_K,
     *e_sK = fac * ( e_K/rho_K + (S_s - v_K)*(S_s + p_K/(rho_K*(S_K - v_K))) );
 }
 
-void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                         double pDelta, TinyVector<double,3> &pa, double dScaleFactor,
                         int bComove) {
     double aFac_m2 = 1./(dScaleFactor*dScaleFactor);
@@ -118,7 +118,7 @@ void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS 
     psph->E += gravE - 0.5*gravE_dmdt;
 }
 
-void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma) {
     //  E^{n+1} = E^{n} + dE_flux - dt*(H^{n} E^n + H^{n+1} E^{n+1})
@@ -143,7 +143,7 @@ void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELD
 
 }
 
-void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                        const TinyVector<double,3> &pa, double dConstGamma) {
     double Ekin = 0.5 * dot(psph->mom,psph->mom) / p.mass();
     double Egrav = p.mass() * sqrt(dot(pa,pa)) * p.ball();
@@ -189,7 +189,7 @@ void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *
     }
 }
 
-void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                         double dTuFac, double dConstGamma) {
 
     // Temperature minimum of T=0, but could be changed.
@@ -211,7 +211,7 @@ void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS 
     p.velocity() = psph->mom / p.mass();
 }
 
-void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                       const TinyVector<double,3> &pa, double dScaleFactor, double dTime,
                       double dDelta, double dConstGamma) {
 #ifndef USE_MFM
@@ -234,8 +234,9 @@ void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *p
 #endif
 }
 
-void hydroResetFluxes(SPHFIELDS *psph) {
+void hydroResetFluxes(meshless::FIELDS *psph) {
     psph->Frho = 0.0;
     psph->Fene = 0.0;
     psph->Fmom = 0.0;
 }
+

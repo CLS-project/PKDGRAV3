@@ -11,7 +11,7 @@ if (APPLE)
   link_directories(/usr/local/lib)
 endif(APPLE)
 
-project(pkdgrav3 VERSION 3.1.2)
+project(pkdgrav3 VERSION 3.2)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
@@ -69,7 +69,7 @@ endif()
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
+find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter Development NumPy)
 set(PYTHON ${Python3_EXECUTABLE})
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -175,11 +175,11 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
+    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h ${CMAKE_BINARY_DIR}/pkd_parameters.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.h
     MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
     DEPENDS ${CMAKE_SOURCE_DIR}/make_parameters.py
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parameters.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/pkd_parameters.h
-    ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
+    ${CMAKE_BINARY_DIR}/pkd_parameters.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )
@@ -200,7 +200,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
-	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx core/particle.cxx
+	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx core/particle.cxx core/memory.cxx core/fftsizes.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx

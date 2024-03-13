@@ -48,7 +48,6 @@ public:
     int FreeStore() const { return nStore; }
     int Local() const { return nLocal; }
     int SetLocal(int n) { return (nLocal=n);}
-    int AddLocal(int n) { return (nLocal+=n);}
     DATA *operator[](int i) {return Element(i);}
     operator void *() {return Base();}
 };

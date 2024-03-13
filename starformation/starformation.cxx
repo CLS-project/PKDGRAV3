@@ -109,12 +109,12 @@ static inline double pressure_SFR(const float fMass, const float fDens,
                                   const double dThreshDen, const double dSFnormalizationKS,
                                   const double dSFindexKS, const double dSFGasFraction,
                                   const double dConstGamma, eEOSparam eEOS,
-                                  SPHFIELDS &sph);
+                                  meshless::FIELDS &sph);
 
 static inline double density_SFR(const float fMass, const float fDens, const double dHubble,
                                  const double a_m1, const double a_m3, const double dThreshDen,
                                  const double dSFThresholdu, const double dSFEfficiency,
-                                 SPHFIELDS &sph);
+                                 meshless::FIELDS &sph);
 
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inStarForm *in = (struct inStarForm *) vin;
@@ -266,7 +266,7 @@ static inline double pressure_SFR(const float fMass, const float fDens,
                                   const double dThreshDen, const double dSFnormalizationKS,
                                   const double dSFindexKS, const double dSFGasFraction,
                                   const double dConstGamma, eEOSparam eEOS,
-                                  SPHFIELDS &sph) {
+                                  meshless::FIELDS &sph) {
     // Two SF thresholds are applied:
     //      a) Minimum density, computed at the master level
     //      b) Maximum temperature of a factor 0.5 dex (i.e., 3.1622)
@@ -302,7 +302,7 @@ static inline double pressure_SFR(const float fMass, const float fDens,
 static inline double density_SFR(const float fMass, const float fDens, const double dHubble,
                                  const double a_m1, const double a_m3, const double dThreshDen,
                                  const double dSFThresholdu, const double dSFEfficiency,
-                                 SPHFIELDS &sph) {
+                                 meshless::FIELDS &sph) {
     // Three SF criteria are enforced:
     //      a) A minimum density, computed at the master level
     //      b) A maximum temperature, set by dSFThresholdTemp

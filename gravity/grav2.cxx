@@ -53,7 +53,7 @@
 #if defined(USE_SIMD) && defined(__SSE2__)
 /* Caution: This uses v/sqrt(v) so v cannot be zero! */
 static inline float asqrtf(float v) {
-    __m128 r2 = _mm_set_ss(v);
+    __m128 r2 = _mm_max_ss(_mm_set_ss(v),_mm_set_ss(FLT_MIN));
     __m128 r = _mm_rsqrt_ps(r2);
     r = _mm_mul_ss(r,_mm_sub_ss(_mm_set_ss(3.0/2.0),_mm_mul_ss(_mm_mul_ss(r,r),_mm_mul_ss(r2,_mm_set_ss(0.5)))));
     r = _mm_mul_ss(r,r2);
@@ -61,7 +61,7 @@ static inline float asqrtf(float v) {
     return v;
 }
 static inline float rsqrtf(float v) {
-    __m128 r2 = _mm_set_ss(v);
+    __m128 r2 = _mm_max_ss(_mm_set_ss(v),_mm_set_ss(FLT_MIN));
     __m128 r = _mm_rsqrt_ps(r2);
     r = _mm_mul_ss(r,_mm_sub_ss(_mm_set_ss(3.0/2.0),_mm_mul_ss(_mm_mul_ss(r,r),_mm_mul_ss(r2,_mm_set_ss(0.5)))));
     v =_mm_cvtss_f32(r);
@@ -91,7 +91,6 @@ void pkdParticleWorkDone(workParticle *wp) {
     auto pkd = static_cast<PKD>(wp->ctx);
     int i,gid;
     vel_t v2;
-    float fx, fy, fz;
     float maga, dT, dtGrav;
     unsigned char uNewRung;
 
@@ -205,7 +204,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     float Ttilde = NewSph.expImb2 * NewSph.T + (1.0f - NewSph.expImb2) * Tbar;
                     float Ptilde = NewSph.expImb2 * NewSph.P + (1.0f - NewSph.expImb2) * Pbar;
                     float newRho = SPHEOSRhoofPT(pkd, Ptilde, Ttilde, p.imaterial(), wp->SPHoptions);
-                    p.set_density(newRho);
+                    if (newRho > 0.0f) p.set_density(newRho);
                 }
                 if (wp->SPHoptions->doSPHForces) {
                     NewSph.divv = wp->pInfoOut[i].divv;
@@ -246,10 +245,14 @@ void pkdParticleWorkDone(workParticle *wp) {
                 pkd->dEnergyW += m * blitz::dot(r,wp->pInfoOut[i].a);
                 pkd->dEnergyF += m * wp->pInfoOut[i].a;
 
+                // Begin calculation of timestep size, initializing dT and uNewRung
+                dT = 2.0f * wp->ts->dDelta;
+                uNewRung = 0;
+
+                // Gravity timestep criteria
                 if (wp->ts->bGravStep && wp->SPHoptions->doGravity) {
                     float dirsum = wp->pInfoOut[i].dirsum;
                     float normsum = wp->pInfoOut[i].normsum;
-
                     /*
                     ** If this is the first time through, the accelerations will have
                     ** all been zero resulting in zero for normsum (and nan for dtGrav).
@@ -267,62 +270,53 @@ void pkdParticleWorkDone(workParticle *wp) {
                     dtGrav += wp->ts->dPreFacRhoLoc*wp->pInfoIn[i].fDensity;
                     dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
                     if (dtGrav > 0.0) {
-                        dT = fEta * rsqrtf(dtGrav*wp->ts->dRhoFac);
-                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
-                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
-                        }
-                        uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
-                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
-                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
-                        }
+                        dT = std::min(dT, fEta * rsqrtf(dtGrav*wp->ts->dRhoFac));
                     }
-                    else {
-                        uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
-                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
-                            dT = HUGE_VALF;
-                            if (maga > 0.0f) {
-                                float imaga = rsqrtf(maga) * fiAccFac;
-                                dT = fEta*asqrtf(0.5f * p.ball() * imaga);
-                            }
-                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
-                            uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
-                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
-                        }
+                    else if (maga > 0.0f && pkd->particles.present(PKD_FIELD::oNewSph)) {
+                        float imaga = rsqrtf(maga) * fiAccFac;
+                        dT = std::min(dT, fEta*asqrtf(0.5f * p.ball() * imaga));
                     }
                 } /* end of wp->bGravStep */
                 else {
                     /*
                     ** We are doing eps/a timestepping.
                     */
-                    fx = wp->pInfoOut[i].a[0];
-                    fy = wp->pInfoOut[i].a[1];
-                    fz = wp->pInfoOut[i].a[2];
-                    maga = fx*fx + fy*fy + fz*fz;
-                    if (maga > 0 && wp->SPHoptions->doGravity) {
+                    maga = blitz::dot(wp->pInfoOut[i].a,wp->pInfoOut[i].a);
+                    if (maga > 0.0f) {
                         float imaga = rsqrtf(maga) * fiAccFac;
-                        dT = fEta*asqrtf(p.soft()*imaga);
-                        if (p.have_newsph()) {
-                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
+                        if (wp->SPHoptions->doGravity) {
+                            dT = std::min(dT, fEta*asqrtf(p.soft()*imaga));
                         }
-                        uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
-                        if (p.have_newsph()) {
-                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
-                        }
-                    }
-                    else {
-                        uNewRung = 0;
-                        if (p.have_newsph()) {
-                            dT = HUGE_VALF;
-                            if (maga > 0.0f) {
-                                float imaga = rsqrtf(maga) * fiAccFac;
-                                dT = fEta*asqrtf(0.5f * p.ball() * imaga);
-                            }
-                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
-                            uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
-                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        else if (p.have_newsph()) {
+                            dT = std::min(dT, fEta*asqrtf(0.5f * p.ball() * imaga));
                         }
                     }
                 }
+
+                // Courant criterium
+                if (p.have_newsph()) {
+                    dT = std::min(dT, wp->pInfoOut[i].dtEst);
+                }
+
+                // Timestep criterion on the internal energy
+                if (wp->SPHoptions->EtauDot > 0.0f && p.have_newsph()) {
+                    auto &NewSph = p.newsph();
+                    if (fabsf(NewSph.u) > 0.0f && fabsf(NewSph.uDot) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtauDot * fabsf(NewSph.u/NewSph.uDot));
+                    }
+                }
+
+                // Further timestep criteria go here
+
+                // Calculate rung from timestep size
+                uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
+
+                // Limit rung such that it only differs by a maximum of nRungCorrection from those it is interacting with
+                // See doi:10.1088/0004-637X/697/2/L99 for an explanation
+                if (p.have_newsph()) {
+                    uNewRung = std::max(std::max((int)uNewRung, (int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection), 0);
+                }
+
                 /*
                 ** Here we must make sure we do not try to take a larger opening
                 ** timestep than the current active particles involved in the

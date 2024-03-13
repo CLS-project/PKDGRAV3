@@ -1,6 +1,5 @@
 #ifdef STELLAR_EVOLUTION
 
-
 #include <hdf5.h>
 
 #include "stellarevolution.h"
@@ -9,7 +8,6 @@
 #include "hydro/hydro.h"
 
 using blitz::TinyVector;
-
 
 void MSR::SetStellarEvolutionParam() {
     const double dYrToTime = SECONDSPERYEAR / units.dSecUnit;
@@ -22,8 +20,8 @@ void MSR::SetStellarEvolutionParam() {
     else if (achSNIaDTDType == "powerlaw") {
         auto dSNIaPLScale = parameters.get_dSNIaPLScale();
         calc.dSNIaNorm = parameters.get_dSNIaNumPerMass() /
-                          (pow(parameters.get_dSNIaPLFinalTime() * dYrToTime, dSNIaPLScale + 1.0) -
-                           pow(parameters.get_dSNIaPLInitTime() * dYrToTime, dSNIaPLScale + 1.0));
+                         (pow(parameters.get_dSNIaPLFinalTime() * dYrToTime, dSNIaPLScale + 1.0) -
+                          pow(parameters.get_dSNIaPLInitTime() * dYrToTime, dSNIaPLScale + 1.0));
         calc.dSNIaScale = dSNIaPLScale;
     }
     else {
@@ -38,7 +36,6 @@ void MSR::SetStellarEvolutionParam() {
        spline kernel used by the hydro */
     calc.nSmoothEnrich = 0.5 * parameters.get_nSmooth();
 }
-
 
 void MSR::StellarEvolutionInit(double dTime) {
     char achPath[280];
@@ -142,7 +139,6 @@ void MSR::StellarEvolutionInit(double dTime) {
     stevFreeLifetimeTable(LifetimeData);
 }
 
-
 int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
     mdlassert(pst->mdl, nIn == sizeof(struct inStellarEvolutionInit));
     if (pst->nLeaves > 1) {
@@ -157,7 +153,6 @@ int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
 
     return 0;
 }
-
 
 int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
     pkd->StelEvolData = (STEV_DATA *) malloc(sizeof(STEV_DATA));
@@ -204,8 +199,7 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
     return 0;
 }
 
-
-void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS &sph,
+void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS &sph,
                          const double dConstGamma) {
     const double dOldEkin = blitz::dot(sph.mom, sph.mom) / (2.0 * p.mass());
 
@@ -228,7 +222,6 @@ void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS
     sph.fReceivedMass = 0.0f;
     sph.fReceivedE = 0.0f;
 }
-
 
 void packChemEnrich(void *vpkd, void *dst, const void *src) {
     PKD pkd = (PKD) vpkd;
@@ -336,7 +329,6 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
     star.fLastEnrichMass = fFinalMass;
     star.iLastEnrichMass = iFinalMass + 1;
 
-
     /* Note: The parameter star.[AGB,CCSN,Lifetime].oZ contains the index of the
        interpolation's lower metallicity array multiplied by the number of mass bins.
        Since this multiplication must always be made, it is done once and for all in
@@ -409,14 +401,12 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
     fMetalMass += fNumSNIa * pkd->StelEvolData->fSNIaEjectedMetalMass;
     fMetalMass *= star.fInitialMass;
 
-
     const double dTotalMass = (double)ElemMass[ELEMENT_H] + ElemMass[ELEMENT_He] +
                               fMetalMass;
     star.fNextEnrichTime = stevComputeNextEnrichTime(smf->dTime, star.fInitialMass,
                            dTotalMass, fFinalTime - fInitialTime);
     p.set_mass(p.mass() - dTotalMass);
     assert(p.mass() > 0.0f);
-
 
     const double dScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
     const double dScaleFactorInvSq = dScaleFactorInv * dScaleFactorInv;
@@ -425,7 +415,6 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
     const double dStarDeltaEkin = 0.5 * dTotalMass * blitz::dot(StarVel,StarVel);
     const double dWindEkin = smf->dWindSpecificEkin * dTotalMass;
     const double dStarEjEnergy = dStarDeltaEkin * dScaleFactorInvSq + dWindEkin;
-
 
     const double dWeight = 1.0 / nSmooth;
     const double dDeltaMass = dWeight * dTotalMass;
@@ -448,7 +437,6 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
     }
 }
 
-
 #define H5FIELD_MASS         "Masses"
 #define H5FIELD_METALLICITY  "Metallicities"
 #define H5FIELD_SPECNAME     "Species_names"
@@ -458,7 +446,6 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
 #define H5FIELD_METALYIELD   "Total_Metals"
 #define H5FIELD_EJMASS       "Ejected_mass"
 #define H5FIELD_LIFETIME     "Lifetimes"
-
 
 STEV_RAWDATA *stevReadTable(char *pszPath) {
     hid_t fileID, datatype, dataspace;
@@ -496,7 +483,6 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
     status = H5Dclose(dsSpecName);
     assert(status >= 0);
 
-
     RawData->pfMetallicity = (float *) malloc(RawData->nZs * sizeof(float));
     assert(RawData->pfMetallicity != NULL);
     RawData->pfInitialMass = (float *) malloc(RawData->nMasses * sizeof(float));
@@ -509,7 +495,6 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
     RawData->pfEjectedMass = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
     assert(RawData->pfEjectedMass != NULL);
 
-
     status = H5Dread(dsMetal, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
                      RawData->pfMetallicity);
     assert(status >= 0);
@@ -521,7 +506,6 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
     assert(status >= 0);
     status = H5Dclose(dsMass);
     assert(status >= 0);
-
 
     hid_t dsTableZName = H5Dopen(fileID, H5FIELD_TABLEZNAME, H5P_DEFAULT);
     assert(dsTableZName >= 0);
@@ -603,7 +587,6 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
     return RawData;
 }
 
-
 /* This function assumes that the table of mass ejected from Type Ia SN is independent of
    the progenitor's initial mass and metallicity */
 STEV_RAWDATA *stevReadSNIaTable(char *pszPath) {
@@ -633,12 +616,10 @@ STEV_RAWDATA *stevReadSNIaTable(char *pszPath) {
     status = H5Sclose(dataspace);
     assert(status >= 0);
 
-
     RawData->pfEjectedMass = (float *) malloc(RawData->nElems * sizeof(float));
     assert(RawData->pfEjectedMass != NULL);
     RawData->pfMetalYield = (float *) malloc(sizeof(float));
     assert(RawData->pfMetalYield != NULL);
-
 
     status = H5Dread(dsYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
                      RawData->pfEjectedMass);
@@ -657,7 +638,6 @@ STEV_RAWDATA *stevReadSNIaTable(char *pszPath) {
 
     return RawData;
 }
-
 
 STEV_RAWDATA *stevReadLifetimeTable(char *pszPath) {
     hid_t fileID, dataspace;
@@ -685,14 +665,12 @@ STEV_RAWDATA *stevReadLifetimeTable(char *pszPath) {
     status = H5Sclose(dataspace);
     assert(status >= 0);
 
-
     RawData->pfMetallicity = (float *) malloc(RawData->nZs * sizeof(float));
     assert(RawData->pfMetallicity != NULL);
     RawData->pfInitialMass = (float *) malloc(RawData->nMasses * sizeof(float));
     assert(RawData->pfInitialMass != NULL);
     RawData->pfLifetime = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
     assert(RawData->pfLifetime != NULL);
-
 
     status = H5Dread(dsMetal, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
                      RawData->pfMetallicity);
@@ -729,7 +707,6 @@ STEV_RAWDATA *stevReadLifetimeTable(char *pszPath) {
     return RawData;
 }
 
-
 void stevFreeTable(STEV_RAWDATA *RawData) {
     free(RawData->pfMetallicity);
     free(RawData->pfInitialMass);
@@ -739,13 +716,11 @@ void stevFreeTable(STEV_RAWDATA *RawData) {
     free(RawData);
 }
 
-
 void stevFreeSNIaTable(STEV_RAWDATA *RawData) {
     free(RawData->pfMetalYield);
     free(RawData->pfEjectedMass);
     free(RawData);
 }
-
 
 void stevFreeLifetimeTable(STEV_RAWDATA *RawData) {
     free(RawData->pfMetallicity);
@@ -753,7 +728,6 @@ void stevFreeLifetimeTable(STEV_RAWDATA *RawData) {
     free(RawData->pfLifetime);
     free(RawData);
 }
-
 
 float stevExponentialNumSNIa(SMF *smf, STARFIELDS &star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
@@ -768,7 +742,6 @@ float stevExponentialNumSNIa(SMF *smf, STARFIELDS &star, float fInitialTime, flo
             expf(-(fFinalTime / (float)smf->dSNIaScale)));
 }
 
-
 float stevPowerlawNumSNIa(SMF *smf, STARFIELDS &star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
         return 0.0f;
@@ -781,6 +754,5 @@ float stevPowerlawNumSNIa(SMF *smf, STARFIELDS &star, float fInitialTime, float 
            (powf(fFinalTime, (float)smf->dSNIaScale + 1.0f) -
             powf(fInitialTime, (float)smf->dSNIaScale + 1.0f));
 }
-
 
 #endif  /* STELLAR_EVOLUTION */

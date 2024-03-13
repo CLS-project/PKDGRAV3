@@ -814,17 +814,6 @@ struct inFofFinishUp {
 int pstFofFinishUp(PST,void *,int,void *,int);
 
 #ifdef MDL_FFTW
-/* PST_GETFFTMAXSIZES */
-struct inGetFFTMaxSizes {
-    int nx,ny,nz;
-};
-struct outGetFFTMaxSizes {
-    uint64_t nMaxLocal;
-    int nMaxZ;
-    int nMaxY;
-};
-int pstGetFFTMaxSizes(PST,void *,int,void *,int);
-
 /* PST_GENERATEIC */
 #define MAX_TF 4096
 struct inGenerateIC {

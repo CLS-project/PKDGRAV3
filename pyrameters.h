@@ -119,6 +119,12 @@ protected:
     }
 
 protected:
+#if PY_VERSION_HEX < 0x030a0000
+    auto Py_NewRef(PyObject *object) {
+        Py_INCREF(object);
+        return object;
+    }
+#endif
     template<typename T>
     auto get_value(const char *name, const T &value) {
         if constexpr (std::is_same<T, bool>::value) {

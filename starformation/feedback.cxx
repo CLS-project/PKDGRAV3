@@ -11,10 +11,10 @@ void MSR::SetFeedbackParam() {
     const double dCCSNNumPerMass =
         IMF->UnweightedIntegration(parameters.get_dCCSNMinMass(), parameters.get_dCCSNMaxMass());
     calc.dCCSNFBSpecEnergy = (parameters.get_dCCSNEnergy() / MSOLG) * dCCSNNumPerMass /
-                              units.dErgPerGmUnit;
+                             units.dErgPerGmUnit;
 
     calc.dSNIaFBSpecEnergy = (parameters.get_dSNIaEnergy() / MSOLG) * parameters.get_dSNIaNumPerMass() /
-                              units.dErgPerGmUnit;
+                             units.dErgPerGmUnit;
 
     calc.dCCSNFBDelay = parameters.get_dCCSNFBDelay() * SECONDSPERYEAR / units.dSecUnit;
     calc.dSNIaFBDelay = parameters.get_dSNIaFBDelay() * SECONDSPERYEAR / units.dSecUnit;

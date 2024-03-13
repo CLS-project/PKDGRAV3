@@ -21,7 +21,6 @@
 #ifndef SWIFT_EAGLE_COOLING_RATES_H
 #define SWIFT_EAGLE_COOLING_RATES_H
 
-
 /* Local includes. */
 #include "cooling_tables.h"
 //#include "exp10.h"
@@ -49,7 +48,7 @@
  * @param cooling #cooling_function_data struct.
  * @param ratio_solar (return) Array of ratios to solar abundances.
  */
-static inline void abundance_ratio_to_solar(SPHFIELDS *psph, float fMass,
+static inline void abundance_ratio_to_solar(meshless::FIELDS *psph, float fMass,
         const struct cooling_function_data *cooling,
         float ratio_solar[eagle_cooling_N_abundances]) {
 
