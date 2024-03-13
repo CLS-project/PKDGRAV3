@@ -1135,12 +1135,12 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
  * If oldBuff is present, the new buffer is initialized with the contents of
  * oldBuff, with a size oldN
  */
-void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff,
-                                   my_real *oldBuff, const int oldN) {
+void static inline allocNodeBuffer(const int N, const int nVar, meshless::myreal **p_buff,
+                                   meshless::myreal *oldBuff, const int oldN) {
 
     assert(oldN < N);
 
-    *p_buff = new (std::align_val_t(64)) my_real[N*nVar];
+    *p_buff = new (std::align_val_t(64)) meshless::myreal[N*nVar];
     assert(*p_buff!=NULL);
     meshless::myreal *buff = *p_buff;
 
@@ -1152,10 +1152,10 @@ void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff
 
 }
 
-void static inline reallocNodeBuffer(const int N, const int nVar, my_real **p_buff,
+void static inline reallocNodeBuffer(const int N, const int nVar, meshless::myreal **p_buff,
                                      const int oldN) {
 
-    my_real *tmp_buffer;
+    meshless::myreal *tmp_buffer;
 
     allocNodeBuffer(N, nVar, &tmp_buffer, *p_buff, oldN);
 
@@ -1198,8 +1198,8 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
      *  Having everything in the same buffer can be advantageous as it should
      *  be in cache, but it was painful to code...
      */
-    my_real *input_buffer = NULL;
-    my_real *output_buffer = NULL;
+    meshless::myreal *input_buffer = NULL;
+    meshless::myreal *output_buffer = NULL;
     int inNvar, outNvar;
     if (smx->fcnSmoothGetBufferInfo) {
         smx->fcnSmoothGetBufferInfo(&inNvar, &outNvar);

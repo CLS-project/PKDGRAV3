@@ -656,16 +656,16 @@ public:
 #define q(X)    input_buffer[q_##X * nBuff + i]
 #define qout(X) output_buffer[out_##X * nBuff + i]
     void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
-                      my_real *restrict input_buffer,
-                      my_real *restrict output_buffer, SMF *smf) {
+                      meshless::myreal *restrict input_buffer,
+                      meshless::myreal *restrict output_buffer, SMF *smf) {
         PKD pkd = smf->pkd;
         auto P = pkd->particles[pIn];
 
         const auto &pv = P.velocity();
         auto &psph = P.sph();
 
-        const my_real pDensity = P.density();
-        const my_real p_omega = psph.omega;
+        const meshless::myreal pDensity = P.density();
+        const meshless::myreal p_omega = psph.omega;
 
         bool bComove = pkd->csm->val.bComove;
         dtype dTime = smf->dTime;
@@ -863,7 +863,7 @@ public:
     }
 };
 
-void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *qIn, int i, int nBuff,
+void hydroFluxFillBuffer(meshless::myreal *input_buffer, PARTICLE *qIn, int i, int nBuff,
                          double dr2, blitz::TinyVector<double,3> dr, SMF *smf) {
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
@@ -919,7 +919,7 @@ void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *qIn, int i, int nBuff,
     q(omega) = qsph.omega;
 }
 
-void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
+void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal *input_buffer,
                                PARTICLE *pIn, PARTICLE *qIn, int i, int nBuff, SMF *smf) {
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
@@ -1032,8 +1032,8 @@ void hydroFluxGetBufferInfo(int *in, int *out) {
 #endif // OPTIM_FLUX_VEC
 
 void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
-                          my_real *restrict input_buffer,
-                          my_real *restrict output_buffer, SMF *smf) {
+                          meshless::myreal *restrict input_buffer,
+                          meshless::myreal *restrict output_buffer, SMF *smf) {
 
 #if defined(USE_SIMD_FLUX)
     MeshlessHydroSolver<dvec,dmask> solver;

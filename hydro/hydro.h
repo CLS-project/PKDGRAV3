@@ -14,8 +14,6 @@
 template<typename T>
 int sign(T v) {return (v>0) - (v<0);}
 
-typedef double my_real;
-
 /* -----------------
  * MAIN FUNCTIONS AND CLASSES
  * -----------------
@@ -131,18 +129,18 @@ void unpackHydroFluxes(void *vpkd,void *dst,const void *src);
 void initHydroFluxes(void *vpkd,void *vp);
 void initHydroFluxesCached(void *vpkd,void *vp);
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth, int nBuff,
-                  my_real *restrict input_buffer,
-                  my_real *restrict output_buffer,
+                  meshless::myreal *restrict input_buffer,
+                  meshless::myreal *restrict output_buffer,
                   SMF *smf);
 void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
-                          my_real *restrict input_buffer,
-                          my_real *restrict output_buffer,
+                          meshless::myreal *restrict input_buffer,
+                          meshless::myreal *restrict output_buffer,
                           SMF *smf);
 void flushHydroFluxes(void *vpkd,void *dst,const void *src);
 void combHydroFluxes(void *vpkd,void *p1,const void *p2);
-void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *q, int i, int nBuff,
+void hydroFluxFillBuffer(meshless::myreal *input_buffer, PARTICLE *q, int i, int nBuff,
                          double dr2, blitz::TinyVector<double,3> dr, SMF *);
-void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
+void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal *input_buffer,
                                PARTICLE *p, PARTICLE *q, int i, int nBuff, SMF *);
 void hydroFluxGetBufferInfo(int *in, int *out);
 
