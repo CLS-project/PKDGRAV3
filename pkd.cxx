@@ -349,118 +349,118 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     particles.initialize(this->bIntegerPosition,this->bNoParticleOrder);
 
-    if (!this->bIntegerPosition) particles.add<double[3]>(PKD_FIELD::oPosition);
-    if ( mMemoryModel & PKD_MODEL_PARTICLE_ID ) particles.add<int64_t>(PKD_FIELD::oParticleID);
+    if (!this->bIntegerPosition) particles.add<double[3]>(PKD_FIELD::oPosition,"r");
+    if ( mMemoryModel & PKD_MODEL_PARTICLE_ID ) particles.add<int64_t>(PKD_FIELD::oParticleID,"id");
     /*
     ** Add a global group id. This is used when outputing an array of particles with
     ** one group assignment per particle.Usually only used in testing as it adds a
     ** 64 bit integer.
     */
-    if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid);
+    if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
     if ( mMemoryModel & PKD_MODEL_VELOCITY && sizeof(vel_t) == sizeof(double))
-        particles.add<double[3]>(PKD_FIELD::oVelocity);
-    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition);
+        particles.add<double[3]>(PKD_FIELD::oVelocity,"v");
+    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"v");
     if ( mMemoryModel & PKD_MODEL_SPH )
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph);
+        particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
 #else
-        particles.add<meshless::FIELDS>(PKD_FIELD::oSph);
+        particles.add<meshless::FIELDS>(PKD_FIELD::oSph,"hydro");
 #endif
 
-    if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph);
+    if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
     if ( mMemoryModel & PKD_MODEL_STAR ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<void>(PKD_FIELD::oStar); // this value is of no relevance as long as it is >0
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph);
+        particles.add<void>(PKD_FIELD::oStar,"star"); // this value is of no relevance as long as it is >0
+        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
 #else
-        particles.add<meshless::STAR>(PKD_FIELD::oStar);
+        particles.add<meshless::STAR>(PKD_FIELD::oStar,"star");
 #endif
     }
 
 #ifdef BLACKHOLES
     if ( mMemoryModel & PKD_MODEL_BH ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<void>(PKD_FIELD::oBH); // this value is of no relevance as long as it is >0
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph);
+        particles.add<void>(PKD_FIELD::oBH,"bh"); // this value is of no relevance as long as it is >0
+        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
 #else
-        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH);
+        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh");
 #endif
     }
 #endif // BLACKHOLES
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
-        particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth);
+        particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth,"vsmooth");
     if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
         if (sizeof(vel_t) == sizeof(float)) {
-            particles.add<float[3]>(PKD_FIELD::oVelocity);
+            particles.add<float[3]>(PKD_FIELD::oVelocity,"v");
         }
     }
     if ( mMemoryModel & PKD_MODEL_ACCELERATION )
-        particles.add<float[3]>(PKD_FIELD::oAcceleration);
+        particles.add<float[3]>(PKD_FIELD::oAcceleration,"a");
 
     if ( mMemoryModel & PKD_MODEL_MASS )
-        particles.add<float>(PKD_FIELD::oMass);
+        particles.add<float>(PKD_FIELD::oMass,"m");
 
     if ( mMemoryModel & PKD_MODEL_SOFTENING )
-        particles.add<float>(PKD_FIELD::oSoft);
+        particles.add<float>(PKD_FIELD::oSoft,"soft");
 
     if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
-        particles.add<float>(PKD_FIELD::oBall);
+        particles.add<float>(PKD_FIELD::oBall,"ball");
     if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
-        particles.add<float>(PKD_FIELD::oDensity);
+        particles.add<float>(PKD_FIELD::oDensity,"rho");
 
     if ( (mMemoryModel & PKD_MODEL_GROUPS) && !this->bNoParticleOrder) {
-        particles.add<int32_t>(PKD_FIELD::oGroup);
+        particles.add<int32_t>(PKD_FIELD::oGroup,"group");
     }
 
     if ( mMemoryModel & PKD_MODEL_POTENTIAL ) {
-        particles.add<float>(PKD_FIELD::oPotential);
+        particles.add<float>(PKD_FIELD::oPotential,"phi");
     }
     particles.align();
 
     /*
     ** Tree node memory models
     */
-    if (this->bIntegerPosition) tree.add<int32_t[3]>(KDN_FIELD::oNodePosition);
-    else tree.add<double[3]>(KDN_FIELD::oNodePosition);
+    if (this->bIntegerPosition) tree.add<int32_t[3]>(KDN_FIELD::oNodePosition,"r");
+    else tree.add<double[3]>(KDN_FIELD::oNodePosition,"r");
     if ( mMemoryModel & PKD_MODEL_NODE_BND ) {
-        if (this->bIntegerPosition) tree.add<IntegerBound>(KDN_FIELD::oNodeBnd);
-        else tree.add<Bound>(KDN_FIELD::oNodeBnd);
+        if (this->bIntegerPosition) tree.add<IntegerBound>(KDN_FIELD::oNodeBnd,"bnd");
+        else tree.add<Bound>(KDN_FIELD::oNodeBnd,"bnd");
     }
     if ( mMemoryModel & PKD_MODEL_NODE_VBND )
-        tree.add<Bound>(KDN_FIELD::oNodeVBnd);
+        tree.add<Bound>(KDN_FIELD::oNodeVBnd,"vbnd");
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
-        tree.add<double[3]>(KDN_FIELD::oNodeVelocity);
+        tree.add<double[3]>(KDN_FIELD::oNodeVelocity,"v");
     if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_BH) ) {
 #ifdef OPTIM_REORDER_IN_NODES
-        tree.add<int32_t>(KDN_FIELD::oNodeNgas);
+        tree.add<int32_t>(KDN_FIELD::oNodeNgas,"ngas");
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-        tree.add<int32_t>(KDN_FIELD::oNodeNstar);
+        tree.add<int32_t>(KDN_FIELD::oNodeNstar,"nstar");
 #endif
-        tree.add<int32_t>(KDN_FIELD::oNodeNbh);
+        tree.add<int32_t>(KDN_FIELD::oNodeNbh,"nbh");
 #endif
     }
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
     if ( mMemoryModel & PKD_MODEL_NODE_SPHBNDS )
-        tree.add<SPHBNDS>(KDN_FIELD::oNodeSphBounds);
+        tree.add<SPHBNDS>(KDN_FIELD::oNodeSphBounds,"sphbnd");
 
     if ( mMemoryModel & PKD_MODEL_NODE_BOB )
-        tree.add<SPHBOB>(KDN_FIELD::oNodeBOB);
+        tree.add<SPHBOB>(KDN_FIELD::oNodeBOB,"bob");
 
     if ( mMemoryModel & PKD_MODEL_NODE_MOMENT ) {
-        tree.add<FMOMR>(KDN_FIELD::oNodeMom);
-        tree.add<mass_t>(KDN_FIELD::oNodeMass,tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
+        tree.add<FMOMR>(KDN_FIELD::oNodeMom,"mom");
+        tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass",tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
     }
-    else tree.add<mass_t>(KDN_FIELD::oNodeMass);
+    else tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass");
 
     /* The acceleration is required for the new time step criteria */
     if ( mMemoryModel & PKD_MODEL_NODE_ACCEL )
-        tree.add<float[3]>(KDN_FIELD::oNodeAcceleration);
+        tree.add<float[3]>(KDN_FIELD::oNodeAcceleration,"a");
 
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(float))
-        tree.add<float[3]>(KDN_FIELD::oNodeVelocity);
+        tree.add<float[3]>(KDN_FIELD::oNodeVelocity,"v");
 
     assert(tree.ElementSize() > 0);
     if (tree.ElementSize() > pkdContext::MaxNodeSize()) {

@@ -20,6 +20,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <string_view>
 #include "blitz/array.h"
 
 //! \brief Track offset of optional data fields
@@ -58,13 +59,13 @@ public:
     //! \param f The field id
     //! \param offset The offset to the field
     template<typename T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
-    void add(FIELD f,int offset) {
+    void add(FIELD f,std::string_view name, int offset) {
         oFieldOffset[static_cast<unsigned int>(f)] = offset;
     }
     //! Add a "void" type field. For some element the offset isn't relevant, only if it is present.
     //! \param f The field id
     template<typename T,std::enable_if_t<std::is_void_v<T>,bool> = true>
-    void add(FIELD f) {
+    void add(FIELD f,std::string_view name) {
         oFieldOffset[static_cast<unsigned int>(f)] = 1;
     }
     //! Add a field to the store. A field of type T is added and the offset recorded. The size of the
@@ -75,7 +76,7 @@ public:
     //! @endcode
     //! \param f The field id
     template<typename T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
-    void add(FIELD f) {
+    void add(FIELD f,std::string_view name) {
         static_assert(std::is_standard_layout<T>());
         static_assert(std::is_void_v<T> || alignof(T) <= 4 || alignof(T) == 8);
         int iOffset = iElementSize;
