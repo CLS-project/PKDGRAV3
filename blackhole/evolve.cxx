@@ -8,9 +8,8 @@ void MSR::BHEvolve(double dTime, double dDelta) {
     Smooth(dTime,dDelta,SMX_BH_EVOLVE,1,parameters.get_nSmooth());
 }
 
-
 static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
-                              particleStore::ParticleReference &p, BHFIELDS &bh,
+                              particleStore::ParticleReference &p, meshless::BLACKHOLE &bh,
                               float pH, float pMass, double pDensity,
                               double dScaleFactor) {
     const double prob_factor = (bh.dInternalMass - pMass)/pDensity;
@@ -36,9 +35,8 @@ static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
     return nAccreted;
 }
 
-
 static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int nAccreted,
-                              particleStore::ParticleReference &p, BHFIELDS &bh,
+                              particleStore::ParticleReference &p, meshless::BLACKHOLE &bh,
                               float massSum, double dConstGamma, double dBHFBEff,
                               double dBHFBEcrit) {
 
@@ -154,7 +152,6 @@ void smBHEvolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 }
 
-
 void packBHEvolve(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
     auto p1 = static_cast<bhEvolvePack *>(dst);
@@ -261,7 +258,6 @@ void combBHEvolve(void *vpkd,void *dst,const void *src) {
     }
 }
 
-
 void pkdBHIntegrate(PKD pkd, particleStore::ParticleReference &p, double dTime,
                     double dDelta, double dBHRadiativeEff) {
     auto &bh = p.BH();
@@ -271,4 +267,3 @@ void pkdBHIntegrate(PKD pkd, particleStore::ParticleReference &p, double dTime,
     bh.dAccEnergy += bh.dFeedbackRate * pDelta;
     bh.lastUpdateTime = dTime;
 }
-

@@ -21,7 +21,7 @@
 
 typedef struct StellarEvolutionData {
     /* Pointer to function that gives the number of SNIa per Msol in [fInitialTime, fFinalTime] */
-    float (*fcnNumSNIa)(SMF *smf, STARFIELDS &star, float fInitialTime, float fFinalTime);
+    float (*fcnNumSNIa)(SMF *smf, meshless::STAR &star, float fInitialTime, float fFinalTime);
 
     /* Initial mass array for CCSN and AGB tables */
     float afInitialMass[STEV_INTERP_N_MASS];
@@ -119,8 +119,8 @@ void stevFreeTable(STEV_RAWDATA *);
 void stevFreeSNIaTable(STEV_RAWDATA *);
 void stevFreeLifetimeTable(STEV_RAWDATA *);
 
-float stevExponentialNumSNIa(SMF *, STARFIELDS &, float, float);
-float stevPowerlawNumSNIa(SMF *, STARFIELDS &, float, float);
+float stevExponentialNumSNIa(SMF *, meshless::STAR &, float, float);
+float stevPowerlawNumSNIa(SMF *, meshless::STAR &, float, float);
 
 /*
  * -------
@@ -478,7 +478,7 @@ static inline void stevComputeMassToEject(
     *pfMetalMass += M_LN10 * fMetalMassTemp;
 }
 
-static inline float stevLifetimeFunction(PKD pkd, STARFIELDS &star, const double dMass) {
+static inline float stevLifetimeFunction(PKD pkd, meshless::STAR &star, const double dMass) {
     int iMass;
     float fDeltaMass;
     stevGetIndex1D(pkd->StelEvolData->afLifetimeInitialMass, STEV_LIFETIME_N_MASS,
@@ -497,7 +497,7 @@ static inline float stevLifetimeFunction(PKD pkd, STARFIELDS &star, const double
     return powf(10.0f, fLogTime);
 }
 
-static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS &star, const float fTime) {
+static inline float stevInverseLifetimeFunction(PKD pkd, meshless::STAR &star, const float fTime) {
     const float *afTimeLowerZ = pkd->StelEvolData->afLifetime + star.Lifetime.oZ;
     const float *afTimeUpperZ = afTimeLowerZ + STEV_LIFETIME_N_MASS;
 
@@ -525,7 +525,7 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS &star, const
 /* Function that estimates the time it will take a star particle to lose all
  * its initial mass by estimating its current ejecta rate. This is then used
  * to compute the time it needs to eject fMinMassFrac of its mass. */
-static inline float stevComputeFirstEnrichTime(PKD pkd, STARFIELDS &star,
+static inline float stevComputeFirstEnrichTime(PKD pkd, meshless::STAR &star,
         const double dCCSNMinMass) {
     const float fMinMassFrac = 1e-3f;
 
@@ -575,7 +575,7 @@ static inline float stevComputeNextEnrichTime(const float fTime, const float fSt
     return fTime + fMinMassFrac * fStarMass * fEjMassRateInv;
 }
 
-static inline void stevStarParticleInit(PKD pkd, STARFIELDS &star, const double dSNIaMaxMass,
+static inline void stevStarParticleInit(PKD pkd, meshless::STAR &star, const double dSNIaMaxMass,
                                         const double dCCSNMinMass, const double dCCSNMaxMass) {
     int iZ;
     float fLogZ;

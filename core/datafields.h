@@ -20,6 +20,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <string_view>
 #include "blitz/array.h"
 
 //! \brief Track offset of optional data fields
@@ -58,32 +59,45 @@ public:
     //! \param f The field id
     //! \param offset The offset to the field
     template<typename T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
-    void add(FIELD f,int offset) {
+    void add(FIELD f,std::string_view name, int offset) {
         oFieldOffset[static_cast<unsigned int>(f)] = offset;
     }
     //! Add a "void" type field. For some element the offset isn't relevant, only if it is present.
     //! \param f The field id
     template<typename T,std::enable_if_t<std::is_void_v<T>,bool> = true>
-    void add(FIELD f) {
+    void add(FIELD f,std::string_view name) {
         oFieldOffset[static_cast<unsigned int>(f)] = 1;
     }
+
     //! Add a field to the store. A field of type T is added and the offset recorded. The size of the
     //! element is increased to account for this. For types with multiple values use array syntax.
     //! @code
     //!   particles.add<double[3]>(PKD_FIELD::oPosition)
     //!   particles.add<float>(PKD_FIELD::oMass)
     //! @endcode
+    //! Overlaying fields is possible by specifying a type with the maximum size and alignment
+    //! for S. Normally this is done with a union. For example, to overlay a double[3] and a float[4]
+    //! @code
+    //!   union u {
+    //!       double d[3];
+    //!       float f[4];
+    //!   };
+    //!   particles.add<double[3],u>(PKD_FIELD::oPosition,"r")
+    //!   particles.add<float[4]>(PKD_FIELD::oWhatever,"q",particles.offset(PKD_FIELD::oPosition))
+    //! @endcode
     //! \param f The field id
-    template<typename T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
-    void add(FIELD f) {
-        static_assert(std::is_standard_layout<T>());
-        static_assert(std::is_void_v<T> || alignof(T) <= 4 || alignof(T) == 8);
+    template<typename T,typename S=T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
+    void add(FIELD f,std::string_view name) {
+        static_assert(std::is_standard_layout<S>());
+        static_assert(sizeof(T) <= sizeof(S));
+        static_assert(alignof(T) <= alignof(S));
+        static_assert(alignof(S) <= 4 || alignof(S) == 8);
         int iOffset = iElementSize;
-        int iAlign = std::max(4ul,alignof(T));
-        if (iAlign==4 && iElement32 && (sizeof(T)%8)) {
+        int iAlign = std::max(4ul,alignof(S));
+        if (iAlign==4 && iElement32 && (sizeof(S)%8)) {
             iOffset = iElement32;
             iElement32 = 0;
-            auto iExtra = sizeof(T) - 4;
+            auto iExtra = sizeof(S) - 4;
             assert(iExtra%8 == 0);
             for (auto &i : oFieldOffset) {
                 if (i>iOffset) i += iExtra;
@@ -97,7 +111,7 @@ public:
                 iOffset += iAlign - iMask;
             }
             assert((iOffset & (iAlign-1)) == 0);
-            iElementSize = iOffset + sizeof(T);
+            iElementSize = iOffset + sizeof(S);
         }
         if (nElementAlign < iAlign) nElementAlign = iAlign;
         oFieldOffset[static_cast<unsigned int>(f)] = iOffset;
