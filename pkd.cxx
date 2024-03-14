@@ -1638,9 +1638,9 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
     numPart_file[0] = nGas;
     numPart_file[1] = nDark;
     numPart_file[2] = 0;
-    numPart_file[3] = nBH;
+    numPart_file[3] = 0;
     numPart_file[4] = nStar;
-    numPart_file[5] = 0;
+    numPart_file[5] = nBH;
 
     fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
     fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
