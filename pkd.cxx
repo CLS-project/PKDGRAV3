@@ -362,7 +362,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition);
     if ( mMemoryModel & PKD_MODEL_SPH )
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<EXTRAFIELDS>(PKD_FIELD::oSph);
+        particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph);
 #else
         particles.add<meshless::FIELDS>(PKD_FIELD::oSph);
 #endif
@@ -371,9 +371,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_STAR ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
         particles.add<void>(PKD_FIELD::oStar); // this value is of no relevance as long as it is >0
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<EXTRAFIELDS>(PKD_FIELD::oSph);
+        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph);
 #else
-        particles.add<STARFIELDS>(PKD_FIELD::oStar);
+        particles.add<meshless::STAR>(PKD_FIELD::oStar);
 #endif
     }
 
@@ -381,9 +381,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_BH ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
         particles.add<void>(PKD_FIELD::oBH); // this value is of no relevance as long as it is >0
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<EXTRAFIELDS>(PKD_FIELD::oSph);
+        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph);
 #else
-        particles.add<BHFIELDS>(PKD_FIELD::oBH);
+        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH);
 #endif
     }
 #endif // BLACKHOLES

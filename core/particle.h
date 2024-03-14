@@ -188,26 +188,8 @@ struct FIELDS {
 
     uint8_t uWake;
 
-};
-
-}
-
-namespace sph {
-struct FIELDS {
-    float Omega;        /* Correction factor */
-    float divv;         /* Divergence of v */
-    float u;            /* Thermodynamical variable, can be T, A(s) or u */
-    float uDot;         /* Derivative of the thermodynamical variable */
-    float cs;           /* Sound speed */
-    float P;            /* Pressure */
-    float oldRho;       /* Rho corresponding to where u is at */
-    float expImb2;      /* exp(-imbalance^2) */
-    float T;            /* Temperature */
-    float vpredx, vpredy, vpredz;     /* predicted velocities */
-};
-}
-
-struct STARFIELDS {
+}; // FIELDS
+struct STAR {
     double omega;
 #ifdef STELLAR_EVOLUTION
     blitz::TinyVector<float,ELEMENT_COUNT> ElemAbun; /* Formation abundances */
@@ -233,7 +215,7 @@ struct STARFIELDS {
 #endif
 };
 
-struct BHFIELDS {
+struct BLACKHOLE {
     PARTICLE *pLowPot;
     double omega;
     double dInternalMass;
@@ -249,11 +231,28 @@ struct BHFIELDS {
 
 #ifdef OPTIM_UNION_EXTRAFIELDS
 union EXTRAFIELDS {
-    meshless::FIELDS sph;
-    STARFIELDS star;
-    BHFIELDS bh;
+    FIELDS sph;
+    STAR star;
+    BLACKHOLE bh;
 };
 #endif
+
+} // meshless
+
+namespace sph {
+struct FIELDS {
+    float Omega;        /* Correction factor */
+    float divv;         /* Divergence of v */
+    float u;            /* Thermodynamical variable, can be T, A(s) or u */
+    float uDot;         /* Derivative of the thermodynamical variable */
+    float cs;           /* Sound speed */
+    float P;            /* Pressure */
+    float oldRho;       /* Rho corresponding to where u is at */
+    float expImb2;      /* exp(-imbalance^2) */
+    float T;            /* Temperature */
+    float vpredx, vpredy, vpredz;     /* predicted velocities */
+};
+}
 
 struct VELSMOOTH {
     blitz::TinyVector<float,3> vmean;
@@ -444,9 +443,9 @@ public:
 #ifdef DEBUG_UNION_EXTRAFIELDS
         assert( species(p)==FIO_SPECIES_STAR);
 #endif //DEBUG
-        return get<STARFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::STAR>(p,PKD_FIELD::oSph);
 #else
-        return get<STARFIELDS>(p,PKD_FIELD::oStar);
+        return get<meshless::STAR>(p,PKD_FIELD::oStar);
 #endif
     }
     const auto &star( const PARTICLE *p ) const {
@@ -454,9 +453,9 @@ public:
 #ifdef DEBUG_UNION_EXTRAFIELDS
         assert( species(p)==FIO_SPECIES_STAR);
 #endif //DEBUG
-        return get<STARFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::STAR>(p,PKD_FIELD::oSph);
 #else
-        return get<STARFIELDS>(p,PKD_FIELD::oStar);
+        return get<meshless::STAR>(p,PKD_FIELD::oStar);
 #endif
     }
     auto &BH( PARTICLE *p ) const {
@@ -464,9 +463,9 @@ public:
 #ifdef DEBUG_UNION_EXTRAFIELDS
         assert( dpecies(p)==FIO_SPECIES_BH);
 #endif //DEBUG
-        return get<BHFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oSph);
 #else
-        return get<BHFIELDS>(p,PKD_FIELD::oBH);
+        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oBH);
 #endif
     }
     const auto &BH( const PARTICLE *p ) const {
@@ -474,13 +473,13 @@ public:
 #ifdef DEBUG_UNION_EXTRAFIELDS
         assert( dpecies(p)==FIO_SPECIES_BH);
 #endif //DEBUG
-        return get<BHFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oSph);
 #else
-        return get<BHFIELDS>(p,PKD_FIELD::oBH);
+        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oBH);
 #endif
     }
     auto Timer( PARTICLE *p ) const {
-        return &get<STARFIELDS>(p,PKD_FIELD::oStar).fTimer;
+        return &get<meshless::STAR>(p,PKD_FIELD::oStar).fTimer;
     }
     auto is_deleted(PARTICLE *p) const {
         return (species(p) == FIO_SPECIES_UNKNOWN);

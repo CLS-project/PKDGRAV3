@@ -15,9 +15,8 @@ void MSR::BHDrift(double dTime, double dDelta) {
     }
 }
 
-
 static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
-                              particleStore::ParticleReference &p, BHFIELDS &bh,
+                              particleStore::ParticleReference &p, meshless::BLACKHOLE &bh,
                               float pH, float pMass, double pDensity,
                               double dScaleFactor) {
     const double prob_factor = (bh.dInternalMass - pMass)/pDensity;
@@ -42,9 +41,8 @@ static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
     return nAccreted;
 }
 
-
 static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int nAccreted,
-                              particleStore::ParticleReference &p, BHFIELDS &bh,
+                              particleStore::ParticleReference &p, meshless::BLACKHOLE &bh,
                               float massSum, double dConstGamma, double dBHFBEff,
                               double dBHFBEcrit) {
 
@@ -130,7 +128,6 @@ static inline void bhDrift(PKD pkd, particleStore::ParticleReference &p,
         }
     }
 }
-
 
 void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -229,8 +226,6 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         bh.dAccretionRate = ( dEddingtonAccretion < dBondiAccretion ) ?
                             dEddingtonAccretion : dBondiAccretion;
 
-
-
         if (smf->bBHAccretion) {
             nAccreted += bhAccretion(pkd, nnList, nSmooth, p, bh,
                                      pH, pMass, pDensity, smf->a);
@@ -244,7 +239,6 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     bhDrift(pkd, p, pMass, pLowPot, uMaxRung, stdv2, mv, smf->a);
 
 }
-
 
 void packBHevolve(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
@@ -356,7 +350,6 @@ void combBHevolve(void *vpkd,void *dst,const void *src) {
     }
 }
 
-
 struct bhAccretionPack {
     uint64_t iOrder;
     uint8_t iClass;
@@ -426,7 +419,6 @@ void combBHAccretion(void *vpkd,void *dst,const void *src) {
     }
 }
 
-
 void pkdBHAccretion(PKD pkd, double dScaleFactor) {
 
     mdlPackedCacheCO(pkd->mdl, CID_PARTICLE, NULL, pkd->particles, pkd->Local(),
@@ -490,4 +482,3 @@ void pkdBHIntegrate(PKD pkd, particleStore::ParticleReference &p, double dTime,
     bh.dAccEnergy += bh.dFeedbackRate * pDelta;
     bh.lastUpdateTime = dTime;
 }
-
