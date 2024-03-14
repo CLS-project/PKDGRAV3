@@ -240,6 +240,7 @@ union EXTRAFIELDS {
 } // meshless
 
 namespace sph {
+
 struct FIELDS {
     float Omega;        /* Correction factor */
     float divv;         /* Divergence of v */
@@ -250,7 +251,7 @@ struct FIELDS {
     float oldRho;       /* Rho corresponding to where u is at */
     float expImb2;      /* exp(-imbalance^2) */
     float T;            /* Temperature */
-    float vpredx, vpredy, vpredz;     /* predicted velocities */
+    blitz::TinyVector<float,3> vpred; /* predicted velocities */
 };
 }
 
