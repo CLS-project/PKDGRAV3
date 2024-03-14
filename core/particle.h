@@ -25,6 +25,7 @@
 #include <functional>
 #include <type_traits>
 #include <iterator>
+#include <boost/hana/define_struct.hpp>
 #include "blitz/array.h"
 #include "datastore.h"
 #include "integerize.h"
@@ -98,135 +99,160 @@ struct PARTCLASS {
 static_assert(std::is_trivial<PARTCLASS>());
 
 namespace meshless {
+namespace hana = boost::hana;
 typedef double myreal;
 
+#ifdef BLACKHOLES
+struct  BH_ACCRETOR {
+    BOOST_HANA_DEFINE_STRUCT(
+        BH_ACCRETOR,
+        (int, iPid),
+        (int, iIndex)
+    );
+};
+#endif
+
 struct FIELDS {
-    /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
-    blitz::TinyVector<double,6> B;
+    BOOST_HANA_DEFINE_STRUCT(
+        FIELDS,
 
-    /* IA: Condition number for pathological configurations */
-    myreal Ncond;
+        (blitz::TinyVector<double,6>, B), // IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric
+        (myreal, Ncond),/* IA: Condition number for pathological configurations */
 
-    /* IA: Gradients */
-    blitz::TinyVector<myreal,3> gradRho, gradVx, gradVy, gradVz, gradP;
+        /* IA: Gradients */
+        (blitz::TinyVector<myreal,3>, gradRho),
+        (blitz::TinyVector<myreal,3>, gradVx),
+        (blitz::TinyVector<myreal,3>, gradVy),
+        (blitz::TinyVector<myreal,3>, gradVz),
+        (blitz::TinyVector<myreal,3>, gradP),
 
-    /* IA: last time this particle's primitve variables were updated */
-    myreal lastUpdateTime;
-    blitz::TinyVector<myreal,3> lastAcc;
-    blitz::TinyVector<myreal,3> lastMom;
-    myreal lastE;
-    myreal lastUint;
-    myreal lastHubble; // TODO: Maybe there is a more intelligent way to avoid saving this...
+        /* IA: last time this particle's primitve variables were updated */
+        (myreal, lastUpdateTime),
+        (blitz::TinyVector<myreal,3>, lastAcc),
+        (blitz::TinyVector<myreal,3>, lastMom),
+        (myreal, lastE),
+        (myreal, lastUint),
+        (myreal, lastHubble), // TODO: Maybe there is a more intelligent way to avoid saving this...
 #ifndef USE_MFM
-    blitz::TinyVector<myreal,3> lastDrDotFrho;
+        (blitz::TinyVector<myreal,3>, lastDrDotFrho),
 #endif
-    float c;        /* sound speed */
+        (float, c),        /* sound speed */
 
-    float lastMass;
+        (float, lastMass),
 
-    /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
-    double omega;
+        /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
+        (double, omega),
 
-    /* IA: Fluxes */
-    myreal Frho;
-    blitz::TinyVector<myreal,3>  Fmom;
-    myreal Fene;
+        /* IA: Fluxes */
+        (myreal, Frho),
+        (blitz::TinyVector<myreal,3>,  Fmom),
+        (myreal, Fene),
 
 #ifndef USE_MFM
-    blitz::TinyVector<double,3> drDotFrho;
+        (blitz::TinyVector<double,3>, drDotFrho),
 #endif
-    /* IA: Conserved variables */
-    blitz::TinyVector<double,3>  mom;
-    double E;
-    /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
-    double Uint;
+        /* IA: Conserved variables */
+        (blitz::TinyVector<double,3>,  mom),
+        (double, E),
+        /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
+        (double, Uint),
 
 #ifdef ENTROPY_SWITCH
-    double S;
-    double lastS;
-    double maxEkin;
+        (double, S),
+        (double, lastS),
+        (double, maxEkin),
 #endif
 
-    /* IA: Primitive variables */
-    double P;
+        /* IA: Primitive variables */
+        (double, P),
 
-    /* IA: fBall from the last iteration. Used for the bisection algorithm */
-    //float fLastBall;
-    /* IA: Number of neighbors correspoding to that fBall */
-    //int nLastNeighs;
+        /* IA: fBall from the last iteration. Used for the bisection algorithm */
+        //(float, fLastBall),
+        /* IA: Number of neighbors correspoding to that fBall */
+        //(int, nLastNeighs),
 
-    /* IA: TODO temporarly */
-    //uint8_t uNewRung;
+        /* IA: TODO temporarly */
+        //(uint8_t, uNewRung),
 
 #ifdef STAR_FORMATION
-    float SFR;
+        (float, SFR),
 #endif
 
-    blitz::TinyVector<float,ELEMENT_COUNT> ElemMass;
+        (blitz::TinyVector<float,ELEMENT_COUNT>, ElemMass),
 #ifdef HAVE_METALLICITY
-    float fMetalMass;
+        (float, fMetalMass),
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    blitz::TinyVector<float,3> ReceivedMom;
-    float fReceivedMass;
-    float fReceivedE;
+        (blitz::TinyVector<float,3>, ReceivedMom),
+        (float, fReceivedMass),
+        (float, fReceivedE),
 #endif
 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
-    float fAccFBEnergy;
+        (float, fAccFBEnergy),
 #endif
 
 #ifdef BLACKHOLES
-    // This could ideally be stored in a temporal buffer (pLite), but it has some
-    // limitations as it has to be shared when doing mdlAcquire.
-    struct {
-        int iPid;
-        int iIndex;
-    } BHAccretor;
+        // This could ideally be stored in a temporal buffer (pLite), but it has some
+        // limitations as it has to be shared when doing mdlAcquire.
+        (BH_ACCRETOR, BHAccretor),
 #endif
 
-    uint8_t uWake;
+        (uint8_t, uWake)
+    );
 
 }; // FIELDS
+
+struct STAR_METALS {
+    BOOST_HANA_DEFINE_STRUCT(
+        STAR_METALS,
+        (float, oZ),
+        (float, fDeltaZ)
+    );
+}; // STAR_METALS
+
 struct STAR {
-    double omega;
+    BOOST_HANA_DEFINE_STRUCT(
+        STAR,
+        (double, omega),
 #ifdef STELLAR_EVOLUTION
-    blitz::TinyVector<float,ELEMENT_COUNT> ElemAbun; /* Formation abundances */
-    float fMetalAbun;            /* Formation metallicity */
-    float fInitialMass;
-    float fLastEnrichTime;
-    float fLastEnrichMass;
-    int iLastEnrichMass;
-    float fNextEnrichTime;
-    struct {
-        int oZ;
-        float fDeltaZ;
-    } CCSN, AGB, Lifetime;
-    float fSNIaOnsetTime;
+        (blitz::TinyVector<float,ELEMENT_COUNT>, ElemAbun), /* Formation abundances */
+        (float, fMetalAbun),            /* Formation metallicity */
+        (float, fInitialMass),
+        (float, fLastEnrichTime),
+        (float, fLastEnrichMass),
+        (int, iLastEnrichMass),
+        (float, fNextEnrichTime),
+        (STAR_METALS, CCSN),
+        (STAR_METALS, AGB),
+        (STAR_METALS, Lifetime),
+        (float, fSNIaOnsetTime),
 #endif
-
-    float fTimer;  /* Time of formation */
-
 #ifdef FEEDBACK
-    int bCCSNFBDone;
-    int bSNIaFBDone;
-    float fSNEfficiency;
+        (int, bCCSNFBDone),
+        (int, bSNIaFBDone),
+        (float, fSNEfficiency),
 #endif
-};
+        (float, fTimer)  /* Time of formation */
+    );
+}; // STAR
 
 struct BLACKHOLE {
-    PARTICLE *pLowPot;
-    double omega;
-    double dInternalMass;
-    blitz::TinyVector<double,3> newPos;
-    double lastUpdateTime;
-    double dAccretionRate;
-    double dEddingtonRatio;
-    double dFeedbackRate;
-    double dAccEnergy;
-    float fTimer;    /* Time of formation */
-    int   doReposition; // = 0 no; > 0 do it ; = 2 ignore gas criteria
+    BOOST_HANA_DEFINE_STRUCT(
+        BLACKHOLE,
+        (PARTICLE *,pLowPot),
+        (double, omega),
+        (double, dInternalMass),
+        (blitz::TinyVector<double,3>, newPos),
+        (double, lastUpdateTime),
+        (double, dAccretionRate),
+        (double, dEddingtonRatio),
+        (double, dFeedbackRate),
+        (double, dAccEnergy),
+        (float, fTimer),    /* Time of formation */
+        (int,   doReposition) // = 0 no; > 0 do it ; = 2 ignore gas criteria
+    );
 };
 
 #ifdef OPTIM_UNION_EXTRAFIELDS
@@ -240,25 +266,33 @@ union EXTRAFIELDS {
 } // meshless
 
 namespace sph {
+namespace hana = boost::hana;
 
 struct FIELDS {
-    float Omega;        /* Correction factor */
-    float divv;         /* Divergence of v */
-    float u;            /* Thermodynamical variable, can be T, A(s) or u */
-    float uDot;         /* Derivative of the thermodynamical variable */
-    float cs;           /* Sound speed */
-    float P;            /* Pressure */
-    float oldRho;       /* Rho corresponding to where u is at */
-    float expImb2;      /* exp(-imbalance^2) */
-    float T;            /* Temperature */
-    blitz::TinyVector<float,3> vpred; /* predicted velocities */
-};
-}
+    BOOST_HANA_DEFINE_STRUCT(
+        FIELDS,
+        (float, Omega),        // Correction factor
+        (float, divv),         // Divergence of v
+        (float, u),            // Thermodynamical variable, can be T, A(s) or u
+        (float, uDot),         // Derivative of the thermodynamical variable
+        (float, cs),           // Sound speed
+        (float, P),            // Pressure
+        (float, oldRho),       // Rho corresponding to where u is at
+        (float, expImb2),      // exp(-imbalance^2)
+        (float, T),            // Temperature
+        (blitz::TinyVector<float,3>, vpred)  // predicted velocities
+    );
+}; // FIELDS
+
+} // sph
 
 struct VELSMOOTH {
-    blitz::TinyVector<float,3> vmean;
-    float divv;
-    float veldisp2;
+    BOOST_HANA_DEFINE_STRUCT(
+        VELSMOOTH,
+        (blitz::TinyVector<float,3>, vmean),
+        (float, divv),
+        (float, veldisp2)
+    );
 };
 
 //! \brief Enumerates all of the optional fields in a PARTICLE
