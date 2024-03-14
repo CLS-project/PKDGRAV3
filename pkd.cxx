@@ -362,7 +362,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"v");
     if ( mMemoryModel & PKD_MODEL_SPH )
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
+        particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
 #else
         particles.add<meshless::FIELDS>(PKD_FIELD::oSph,"hydro");
 #endif
@@ -370,8 +370,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
     if ( mMemoryModel & PKD_MODEL_STAR ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<void>(PKD_FIELD::oStar,"star"); // this value is of no relevance as long as it is >0
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
+        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
+        // The star field is overlaid on the sph field
+        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oStar,"star",particles.offset(PKD_FIELD::oSph));
 #else
         particles.add<meshless::STAR>(PKD_FIELD::oStar,"star");
 #endif
@@ -380,8 +381,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #ifdef BLACKHOLES
     if ( mMemoryModel & PKD_MODEL_BH ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<void>(PKD_FIELD::oBH,"bh"); // this value is of no relevance as long as it is >0
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
+        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
+        // The blackhole field is overlaid on the sph field
+        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh",particles.offset(PKD_FIELD::oSph));
 #else
         particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh");
 #endif
