@@ -42,7 +42,7 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
 
     /* Read the list of table redshifts */
     char redshift_filename[eagle_table_path_name_length + 16];
-    sprintf(redshift_filename, "%s/redshifts.dat", cooling->cooling_table_path);
+    snprintf(redshift_filename, sizeof(redshift_filename), "%s/redshifts.dat", cooling->cooling_table_path);
 
     FILE *infile = fopen(redshift_filename, "r");
     if (infile == NULL) {
@@ -438,11 +438,11 @@ void get_redshift_invariant_table(
     /* Decide which high redshift table to read. Indices set in cooling_update */
     char filename[eagle_table_path_name_length + 21];
     if (photodis) {
-        sprintf(filename, "%s/z_photodis.hdf5", cooling->cooling_table_path);
+        snprintf(filename, sizeof(filename), "%s/z_photodis.hdf5", cooling->cooling_table_path);
         printf("Reading cooling table 'z_photodis.hdf5'\n");
     }
     else {
-        sprintf(filename, "%s/z_8.989nocompton.hdf5", cooling->cooling_table_path);
+        snprintf(filename, sizeof(filename), "%s/z_8.989nocompton.hdf5", cooling->cooling_table_path);
         printf("Reading cooling table 'z_8.989nocompton.hdf5' \n");
     }
 
@@ -455,7 +455,7 @@ void get_redshift_invariant_table(
     for (int specs = 0; specs < eagle_cooling_N_metal; specs++) {
 
         /* Read in the cooling rate for this metal */
-        sprintf(set_name, "/%s/Net_Cooling", eagle_tables_element_names[specs]);
+        snprintf(set_name, sizeof(set_name), "/%s/Net_Cooling", eagle_tables_element_names[specs]);
         hid_t dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
         herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL,
                                 H5P_DEFAULT, net_cooling_rate);
@@ -668,8 +668,8 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
 
         /* Open table for this redshift index */
         char fname[eagle_table_path_name_length + 12];
-        sprintf(fname, "%s/z_%1.3f.hdf5", cooling->cooling_table_path,
-                cooling->Redshifts[z_index]);
+        snprintf(fname, sizeof(fname), "%s/z_%1.3f.hdf5", cooling->cooling_table_path,
+                 cooling->Redshifts[z_index]);
         printf("Reading cooling table 'z_%1.3f.hdf5' \n",
                cooling->Redshifts[z_index]);
 
@@ -681,7 +681,7 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
         /* read in cooling rates due to metals */
         for (int specs = 0; specs < eagle_cooling_N_metal; specs++) {
 
-            sprintf(set_name, "/%s/Net_Cooling", eagle_tables_element_names[specs]);
+            snprintf(set_name, sizeof(set_name), "/%s/Net_Cooling", eagle_tables_element_names[specs]);
             hid_t dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
             herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL,
                                     H5P_DEFAULT, net_cooling_rate);
