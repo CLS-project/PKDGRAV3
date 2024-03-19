@@ -43,6 +43,7 @@
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
 #include "SPH/SPHpredict.h"
+#include "potential/potential.h"
 #include "../core/simd.h"
 
 #include <algorithm>
@@ -219,42 +220,13 @@ void pkdParticleWorkDone(workParticle *wp) {
             if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces) {
                 auto r = p.position();
                 auto m = p.mass();
-#ifdef HERNQUIST_POTENTIAL
-                // Hard coded just for the isolated galaxy test
-                const double const_reduced_hubble_cgs = 3.2407789e-18;
-                const double dMsolUnit = 1e10;
-                const double dKpcUnit = 1.0;
-                const double dKmPerSecUnit = sqrt(GCGS*dMsolUnit*MSOLG
-                                                  /(dKpcUnit*KPCCM))/1e5;
-                const double H0 = 70.4/ dKmPerSecUnit * ( dKpcUnit / 1e3);
+#ifdef EXTERNAL_POTENTIAL
+                auto out = external_potential(r);
+                auto acc = std::get<POT_ACC>(out);
 
-                const double concentration = 9.0;
-                const double M200 = 135.28423603962767;
-                const double V200 = cbrt(10.*M200*H0);
-                const double R200 = cbrt(M200/(100.*H0*H0));
-                const double RS = R200 / concentration;
-
-                const double al = RS * sqrt(2. * (log(1. + concentration) -
-                                                  concentration / (1. + concentration)));
-
-                const double mass = M200*(1.-0.041);
-                const float sqrtgm_inv = 1.f / sqrtf(mass);
-                const double epsilon =  0.2/dKpcUnit;
-                const double epsilon2 = epsilon*epsilon;
-
-                /* Calculate the acceleration */
-                const float rr = sqrtf(blitz::dot(r,r) + epsilon2);
-                const float r_plus_a_inv = 1.f / (rr + al);
-                const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
-                const float term = -mass * r_plus_a_inv2 / rr;
-
-                /* Calculate the circular orbital period */
-                const float period = 2.f * M_PI * sqrtf(rr) * al *
-                                     (1 + rr / al) * sqrtgm_inv;
-
-                wp->pInfoOut[i].a[0] += term * r[0];
-                wp->pInfoOut[i].a[1] += term * r[1];
-                wp->pInfoOut[i].a[2] += term * r[2];
+                wp->pInfoOut[i].a[0] += acc[0];
+                wp->pInfoOut[i].a[1] += acc[1];
+                wp->pInfoOut[i].a[2] += acc[2];
 #endif
                 if (pkd->particles.present(PKD_FIELD::oAcceleration)) {
                     p.acceleration() = wp->pInfoOut[i].a;

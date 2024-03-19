@@ -44,11 +44,20 @@
     #include <EOSlib.h>
 #endif
 #include "core/bound.h"
-#ifdef GRACKLE
-    #include <grackle.h>
-#endif
 #include "eEOS/eEOS_struct.h"
 #include "chemistry.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef GRACKLE
+#include <grackle.h>
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 
 typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
 typedef uint_fast64_t total_t; /* Count of particles globally (total number) */

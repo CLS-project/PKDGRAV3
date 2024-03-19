@@ -96,7 +96,7 @@ static inline void abundance_ratio_to_solar(meshless::FIELDS *psph, float fMass,
 }
 
 /**
- * @brief Computes the extra heat from Helium reionisation at a given redshift.
+ * @brief Computes the extra heat from Helium reionization at a given redshift.
  *
  * We follow the implementation of Wiersma et al. 2009, MNRAS, 399, 574-600,
  * section. 2. The calculation returns energy in CGS.
@@ -391,7 +391,7 @@ static inline double eagle_metal_cooling_rate(
     double Lambda_Compton = 0.;
 
     /* Do we need to add the inverse Compton cooling? */
-    /* It is *not* stored in the tables before re-ionisation */
+    /* It is *not* stored in the tables before reionization */
     if ((redshift > cooling->Redshifts[eagle_cooling_N_redshifts - 1]) ||
             (redshift > cooling->H_reion_z)) {
 

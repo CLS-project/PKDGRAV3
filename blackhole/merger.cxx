@@ -15,7 +15,6 @@ using blitz::dot;
 void MSR::BHMerger(double dTime) {
     struct inSmooth in;
     struct outSmooth out;
-    struct outGetNParts Nout;
 
     TimerStart(TIMER_BHS);
 
@@ -30,45 +29,9 @@ void MSR::BHMerger(double dTime) {
     in.iSmoothType = SMX_BH_MERGER;
     SmoothSetSMF(&(in.smf), dTime, 0.0, in.nSmooth);
 
-    Nout.n = 0;
-    Nout.nDark = 0;
-    Nout.nGas = 0;
-    Nout.nStar = 0;
-    Nout.nBH = 0;
-
-    if (parameters.get_bVStep()) {
-        double sec,dsec;
-        sec = Time();
-        pstReSmoothNode(pst,&in,sizeof(in), &out,sizeof(struct outSmooth));
-        pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-        dsec = Time() - sec;
-    }
-    else {
-        pstReSmoothNode(pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
-        pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-    }
+    pstReSmoothNode(pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
 
     TimerStop(TIMER_BHS);
-
-    N = Nout.n;
-    nDark = Nout.nDark;
-    nGas = Nout.nGas;
-    nStar = Nout.nStar;
-    nBH = Nout.nBH;
-}
-
-void pkdRepositionBH(PKD pkd) {
-#ifndef DEBUG_BH_ONLY
-    for (auto &p : pkd->particles) {
-        if (p.is_bh()) {
-            auto &bh = p.BH();
-            if (bh.doReposition) {
-                p.set_position(bh.newPos);
-                bh.doReposition = 0;
-            }
-        }
-    }
-#endif
 }
 
 
@@ -116,8 +79,6 @@ void smBHmerger(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             // So, the following should not give any problem
             // (remove for performance)
             assert( nnList[i].fDist2 < 4.*p.soft()*p.soft() );
-            assert( p.have_mass() );
-
 
             if ( p.position(0) >= q.position(0) ) {
                 const auto &pmass = p.mass();
@@ -135,18 +96,8 @@ void smBHmerger(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                     const float newmass = pmass + qmass;
                     const float inv_newmass = 1./newmass;
 
-                    /* We can not update the position while in this loop,
-                     * because we are still using information of the tree,
-                     * which may be compromised.
-                     *
-                     * Instead, we save the new position and then update the
-                     * merged BHs in a separated loop.
-                     * In the case that they are following the minimum potential of
-                     * the nearby particles, this update may not be needed.
-                     */
                     auto &pbh = p.BH();
-                    pbh.newPos = p.position() - qmass*inv_newmass*nnList[i].dr;
-                    pbh.doReposition = 2;
+                    p.set_position(p.position() - qmass*inv_newmass*nnList[i].dr);
                     pbh.dInternalMass += q.BH().dInternalMass;
                     pbh.dAccEnergy += q.BH().dAccEnergy;
                     pv = (pmass*pv + qmass*qv) * inv_newmass;
@@ -273,14 +224,14 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
                 // We need to double check this, as the particle may have
                 // been marked for deletion just before this
                 if (partj.is_marked()) {
-                    const float fBall2_p = 4.*partj.soft()*partj.soft();
+                    const double fBall2_p = 4.*partj.soft()*partj.soft();
                     TinyVector<double,3> dr_node{bnd_node.center() - partj.position()};
                     int nCnt_p = 0;
                     for (auto pk = 0; pk < nCnt; ++pk) {
                         if (P == smx->nnList[pk].pPart) continue;
                         TinyVector<double,3> dr{smx->nnList[pk].dr - dr_node};
                         const auto fDist2 = dot(dr,dr);
-                        if (fDist2 <= fBall2_p) {
+                        if (fDist2 < fBall2_p) {
                             if (nCnt_p >= nnListMax_p) {
                                 nnListMax_p += NNLIST_INCREMENT;
                                 nnList_p = static_cast<NN *>(realloc(nnList_p,nnListMax_p*sizeof(NN)));

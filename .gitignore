@@ -1,4 +1,6 @@
 *~
+*.orig
+*.swp
 \.lockfile
 \.tipsy_history
 \.python-version
@@ -9,6 +11,9 @@ __pycache__
 /windows*/*\.user
 /windows*/*\.filters
 build*
+**Testing*
 test-reports
 .vscode/
+.cache/
 run-tests/
+compile_commands.json

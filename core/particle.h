@@ -207,7 +207,7 @@ struct FIELDS {
 struct STAR_METALS {
     BOOST_HANA_DEFINE_STRUCT(
         STAR_METALS,
-        (float, oZ),
+        (int, oZ),
         (float, fDeltaZ)
     );
 }; // STAR_METALS
@@ -238,20 +238,27 @@ struct STAR {
     );
 }; // STAR
 
+struct GAS_PIN {
+    BOOST_HANA_DEFINE_STRUCT(
+        GAS_PIN,
+        (int, iPid),
+        (int, iIndex)
+    );
+};
+
 struct BLACKHOLE {
     BOOST_HANA_DEFINE_STRUCT(
         BLACKHOLE,
-        (PARTICLE *,pLowPot),
         (double, omega),
         (double, dInternalMass),
-        (blitz::TinyVector<double,3>, newPos),
         (double, lastUpdateTime),
         (double, dAccretionRate),
         (double, dEddingtonRatio),
         (double, dFeedbackRate),
         (double, dAccEnergy),
         (float, fTimer),    /* Time of formation */
-        (int,   doReposition) // = 0 no; > 0 do it ; = 2 ignore gas criteria
+        (GAS_PIN, GasPin),
+        (bool, bForceReposition)
     );
 };
 

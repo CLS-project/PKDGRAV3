@@ -60,6 +60,8 @@
     #include "blackhole/evolve.h"
     #include "blackhole/seed.h"
     #include "blackhole/init.h"
+    #include "blackhole/drift.h"
+    #include "blackhole/accretion.h"
 #endif
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -127,10 +129,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   0,sizeof(struct outCalcEandL));
     mdlAddService(mdl,PST_DRIFT,pst,(fcnService_t *)pstDrift,
                   sizeof(struct inDrift),0);
-    // IA: New PST functions
-    mdlAddService(mdl,PST_RESETFLUXES,pst,
-                  (fcnService_t *) pstResetFluxes,
-                  sizeof(struct inDrift),0);
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
                   (fcnService_t *) pstEndTimestepIntegration,
                   sizeof(struct inEndTimestep),0);
@@ -175,7 +173,7 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstBHInit,
                   sizeof(struct inPlaceBHSeed), 0);
     mdlAddService(mdl,PST_BH_REPOSITION,pst,
-                  (fcnService_t *) pstRepositionBH,
+                  (fcnService_t *) pstBHReposition,
                   0, 0);
     mdlAddService(mdl,PST_BH_ACCRETION,pst,
                   (fcnService_t *) pstBHAccretion,
@@ -1050,15 +1048,15 @@ int pstBHInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 
 }
-int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstBHReposition(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_REPOSITION,NULL,0);
-        pstRepositionBH(pst->pstLower,vin,nIn,vout,nOut);
+        pstBHReposition(pst->pstLower,vin,nIn,vout,nOut);
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
         LCL *plcl = pst->plcl;
-        pkdRepositionBH(plcl->pkd);
+        pkdBHReposition(plcl->pkd);
     }
     return 0;
 
@@ -1447,22 +1445,6 @@ int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 #endif
-
-int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inDrift *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESETFLUXES,in,nIn);
-        pstResetFluxes(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        pkdResetFluxes(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
-    }
-    return 0;
-}
 
 #ifdef DEBUG_CACHED_FLUXES
 int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {

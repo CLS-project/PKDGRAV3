@@ -742,7 +742,7 @@ float stevExponentialNumSNIa(SMF *smf, meshless::STAR &star, float fInitialTime,
             expf(-(fFinalTime / (float)smf->dSNIaScale)));
 }
 
-float stevPowerlawNumSNIa(SMF *smf, STARFmeshless::STARIELDS &star, float fInitialTime, float fFinalTime) {
+float stevPowerlawNumSNIa(SMF *smf, meshless::STAR &star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
         return 0.0f;
     }

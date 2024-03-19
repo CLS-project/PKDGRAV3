@@ -40,6 +40,7 @@
     #include "blackhole/merger.h"
     #include "blackhole/evolve.h"
     #include "blackhole/step.h"
+    #include "blackhole/drift.h"
 #endif
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -240,7 +241,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     assert(smx->pSentinel != NULL);
     smx->pkd = pkd;
     smx->fcnSmoothNode = NULL;
-    smx->fcnSmoothGetNvars = NULL;
+    smx->fcnSmoothGetBufferInfo = NULL;
     smx->fcnSmoothFillBuffer = NULL;
     smx->fcnSmoothUpdate = NULL;
     if (smf != NULL) smf->pkd = pkd;
@@ -335,24 +336,11 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         bPacked = true;
         iPackSize = sizeof(hydroGradientsPack);
         break;
-    case SMX_HYDRO_FLUX:
-        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
-        smx->fcnSmooth = hydroRiemann;
-        initParticle = initHydroFluxes; /* Original Particle */
-        pack = packHydroFluxes;
-        unpack = unpackHydroFluxes;
-        init = initHydroFluxesCached; /* Cached copies */
-        flush = flushHydroFluxes;
-        comb = combHydroFluxes;
-        bPacked = true;
-        iPackSize = sizeof(hydroFluxesPack);
-        iFlushSize = sizeof(hydroFluxesFlush);
-        break;
 #ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
         assert (pkd->particles.present(PKD_FIELD::oSph));
-        smx->fcnSmoothNode = hydroRiemann_vec;
-        smx->fcnSmoothGetNvars = hydroFluxGetNvars;
+        smx->fcnSmoothNode = hydroRiemann_wrapper;
+        smx->fcnSmoothGetBufferInfo = hydroFluxGetBufferInfo;
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
         smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
         initParticle = initHydroFluxes; /* Original Particle */
@@ -412,18 +400,29 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         bPacked = true;
         iPackSize = sizeof(bhStepPack);
         break;
-    case SMX_BH_DRIFT:
-        smx->fcnSmooth = smBHevolve;
+    case SMX_BH_EVOLVE:
+        smx->fcnSmooth = smBHEvolve;
         initParticle = NULL; /* Original Particle */
-        pack = packBHevolve;
-        unpack = unpackBHevolve;
-        init = initBHevolve; /* Cached copies */
-        flush = flushBHevolve;
-        comb = combBHevolve;
+        pack = packBHEvolve;
+        unpack = unpackBHEvolve;
+        init = initBHEvolve; /* Cached copies */
+        flush = flushBHEvolve;
+        comb = combBHEvolve;
         smx->bSearchGasOnly = 1;
         bPacked = true;
         iPackSize = sizeof(bhEvolvePack);
         iFlushSize = sizeof(bhEvolveFlush);
+        break;
+    case SMX_BH_GASPIN:
+        smx->fcnSmooth = smBHGasPin;
+        initParticle = NULL; /* Original Particle */
+        pack = packBHGasPin;
+        unpack = unpackBHGasPin;
+        init = NULL; /* Cached copies */
+        comb = NULL;
+        smx->bSearchGasOnly = 1;
+        bPacked = true;
+        iPackSize = sizeof(bhGasPinPack);
         break;
 #endif
 #ifdef STELLAR_EVOLUTION
@@ -453,7 +452,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         assert(0);
     }
 
-    if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetNvars == NULL) ||
+    if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetBufferInfo == NULL) ||
                                            (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL) ) ) {
         fprintf(stderr, "ERROR: Trying to use particle buffer in node smooth,"
                 "but not all the required fuctions are set\n");
@@ -855,14 +854,9 @@ void smSmooth(SMX smx,SMF *smf) {
     smSmoothInitialize(smx);
     smf->pfDensity = NULL;
     switch (smx->iSmoothType) {
-    case SMX_BH_DRIFT:
-        for (auto &p : pkd->particles) {
-            if (p.is_bh()) {
-                smSmoothSingle(smx,smf,p,ROOT,0);
-            }
-        }
-        break;
+    case SMX_BH_EVOLVE:
     case SMX_BH_STEP:
+    case SMX_BH_GASPIN:
         for (auto &p : pkd->particles) {
             if (p.is_bh()) {
                 smSmoothSingle(smx,smf,p,ROOT,0);
@@ -1103,28 +1097,6 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         }
         break;
 
-    case SMX_BH_DRIFT:
-        for (auto &p : pkd->particles) {
-            if (p.is_bh()) {
-                smReSmoothSingle(smx,smf,p,p.ball());
-                nSmoothed++;
-            }
-        }
-        break;
-
-    case SMX_BH_STEP:
-        for (auto &p : pkd->particles) {
-            if (p.is_bh()) {
-                smReSmoothSingle(smx,smf,p,2.*p.soft());
-                nSmoothed++;
-            }
-        }
-        break;
-
-#ifdef FEEDBACK
-    /* IA: If computing the hydrostep, we also do the smooth over the newly formed stars that has not yet exploded, such that
-     *  they can increase the rung of the neighbouring gas particles before exploding
-     */
     case SMX_HYDRO_STEP:
         for (auto &p : pkd->particles) {
             if (p.is_gas()) {
@@ -1133,46 +1105,17 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
                     nSmoothed++;
                 }
             }
-            //else if (p.is_star()) {
-            //    if (!(p.star().bCCSNFBDone && p.star().bSNIaFBDone)) {
-            //         IA: In principle this does NOT improve the Isolated Galaxy case, as we wait until the end of the
-            //         step to update the primitive variables
-            //        smReSmoothSingle(smx,smf,p,p.ball());
-            //        nSmoothed++;
-            //    }
-            //}
         }
         break;
 
     case SMX_SN_FEEDBACK:
-        for (auto &p : pkd->particles) {
-            if (p.is_star()) {
-                const auto &star = p.star();
-                if (!star.bCCSNFBDone && ((smf->dTime - star.fTimer) > smf->dCCSNFBDelay)) {
-                    smSmoothSingle(smx,smf,p,ROOT,0);
-                    nSmoothed++;
-                }
-                if (!star.bSNIaFBDone && ((smf->dTime - star.fTimer) > smf->dSNIaFBDelay)) {
-                    smSmoothSingle(smx,smf,p,ROOT,0);
-                    nSmoothed++;
-                }
-            }
-        }
-        break;
-#endif
-#ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
-        for (auto &p : pkd->particles) {
-            if (p.is_star()) {
-                const auto &star = p.star();
-                if (smf->dTime > star.fNextEnrichTime) {
-                    smReSmoothSingle(smx,smf,p,p.ball());
-                    nSmoothed++;
-                }
-            }
-        }
+    case SMX_BH_EVOLVE:
+    case SMX_BH_STEP:
+    case SMX_BH_GASPIN:
+        assert(0);
         break;
-#endif
+
     default:
         for (auto &p : pkd->particles) {
             if (p.is_active() && p.is_gas()) {
@@ -1188,29 +1131,18 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 #ifdef OPTIM_SMOOTH_NODE
 
 /* Allocate a buffer for N particles each one with nVar variables.
- * Also allocate an array of pointers to the beggining of each variable array
  *
  * If oldBuff is present, the new buffer is initialized with the contents of
  * oldBuff, with a size oldN
  */
-void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff,
-                                   my_real ***p_ptrs, my_real *oldBuff, const int oldN) {
+void static inline allocNodeBuffer(const int N, const int nVar, meshless::myreal **p_buff,
+                                   meshless::myreal *oldBuff, const int oldN) {
 
     assert(oldN < N);
 
-    *p_buff = new (std::align_val_t(64)) my_real[N*nVar];
+    *p_buff = new (std::align_val_t(64)) meshless::myreal[N*nVar];
     assert(*p_buff!=NULL);
-    if (oldBuff == NULL) {
-        *p_ptrs = new (std::align_val_t(64)) my_real*[nVar];
-        assert(*p_ptrs!=NULL);
-    }
-
     meshless::myreal *buff = *p_buff;
-    meshless::myreal **ptrs = *p_ptrs;
-
-    // Fill pointer array
-    for (int i=0; i<nVar; i++)
-        ptrs[i] = &buff[i*N];
 
     // Fill if requested
     if (oldBuff != NULL)
@@ -1220,12 +1152,12 @@ void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff
 
 }
 
-void static inline reallocNodeBuffer(const int N, const int nVar, my_real **p_buff,
-                                     my_real ***p_ptrs, const int oldN) {
+void static inline reallocNodeBuffer(const int N, const int nVar, meshless::myreal **p_buff,
+                                     const int oldN) {
 
-    my_real *tmp_buffer;
+    meshless::myreal *tmp_buffer;
 
-    allocNodeBuffer(N, nVar, &tmp_buffer, p_ptrs, *p_buff, oldN);
+    allocNodeBuffer(N, nVar, &tmp_buffer, *p_buff, oldN);
 
     delete [] *p_buff;
 
@@ -1266,15 +1198,13 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
      *  Having everything in the same buffer can be advantageous as it should
      *  be in cache, but it was painful to code...
      */
-    my_real *input_buffer = NULL;
-    my_real **input_pointers = NULL;
-    my_real *output_buffer = NULL;
-    my_real **output_pointers = NULL;
+    meshless::myreal *input_buffer = NULL;
+    meshless::myreal *output_buffer = NULL;
     int inNvar, outNvar;
-    if (smx->fcnSmoothGetNvars) {
-        smx->fcnSmoothGetNvars(&inNvar, &outNvar);
-        allocNodeBuffer(nnListMax_p, inNvar, &input_buffer, &input_pointers, NULL,0);
-        allocNodeBuffer(nnListMax_p, outNvar, &output_buffer, &output_pointers, NULL,0);
+    if (smx->fcnSmoothGetBufferInfo) {
+        smx->fcnSmoothGetBufferInfo(&inNvar, &outNvar);
+        allocNodeBuffer(nnListMax_p, inNvar, &input_buffer, NULL,0);
+        allocNodeBuffer(nnListMax_p, outNvar, &output_buffer, NULL,0);
     }
 
     double fBall_factor = 1.;
@@ -1441,18 +1371,18 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                             // Try pointer to pPart declared as restrict, to check if compiler does something better
 
-                            if (nCnt_p >= nnListMax_p) {
+                            if (nCnt_p+dvec::width() >= nnListMax_p) {
                                 nnListMax_p += NNLIST_INCREMENT;
                                 nnList_p = static_cast<NN *>(realloc(nnList_p,nnListMax_p*sizeof(NN)));
                                 assert(nnList_p != NULL);
-                                if (smx->fcnSmoothGetNvars) {
+                                if (smx->fcnSmoothGetBufferInfo) {
                                     printf("WARNING: Increasing smoothNode buffer size to %d\n",
                                            nnListMax_p);
                                     int oldListMax = nnListMax_p - NNLIST_INCREMENT;
                                     reallocNodeBuffer(nnListMax_p, inNvar,
-                                                      &input_buffer, &input_pointers, oldListMax);
+                                                      &input_buffer, oldListMax);
                                     reallocNodeBuffer(nnListMax_p, outNvar,
-                                                      &output_buffer, &output_pointers, oldListMax);
+                                                      &output_buffer, oldListMax);
                                 }
                             }
 
@@ -1466,7 +1396,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                             if (smx->fcnSmoothFillBuffer) {
                                 PARTICLE *q = nnList_p[nCnt_p].pPart;
 
-                                smx->fcnSmoothFillBuffer(input_pointers, q, nCnt_p,
+                                smx->fcnSmoothFillBuffer(input_buffer, q, nCnt_p, nnListMax_p,
                                                          fDist2, dr, smf);
                             }
 
@@ -1480,11 +1410,11 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                     //assert(nCnt_p<200);
 
                     if (smx->fcnSmoothNode) {
-                        smx->fcnSmoothNode(&partj,partj.ball(),nCnt_p,
-                                           input_pointers, output_pointers, smf);
+                        smx->fcnSmoothNode(&partj,partj.ball(),nCnt_p, nnListMax_p,
+                                           input_buffer, output_buffer, smf);
                         for (auto pk = 0; pk < nCnt_p; ++pk) {
-                            smx->fcnSmoothUpdate(output_pointers,input_pointers,
-                                                 &partj, nnList_p[pk].pPart, pk, smf);
+                            smx->fcnSmoothUpdate(output_buffer,input_buffer,
+                                                 &partj, nnList_p[pk].pPart, pk, nnListMax_p, smf);
                         }
                     }
                     else {
@@ -1503,11 +1433,9 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
         }
     }
-    if (smx->fcnSmoothGetNvars) {
+    if (smx->fcnSmoothGetBufferInfo) {
         delete [] input_buffer;
-        delete [] input_pointers;
         delete [] output_buffer;
-        delete [] output_pointers;
     }
     free(nnList_p);
     //printf("nSmoothed %d \n", nSmoothed);

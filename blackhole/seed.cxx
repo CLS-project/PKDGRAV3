@@ -29,13 +29,6 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     nGas -= out.nBHs;
     nBH += out.nBHs;
     printf("Planted %d BH seeds \n", out.nBHs);
-
-
-#ifdef OPTIM_REORDER_IN_NODES
-    if (out.nBHs > 0)
-        ReorderWithinNodes();
-#endif
-
 }
 
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
@@ -56,7 +49,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             float dTauSearch = dTau*0.02;
             while (!(smx->nnListSize > 100 || dTauSearch >= dTau)) {
                 smx->nnListSize = 0;
-                smGather(smx,dTauSearch,pkd->veryTinyGroupTable[gid].rPot);
+                smGather(smx,dTauSearch*dTauSearch,pkd->veryTinyGroupTable[gid].rPot);
                 dTauSearch *= 2.0;
             }
 
@@ -78,6 +71,10 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             assert(ii < smx->nnList+smx->nnListSize);
             assert(ii->iPid == pkd->Self());
             auto pLowPot = pkd->particles[ii->pPart];
+
+            // Since we looked for neighbours within a distance at most equal to the
+            // linking length, the selected particle MUST be part of the group
+            assert(pLowPot.group() == gid);
 
             // IA: We require the density to be above the SF threshold
             if (pLowPot.density() < dDenMin) continue;
@@ -104,14 +101,13 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             // dirty stuff
             bh.omega = omega;
             bh.dInternalMass = dBHSeedMass;
-            bh.newPos[0] = -1; // Ask for a reposition
             bh.lastUpdateTime = dTime;
             bh.dAccretionRate = 0.0;
             bh.dEddingtonRatio = 0.0;
             bh.dFeedbackRate = 0.0;
             bh.dAccEnergy = 0.0;
             bh.fTimer = dTime;
-            bh.doReposition = 2;
+            bh.bForceReposition = true;
 
             // As the particle that was converted to a BH lies in a very
             // dense environment it will probably have a high rung, so
@@ -159,7 +155,6 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             pBH.lastUpdateTime = dTime;
             pBH.fTimer = dTime;
             pBH.dInternalMass = *pmass;
-            pBH.newPos[0] = -1;
 
             // TODO: Check in output that this is coherent with the rest of particles in the group
             p.set_group(gid);

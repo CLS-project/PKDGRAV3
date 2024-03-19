@@ -32,10 +32,10 @@ void MSR::SetStarFormationParam() {
     calc.dSFThresholdDen = parameters.get_dSFThresholdDen() * dnHToRho; // Code physical density now
     const double Msolpcm2 = 1. / units.dMsolUnit *
                             pow(units.dKpcUnit*1e3, 2);
-    calc.dSFnormalizationKS *= 1. / units.dMsolUnit *
-                               units.dSecUnit/SECONDSPERYEAR *
-                               pow(units.dKpcUnit, 2) *
-                               pow(Msolpcm2,-parameters.get_dSFindexKS());
+    calc.dSFnormalizationKS = parameters.get_dSFnormalizationKS() / units.dMsolUnit *
+                              units.dSecUnit/SECONDSPERYEAR *
+                              pow(units.dKpcUnit, 2) *
+                              pow(Msolpcm2,-parameters.get_dSFindexKS());
 }
 
 int MSR::ValidateStarFormationParam() {
@@ -273,7 +273,7 @@ static inline double pressure_SFR(const float fMass, const float fDens,
     //         above the polytropic eEOS
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     const double maxUint = 3.16228 * fMass *
-                           eEOSEnergyFloor(a_m3, fDens, fBall, dConstGamma, eEOS);
+                           eEOSEnergyFloor<vec<double,double>,mmask<bool>>(a_m3, fDens, fBall, dConstGamma, eEOS);
 #else
     // This configuration is allowed, but can easily produce numerical fragmentation!!!
     const double maxUint = INFINITY;
@@ -289,7 +289,7 @@ static inline double pressure_SFR(const float fMass, const float fDens,
     const double dUint = sph.Uint;
 #endif
 
-    if (dUint > maxUint || fDens < dThreshDen) {
+    if (std::max(dUint,sph.lastUint) > maxUint || fDens < dThreshDen) {
         return 0.0;
     }
 

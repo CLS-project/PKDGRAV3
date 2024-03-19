@@ -154,7 +154,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         redshift = 0.0;
 
     CoolingInit(redshift);
-    CoolingUpdate(redshift, 1);
+    CoolingUpdate(redshift);
 #endif
 
 #ifdef GRACKLE
@@ -212,6 +212,13 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             GridDeleteFFT();
         }
     }
+
+    const bool bDoStartOutput = parameters.get_bWriteIC() && !parameters.has_nGrid() && !NewSPH();
+    const bool bDoStartFof =  parameters.get_bFindGroups() && ( bDoStartOutput || parameters.get_bBHPlaceSeed() );
+    if (bDoStartFof) {
+        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
+    }
+
     if (NewSPH()) {
         // Calculate Density
         SelAll(-1,1);
@@ -267,11 +274,11 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
-    if (parameters.get_bFindGroups() && parameters.get_bBHPlaceSeed()) {
-        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
+#endif
+
+    if (bDoStartFof) {
         GroupStats();
     }
-#endif
 
     double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -283,18 +290,12 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                        E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
     }
 
-    if (parameters.get_bWriteIC() && !parameters.has_nGrid() && !NewSPH()) {
-#ifndef BLACKHOLES
-        if (parameters.get_bFindGroups()) {
-            NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
-            GroupStats();
-        }
-#endif
+    if (bDoStartOutput) {
         Output(iStartStep,dTime,dDelta,0);
     }
 
     // Make sure that the tree is usable before the start of the simulation
-    if (parameters.get_bFindGroups() || parameters.get_bWriteIC()) {
+    if (bDoStartFof || bDoStartOutput) {
         DomainDecomp();
         BuildTree(bEwald);
     }
@@ -469,6 +470,12 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
+    if (parameters.has_dRedSync() && !parameters.has_nStepsSync()) {
+        fprintf(stderr, "ERROR: dRedSync is given but not nStepsSync. Please set nStepsSync or\n");
+        fprintf(stderr, "       unset dRedSync.\n");
+        return 0;
+    }
+
     HYDRO_MODEL model(HYDRO_MODEL::NONE);
 
     //****************************************************************************************************************************************************
@@ -535,12 +542,65 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
+    if (model == HYDRO_MODEL::MFM || model == HYDRO_MODEL::MFV) {
+        if (parameters.get_bNewKDK()) {
+            parameters.set_bNewKDK(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bNewKDK. "
+                    "Setting bNewKDK to false\n");
+        }
+        if (parameters.get_bDualTree()) {
+            parameters.set_bDualTree(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bDualTree. "
+                    "Setting bDualTree to false\n");
+        }
+        if (parameters.get_bMemIntegerPosition()) {
+            parameters.set_bMemIntegerPosition(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bMemIntegerPosition. "
+                    "Setting bMemIntegerPosition to false\n");
+        }
+        if (!parameters.get_bMemUnordered()) {
+            parameters.set_bMemUnordered(true);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics requires bMemUnordered. "
+                    "Setting bMemUnordered to true\n");
+        }
+#ifndef USE_MFM
+        if (!parameters.get_bMemMass()) {
+            parameters.set_bMemMass(true);
+            fprintf(stderr,"WARNING: Meshless Finite Volume scheme requires bMemMass. "
+                    "Setting bMemMass to true\n");
+        }
+#endif
+#ifdef COOLING
+        if (parameters.get_bComove()) {
+            if (!parameters.has_nStepsSync()) {
+                fprintf(stderr,"ERROR: Meshless hydrodynamics with cooling requires nStepsSync, "
+                        "please set it.\n");
+                return 0;
+            }
+            if (parameters.has_dRedSync()) {
+                fprintf(stderr,"WARNING: Meshless hydrodynamics with cooling requires dRedSync "
+                        "to be set to the redshift of Hydrogen reionization, as set in parameter "
+                        "fH_reion_z. Setting dRedSync to the value of fH_reion_z.\n");
+            }
+            parameters.set_dRedSync(parameters.get_fH_reion_z());
+        }
+#endif
+    }
+
 #ifdef BLACKHOLES
-    if  (!ValidateBlackholeParam()) return 0;
+    if (!ValidateBlackholeParam()) return 0;
 #endif
 
 #ifdef STAR_FORMATION
-    if  (!ValidateStarFormationParam()) return 0;
+    if (!ValidateStarFormationParam()) return 0;
+#endif
+
+#ifdef STELLAR_EVOLUTION
+    if (parameters.get_bChemEnrich() && !parameters.get_bMemMass()) {
+        parameters.set_bMemMass(true);
+        fprintf(stderr,"WARNING: Chemical enrichment requires bMemMass. "
+                "Setting bMemMass to true\n");
+    }
 #endif
 
     if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {
@@ -563,7 +623,7 @@ int MSR::ValidateParameters() {
 
 #ifndef USE_HDF5
     if (parameters.get_bHDF5()) {
-        printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
+        printf("WARNING: HDF5 output was requested but it is not supported: using Tipsy format\n");
         parameters.set_bHDF5(false);
     }
 #endif
@@ -690,12 +750,6 @@ int MSR::ValidateParameters() {
                 "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
     }
 
-    /*
-    ** Check if fast gas boundaries are needed.
-    */
-    if (DoGas() && !NewSPH()) {
-        parameters.set_bMemNodeSphBounds(1);
-    }
     /*
     ** Check timestepping and gravity combinations.
     */

@@ -56,9 +56,7 @@ typedef struct smfParameters {
     double dConstGamma;
     double dhMinOverSoft;
     double dNeighborsStd;
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     struct eEOSparam eEOS;
-#endif
 #ifdef FEEDBACK
     double dSNFBDu;
     double dCCSNFBDelay;
@@ -170,9 +168,10 @@ enum SMOOTH_TYPE {
     SMX_HYDRO_FLUX_VEC,
     SMX_SN_FEEDBACK,
     SMX_BH_MERGER,
-    SMX_BH_DRIFT,
+    SMX_BH_EVOLVE,
     SMX_BH_STEP,
-    SMX_CHEM_ENRICHMENT, // #ifdef STELLAR_EVOLUTION
+    SMX_BH_GASPIN,
+    SMX_CHEM_ENRICHMENT,
 };
 
 //#define SMX_NULL                            0
@@ -183,23 +182,6 @@ void initDensity(void *,void *);
 void combDensity(void *,void *,const void *);
 void Density(PARTICLE *,float fBall,int,NN *,SMF *);
 void DensitySym(PARTICLE *,float fBall,int,NN *,SMF *);
-
-//#define SMX_HYDRO_DENSITY     40
-//#define SMX_HYDRO_DENSITY_FINAL 41
-//#define SMX_HYDRO_GRADIENT    42
-//#define SMX_HYDRO_FLUX        43
-//#define SMX_HYDRO_STEP        44
-//#define SMX_HYDRO_FLUX_VEC    45
-
-//#define SMX_SN_FEEDBACK       50
-
-//#define SMX_BH_MERGER         55
-//#define SMX_BH_DRIFT          56
-//#define SMX_BH_STEP           57
-
-//#ifdef STELLAR_EVOLUTION
-//    #define SMX_CHEM_ENRICHMENT   60
-//#endif
 
 //#define SMX_PRINTNN                            9
 void PrintNN(PARTICLE *,float fBall,int,NN *,SMF *);

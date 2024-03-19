@@ -359,7 +359,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
     if ( mMemoryModel & PKD_MODEL_VELOCITY && sizeof(vel_t) == sizeof(double))
         particles.add<double[3]>(PKD_FIELD::oVelocity,"v");
-    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"v");
+    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"r");
     if ( mMemoryModel & PKD_MODEL_SPH )
 #ifdef OPTIM_UNION_EXTRAFIELDS
         particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
@@ -851,14 +851,13 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             if (p.have_bh()) {
                 auto &BH = p.BH();
                 BH.omega  = 0.;
-                BH.fTimer = fTimer;
-                BH.pLowPot = NULL;
-                BH.newPos[0] = -1;
-                BH.lastUpdateTime = -1.;
                 BH.dInternalMass = otherData[0];
+                BH.lastUpdateTime = -1.;
                 BH.dAccretionRate = otherData[1];
-                BH.dAccEnergy = otherData[2];
                 BH.dFeedbackRate = 0.0;
+                BH.dAccEnergy = otherData[2];
+                BH.fTimer = fTimer;
+                BH.bForceReposition = false;
             }
             break;
         default:
@@ -1451,8 +1450,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                 float ph = 0.5 * p.ball();
                 float otherData[3];
                 otherData[0] = SFR;
-                // We may have problem if the number of groups increses more than 2^24, but should be enough
-                otherData[1] = p.have_group() ? p.group() : 0;
+                // Casting integers to floats will become a problem if the number of groups
+                // reaches 2^24, but for the moment we have to live with it
+                otherData[1] = p.have_global_gid() ? p.global_gid() : -1.;
 #ifdef HAVE_METALLICITY
                 otherData[2] = Sph.fMetalMass / fMass;
 #endif
@@ -1464,7 +1464,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
         break;
     case FIO_SPECIES_DARK: {
         float otherData[2];
-        otherData[0] = p.have_group() ? p.group() : 0;
+        otherData[0] = p.have_global_gid() ? p.global_gid() : -1.;
         fioWriteDark(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity, &otherData[0]);
     }
     break;
@@ -1475,7 +1475,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
 #endif
         float otherData[6];
         otherData[0] = Star.fTimer;
-        otherData[1] = p.have_group() ? p.group() : 0;
+        otherData[1] = p.have_global_gid() ? p.global_gid() : -1.;
 #ifdef STELLAR_EVOLUTION
         otherData[2] = Star.fMetalAbun;
         otherData[3] = Star.fInitialMass;
@@ -1497,7 +1497,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
         otherData[2] = BH.dEddingtonRatio;
         otherData[3] = BH.dFeedbackRate;
         otherData[4] = BH.dAccEnergy;
-        otherData[5] = p.have_group() ? p.group() : 0;
+        otherData[5] = p.have_global_gid() ? p.global_gid() : -1.;
         fioWriteBH(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
                    otherData,fTimer);
     }
@@ -1640,9 +1640,9 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
     numPart_file[0] = nGas;
     numPart_file[1] = nDark;
     numPart_file[2] = 0;
-    numPart_file[3] = nBH;
+    numPart_file[3] = 0;
     numPart_file[4] = nStar;
-    numPart_file[5] = 0;
+    numPart_file[5] = nBH;
 
     fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
     fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
@@ -2266,6 +2266,8 @@ void pkdReorderWithinNodes(PKD pkd) {
             node->Nbh() = i - start;
         }
     }
+    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
+    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
 }
 #endif
 
@@ -2333,8 +2335,8 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 #if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
             // ##### Effective Equation Of State
             const double a_inv3 = 1. / (dScaleFactor * dScaleFactor * dScaleFactor);
-            const double dFlooru = eEOSEnergyFloor(a_inv3, p.density(), p.ball(),
-                                                   in.dConstGamma, in.eEOS);
+            const double dFlooru = eEOSEnergyFloor<vec<double,double>,mmask<bool>>(a_inv3, p.density(), p.ball(),
+                                   in.dConstGamma, in.eEOS);
             if (dFlooru != NOT_IN_EEOS) {
                 const double dEOSUint = p.mass() * dFlooru;
                 if (sph.Uint < dEOSUint) {
@@ -2356,6 +2358,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             // Set 'last*' variables for next timestep
             hydroSetLastVars(pkd, p, &sph, pa, dScaleFactor, in.dTime, in.dDelta, in.dConstGamma);
 
+            hydroResetFluxes(&sph);
         }
         else if (p.is_bh() && p.is_active()) {
 #ifdef BLACKHOLES
@@ -2774,6 +2777,8 @@ void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
         abort();
     }
     p.set_marked(false);
+    p.set_rung(0);
+    p.set_new_rung(0);
 }
 
 /* IA: We replace the deleted particles with those at the end of the particle array (which are still valid), making the tree

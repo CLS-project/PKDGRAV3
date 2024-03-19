@@ -29,7 +29,6 @@
 #include <string.h>
 
 /* Local includes. */
-#include "cooling_struct.h"
 #include "cooling_tables.h"
 #include "interpolate.h"
 #include "pkd_config.h"
@@ -68,7 +67,7 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
         }
 
         /* Be verbose about it */
-        printf("Found cooling tables at %d redhsifts\n", N_Redshifts);
+        printf("Found cooling tables at %d redshifts\n", N_Redshifts);
 
         /* Check value */
         if (N_Redshifts != eagle_cooling_N_redshifts) {

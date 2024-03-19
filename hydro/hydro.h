@@ -14,12 +14,53 @@
 template<typename T>
 int sign(T v) {return (v>0) - (v<0);}
 
-typedef double my_real;
-
 /* -----------------
  * MAIN FUNCTIONS AND CLASSES
  * -----------------
  */
+
+// Cubic spline kernel as defined in Dehnen & Aly (2012)
+//
+// (1 − q)^3 − 4(1/2 − q)^3  for   0 < q <= 1/2
+//                (1 − q)^3  for 1/2 < q <= 1
+//                        0  for       q > 1
+//
+// where q = r/H.
+template <typename dtype=double, typename mtype=bool>
+inline dtype cubicSplineKernel(dtype r, dtype H) {
+    const dtype dNormFac = 16 * M_1_PI;
+    const dtype dHInv = 1.0 / H;
+    const dtype q = r * dHInv;
+    const dtype dNorm = dNormFac * dHInv * dHInv * dHInv;
+
+    if (q < 0.5) {
+        return dNorm * (0.5 - 3 * q * q * (1.0 - q));
+    }
+    else if (q < 1.0) {
+        return dNorm * (1.0 - q) * (1.0 - q) * (1.0 - q);
+    }
+    else {
+        return 0.0;
+    }
+}
+
+#ifdef SIMD_H
+template <>
+inline dvec cubicSplineKernel(dvec r, dvec H) {
+    const dvec dNormFac = 16 * M_1_PI;
+    const dvec dHInv = 1.0 / H;
+    const dvec q = r * dHInv;
+    const dvec dNorm = dNormFac * dHInv * dHInv * dHInv;
+    const dvec oneMq = 1.0 - q;
+    dvec out = 0.0;
+    dvec t;
+    t = dNorm * oneMq * oneMq * oneMq;
+    out = mask_mov(out, q<1.0, t);
+    t = dNorm * (0.5 - 3 * q * q * oneMq);
+    out = mask_mov(out, q<0.5, t);
+    return out;
+}
+#endif
 
 /* Density loop */
 struct hydroDensityPack {
@@ -78,27 +119,30 @@ struct hydroFluxesFlush {
     blitz::TinyVector<double,3> mom;
     double E;
     double Uint;
+#ifndef USE_MFM
     float fMass;
+#endif
 };
 
-void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
-                      my_real **restrict input_buffer,
-                      my_real **restrict output_buffer,
-                      SMF *smf);
 void packHydroFluxes(void *vpkd,void *dst,const void *src);
 void unpackHydroFluxes(void *vpkd,void *dst,const void *src);
 void initHydroFluxes(void *vpkd,void *vp);
 void initHydroFluxesCached(void *vpkd,void *vp);
+void hydroRiemann(PARTICLE *p,float fBall,int nSmooth, int nBuff,
+                  meshless::myreal *restrict input_buffer,
+                  meshless::myreal *restrict output_buffer,
+                  SMF *smf);
+void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
+                          meshless::myreal *restrict input_buffer,
+                          meshless::myreal *restrict output_buffer,
+                          SMF *smf);
 void flushHydroFluxes(void *vpkd,void *dst,const void *src);
 void combHydroFluxes(void *vpkd,void *p1,const void *p2);
-void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i,
+void hydroFluxFillBuffer(meshless::myreal *input_buffer, PARTICLE *q, int i, int nBuff,
                          double dr2, blitz::TinyVector<double,3> dr, SMF *);
-void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
-                               PARTICLE *p, PARTICLE *q, int i, SMF *);
-void hydroFluxGetNvars(int *in, int *out);
-
-void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
+void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal *input_buffer,
+                               PARTICLE *p, PARTICLE *q, int i, int nBuff, SMF *);
+void hydroFluxGetBufferInfo(int *in, int *out);
 
 /* Time step loop */
 struct hydroStepPack {
@@ -139,95 +183,17 @@ void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, meshless::
 void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                       const blitz::TinyVector<double,3> &pa, double dScaleFactor,
                       double dTime, double dDelta, double dConstGamma);
+void hydroResetFluxes(meshless::FIELDS *psph);
 
 /* -----------------
  * HELPERS
  * -----------------
  */
+#define SIGN(x) (((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
+#define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
+#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
-
-// Cubic spline kernel as defined in Dehnen & Aly (2012)
-//
-// (1 − q)^3 − 4(1/2 − q)^3  for   0 < q <= 1/2
-//                (1 − q)^3  for 1/2 < q <= 1
-//                        0  for       q > 1
-//
-// where q = r/H.
-inline double cubicSplineKernel(double r, double H) {
-    constexpr double dNormFac = 16 * M_1_PI;
-    double dHInv = 1.0 / H;
-    double q = r * dHInv;
-    double dNorm = dNormFac * dHInv * dHInv * dHInv;
-
-    if (q < 0.5) {
-        return dNorm * (0.5 - 3 * q * q * (1.0 - q));
-    }
-    else if (q < 1.0) {
-        return dNorm * (1.0 - q) * (1.0 - q) * (1.0 - q);
-    }
-    else {
-        return 0.0;
-    }
-}
-
-void BarthJespersenLimiter(double *limVar, const blitz::TinyVector<double,3> &gradVar,
-                           double var_max, double var_min,
-                           const blitz::TinyVector<double,3> &dr);
-void ConditionedBarthJespersenLimiter(double *limVar, const blitz::TinyVector<meshless::myreal,3> &gradVar,
-                                      double var_max, double var_min,
-                                      const blitz::TinyVector<double,3> &dr,
-                                      double Ncrit, double Ncond);
-#define psi1 0.5
-#define psi2 0.25
-#pragma omp declare simd
-inline void genericPairwiseLimiter(double Lstate, double Rstate,
-                                   double *Lstate_face, double *Rstate_face) {
-#ifdef DEBUG_FLUX_NOLIMITER
-    return;
-#endif
-    double phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
-
-    if (Lstate == Rstate) {
-        *Lstate_face = Lstate;
-        *Rstate_face = Rstate;
-    }
-    else {
-
-        d1 = psi1*fabs(Lstate - Rstate);
-        d2 = psi2*fabs(Lstate - Rstate);
-
-        phi_mean = 0.5*(Lstate+Rstate);
-
-        phi_min = std::min(Lstate, Rstate);
-        phi_max = std::max(Lstate, Rstate);
-
-        if (sign(phi_min - d1) == sign(phi_min) ) {
-            phi_m = phi_min - d1;
-        }
-        else {
-            phi_m = phi_min/(1. + d1/fabs(phi_min));
-        }
-
-        if (sign(phi_max + d1) == sign(phi_max) ) {
-            phi_p = phi_max + d1;
-        }
-        else {
-            phi_p = phi_max/(1. + d1/fabs(phi_max));
-        }
-
-        if (Lstate < Rstate) {
-            *Lstate_face = std::max(phi_m, std::min(phi_mean+d2, *Lstate_face));
-            *Rstate_face = std::min(phi_p, std::max(phi_mean-d2, *Rstate_face));
-        }
-        else {
-            *Rstate_face = std::max(phi_m, std::min(phi_mean+d2, *Rstate_face));
-            *Lstate_face = std::min(phi_p, std::max(phi_mean-d2, *Lstate_face));
-        }
-
-    }
-
-}
 void compute_Ustar(double rho_K, double S_K, double v_K,
                    double p_K, double h_K, double S_s,
                    double *rho_sK, double *rhov_sK, double *e_sK);

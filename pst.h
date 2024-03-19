@@ -112,7 +112,6 @@ enum pst_service {
     PST_LIGHTCONE,
     PST_CALCEANDL,
     PST_DRIFT,
-    PST_RESETFLUXES,
     PST_COMPUTEPRIMVARS,
     PST_WAKEPARTICLES,
 #ifdef DEBUG_CACHED_FLUXES
@@ -517,7 +516,7 @@ struct outPlaceBHSeed {
 };
 int pstPlaceBHSeed(PST,void *,int,void *,int);
 int pstBHInit(PST,void *,int,void *,int);
-int pstRepositionBH(PST,void *,int,void *,int);
+int pstBHReposition(PST,void *,int,void *,int);
 struct inBHAccretion {
     double dScaleFactor;
 };
@@ -614,7 +613,6 @@ struct inDrift {
     int bDoGas;
 };
 int pstDrift(PST,void *,int,void *,int);
-int pstResetFluxes(PST,void *,int,void *,int);
 int pstEndTimestepIntegration(PST,void *,int,void *,int);
 int pstWakeParticles(PST,void *,int,void *,int);
 struct outFluxStats {

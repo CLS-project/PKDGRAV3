@@ -21,6 +21,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(TARGET_ARCHITECTURE "auto" CACHE STRING "CPU architecture to optimize for.")
 if(TARGET_ARCHITECTURE STREQUAL "auto")
@@ -305,10 +306,100 @@ endif(Python3_Development_FOUND)
 
 set(USE_SIMD "yes" CACHE STRING "Should SIMD be used.")
 if(USE_SIMD)
-#if USE_SIMD_FMM
-target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
-#endif
-target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
+   # check_symbol_exists does not work for intrinsics..
+   include(CheckCSourceCompiles)
+   set(CMAKE_REQUIRED_FLAGS -march=native)
+   set(CMAKE_REQUIRED_LIBRARIES m)
+   check_c_source_compiles("
+       #include <immintrin.h>
+       int main() {
+         __m128d a, b;
+         __m128d tmp = _mm_pow_pd(a, b);
+         return 0;
+       }
+     "
+     HAVE_MM_POW
+   )
+   if(HAVE_MM_POW)
+      target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM_POW)
+   else(HAVE_MM_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m128d _ZGVbN2vv_pow(__m128d x, __m128d y);
+           int main() {
+             __m128d a, b;
+             __m128d tmp = _ZGVbN2vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM_POW
+       )
+       if(HAVE_LIBVECM_POW)
+           target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_LIBVECM_POW)
+       endif(HAVE_LIBVECM_POW)
+   endif(HAVE_MM_POW)
+   check_c_source_compiles("
+       #include <immintrin.h>
+       int main() {
+         __m256d a, b;
+         __m256d tmp = _mm256_pow_pd(a, b);
+         return 0;
+       }
+     "
+     HAVE_MM256_POW
+   )
+   if(HAVE_MM256_POW)
+      target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM256_POW)
+   else(HAVE_MM256_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m256d _ZGVdN4vv_pow(__m256d x, __m256d y);
+           int main() {
+             __m256d a, b;
+             __m256d tmp = _ZGVdN4vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM256_POW
+       )
+       if(HAVE_LIBVECM256_POW)
+           target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_LIBVECM256_POW)
+       endif(HAVE_LIBVECM256_POW)
+   endif(HAVE_MM256_POW)
+   check_c_source_compiles("
+       #include <immintrin.h>
+       int main() {
+         __m512d a, b;
+         __m512d tmp = _mm512_pow_pd(a, b);
+         return 0;
+       }
+     "
+     HAVE_MM512_POW
+   )
+   if(HAVE_MM512_POW)
+      target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM512_POW)
+   else(HAVE_MM512_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m512d _ZGVeN8vv_pow(__m512d x, __m512d y);
+           int main() {
+             __m512d a, b;
+             __m512d tmp = _ZGVeN8vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM512_POW
+       )
+       if(HAVE_LIBVECM512_POW)
+           target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_LIBVECM512_POW)
+       endif(HAVE_LIBVECM512_POW)
+   endif()
+   #if USE_SIMD_FMM
+   target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
+   #endif
+   #if USE_SIMD_LC
+   target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
+   #endif
 endif()
 
 foreach(flag_var
@@ -463,9 +554,15 @@ endif(STELLAR_EVOLUTION)
 
 option(HERNQUIST_POTENTIAL "Add the contribution of DM using a Hernquist potential" OFF)
 if (HERNQUIST_POTENTIAL)
-  target_compile_options(${PROJECT_NAME} PRIVATE -DHERNQUIST_POTENTIAL)
+  target_compile_options(${PROJECT_NAME} PRIVATE -DEXTERNAL_POTENTIAL -DHERNQUIST_POTENTIAL)
   message("-- Analytical gravity ACTIVE -> Hernquist potential")
 endif(HERNQUIST_POTENTIAL)
+
+option(NFW_POTENTIAL "Add the contribution of DM using a NFW potential" OFF)
+if (NFW_POTENTIAL)
+  target_compile_options(${PROJECT_NAME} PRIVATE -DEXTERNAL_POTENTIAL -DNFW_POTENTIAL)
+  message("-- Analytical gravity ACTIVE -> NFW potential")
+endif(NFW_POTENTIAL)
 
 option(BLACKHOLES "Activate black hole model" OFF)
 if (BLACKHOLES)
@@ -475,6 +572,8 @@ if (BLACKHOLES)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/evolve.cxx)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/init.cxx)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/step.cxx)
+  target_sources(${PROJECT_NAME} PRIVATE  blackhole/drift.cxx)
+  target_sources(${PROJECT_NAME} PRIVATE  blackhole/accretion.cxx)
   message("-- Black holes are ACTIVE")
 endif(BLACKHOLES)
 option(DEBUG_BH_NODRIFT "Deactivate BH drift by the gas" OFF)
@@ -485,6 +584,7 @@ endif(DEBUG_BH_NODRIFT)
 option(DEBUG_BH_ONLY "Allow for BH-only simulations for debugging purposes" OFF)
 if (DEBUG_BH_ONLY)
    target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_BH_ONLY)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_BH_NODRIFT)
    message("-- Allow for BH-only simulations for debugging purposes")
 endif(DEBUG_BH_ONLY)
 
@@ -615,6 +715,10 @@ add_test(NAME select    COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/test
 add_test(NAME fof   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/foftest.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 if(EOSLIB_PATH AND ANEOSMATERIAL_PATH)
 add_test(NAME NewSPH   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/NewSPH.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()
+
+if(NOT CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
+  file(CREATE_LINK ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json SYMBOLIC)
 endif()
 
 #target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})

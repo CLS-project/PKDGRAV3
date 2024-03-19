@@ -37,7 +37,7 @@ void cooling_cool_part(PKD pkd, const struct cooling_function_data *cooling,
                        const float delta_redshift, const double redshift);
 float cooling_get_temperature(PKD pkd, const float redshift,
                               const struct cooling_function_data *restrict cooling,
-                              particleStore::Particle &p, mfm:FIELDS *psph);
+                              particleStore::Particle &p, meshless::FIELDS *psph);
 #ifdef __cplusplus
 }
 #endif

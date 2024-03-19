@@ -1,5 +1,6 @@
 #include <algorithm>
 #include "hydro/hydro.h"
+#include "hydro/limiters.h"
 #include "master.h"
 using blitz::TinyVector;
 using blitz::dot;
@@ -197,22 +198,26 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (auto i = 0; i < nSmooth; ++i) {
         if (pIn == nnList[i].pPart) continue;
         const TinyVector<double,3> dr{-nnList[i].dr}; //Vector from p to q
+        // TODO Use TinyVector for limiters
+        double dx = dr[0];
+        double dy = dr[1];
+        double dz = dr[2];
 
         // TODO: The differences could be computed outside of this loop
 #ifdef LIMITER_BARTH
-        BarthJespersenLimiter(&limRho, psph.gradRho, rho_max-p.density(), rho_min-p.density(), dr);
-        BarthJespersenLimiter(&limVx, psph.gradVx, vx_max-pv[0], vx_min-pv[0], dr);
-        BarthJespersenLimiter(&limVy, psph.gradVy, vy_max-pv[1], vy_min-pv[1], dr);
-        BarthJespersenLimiter(&limVz, psph.gradVz, vz_max-pv[2], vz_min-pv[2], dr);
-        BarthJespersenLimiter(&limP, psph.gradP, p_max-psph.P, p_min-psph.P, dr);
+        BarthJespersenLimiter(&limRho, psph.gradRho.data(), rho_max-p.density(), rho_min-p.density(), dx, dy, dz);
+        BarthJespersenLimiter(&limVx, psph.gradVx.data(), vx_max-pv[0], vx_min-pv[0], dx, dy, dz);
+        BarthJespersenLimiter(&limVy, psph.gradVy.data(), vy_max-pv[1], vy_min-pv[1], dx, dy, dz);
+        BarthJespersenLimiter(&limVz, psph.gradVz.data(), vz_max-pv[2], vz_min-pv[2], dx, dy, dz);
+        BarthJespersenLimiter(&limP, psph.gradP.data(), p_max-psph.P, p_min-psph.P, dx, dy, dz);
 #endif
 
 #ifdef LIMITER_CONDBARTH
-        ConditionedBarthJespersenLimiter(&limRho, psph.gradRho, rho_max-p.density(), rho_min-p.density(), dr, 10., psph.Ncond);
-        ConditionedBarthJespersenLimiter(&limVx, psph.gradVx, vx_max-pv[0], vx_min-pv[0], dr, 10., psph.Ncond);
-        ConditionedBarthJespersenLimiter(&limVy, psph.gradVy, vy_max-pv[1], vy_min-pv[1], dr, 10., psph.Ncond);
-        ConditionedBarthJespersenLimiter(&limVz, psph.gradVz, vz_max-pv[2], vz_min-pv[2], dr, 10., psph.Ncond);
-        ConditionedBarthJespersenLimiter(&limP, psph.gradP, p_max-psph.P, p_min-psph.P, dr, 10., psph.Ncond);
+        ConditionedBarthJespersenLimiter(&limRho, psph.gradRho.data(), rho_max-p.density(), rho_min-p.density(), dx, dy, dz, 10., psph.Ncond);
+        ConditionedBarthJespersenLimiter(&limVx, psph.gradVx.data(), vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 10., psph.Ncond);
+        ConditionedBarthJespersenLimiter(&limVy, psph.gradVy.data(), vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 10., psph.Ncond);
+        ConditionedBarthJespersenLimiter(&limVz, psph.gradVz.data(), vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 10., psph.Ncond);
+        ConditionedBarthJespersenLimiter(&limP, psph.gradP.data(), p_max-psph.P, p_min-psph.P, dx, dy, dz, 10., psph.Ncond);
 #endif
     }
 #endif

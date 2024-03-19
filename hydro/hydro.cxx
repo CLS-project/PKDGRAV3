@@ -71,74 +71,6 @@ double conditionNumber(double *E, double *B) {
     return sqrt(modB*modE)/3.;
 }
 
-void BarthJespersenLimiter(double *limVar, const TinyVector<double,3> &gradVar,
-                           double var_max, double var_min,
-                           const TinyVector<double,3> &dr) {
-#ifdef DEBUG_FLUX_NOLIMITER
-    *limVar = 1;
-    return;
-#endif
-    double diff, lim;
-
-    diff = dot(gradVar,dr);
-    if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
-    if (var_max < 0) { var_max=0; } //IA: Can happen due to machine precision
-    if (diff > 0.) {
-        lim = var_max/diff;
-    }
-    else if (diff < 0.) {
-        lim = var_min/diff;
-    }
-    else {
-        lim = 1.;
-    }
-    if (lim > 1.) lim = 1.; // min(1,lim)
-    if (lim < 0.) lim = 0.;
-    if (lim < (*limVar)) { *limVar = lim;}
-    // FIXME IA: Option to avoid extrapolation or limiter
-//    *limVar = 1.0;
-//    *limVar = 0.0;
-}
-
-/* IA: In this version we take into account the condition number,
- * which give us an idea about how 'well aligned' are the particles
- */
-void ConditionedBarthJespersenLimiter(double *limVar, const TinyVector<meshless::myreal,3> &gradVar,
-                                      double var_max, double var_min,
-                                      const TinyVector<double,3> &dr,
-                                      double Ncrit, double Ncond) {
-#ifdef DEBUG_FLUX_NOLIMITER
-    *limVar = 1;
-    return;
-#endif
-    double diff, lim, beta;
-
-    diff = Ncrit/Ncond;
-    diff = diff < 1. ? diff : 1.;
-    diff *= 2.;
-    beta = (1. < diff) ? diff : 1.;
-
-    diff = dot(gradVar,dr);
-    if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
-    if (var_max < 0) { var_max=0; } //IA: Can happen due to machine precision
-    if (diff > 0.) {
-        lim = var_max/diff;
-    }
-    else if (diff < 0.) {
-        lim = var_min/diff;
-    }
-    else {
-        lim = 1.;
-    }
-    lim *= beta;
-    if (lim > 1.) lim = 1.; // min(1,lim)
-    if (lim < 0.) lim = 0.;
-    if (lim < (*limVar)) { *limVar = lim;}
-    // FIXME IA: Option to avoid extrapolation or limiter
-//    *limVar = 1.0;
-//    *limVar = 0.0;
-}
-
 // Equation 10.39
 inline void compute_Ustar(double rho_K, double S_K, double v_K,
                           double p_K, double h_K, double S_s,
@@ -301,3 +233,10 @@ void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FI
     psph->lastS = psph->S;
 #endif
 }
+
+void hydroResetFluxes(meshless::FIELDS *psph) {
+    psph->Frho = 0.0;
+    psph->Fene = 0.0;
+    psph->Fmom = 0.0;
+}
+

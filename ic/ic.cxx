@@ -459,8 +459,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         if (in->bICgas) {
             fGasMass = in->fMass*in->dBaryonFraction;
             fDarkMass = in->fMass*(1.0 - in->dBaryonFraction);
-            fGasSoft = in->fSoft * sqrt(in->dBaryonFraction);
-            fDarkSoft = in->fSoft;
+            fGasSoft = in->fSoft * pow(in->dBaryonFraction, 1./3.);
+            fDarkSoft = in->fSoft * pow(1.0 - in->dBaryonFraction, 1./3.);
             nBucket = in->nBucket;
         }
         else {

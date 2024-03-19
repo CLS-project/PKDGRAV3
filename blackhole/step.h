@@ -4,6 +4,7 @@
 struct bhStepPack {
     blitz::TinyVector<double,3> position;
     uint8_t uRung;
+    uint8_t uNewRung;
     uint8_t iClass;
 };
 

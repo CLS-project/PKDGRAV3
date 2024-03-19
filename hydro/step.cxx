@@ -1,6 +1,8 @@
 #include <algorithm>
 #include "hydro/hydro.h"
 #include "master.h"
+#include "potential/potential.h"
+
 using blitz::TinyVector;
 using blitz::dot;
 
@@ -38,7 +40,6 @@ void MSR::HydroStep(double dTime, double dDelta) {
     }
 }
 
-
 void packHydroStep(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
     auto p1 = static_cast<hydroStepPack *>(dst);
@@ -74,6 +75,12 @@ void unpackHydroStep(void *vpkd,void *dst,const void *src) {
 }
 
 void initHydroStep(void *vpkd,void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+
+    if (p.is_gas()) {
+        p.sph().uWake = 0;
+    }
 }
 
 void flushHydroStep(void *vpkd,void *dst,const void *src) {
@@ -94,7 +101,7 @@ void combHydroStep(void *vpkd,void *dst,const void *src) {
     assert(!pkd->bNoParticleOrder);
     if (p1.is_gas()) {
         if (p2->uNewRung > p1.new_rung()) p1.set_new_rung(p2->uNewRung);
-        p1.sph().uWake = p2->uWake;
+        if (p2->uWake > p1.sph().uWake) p1.sph().uWake = p2->uWake;
     }
 }
 
@@ -123,11 +130,11 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         const auto &dr = nnList[i].dr;
 
-        const double dvDotdr = dot(dr,qv - pv);
+        const double dvDotdr = dot(dr,pv - qv);
         double vsig_pq = psph.c + qsph.c;
         if (dvDotdr < 0.) vsig_pq -= dvDotdr/sqrt(nnList[i].fDist2);
 
-        const double dt2 = smf->dEtaCourant * ph * smf->a / vsig_pq;
+        const double dt2 = smf->dEtaCourant * 2 * ph * smf->a / vsig_pq;
         if (dt2 < dtEst) dtEst = dt2;
     }
 
@@ -145,48 +152,14 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 #endif
 
-#ifdef HERNQUIST_POTENTIAL
-    // Timestep criteria based on the Hernsquist potential
-    const double const_reduced_hubble_cgs = 3.2407789e-18;
-    //const double H0 = 0.704 * const_reduced_hubble_cgs * parameters.get_dSecUnit();
-    const double H0 = 70.4/ smf->units.dKmPerSecUnit * ( smf->units.dKpcUnit / 1e3);
-
-    const double concentration = 9.0;
-    const double M200 = 135.28423603962767; //137.0 ; // / parameters.get_dMsolUnit();
-    const double V200 = cbrt(M200*H0);
-    //const double R200 = V200/(H0);
-    const double R200 = cbrt(M200/(100.*H0*H0));
-    const double RS = R200 / concentration;
-
-    const double al = RS * sqrt(2. * (log(1. + concentration) -
-                                      concentration / (1. + concentration)));
-
-    const double mass = M200;
-    (1.-0.041);
-
-    /* Calculate the relative potential with respect to the centre of the
-     * potential */
-    auto dr = p.position(); //- potential->x;
-
-    /* calculate the radius  */
-    const double epsilon =  0.2/smf->units.dKpcUnit;
-    const double epsilon2 = epsilon*epsilon;
-    const float r = sqrtf(dot(dr,dr) + epsilon2);
-    const float sqrtgm_inv = 1.f / sqrtf(mass);
-
-    /* Calculate the circular orbital period */
-    const float period = 2.f * M_PI * sqrtf(r) * al *
-                         (1 + r / al) * sqrtgm_inv;
+#ifdef EXTERNAL_POTENTIAL
+    auto out = external_potential(p.position());
 
     /* Time-step as a fraction of the circular orbital time */
-    const double time_step = 0.01 * period;
+    const double time_step = std::get<POT_DT>(out);
 
     if (time_step < dtEst) dtEst = time_step;
 #endif
-
-
-
-
 
     // Timestep criteria based on the hydro+grav accelerations
 
@@ -207,11 +180,9 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     const float h = smf->bDoGravity ? std::min(ph, static_cast<double>(p.soft())) : ph;
     const double dtAcc = smf->dCFLacc * sqrt(2.*h/acc);
 
-
     if (dtAcc < dtEst) dtEst = dtAcc;
-    const uint8_t uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
+    uint8_t uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
     if (uNewRung > p.new_rung()) p.set_new_rung(uNewRung);
-
 
     /* Timestep limiter that imposes that the particle must have a dt
      * which is at most four times (i.e., 2 rungs) the smallest dt of the neighbours
@@ -219,15 +190,14 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      * This is implemented as a scatter approach, in which the maximum dt of the
      * neighbours is set given the dt computed from this particle
      */
+    uNewRung = std::max(p.rung(),p.new_rung());
     if (smf->dDelta >= 0) {
         for (auto i = 0; i < nSmooth; ++i) {
             auto q = pkd->particles[nnList[i].pPart];
-            if (p.new_rung() > q.new_rung() + 2) {
-                q.set_new_rung(p.new_rung() - 1);
-                if (!q.is_active()) {
-                    // DEBUG: The number of wake up request and IDs must match!
-                    //printf("Need to wake up! %"PRIu64" \n", q.order());
-                    q.sph().uWake = p.new_rung();
+            if (uNewRung > q.new_rung() + 2) {
+                q.set_new_rung(uNewRung - 1);
+                if (!q.is_active() && q.new_rung() > q.sph().uWake) {
+                    q.sph().uWake = q.new_rung();
                 }
             }
         }
@@ -242,18 +212,20 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
     for (auto &p : pkd->particles) {
         if (p.is_gas()) {
             auto &sph = p.sph();
-            uint8_t uWake = sph.uWake;
+            auto &uWake = sph.uWake;
             if (uWake) {
                 p.set_rung(uWake);
                 p.set_new_rung(uWake);
-                sph.uWake = 0;
-                sph.lastUpdateTime = dTime;
+                assert(p.is_active());
 
                 // We revert to the state at the end of the previous timestep
-                sph.E    = sph.lastE;
-                sph.Uint = sph.lastUint;
                 p.set_mass(sph.lastMass);
+                sph.lastUpdateTime = dTime;
                 sph.mom = sph.lastMom;
+                sph.E = sph.lastE;
+                sph.Uint = sph.lastUint;
+
+                uWake = 0;
 
                 /* NOTE: What do we do with the variables?
                  *  We could integrate the source terms without major problems.
@@ -272,4 +244,3 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
         }
     }
 }
-

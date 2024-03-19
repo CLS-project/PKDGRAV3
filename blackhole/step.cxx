@@ -20,6 +20,7 @@ void packBHstep(void *vpkd,void *dst,const void *src) {
     if (p2.is_gas()) {
         p1->position = p2.position();
         p1->uRung = p2.rung();
+        p1->uNewRung = p2.new_rung();
     }
 }
 
@@ -32,6 +33,7 @@ void unpackBHstep(void *vpkd,void *dst,const void *src) {
     if (p1.is_gas()) {
         p1.set_position(p2->position);
         p1.set_rung(p2->uRung);
+        p1.set_new_rung(p2->uNewRung);
     }
 }
 
@@ -43,10 +45,14 @@ void smBHstep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     [pkd](const auto &a,const auto &b) {
         auto p = pkd->particles[a.pPart];
         auto q = pkd->particles[b.pPart];
-        return p.rung() < q.rung();
+        auto pRung = std::max(p.rung(),p.new_rung());
+        auto qRung = std::max(q.rung(),q.new_rung());
+        return pRung < qRung;
     });
     auto p = pkd->particles[pIn];
-    p.set_new_rung(pkd->particles[ii->pPart].rung());
+    auto q = pkd->particles[ii->pPart];
+    auto uNewRung = std::max(q.rung(),q.new_rung());
+    if (uNewRung > p.new_rung()) p.set_new_rung(uNewRung);
 #endif
 }
 

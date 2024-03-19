@@ -322,7 +322,7 @@ uint64_t MSR::getMemoryModel() {
 
     if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
-    if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
+    if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_ACCELERATION);
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
@@ -544,7 +544,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs) {
     this->nGas  = nSpecies[FIO_SPECIES_SPH];
     this->nStar = nSpecies[FIO_SPECIES_STAR];
     this->nBH   = nSpecies[FIO_SPECIES_BH];
-    this->N     = nDark + nGas + nStar + nBH;
+    this->N     = nSpecies[FIO_SPECIES_ALL] = nDark + nGas + nStar + nBH;
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
     auto classes_list = restore<PyObject *>(pFile);
@@ -1121,12 +1121,12 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
 
 double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
     if (csm->val.bComove && parameters.has_dRedTo()
-            && parameters.has_nSteps() && parameters.has_nSteps10()) {
+            && parameters.has_nSteps() && parameters.has_nStepsSync()) {
         double aTo,tTo;
-        const auto nSteps10 = parameters.get_nSteps10();
-        if (iStep < nSteps10) {
-            aTo = 1.0 / (10.0 + 1.0);
-            nSteps = nSteps10 - iStep;
+        const auto nStepsSync = parameters.get_nStepsSync();
+        if (iStep < nStepsSync) {
+            aTo = 1.0 / (parameters.get_dRedSync() + 1.0);
+            nSteps = nStepsSync - iStep;
         }
         else {
             aTo = 1.0/(parameters.get_dRedTo() + 1.0);
@@ -1135,7 +1135,7 @@ double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
         assert(nSteps>0);
         tTo = csmExp2Time(csm,aTo);
         dDelta = (tTo-dTime) / nSteps;
-        if (iStep == nSteps10 && bVDetails)
+        if (iStep == nStepsSync && bVDetails)
             printf("dDelta changed to %g at z=10\n",dDelta);
     }
     else if ( dOutTimes.size()>1) {
@@ -1243,7 +1243,9 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
                 | (parameters.get_bDoubleVel()?FIO_FLAG_DOUBLE_VEL:0)
                 | (parameters.get_bMemParticleID()?FIO_FLAG_ID:0)
                 | (parameters.get_bMemMass()?0:FIO_FLAG_COMPRESS_MASS)
-                | (parameters.get_bMemSoft()?0:FIO_FLAG_COMPRESS_SOFT);
+                | (parameters.get_bMemSoft()?0:FIO_FLAG_COMPRESS_SOFT)
+                | (parameters.has_dSoft()?FIO_FLAG_GLOBAL_SOFT:0)
+                | (parameters.get_bMemUnordered()?FIO_FLAG_UNORDERED:0);
 
     if (!in.bHDF5 && strstr(in.achOutFile,"&I")==0) {
         FIO fio;
@@ -2441,6 +2443,14 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     struct inDrift in;
     double dsec;
 
+#if defined(BLACKHOLES) and !defined(DEBUG_BH_NODRIFT)
+    TimerStart(TIMER_BHS);
+    BHGasPin(dTime,dDelta);
+    TimerStop(TIMER_BHS);
+#endif
+
+    TimerStart(TIMER_DRIFT);
+
     if (csm->val.bComove) {
         in.dDelta = csmComoveDriftFac(csm,dTime,dDelta);
         in.dDeltaVPred = csmComoveKickFac(csm,dTime,dDelta);
@@ -2453,22 +2463,17 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.bDoGas = DoGas();
     in.iRoot = iRoot;
-    TimerStart(TIMER_DRIFT);
 
     pstDrift(pst,&in,sizeof(in),NULL,0);
 
     TimerStop(TIMER_DRIFT);
     dsec = TimerGet(TIMER_DRIFT);
-
-#if defined(BLACKHOLES) and !defined(DEBUG_BH_ONLY)
-    TimerStart(TIMER_DRIFT);
-    BHDrift(dTime, dDelta);
-
-    TimerStop(TIMER_DRIFT);
-    double dsecBH = TimerGet(TIMER_DRIFT);
-    printf("Drift took %.5f (%.5f for BH) seconds \n", dsec, dsecBH);
-#else
     printf("Drift took %.5f seconds \n", dsec);
+
+#if defined(BLACKHOLES) and !defined(DEBUG_BH_NODRIFT)
+    TimerStart(TIMER_BHS);
+    BHReposition();
+    TimerStop(TIMER_BHS);
 #endif
 }
 
@@ -2940,7 +2945,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
         *pbDoOutput = 1  | (iStop<<1);
     }
 
-    return (iStep==parameters.get_nSteps10()) || *pbDoOutput || *pbDoCheckpoint;
+    return (iStep==parameters.get_nStepsSync()) || *pbDoOutput || *pbDoCheckpoint;
 }
 
 int MSR::NewTopStepKDK(
@@ -3001,7 +3006,6 @@ int MSR::NewTopStepKDK(
     dDeltaRung = dDelta/(uintmax_t(1) << *puRungMax);
     ActiveRung(uRung,1);
     if (DoGas() && MeshlessHydro()) {
-        ResetFluxes(dTime, dDelta);
         MeshlessFluxes(dTime, dDelta);
     }
     ZeroNewRung(uRung,MAX_RUNG,uRung);
@@ -3023,15 +3027,14 @@ int MSR::NewTopStepKDK(
     dTime += dDeltaRung;
     *pdStep += 1.0/(uintmax_t(1) << *puRungMax);
 #ifdef COOLING
-    int sync = (nRung[0]!=0 && uRung==0) || ( (nRung[uRung] > 0) && (nRung[uRung-1] == 0) );
     if (csm->val.bComove) {
         const float a = csmTime2Exp(csm,dTime);
         const float z = 1./a - 1.;
 
-        CoolingUpdate(z, sync);
+        CoolingUpdate(z);
     }
     else {
-        CoolingUpdate(0., sync);
+        CoolingUpdate(0.);
     }
 #endif
 #ifdef STAR_FORMATION
@@ -3268,15 +3271,8 @@ void MSR::TopStepKDK(
 #ifdef BLACKHOLES
     if (!iKickRung && !iRung && parameters.get_bBHPlaceSeed()) {
         PlaceBHSeed(dTime, CurrMaxRung());
-
 #ifdef OPTIM_REORDER_IN_NODES
-        // This is kind of overkill. Ideally just reseting the CID_CELL
-        // cache would work.
-        //
-        // This is done to prevent a mismatch between the fetched and true
-        // cell data, as it may have been updated if a BH has been placed
-        // into that node
-        BuildTree(bEwald);
+        ReorderWithinNodes();
 #endif
     }
 #endif
@@ -3327,67 +3323,67 @@ void MSR::TopStepKDK(
     else if (CurrMaxRung() == iRung) {
         if (DoGas() && MeshlessHydro()) {
             ActiveRung(iKickRung,1);
-            ResetFluxes(dTime, dDeltaStep);
             MeshlessFluxes(dTime, dDeltaStep);
         }
+
         ZeroNewRung(iKickRung,MAX_RUNG,iKickRung); /* brute force */
         /* This Drifts everybody */
         msrprintf("%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
         Drift(dTime,dDeltaRung,ROOT);
         dTime += dDeltaRung;
         dStep += 1.0/(uintmax_t(1) << iRung);
+
 #ifdef COOLING
-        int sync = (nRung[0]!=0 && iRung==0) || ( (nRung[iKickRung] > 0) && (nRung[iKickRung-1] == 0) );
         if (csm->val.bComove) {
             const float a = csmTime2Exp(csm,dTime);
             const float z = 1./a - 1.;
 
-            CoolingUpdate(z, sync);
+            CoolingUpdate(z);
         }
         else {
-            CoolingUpdate(0., sync);
+            CoolingUpdate(0.);
         }
 #endif
 
         ActiveRung(iKickRung,1);
         DomainDecomp(iKickRung);
+        if (parameters.get_bAddDelete()) MoveDeletedParticles();
+        BuildTree(bEwald);
+
+#ifdef BLACKHOLES
+#ifndef DEBUG_BH_ONLY
+        auto bBHAccretion = parameters.get_bBHAccretion();
+        if (bBHAccretion || parameters.get_bBHFeedback()) {
+            BHEvolve(dTime, dDeltaStep);
+        }
+        if (bBHAccretion) {
+            BHAccretion(dTime);
+        }
+#endif
+        if (parameters.get_bBHMerger()) {
+            SelActives();
+            BHMerger(dTime);
+        }
+#endif
 
 #ifdef STAR_FORMATION
         StarForm(dTime, dDeltaStep, iKickRung);
 #endif
 
-#ifdef BLACKHOLES
-        auto bBHMerger = parameters.get_bBHMerger();
-        if (bBHMerger) {
-            SelActives();
-            BHMerger(dTime);
-        }
-        if (parameters.get_bBHAccretion() && !bBHMerger) {
-            // If there are mergers, this was already done in msrBHMerger, so
-            // there is no need to repeat this.
-            struct outGetNParts Nout;
-
-            Nout.n = 0;
-            Nout.nDark = 0;
-            Nout.nGas = 0;
-            Nout.nStar = 0;
-            Nout.nBH = 0;
-            pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-            N = Nout.n;
-            nDark = Nout.nDark;
-            nGas = Nout.nGas;
-            nStar = Nout.nStar;
-            nBH = Nout.nBH;
-        }
+#if defined(OPTIM_REORDER_IN_NODES) && (defined(STAR_FORMATION) || defined(BLACKHOLES))
+        ReorderWithinNodes();
 #endif
 
-        if (DoGravity() || DoGas()) {
-            ActiveRung(iKickRung,1);
-            if (DoGravity()) UpdateSoft(dTime);
-            msrprintf("%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
-            BuildTree(bEwald);
+        if (!iKickRung && parameters.get_bFindGroups()) {
+            NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
         }
+
+        if (DoGravity() || DoGas()) {
+            msrprintf("%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
+        }
+
         if (DoGravity()) {
+            UpdateSoft(dTime);
             SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
             SPHoptions.doGravity = 1;
             Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
@@ -3443,12 +3439,30 @@ void MSR::TopStepKDK(
 
     dTime += 0.5*dDeltaRung; /* Important to have correct time at step end for SF! */
 
-    if (!iKickRung && !iRung && parameters.get_bFindGroups()) {
-        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
-        GroupStats();
+    if (!iKickRung && !iRung) {
+        if (parameters.get_bFindGroups()) GroupStats();
+        if (parameters.get_bAddDelete()) MoveDeletedParticles();
         BuildTree(bEwald);
     }
 
+}
+
+void MSR::MoveDeletedParticles() {
+    struct outGetNParts Nout;
+
+    Nout.n = 0;
+    Nout.nDark = 0;
+    Nout.nGas = 0;
+    Nout.nStar = 0;
+    Nout.nBH = 0;
+
+    pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+
+    N = Nout.n;
+    nDark = Nout.nDark;
+    nGas = Nout.nGas;
+    nStar = Nout.nStar;
+    nBH = Nout.nBH;
 }
 
 void MSR::GetNParts() { /* JW: Not pretty -- may be better way via fio */
@@ -4051,7 +4065,7 @@ double MSR::Read(std::string_view achInFile) {
 
     if (nGas && !DoGas()) parameters.set_hydro_model(HYDRO_MODEL::SPH);
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
-    if (nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
+    if (nStar) mMemoryModel |= PKD_MODEL_STAR;
 
     read->nNodeStart = 0;
     read->nNodeEnd = N - 1;

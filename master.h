@@ -166,14 +166,14 @@ public:
     void GroupStats();
     void HopWrite(const char *fname);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
+    MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
     void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
     void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-            GridBinK(int nBins, int iGrid);
+    GridBinK(int nBins, int iGrid);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
     void GridCreateFFT(int nGrid);
@@ -414,6 +414,7 @@ protected:
     void ActiveOrder();
     void CalcBound(Bound &bnd);
     void CalcBound();
+    void MoveDeletedParticles();
     void GetNParts();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
@@ -460,7 +461,6 @@ protected:
     // Meshless hydrodynamics
     void MeshlessGradients(double dTime, double dDelta);
     void MeshlessFluxes(double dTime,double dDelta);
-    void ResetFluxes(double dTime,double dDelta);
     void HydroStep(double dTime, double dDelta);
     void ComputeSmoothing(double dTime, double dDelta);
     void ChemCompInit();
@@ -469,7 +469,7 @@ protected:
 #ifdef COOLING
     // Cooling
     void SetCoolingParam();
-    void CoolingUpdate(float redshift, int sync);
+    void CoolingUpdate(float redshift);
     void CoolingInit(float redshift);
 #endif
 #ifdef GRACKLE
@@ -498,7 +498,10 @@ protected:
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);
     void BHMerger(double dTime);
-    void BHDrift(double dTime, double dDelta);
+    void BHEvolve(double dTime, double dDelta);
+    void BHGasPin(double dTime, double dDelta);
+    void BHReposition();
+    void BHAccretion(double dTime);
     void BHStep(double dTime, double dDelta);
 #endif
 
@@ -511,7 +514,7 @@ protected:
     void InitBall();
 
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-            MeasureLinPk(int nGridLin,double a,double dBoxSize);
+    MeasureLinPk(int nGridLin,double a,double dBoxSize);
     void OutputPk(int iStep,double dTime);
     void OutputLinPk(int iStep, double dTime);
 

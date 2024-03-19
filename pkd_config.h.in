@@ -56,6 +56,7 @@
 #define USE_SIMD_EWALD 1
 #define USE_SIMD_PP 1
 #define USE_SIMD_PC 1
+#define USE_SIMD_FLUX 1
 #endif
 #define NAIVE_DOMAIN_DECOMP 1
 
