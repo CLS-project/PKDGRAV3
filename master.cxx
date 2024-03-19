@@ -544,7 +544,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs) {
     this->nGas  = nSpecies[FIO_SPECIES_SPH];
     this->nStar = nSpecies[FIO_SPECIES_STAR];
     this->nBH   = nSpecies[FIO_SPECIES_BH];
-    this->N     = nDark + nGas + nStar + nBH;
+    this->N     = nSpecies[FIO_SPECIES_ALL] = nDark + nGas + nStar + nBH;
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
     auto classes_list = restore<PyObject *>(pFile);
