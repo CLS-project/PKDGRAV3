@@ -134,7 +134,6 @@ enum pst_service {
     PST_BH_ACCRETION,
 #endif
     PST_MOVEDELETED,
-    PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
     PST_KICK,
@@ -630,9 +629,6 @@ int pstROParticleCache(PST, void *, int, void *, int);
 /* PST_PARTICLECACHEFINISH */
 
 int pstParticleCacheFinish(PST, void *, int, void *, int);
-
-/* PST_CACHEBARRIER */
-int pstCacheBarrier(PST, void *, int, void *, int);
 
 /* PST_KICK */
 struct inKick {

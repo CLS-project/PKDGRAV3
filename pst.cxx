@@ -186,8 +186,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstGetMinDt,
                   0, sizeof(struct outGetMinDt));
     //
-    mdlAddService(mdl,PST_CACHEBARRIER,pst,(fcnService_t *)pstCacheBarrier,
-                  0,0);
     mdlAddService(mdl,PST_ROPARTICLECACHE,pst,(fcnService_t *)pstROParticleCache,
                   0,0);
     mdlAddService(mdl,PST_PARTICLECACHEFINISH,pst,(fcnService_t *)pstParticleCacheFinish,
@@ -1604,19 +1602,6 @@ int pstChemCompInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         pkdChemCompInit(plcl->pkd, *in);
-    }
-    return 0;
-}
-
-int pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
-        pstCacheBarrier(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        mdlCacheBarrier(pst->mdl,CID_CELL);
     }
     return 0;
 }
