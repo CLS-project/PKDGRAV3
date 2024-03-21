@@ -103,6 +103,7 @@ namespace rockstar {
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
+#include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -2795,8 +2796,8 @@ void MSR::DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta
  ** or the fixed rung that was specified in the parameters.
  */
 void MSR::UpdateRung(uint8_t uRung) {
-    struct inUpdateRung in;
-    struct outUpdateRung out;
+    ServiceUpdateRung::input in;
+    ServiceUpdateRung::output nRungCount;
     int iTempRung,iOutMaxRung;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
@@ -2807,29 +2808,29 @@ void MSR::UpdateRung(uint8_t uRung) {
     in.uMinRung = uRung;
     in.uMaxRung = MaxRung();
 
-    pstUpdateRung(pst, &in, sizeof(in), &out, sizeof(out));
+    mdl->RunService(PST_UPDATERUNG,sizeof(in),&in,&nRungCount);
 
     iTempRung =MaxRung()-1;
-    while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+    while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
     iOutMaxRung = iTempRung;
 
     const auto nTruncateRung = parameters.get_nTruncateRung();
-    while (out.nRungCount[iOutMaxRung] <= nTruncateRung && iOutMaxRung > uRung) {
+    while (nRungCount[iOutMaxRung] <= nTruncateRung && iOutMaxRung > uRung) {
         msrprintf("n_CurrMaxRung = %" PRIu64 "  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
-                  out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
+                  nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
         in.uMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
-        pstUpdateRung(pst, &in, sizeof(in), &out, sizeof(out));
+        mdl->RunService(PST_UPDATERUNG,sizeof(in),&in,&nRungCount);
 
         iTempRung =MaxRung()-1;
-        while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+        while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
         iOutMaxRung = iTempRung;
     }
 
     /*
     ** Now copy the rung distribution to the msr structure!
     */
-    for (iTempRung=0; iTempRung < MaxRung(); ++iTempRung) nRung[iTempRung] = out.nRungCount[iTempRung];
+    for (iTempRung=0; iTempRung < MaxRung(); ++iTempRung) nRung[iTempRung] = nRungCount[iTempRung];
 
     iCurrMaxRung = iOutMaxRung;
 
@@ -2837,8 +2838,8 @@ void MSR::UpdateRung(uint8_t uRung) {
         printf("Rung distribution:\n");
         printf("\n");
         for (iTempRung=0; iTempRung <= iCurrMaxRung; ++iTempRung) {
-            if (out.nRungCount[iTempRung] == 0) continue;
-            printf("   rung:%d %" PRIu64 "\n",iTempRung,out.nRungCount[iTempRung]);
+            if (nRungCount[iTempRung] == 0) continue;
+            printf("   rung:%d %" PRIu64 "\n",iTempRung,nRungCount[iTempRung]);
         }
         printf("\n");
     }

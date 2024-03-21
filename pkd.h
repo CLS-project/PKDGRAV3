@@ -451,7 +451,7 @@ public:
 public:
     int nRejects;
     int nActive;
-    uint64_t nRung[IRUNGMAX+1];
+    blitz::TinyVector<uint64_t,MAX_RUNG+1> nRung;
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
@@ -800,7 +800,6 @@ void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo);
 void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
-void pkdCountRungs(PKD pkd,uint64_t *nRungs);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                   double dDelta, int iMaxRung,
                   double dEta,double dVelFac,double dAccFac,

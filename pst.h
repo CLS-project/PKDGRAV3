@@ -729,18 +729,6 @@ struct inCorrectEnergy {
 };
 int pstCorrectEnergy(PST, void *,int,void *,int);
 
-/* PST_UPDATERUNG */
-struct inUpdateRung {
-    uint8_t uRungLo;  /* Minimum Rung to modify */
-    uint8_t uRungHi;  /* Maximum Rung to modify */
-    uint8_t uMinRung; /* Minimum it can be set to */
-    uint8_t uMaxRung; /* Maximum it can be set to */
-};
-struct outUpdateRung {
-    uint64_t nRungCount[MAX_RUNG];
-};
-int pstUpdateRung(PST,void *,int,void *,int);
-
 /* PST_SETWRITESTART */
 struct inSetWriteStart {
     uint64_t nWriteStart;

@@ -2556,14 +2556,6 @@ void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {  
     }
 }
 
-void pkdCountRungs(PKD pkd,uint64_t *nRungs) {
-    for (auto i=0; i<=MAX_RUNG; ++i) nRungs[i] = 0;
-    for (auto &p : pkd->particles) {
-        ++nRungs[p.rung()];
-    }
-    for (auto i=0; i<=MAX_RUNG; ++i) pkd->nRung[i] = nRungs[i];
-}
-
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                   double dDelta, int iMaxRung,
                   double dEta,double dVelFac,double dAccFac,
