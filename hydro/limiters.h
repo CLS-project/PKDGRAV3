@@ -142,71 +142,12 @@ inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
 }
 #endif
 
-static inline void BarthJespersenLimiter(double *limVar, double *gradVar,
-        double var_max, double var_min,
-        double dx, double dy, double dz) {
+static inline double BarthJespersenLimiter(double var_max, double var_min,
+        double dvar_max, double dvar_min, double beta) {
 #ifdef DEBUG_FLUX_NOLIMITER
-    *limVar = 1;
-    return;
+    return 1.;
 #endif
-    double diff, lim;
-
-    diff = (gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz);
-    if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
-    if (var_max < 0) { var_max=0; } //IA: Can happen due to machine precision
-    if (diff > 0.) {
-        lim = var_max/diff;
-    }
-    else if (diff < 0.) {
-        lim = var_min/diff;
-    }
-    else {
-        lim = 1.;
-    }
-    if (lim > 1.) lim = 1.; // min(1,lim)
-    if (lim < 0.) lim = 0.;
-    if (lim < (*limVar)) { *limVar = lim;}
-    // FIXME IA: Option to avoid extrapolation or limiter
-//    *limVar = 1.0;
-//    *limVar = 0.0;
-}
-
-/* IA: In this version we take into account the condition number,
- * which give us an idea about how 'well aligned' are the particles
- */
-static inline void ConditionedBarthJespersenLimiter(double *limVar, double *gradVar,
-        double var_max, double var_min,
-        double dx, double dy, double dz,
-        double Ncrit, double Ncond) {
-#ifdef DEBUG_FLUX_NOLIMITER
-    *limVar = 1;
-    return;
-#endif
-    double diff, lim, beta;
-
-    diff = Ncrit/Ncond;
-    diff = diff < 1. ? diff : 1.;
-    diff *= 2.;
-    beta = (1. < diff) ? diff : 1.;
-
-    diff = (gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz);
-    if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
-    if (var_max < 0) { var_max=0; } //IA: Can happen due to machine precision
-    if (diff > 0.) {
-        lim = var_max/diff;
-    }
-    else if (diff < 0.) {
-        lim = var_min/diff;
-    }
-    else {
-        lim = 1.;
-    }
-    lim *= beta;
-    if (lim > 1.) lim = 1.; // min(1,lim)
-    if (lim < 0.) lim = 0.;
-    if (lim < (*limVar)) { *limVar = lim;}
-    // FIXME IA: Option to avoid extrapolation or limiter
-//    *limVar = 1.0;
-//    *limVar = 0.0;
+    var_min = std::max(0., std::min(var_max/dvar_max, var_min/dvar_min));
+    return std::min(1., beta * var_min);
 }
 #endif
