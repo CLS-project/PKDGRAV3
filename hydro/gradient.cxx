@@ -67,6 +67,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     double dvx_max, dvx_min, dvy_max, dvy_min, dvz_max, dvz_min;
     double p_max, p_min;
     double dp_max, dp_min;
+    double dface_max;
 
     const auto &pv = p.velocity();
     auto &psph = p.sph();
@@ -143,6 +144,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     vy_min = vy_max = pv[1];
     vz_min = vz_max = pv[2];
     p_min = p_max = psph.P;
+    dface_max = 0.;
 
     for (auto i = 0; i < nSmooth; ++i) {
         if (pIn == nnList[i].pPart) continue;
@@ -183,35 +185,8 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         p_min = std::min(p_min, qsph.P);
         p_max = std::max(p_max, qsph.P);
-    }
 
-    /* Compute the maximum and minimum extrapolation to this cell's interfaces */
-    drho_max = dvx_max = dvy_max = dvz_max = dp_max = -FLT_MAX;
-    drho_min = dvx_min = dvy_min = dvz_min = dp_min = FLT_MAX;
-
-    for (auto i = 0; i < nSmooth; ++i) {
-        /* Vector from p to the pq face */
-        const TinyVector<double,3> dr{-0.5*nnList[i].dr};
-
-        const auto drho_q = dot(dr, psph.gradRho);
-        drho_min = std::min(drho_min, drho_q);
-        drho_max = std::max(drho_max, drho_q);
-
-        const auto dvx_q = dot(dr, psph.gradVx);
-        dvx_min = std::min(dvx_min, dvx_q);
-        dvx_max = std::max(dvx_max, dvx_q);
-
-        const auto dvy_q = dot(dr, psph.gradVy);
-        dvy_min = std::min(dvy_min, dvy_q);
-        dvy_max = std::max(dvy_max, dvy_q);
-
-        const auto dvz_q = dot(dr, psph.gradVz);
-        dvz_min = std::min(dvz_min, dvz_q);
-        dvz_max = std::max(dvz_max, dvz_q);
-
-        const auto dp_q = dot(dr, psph.gradP);
-        dp_min = std::min(dp_min, dp_q);
-        dp_max = std::max(dp_max, dp_q);
+        dface_max = std::max(dface_max, nnList[i].fDist2);
     }
 
     /* Now we can limit the gradients */
@@ -223,11 +198,62 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     const double beta = std::max(1., 2.*std::min(1.,10./psph.Ncond));
 #endif
 
-    psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), rho_min-p.density(), drho_max, drho_min, beta);
-    psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], vx_min-pv[0], dvx_max, dvx_min, beta);
-    psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], vy_min-pv[1], dvy_max, dvy_min, beta);
-    psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], vz_min-pv[2], dvz_max, dvz_min, beta);
-    psph.gradP *= BarthJespersenLimiter(p_max-psph.P, p_min-psph.P, dp_max, dp_min, beta);
+    if (smf->bConservativeSlopeLimiter) {
+        dface_max = 0.5*sqrt(dface_max);
+        double dvar_max;
+
+        dvar_max = sqrt(dot(psph.gradRho,psph.gradRho)) * dface_max;
+        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, dvar_max, beta);
+
+        dvar_max = sqrt(dot(psph.gradVx,psph.gradVx)) * dface_max;
+        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, dvar_max, beta);
+
+        dvar_max = sqrt(dot(psph.gradVy,psph.gradVy)) * dface_max;
+        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, dvar_max, beta);
+
+        dvar_max = sqrt(dot(psph.gradVz,psph.gradVz)) * dface_max;
+        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, dvar_max, beta);
+
+        dvar_max = sqrt(dot(psph.gradP,psph.gradP)) * dface_max;
+        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, dvar_max, beta);
+    }
+    else {
+        /* We need an extra loop to compute the maximum and minimum extrapolation
+         * to this cell's interfaces */
+        drho_max = dvx_max = dvy_max = dvz_max = dp_max = -FLT_MAX;
+        drho_min = dvx_min = dvy_min = dvz_min = dp_min = FLT_MAX;
+
+        for (auto i = 0; i < nSmooth; ++i) {
+            /* Vector from p to the pq face */
+            const TinyVector<double,3> dr{-0.5*nnList[i].dr};
+
+            const auto drho_q = dot(dr, psph.gradRho);
+            drho_min = std::min(drho_min, drho_q);
+            drho_max = std::max(drho_max, drho_q);
+
+            const auto dvx_q = dot(dr, psph.gradVx);
+            dvx_min = std::min(dvx_min, dvx_q);
+            dvx_max = std::max(dvx_max, dvx_q);
+
+            const auto dvy_q = dot(dr, psph.gradVy);
+            dvy_min = std::min(dvy_min, dvy_q);
+            dvy_max = std::max(dvy_max, dvy_q);
+
+            const auto dvz_q = dot(dr, psph.gradVz);
+            dvz_min = std::min(dvz_min, dvz_q);
+            dvz_max = std::max(dvz_max, dvz_q);
+
+            const auto dp_q = dot(dr, psph.gradP);
+            dp_min = std::min(dp_min, dp_q);
+            dp_max = std::max(dp_max, dp_q);
+        }
+
+        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, drho_max, -drho_min, beta);
+        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, dvx_max, -dvx_min, beta);
+        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, dvy_max, -dvy_min, beta);
+        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, dvz_max, -dvz_min, beta);
+        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, dp_max, -dp_min, beta);
+    }
     /* END OF LIMITER */
 }
 

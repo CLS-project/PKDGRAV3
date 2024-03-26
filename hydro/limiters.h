@@ -150,4 +150,13 @@ static inline double BarthJespersenLimiter(double var_max, double var_min,
     var_min = std::max(0., std::min(var_max/dvar_max, var_min/dvar_min));
     return std::min(1., beta * var_min);
 }
+
+static inline double BarthJespersenLimiter(double var_max, double var_min, double dvar_max, double beta) {
+#ifdef DEBUG_FLUX_NOLIMITER
+    return 1.;
 #endif
+    var_min = std::max(0., std::min(var_max, var_min));
+    return std::min(1., beta * var_min / dvar_max);
+}
+#endif
+
