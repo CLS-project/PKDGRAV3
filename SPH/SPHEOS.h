@@ -24,6 +24,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+float SPHEOSconvertAtoU(float rho, float u, int iMat, SPHOptions *SPHoptions);
+float SPHEOSconvertUtoA(float rho, float u, int iMat, SPHOptions *SPHoptions);
 float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat, SPHOptions *SPHoptions);
 float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions);
 float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoptions);
