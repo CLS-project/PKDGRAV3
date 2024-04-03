@@ -62,12 +62,9 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     auto p = pkd->particles[pIn];
     double rho_max, rho_min;
-    double drho_max, drho_min;
     double vx_max, vx_min, vy_max, vy_min, vz_max, vz_min;
-    double dvx_max, dvx_min, dvy_max, dvy_min, dvz_max, dvz_min;
     double p_max, p_min;
-    double dp_max, dp_min;
-    double dface_max;
+    double max_face_dist;
 
     const auto &pv = p.velocity();
     auto &psph = p.sph();
@@ -144,7 +141,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     vy_min = vy_max = pv[1];
     vz_min = vz_max = pv[2];
     p_min = p_max = psph.P;
-    dface_max = 0.;
+    max_face_dist = 0.;
 
     for (auto i = 0; i < nSmooth; ++i) {
         if (pIn == nnList[i].pPart) continue;
@@ -186,7 +183,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         p_min = std::min(p_min, qsph.P);
         p_max = std::max(p_max, qsph.P);
 
-        dface_max = std::max(dface_max, nnList[i].fDist2);
+        max_face_dist = std::max(max_face_dist, nnList[i].fDist2);
     }
 
     /* Now we can limit the gradients */
@@ -199,60 +196,62 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif
 
     if (smf->bStricterSlopeLimiter) {
-        dface_max = 0.5*sqrt(dface_max);
-        double dvar_max;
+        max_face_dist = 0.5*sqrt(max_face_dist);
+        double var_max_extrap;
 
-        dvar_max = sqrt(dot(psph.gradRho,psph.gradRho)) * dface_max;
-        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, dvar_max, beta);
+        var_max_extrap = sqrt(dot(psph.gradRho,psph.gradRho)) * max_face_dist;
+        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, var_max_extrap, beta);
 
-        dvar_max = sqrt(dot(psph.gradVx,psph.gradVx)) * dface_max;
-        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, dvar_max, beta);
+        var_max_extrap = sqrt(dot(psph.gradVx,psph.gradVx)) * max_face_dist;
+        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, var_max_extrap, beta);
 
-        dvar_max = sqrt(dot(psph.gradVy,psph.gradVy)) * dface_max;
-        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, dvar_max, beta);
+        var_max_extrap = sqrt(dot(psph.gradVy,psph.gradVy)) * max_face_dist;
+        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, var_max_extrap, beta);
 
-        dvar_max = sqrt(dot(psph.gradVz,psph.gradVz)) * dface_max;
-        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, dvar_max, beta);
+        var_max_extrap = sqrt(dot(psph.gradVz,psph.gradVz)) * max_face_dist;
+        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, var_max_extrap, beta);
 
-        dvar_max = sqrt(dot(psph.gradP,psph.gradP)) * dface_max;
-        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, dvar_max, beta);
+        var_max_extrap = sqrt(dot(psph.gradP,psph.gradP)) * max_face_dist;
+        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, var_max_extrap, beta);
     }
     else {
         /* We need an extra loop to compute the maximum and minimum extrapolation
          * to this cell's interfaces */
-        drho_max = dvx_max = dvy_max = dvz_max = dp_max = -FLT_MAX;
-        drho_min = dvx_min = dvy_min = dvz_min = dp_min = FLT_MAX;
+        double rho_max_extrap, rho_min_extrap, p_max_extrap, p_min_extrap;
+        double vx_max_extrap, vx_min_extrap, vy_max_extrap, vy_min_extrap, vz_max_extrap, vz_min_extrap;
+        rho_max_extrap = vx_max_extrap = vy_max_extrap = vz_max_extrap = p_max_extrap = -FLT_MAX;
+        rho_min_extrap = vx_min_extrap = vy_min_extrap = vz_min_extrap = p_min_extrap = FLT_MAX;
 
         for (auto i = 0; i < nSmooth; ++i) {
             /* Vector from p to the pq face */
             const TinyVector<double,3> dr{-0.5*nnList[i].dr};
 
-            const auto drho_q = dot(dr, psph.gradRho);
-            drho_min = std::min(drho_min, drho_q);
-            drho_max = std::max(drho_max, drho_q);
+            const auto rho_q_extrap = dot(dr, psph.gradRho);
+            rho_min_extrap = std::min(rho_min_extrap, rho_q_extrap);
+            rho_max_extrap = std::max(rho_max_extrap, rho_q_extrap);
 
-            const auto dvx_q = dot(dr, psph.gradVx);
-            dvx_min = std::min(dvx_min, dvx_q);
-            dvx_max = std::max(dvx_max, dvx_q);
+            const auto vx_q_extrap = dot(dr, psph.gradVx);
+            vx_min_extrap = std::min(vx_min_extrap, vx_q_extrap);
+            vx_max_extrap = std::max(vx_max_extrap, vx_q_extrap);
 
-            const auto dvy_q = dot(dr, psph.gradVy);
-            dvy_min = std::min(dvy_min, dvy_q);
-            dvy_max = std::max(dvy_max, dvy_q);
+            const auto vy_q_extrap = dot(dr, psph.gradVy);
+            vy_min_extrap = std::min(vy_min_extrap, vy_q_extrap);
+            vy_max_extrap = std::max(vy_max_extrap, vy_q_extrap);
 
-            const auto dvz_q = dot(dr, psph.gradVz);
-            dvz_min = std::min(dvz_min, dvz_q);
-            dvz_max = std::max(dvz_max, dvz_q);
+            const auto vz_q_extrap = dot(dr, psph.gradVz);
+            vz_min_extrap = std::min(vz_min_extrap, vz_q_extrap);
+            vz_max_extrap = std::max(vz_max_extrap, vz_q_extrap);
 
-            const auto dp_q = dot(dr, psph.gradP);
-            dp_min = std::min(dp_min, dp_q);
-            dp_max = std::max(dp_max, dp_q);
+            const auto p_q_extrap = dot(dr, psph.gradP);
+            p_min_extrap = std::min(p_min_extrap, p_q_extrap);
+            p_max_extrap = std::max(p_max_extrap, p_q_extrap);
         }
 
-        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, drho_max, -drho_min, beta);
-        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, dvx_max, -dvx_min, beta);
-        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, dvy_max, -dvy_min, beta);
-        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, dvz_max, -dvz_min, beta);
-        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, dp_max, -dp_min, beta);
+        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, rho_max_extrap, -rho_min_extrap, beta);
+        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, vx_max_extrap, -vx_min_extrap, beta);
+        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, vy_max_extrap, -vy_min_extrap, beta);
+        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, vz_max_extrap, -vz_min_extrap, beta);
+        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, p_max_extrap, -p_min_extrap, beta);
     }
     /* END OF LIMITER */
 }

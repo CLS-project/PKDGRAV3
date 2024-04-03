@@ -142,21 +142,21 @@ inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
 }
 #endif
 
-static inline double BarthJespersenLimiter(double var_max, double var_min,
-        double dvar_max, double dvar_min, double beta) {
+static inline double BarthJespersenLimiter(double max_diff, double min_diff,
+        double max_extrap, double min_extrap, double beta) {
 #ifdef DEBUG_FLUX_NOLIMITER
     return 1.;
 #endif
-    var_min = std::max(0., std::min(var_max/dvar_max, var_min/dvar_min));
-    return std::min(1., beta * var_min);
+    min_diff = std::max(0., std::min(max_diff/max_extrap, min_diff/min_extrap));
+    return std::min(1., beta * min_diff);
 }
 
-static inline double BarthJespersenLimiter(double var_max, double var_min, double dvar_max, double beta) {
+static inline double BarthJespersenLimiter(double max_diff, double min_diff, double max_extrap, double beta) {
 #ifdef DEBUG_FLUX_NOLIMITER
     return 1.;
 #endif
-    var_min = std::max(0., std::min(var_max, var_min));
-    return std::min(1., beta * var_min / dvar_max);
+    min_diff = std::max(0., std::min(max_diff, min_diff));
+    return std::min(1., beta * min_diff / max_extrap);
 }
 #endif
 
