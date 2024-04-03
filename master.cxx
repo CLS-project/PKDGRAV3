@@ -1935,7 +1935,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dEtaCourant = parameters.get_dEtaCourant();
     smf->bMeshlessHydro = MeshlessHydro();
     smf->bIterativeSmoothingLength = parameters.get_bIterativeSmoothingLength();
-    smf->bConservativeSlopeLimiter = parameters.get_bConservativeSlopeLimiter();
+    smf->bStricterSlopeLimiter = parameters.get_bStricterSlopeLimiter();
     smf->bUpdateBall = bUpdateBall;
     smf->nBucket = parameters.get_nBucket();
     smf->dCFLacc = parameters.get_dCFLacc();

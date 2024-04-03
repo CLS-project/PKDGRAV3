@@ -198,7 +198,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     const double beta = std::max(1., 2.*std::min(1.,10./psph.Ncond));
 #endif
 
-    if (smf->bConservativeSlopeLimiter) {
+    if (smf->bStricterSlopeLimiter) {
         dface_max = 0.5*sqrt(dface_max);
         double dvar_max;
 

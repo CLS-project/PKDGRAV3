@@ -1255,10 +1255,10 @@ flag="iterh"
 default=true
 help="Use an iterative scheme to obtain h"
 
-["Gas".bConservativeSlopeLimiter]
-flag="csvlim"
+["Gas".bStricterSlopeLimiter]
+flag="stricterlim"
 default=false
-help="Use a more conservative slope limiter for meshless-hydro gradients"
+help="Use a stricter slope limiter for meshless-hydro gradients"
 
 ["Gas".bWakeUpParticles]
 flag="wakeup"
