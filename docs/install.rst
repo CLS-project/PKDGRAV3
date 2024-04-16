@@ -182,6 +182,12 @@ You can compile for the GPU partition and run on the multi-core partition, thus 
 
     module load daint-gpu cudatoolkit cray-hdf5 GSL Boost cray-fftw CMake cray-python
 
+Be aware that the default CUDA Toolkit on Piz Daint may be 11.0.2. This version has a problem where compiler
+options are not properly passed to the GNU compiler when using nvcc. You may need to load a more recent
+version of the toolkit which you can check with ``module available cudatoolkit``. For example, you might
+substitute ``cudatoolkit/11.2.0_3.39-2.1__gf93aa1c`` for ``cudatoolkit`` above.
+
+
 ---------------
 Python Packages
 ---------------
@@ -240,3 +246,14 @@ Then install the following packages::
 
     brew install cmake boost fftw git gsl open-mpi hdf5-mpi python pyenv pyenv-virtualenv
 
++++++++++++++++++++++
+OpenMPI Based Systems
++++++++++++++++++++++
+
+The code uses a Hybrid MPI/threads mechanism for parallization. Some versions of OpenMPI
+will bind each MPI rank to a single core in an effort to be helpful. This will result
+in very poor performance. To disable this "feature", define ``OMPI_MCA_hwloc_base_binding_policy``
+to be ``none`` when running::
+
+    export OMPI_MCA_hwloc_base_binding_policy=none
+    srun ./pkdgrav3 cosmology.par
