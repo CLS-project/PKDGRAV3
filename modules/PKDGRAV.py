@@ -88,13 +88,14 @@ def domain_decompose(rung=0):
     """
     msr0.DomainDecomp(rung)
 
-def build_tree(ewald=False):
+def build_tree(ewald=None):
     """
     Builds a tree in each domain
 
     :param Boolean ewald: construct a moment for Ewald if true
     """
-    msr0.BuildTree(ewald)
+    bEwald = msr0.parameters.get_bEwald() if ewald is None else ewald
+    msr0.BuildTree(bEwald)
 
 def reorder():
     """
@@ -104,7 +105,7 @@ def reorder():
     msr0.Reorder()
 
 
-def gravity(time=0.0,delta=0.0,theta=0.7,rung=0,ewald=None,step=0.0,kick_close=True,kick_open=True, only_marked=False):
+def gravity(time=0.0,delta=0.0,theta=0.7,rung=0,ewald=None,step=0.0,kick_close=True,kick_open=False, only_marked=False):
     bEwald = msr0.parameters.get_bEwald() if ewald is None else ewald
     bGravStep = msr0.parameters.get_bGravStep()
     nPartRhoLoc = msr0.parameters.get_nPartRhoLoc()
