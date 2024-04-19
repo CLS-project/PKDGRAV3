@@ -740,6 +740,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             NewSphStr.Sxx = NewSphStr.Syy = NewSphStr.Sxy = NewSphStr.Sxz = NewSphStr.Syz = 0.0f;
             NewSphStr.SDotxx = NewSphStr.SDotyy = NewSphStr.SDotxy = NewSphStr.SDotxz = NewSphStr.SDotyz = 0.0f;
             NewSphStr.Spredxx = NewSphStr.Spredyy = NewSphStr.Spredxy = NewSphStr.Spredxz = NewSphStr.Spredyz = 0.0f;
+            NewSphStr.strainJ2 = 0.0f;
         }
 
         /* Initialize Star fields if present */

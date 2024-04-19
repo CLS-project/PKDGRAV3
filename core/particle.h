@@ -206,6 +206,7 @@ struct NEWSPHSTRENGTHFIELDS {
     float Sxx, Syy, Sxy, Sxz, Syz; /* Deviatoric stress tensor (tracefree, symmetric) */
     float SDotxx, SDotyy, SDotxy, SDotxz, SDotyz; /* Time derivative of deviatoric stress tensor (tracefree, symmetric) */
     float Spredxx, Spredyy, Spredxy, Spredxz, Spredyz; /* Predicted deviatoric stress tensor (tracefree, symmetric) */
+    float strainJ2; /* J2 tensor invariant of the strain tensor */
 };
 
 struct STARFIELDS {

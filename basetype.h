@@ -141,6 +141,7 @@ typedef struct {
     float Cinvxx, Cinvxy, Cinvxz;
     float Cinvyx, Cinvyy, Cinvyz;
     float Cinvzx, Cinvzy, Cinvzz;
+    float strainJ2Dot;
 } PINFOOUT;
 
 #if defined(USE_SIMD)

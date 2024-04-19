@@ -83,7 +83,7 @@ static inline float rsqrtf(float v) {
 
 static void reQueueDensity( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU);
 
-void calcSDot(PINFOIN pInfoIn, PINFOOUT pInfoOut, float Gamma, float *SDotxx, float *SDotyy, float *SDotxy, float *SDotxz, float *SDotyz) {
+void calcSDot(PINFOIN pInfoIn, PINFOOUT pInfoOut, float Gamma, float *SDotxx, float *SDotyy, float *SDotxy, float *SDotxz, float *SDotyz, float *strainJ2Dot) {
     // This is all done in double precision
     double Cxx, Cxy, Cxz, Cyx, Cyy, Cyz, Czx, Czy, Czz;
 
@@ -149,6 +149,7 @@ void calcSDot(PINFOIN pInfoIn, PINFOOUT pInfoOut, float Gamma, float *SDotxx, fl
     *SDotxy = float(Gamma * (Gxy + Gyx) + 0.5 * (Sxx * (Gxy - Gyx) + Syy * (Gyx - Gxy) + Syz * (Gzx - Gxz) + Sxz * (Gzy - Gyz)));
     *SDotxz = float(Gamma * (Gxz + Gzx) + 0.5 * ((Sxx + Syy) * (Gxz - Gzx) + Sxx * (Gxz - Gzx) + Syz * (Gyx - Gxy) + Sxy * (Gyz - Gzy)));
     *SDotyz = float(Gamma * (Gyz + Gzy) + 0.5 * ((Sxx + Syy) * (Gyz - Gzy) + Sxz * (Gxy - Gyx) + Sxy * (Gxz - Gzx) + Syy * (Gyz - Gzy)));
+    *strainJ2Dot = float(0.5 * (Gxx * Gxx + Gyy * Gyy + Gzz * Gzz) + 0.25 * ((Gxy + Gyx) * (Gxy + Gyx) + (Gxz + Gzx) * (Gxz + Gzx) + (Gyz + Gzy) * (Gyz + Gzy)));
 };
 
 /*
@@ -290,7 +291,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         float T;
                         SPHpredictOnTheFly(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, vpred, &P, &cs, &T, NULL, NULL, NULL, NULL, NULL, wp->SPHoptions);
                         float Gamma = SPHEOSGammaofRhoT(pkd, wp->pInfoIn[i].rho, T, p.imaterial(), wp->SPHoptions);
-                        calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz);
+                        calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz, &wp->pInfoOut[i].strainJ2Dot);
                     }
                 }
             }
@@ -490,6 +491,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                                 NewSphStr.Sxz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxz;
                                 NewSphStr.Syz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyz;
                                 SPHEOSApplyStrengthLimiter(pkd, p.density(), NewSph.u, p.imaterial(), &NewSphStr.Sxx, &NewSphStr.Syy, &NewSphStr.Sxy, &NewSphStr.Sxz, &NewSphStr.Syz, wp->SPHoptions);
+                                NewSphStr.strainJ2 += wp->kick->dtClose[p.rung()] * wp->pInfoOut[i].strainJ2Dot;
                             }
                         }
                     }
@@ -524,6 +526,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                                 NewSphStr.Sxy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxy;
                                 NewSphStr.Sxz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxz;
                                 NewSphStr.Syz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyz;
+                                NewSphStr.strainJ2 += wp->kick->dtOpen[p.rung()] * wp->pInfoOut[i].strainJ2Dot;
                             }
                         }
                         /*
