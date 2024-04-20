@@ -96,8 +96,8 @@ void csmFinish(CSM csm) {
         gsl_spline_free      (csm->classGsl.background.logTime2logExp_spline);
         gsl_interp_accel_free(csm->classGsl.background.logExp2logD1_acc);
         gsl_spline_free      (csm->classGsl.background.logExp2logD1_spline);
-        gsl_interp_accel_free(csm->classGsl.background.logExp2lognegD2_acc);
-        gsl_spline_free      (csm->classGsl.background.logExp2lognegD2_spline);
+        gsl_interp_accel_free(csm->classGsl.background.logExp2logD2_acc);
+        gsl_spline_free      (csm->classGsl.background.logExp2logD2_spline);
         gsl_interp_accel_free(csm->classGsl.background.logExp2logf1_acc);
         gsl_spline_free      (csm->classGsl.background.logExp2logf1_spline);
         gsl_interp_accel_free(csm->classGsl.background.logExp2logf2_acc);
@@ -610,14 +610,14 @@ void csmClassGslInitialize(CSM csm) {
         logy[i] = log(csm->val.classData.background.D1[i]);
     }
     gsl_spline_init(csm->classGsl.background.logExp2logD1_spline, logx, logy, size);
-    /* Exp2negD2 */
-    csm->classGsl.background.logExp2lognegD2_acc = gsl_interp_accel_alloc();
-    csm->classGsl.background.logExp2lognegD2_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    /* Exp2D2 */
+    csm->classGsl.background.logExp2logD2_acc = gsl_interp_accel_alloc();
+    csm->classGsl.background.logExp2logD2_spline = gsl_spline_alloc(gsl_interp_cspline, size);
     for (i = 0; i < size; i++) {
         logx[i] = log(csm->val.classData.background.a[i]);
-        logy[i] = log(-csm->val.classData.background.D2[i]);
+        logy[i] = log(csm->val.classData.background.D2[i]);
     }
-    gsl_spline_init(csm->classGsl.background.logExp2lognegD2_spline, logx, logy, size);
+    gsl_spline_init(csm->classGsl.background.logExp2logD2_spline, logx, logy, size);
     /* Exp2f1 */
     csm->classGsl.background.logExp2logf1_acc = gsl_interp_accel_alloc();
     csm->classGsl.background.logExp2logf1_spline = gsl_spline_alloc(gsl_interp_cspline, size);
@@ -1525,10 +1525,10 @@ void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1
                      );
         }
         else {
-            *D2LPT = -exp(gsl_spline_eval(
-                              csm->classGsl.background.logExp2lognegD2_spline,
-                              log(a),
-                              csm->classGsl.background.logExp2lognegD2_acc));
+            *D2LPT = exp(gsl_spline_eval(
+                             csm->classGsl.background.logExp2logD2_spline,
+                             log(a),
+                             csm->classGsl.background.logExp2logD2_acc));
         }
         /* f1 */
         if (future) {

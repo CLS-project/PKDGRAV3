@@ -3867,7 +3867,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.bFixed = parameters.get_bFixedAmpIC();
     in.fPhase = parameters.get_dFixedAmpPhasePI() * M_PI;
     in.nGrid = nGrid;
-    in.b2LPT = parameters.get_b2LPT();
+    in.iLPT = parameters.get_iLPT();
     in.bICgas = parameters.get_bICgas();
     in.nBucket = parameters.get_nBucket();
     in.dInitialT = parameters.get_dInitialT();

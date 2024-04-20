@@ -19,6 +19,8 @@
 #define IC_H
 
 #include <stdint.h>
+#include <queue>
+#include <vector>
 #include "blitz/array.h"
 
 typedef struct {
@@ -56,7 +58,7 @@ typedef struct {
     FFTW3(real) vx,vy,vz;
 } gridpsc;
 
-int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
+int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int iLPT,double dBoxSize,
                   double a,int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ);
 #endif
 #endif

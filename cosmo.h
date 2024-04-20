@@ -85,8 +85,8 @@ struct classGslBackgroundStruct {
     gsl_spline       *logTime2logExp_spline;
     gsl_interp_accel *logExp2logD1_acc;
     gsl_spline       *logExp2logD1_spline;
-    gsl_interp_accel *logExp2lognegD2_acc;
-    gsl_spline       *logExp2lognegD2_spline;
+    gsl_interp_accel *logExp2logD2_acc;
+    gsl_spline       *logExp2logD2_spline;
     gsl_interp_accel *logExp2logf1_acc;
     gsl_spline       *logExp2logf1_spline;
     gsl_interp_accel *logExp2logf2_acc;

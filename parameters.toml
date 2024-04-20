@@ -844,10 +844,10 @@ flag="seed"
 default=0
 help="Random seed for IC"
 
-["Initial Conditions".b2LPT]
-flag="2lpt"
-default=true
-help="Enable/disable 2LPT"
+["Initial Conditions".iLPT]
+flag="lpt"
+default=2
+help="LPT order for IC"
 
 ["Initial Conditions".bWriteIC]
 flag="wic"

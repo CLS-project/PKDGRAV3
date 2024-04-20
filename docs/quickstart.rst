@@ -124,11 +124,11 @@ These two parameters combined set the mass resolution of the simulation.
 Realization
 -----------
 
-.. index:: single: parameters ; b2LPT
+.. index:: single: parameters ; iLPT
 
-b2LPT
-   If this is true then second order perterbation theory will be used to generate the IC,
-   otherwise only Zeldovich first order will be used.
+iLPT
+   Sets the order of Lagrangian perturbation theory to be used when generating the IC.
+   A value of 1 is 1LPT (Zeldovich), 2 is 2LPT, 3 is 3LPT.
 
 .. index:: single: parameters ; iSeed
 
