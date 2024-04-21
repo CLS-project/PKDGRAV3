@@ -144,10 +144,14 @@ PowerTransfer::PowerTransfer(CSM csm, double a, int nTf, double *tk, double *tf)
     spline = NULL;
     if (csm->val.classData.bClass)
         return;
-    double D1_0, D2_0, D1_a, D2_a;
-    double f1_0, f2_0, f1_a, f2_a;
-    csmComoveGrowth(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0);
-    csmComoveGrowth(csm, a, &D1_a, &D2_a, &f1_a, &f2_a);
+    double D1_0, D2_0, D3a_0, D3b_0, D3c_0, f1_0, f2_0, f3a_0, f3b_0, f3c_0;
+    double D1_a, D2_a, D3a_a, D3b_a, D3c_a, f1_a, f2_a, f3a_a, f3b_a, f3c_a;
+    csmComoveGrowth(csm, 1.0,
+                    &D1_0, &D2_0, &D3a_0, &D3b_0, &D3c_0,
+                    &f1_0, &f2_0, &f3a_0, &f3b_0, &f3c_0);
+    csmComoveGrowth(csm, a,
+                    &D1_a, &D2_a, &D3a_a, &D3b_a, &D3c_a,
+                    &f1_a, &f2_a, &f3a_a, &f3b_a, &f3c_a);
     normalization = 1.0;
     spectral = csm->val.dSpectral;
     this->nTf = nTf;
@@ -279,6 +283,18 @@ void FFTLaplacianInverse(PKD pkd, MDLFFT fft, real_array_t &grid_R, complex_arra
 }
 
 /* Helper functionality for building up LPT potentials */
+typedef struct {
+    double D1;
+    double f1;
+    double D2;
+    double f2;
+    double D3a;
+    double f3a;
+    double D3b;
+    double f3b;
+    double D3c;
+    double f3c;
+} growthFactors;
 typedef struct {
     int gridIndex = -1;
     int diffs[2] = {-1, -1};
@@ -484,7 +500,7 @@ void handleLPTTerm(
 void carryout1LPT(
     PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
     int gridIndexPhi1, std::queue<tmpNote *> &notes,
-    double f1, int iSeed, int bFixed, float fPhase, int nGrid, double dBoxSize,
+    growthFactors growth, int iSeed, int bFixed, float fPhase, int nGrid, double dBoxSize,
     double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ,
     int printIndent = 0
 ) {
@@ -503,7 +519,7 @@ void carryout1LPT(
     auto tmp0_K = K[gridIndexTmp0];
     auto tmp1_K = K[gridIndexTmp1];
     float transferFactor = pow(kFundamental, 1.5)/dBoxSize;
-    float velocityFactor = a*a*csmExp2Hub(csm, a)*f1;
+    float velocityFactor = a*a*csmExp2Hub(csm, a)*growth.f1;
     /* Prepare transfer function (only used when not using CLASS) */
     PowerTransfer transfer(csm, a, nTf, tk, tf);
     /* Set particle velocities and positions (in that order).
@@ -619,14 +635,14 @@ void carryout1LPT(
 void carryout2LPT(
     PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
     int gridIndexPhi1, int gridIndexPhi2, std::queue<tmpNote *> &notes,
-    double D1, double D2, double f2, int nGrid, double dBoxSize, double a,
+    growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
 ) {
     float kFundamental = 2.*M_PI/dBoxSize;
     float fftFactor = dBoxSize/pow(nGrid, 3.);
     auto Phi2_R = R[gridIndexPhi2];
     auto Phi2_K = K[gridIndexPhi2];
-    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*f2;
+    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f2;
     /* The 2LPT potential looks like
     **  \nabla^2 \Phi2 = D2/D1^2 (
     **      - \Phi1,00 \Phi1,11
@@ -639,7 +655,7 @@ void carryout2LPT(
     ** where all growth factors are taken to be positive.
     */
     if (pkd->Self() == 0) printf("%*sBuilding potential\n", printIndent, "");
-    float potentialFactor = D2/(D1*D1);
+    float potentialFactor = growth.D2/pow(growth.D1, 2.);
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
     gridIndexPhi2, LPT_TERM_OP::EQ,    -1., {{gridIndexPhi1, 0, 0}, {gridIndexPhi1, 1, 1}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
@@ -689,10 +705,11 @@ int pkdGenerateIC_new(  // !!! remove _new
         fprintf(stderr, "pkdGenerateIC() implements 1LPT, 2LPT, 3LPT, but iLPT = %d\n", iLPT);
         abort();
     }
-
     /* Prepare growth factors and rates */
-    double D1, f1, D2, f2;
-    csmComoveGrowth(pkd->csm, a, &D1, &D2, &f1, &f2);
+    growthFactors growth;
+    csmComoveGrowth(pkd->csm, a,
+                    &growth.D1, &growth.D2, &growth.D3a, &growth.D3b, &growth.D3c,
+                    &growth.f1, &growth.f2, &growth.f3a, &growth.f3b, &growth.f3c);
     /* Set up grids.
     ** Note that "data" points to the same block for all threads.
     ** Particles will overlap K[0] through K[5] eventually.
@@ -753,7 +770,7 @@ int pkdGenerateIC_new(  // !!! remove _new
         if (pkd->Self() == 0) printf("%*sCarrying out 1LPT\n", printIndent, "");
         carryout1LPT(
             pkd, fft, output, R, K, gridIndexPhi1, notes,
-            f1, iSeed, bFixed, fPhase, nGrid, dBoxSize, a, nTf, tk, tf, noiseMean, noiseCSQ,
+            growth, iSeed, bFixed, fPhase, nGrid, dBoxSize, a, nTf, tk, tf, noiseMean, noiseCSQ,
             printIndent + 4
         );
     }
@@ -762,7 +779,7 @@ int pkdGenerateIC_new(  // !!! remove _new
         if (pkd->Self() == 0) printf("%*sCarrying out 2LPT\n", printIndent, "");
         carryout2LPT(
             pkd, fft, output, R, K, gridIndexPhi1, gridIndexPhi2, notes,
-            D1, D2, f2, nGrid, dBoxSize, a,
+            growth, nGrid, dBoxSize, a,
             printIndent + 4
         );
     }
@@ -802,18 +819,21 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
     mdlClass *mdl = reinterpret_cast<mdlClass *>(pkd->mdl);
     NoiseGenerator ng(iSeed, bFixed, fPhase);
     /* Prepare growth factors and transfer function */
-    double D1_0, D2_0, f1_0, f2_0;
-    double D1_a, D2_a, f1_a, f2_a;
-    csmComoveGrowth(csm, 1., &D1_0, &D2_0, &f1_0, &f2_0);
-    csmComoveGrowth(csm,  a, &D1_a, &D2_a, &f1_a, &f2_a);
+    double D1_0, D2_0, D3a_0, D3b_0, D3c_0, f1_0, f2_0, f3a_0, f3b_0, f3c_0;
+    double D1_a, D2_a, D3a_a, D3b_a, D3c_a, f1_a, f2_a, f3a_a, f3b_a, f3c_a;
+    csmComoveGrowth(csm, 1., &D1_0, &D2_0, &D3a_0, &D3b_0, &D3c_0, &f1_0, &f2_0, &f3a_0, &f3b_0, &f3c_0);
+    csmComoveGrowth(csm,  a, &D1_a, &D2_a, &D3a_a, &D3b_a, &D3c_a, &f1_a, &f2_a, &f3a_a, &f3b_a, &f3c_a);
     double dOmega = csm->val.dOmega0/(a*a*a*pow(csmExp2Hub(csm, a)/csm->val.dHubble0, 2.0));
     double f1_approx =    pow(dOmega, 5./ 9.);
     double f2_approx = 2.*pow(dOmega, 6./11.);
     PowerTransfer transfer(csm, a, nTf, tk, tf);
     if (bClass) {
-        double D1_internal, D2_internal, f1_internal, f2_internal;
+        double D1_internal, D2_internal, D3a_internal, D3b_internal, D3c_internal;
+        double f1_internal, f2_internal, f3a_internal, f3b_internal, f3c_internal;
         csm->val.classData.bClassGrowth = 0;
-        csmComoveGrowth(csm, a, &D1_internal, &D2_internal, &f1_internal, &f2_internal);
+        csmComoveGrowth(csm, a,
+                        &D1_internal, &D2_internal, &D3a_internal, &D3b_internal, &D3c_internal,
+                        &f1_internal, &f2_internal, &f3a_internal, &f3b_internal, &f3c_internal);
         csm->val.classData.bClassGrowth = 1;
         if (mdl->Self() == 0) {
             printf("f1 = %.12g (CLASS), %.12g (internal but CLASS background), %.12g (approx)\n", f1_a, f1_internal, f1_approx);
@@ -901,7 +921,7 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
         if (mdl->Self()==0) {
             printf("Generating 2LPT source term\n"); fflush(stdout);
         }
-        amp = -D2_a/(D1_a*D1_a)*fft_normalization;
+        amp = -D2_a/(D1_a*D1_a)*fft_normalization; // !!! negated due to old convention
         for (auto index = R[6].begin(); index != R[6].end(); index++) {
             auto pos = index.position();
             *index = amp*(
