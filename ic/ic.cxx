@@ -644,14 +644,14 @@ void carryout2LPT(
     auto Phi2_K = K[gridIndexPhi2];
     float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f2;
     /* The 2LPT potential looks like
-    **  \nabla^2 \Phi2 = D2/D1^2 (
-    **      - \Phi1,00 \Phi1,11
-    **      - \Phi1,11 \Phi1,22
-    **      - \Phi1,22 \Phi1,00
-    **      + \Phi1,01 \Phi1,01
-    **      + \Phi1,12 \Phi1,12
-    **      + \Phi1,20 \Phi1,20
-    **  )
+    **   \nabla^2 \Phi2 = D2/D1^2 (
+    **       - \Phi1,00 \Phi1,11
+    **       - \Phi1,11 \Phi1,22
+    **       - \Phi1,22 \Phi1,00
+    **       + \Phi1,01 \Phi1,01
+    **       + \Phi1,12 \Phi1,12
+    **       + \Phi1,20 \Phi1,20
+    **   )
     ** where all growth factors are taken to be positive.
     */
     if (pkd->Self() == 0) printf("%*sBuilding potential\n", printIndent, "");
@@ -688,6 +688,66 @@ void carryout2LPT(
             auto pos = index.position();
             index->dr[i] += Psi2_R(pos);
             index-> v[i] += velocityFactor*Psi2_R(pos);
+        }
+    }
+}
+
+/* Function for carrying out 3LPT ('a' term only). Populated \Psi1
+** and \Psi2 (both in Fourier space) are expected as input.
+*/
+void carryout3aLPT(
+    PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
+    int gridIndexPhi1, int gridIndexPhi2, int gridIndexPhi3a, std::queue<tmpNote *> &notes,
+    growthFactors growth, int nGrid, double dBoxSize, double a,
+    int printIndent = 0
+) {
+    float kFundamental = 2.*M_PI/dBoxSize;
+    float fftFactor = dBoxSize/pow(nGrid, 3.);
+    auto Phi3a_R = R[gridIndexPhi3a];
+    auto Phi3a_K = K[gridIndexPhi3a];
+    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f3a;
+    /* The 3LPT (a) potential looks like
+    **   \nabla^2 \Phi3a = D3a/D1^3 (
+    **       +   \Phi1,20 \Phi1,20 \Phi1,11
+    **       -   \Phi1,11 \Phi1,22 \Phi1,00
+    **       +   \Phi1,00 \Phi1,12 \Phi1,12
+    **       - 2 \Phi1,12 \Phi1,20 \Phi1,01
+    **       +   \Phi1,01 \Phi1,01 \Phi1,22
+    **   )
+    ** where all growth factors are taken to be positive.
+    */
+    if (pkd->Self() == 0) printf("%*sBuilding potential (a)\n", printIndent, "");
+    float potentialFactor = growth.D3a/pow(growth.D1, 3.);
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridIndexPhi3a, LPT_TERM_OP::EQ,     1., {{gridIndexPhi1, 2, 0}, {gridIndexPhi1, 2, 0}, {gridIndexPhi1, 1, 1}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridIndexPhi3a, LPT_TERM_OP::MIN_EQ, 1., {{gridIndexPhi1, 1, 1}, {gridIndexPhi1, 2, 2}, {gridIndexPhi1, 0, 0}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridIndexPhi3a, LPT_TERM_OP::PLS_EQ, 1., {{gridIndexPhi1, 0, 0}, {gridIndexPhi1, 1, 2}, {gridIndexPhi1, 1, 2}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridIndexPhi3a, LPT_TERM_OP::MIN_EQ, 2., {{gridIndexPhi1, 1, 2}, {gridIndexPhi1, 2, 0}, {gridIndexPhi1, 0, 1}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridIndexPhi3a, LPT_TERM_OP::PLS_EQ, 1., {{gridIndexPhi1, 0, 1}, {gridIndexPhi1, 0, 1}, {gridIndexPhi1, 2, 2}});
+    FFTLaplacianInverse(pkd, fft, Phi3a_R, Phi3a_K, kFundamental, fftFactor*potentialFactor);
+    /* Construct displacement field from potential,
+    ** displace positions and boost velocities.
+    */
+    if (pkd->Self() == 0) printf("%*sDisplacing positions and boosting velocities\n", printIndent, "");
+    auto note = getTmpNote(notes);
+    note->state = TMP_STATE::INACTIVE;  // flag as being non-reusable
+    auto Psi3a_R = R[note->gridIndex];
+    auto Psi3a_K = K[note->gridIndex];
+
+    // !!!
+    auto enabled = checkEnabledTerms(pkd);
+    if (!enabled.term3a) return;
+
+    for (auto i = 0; i < 3; i++) {
+        diffIFFT(pkd, fft, Phi3a_K, Psi3a_K, kFundamental, i);
+        for (auto index = output.begin(); index != output.end(); index++) {
+            auto pos = index.position();
+            index->dr[i] += Psi3a_R(pos);
+            index-> v[i] += velocityFactor*Psi3a_R(pos);
         }
     }
 }
@@ -779,6 +839,15 @@ int pkdGenerateIC_new(  // !!! remove _new
         if (pkd->Self() == 0) printf("%*sCarrying out 2LPT\n", printIndent, "");
         carryout2LPT(
             pkd, fft, output, R, K, gridIndexPhi1, gridIndexPhi2, notes,
+            growth, nGrid, dBoxSize, a,
+            printIndent + 4
+        );
+    }
+    if (iLPT >= 3) {
+        if (pkd->Self() == 0) printf("%*sCarrying out 3LPT\n", printIndent, "");
+        /* 3LPT ('a' term) */
+        carryout3aLPT(
+            pkd, fft, output, R, K, gridIndexPhi1, gridIndexPhi2, gridIndexPhi3, notes,
             growth, nGrid, dBoxSize, a,
             printIndent + 4
         );
