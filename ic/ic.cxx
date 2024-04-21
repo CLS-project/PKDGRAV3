@@ -906,14 +906,14 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
         csm->val.classData.bClassGrowth = 1;
         if (mdl->Self() == 0) {
             printf("f1 = %.12g (CLASS), %.12g (internal but CLASS background), %.12g (approx)\n", f1_a, f1_internal, f1_approx);
-            if (iLPT)
+            if (iLPT >= 2)
                 printf("f2 = %.12g (CLASS), %.12g (internal but CLASS background), %.12g (approx)\n", f2_a, f2_internal, f2_approx);
         }
     }
     else {
         if (mdl->Self() == 0) {
             printf("f1 = %.12g (internal), %.12g (approx)\n", f1_a, f1_approx);
-            if (iLPT)
+            if (iLPT >= 2)
                 printf("f2 = %.12g (internal), %.12g (approx)\n", f2_a, f2_approx);
         }
     }
@@ -941,7 +941,7 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
     float vel_factor1 = a*a*csmExp2Hub(csm, a)*f1_a;
     float vel_factor2 = a*a*csmExp2Hub(csm, a)*f2_a;
     float kx, ky, kz, k2, x, amp;
-    if (iLPT) {
+    if (iLPT >= 2) {
         /* Generate primordial white noise for 2LPT */
         if (mdl->Self()==0) {
             printf("Generating primordial noise\n"); fflush(stdout);
@@ -1105,13 +1105,13 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
             auto pos = index.position();
             for (auto i = 0; i < 3; i++) {
                 if (quantity == 0) {
-                    if (iLPT) index->dr[i] += R[7 + i](pos);
+                    if (iLPT >= 2) index->dr[i] += R[7 + i](pos);
                     else       index->dr[i]  = R[7 + i](pos);
                 }
-                else if (iLPT) index->v[i] += R[7 + i](pos);
+                else if (iLPT >= 2) index->v[i] += R[7 + i](pos);
                 else            index->v[i]  = R[7 + i](pos);
                 if (!bClass) {
-                    if (iLPT)  index->v[i] += vel_factor1*R[7 + i](pos);
+                    if (iLPT >= 2)  index->v[i] += vel_factor1*R[7 + i](pos);
                     else        index->v[i]  = vel_factor1*R[7 + i](pos);
                 }
             }
