@@ -431,7 +431,7 @@ void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
     if (H5LTread_dataset_double(file, hdf5_key, csm->val.classData.background.rho_m) < 0) abort();
 
     /* Read in the perturbations,
-    ** excluding density constrasts of linear species.
+    ** excluding density contrasts of linear species.
     */
     /* a */
     if (H5LTget_dataset_info(file, "/perturbations/a", &size_a, NULL, NULL) < 0) abort();
@@ -485,7 +485,7 @@ void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
     ** rho_crit0 = 1 in PKDGRAV units.
     ** Since H0 and rho_crit0 are part of the CLASS data,
     ** we have enough information to be completely agnostic
-    ** abouth the units actually used in the hdf5 file.
+    ** about the units actually used in the hdf5 file.
     */
     unit_conversion_time = csm->val.dHubble0/csm->val.classData.background.H[size_bg - 1];
     count[0] = 1;
@@ -1590,7 +1590,7 @@ static double RK4_f1(CSM csm, double lna, double G1) {
 static double RK4_g1(CSM csm, double lna, double D1, double G1) {
     double a = exp(lna);
     double inva = 1./a;
-    return -2.0 * G1 + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * D1/csmExp2Hub(csm, a);
+    return -2. * G1 + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * D1/csmExp2Hub(csm, a);
 }
 
 static double RK4_f2(CSM csm, double lna, double G2) {
@@ -1601,7 +1601,7 @@ static double RK4_f2(CSM csm, double lna, double G2) {
 static double RK4_g2(CSM csm, double lna, double D1, double D2, double G2) {
     double a = exp(lna);
     double inva = 1./a;
-    return -2.0 * G2 + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D2 - D1*D1)/csmExp2Hub(csm, a);
+    return -2. * G2 + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D2 + D1*D1)/csmExp2Hub(csm, a);
 }
 
 static double RK4_f3a(CSM csm, double lna, double G3a) {
@@ -1612,8 +1612,7 @@ static double RK4_f3a(CSM csm, double lna, double G3a) {
 static double RK4_g3a(CSM csm, double lna, double D1, double D3a, double G3a) {
     double a = exp(lna);
     double inva = 1./a;
-    // !!! WRONG ODE BELOW
-    return -2.0 * G3a + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D3a - D1*D1)/csmExp2Hub(csm, a);
+    return -2. * G3a + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D3a + 2.*D1*D1*D1)/csmExp2Hub(csm, a);
 }
 
 static double RK4_f3b(CSM csm, double lna, double G3b) {
@@ -1624,8 +1623,7 @@ static double RK4_f3b(CSM csm, double lna, double G3b) {
 static double RK4_g3b(CSM csm, double lna, double D1, double D2, double D3b, double G3b) {
     double a = exp(lna);
     double inva = 1./a;
-    // !!! WRONG ODE BELOW
-    return -2.0 * G3b + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D3b - D1*D1)/csmExp2Hub(csm, a);
+    return -2. * G3b + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D3b + 2.*D1*D1*D1 + 2*D1*D2)/csmExp2Hub(csm, a);
 }
 
 static double RK4_f3c(CSM csm, double lna, double G3c) {
@@ -1633,11 +1631,10 @@ static double RK4_f3c(CSM csm, double lna, double G3c) {
     return RK4_f1(csm, lna, G3c);
 }
 
-static double RK4_g3c(CSM csm, double lna, double D1, double D3c, double G3c) {
+static double RK4_g3c(CSM csm, double lna, double D1, double G3c) {
     double a = exp(lna);
     double inva = 1./a;
-    // !!! WRONG ODE BELOW (the correct one might not require D3c)
-    return -2.0 * G3c + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D3c - D1*D1)/csmExp2Hub(csm, a);
+    return -2. * G3c + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * D1*D1*D1/csmExp2Hub(csm, a);
 }
 
 #define NSTEPS 1000
@@ -1756,8 +1753,6 @@ void csmComoveGrowth(CSM csm, double a,
                              log(a),
                              csm->classGsl.background.logExp2logf2_acc));
         }
-
-
         /* f3a */
         if (future) {
             /* a is in the future; do linear extrapolation */
@@ -1808,45 +1803,64 @@ void csmComoveGrowth(CSM csm, double a,
     /*
     ** Variable declarations & initializations
     */
-    double a_init, lna_init = log(1e-12); // ln(a)=-12 ==> a = e^(-12) ~ 0
-    double stepwidth = (log(a)- lna_init)/NSTEPS;
+    double a_init = 1e-12;
+    double lna_init = log(a_init);
+    double H_init = csmExp2Hub(csm, a_init);
+    double stepwidth = (log(a) - lna_init)/NSTEPS;
 
     // NOTICE: Storing the following quantities into data structures is by far not optimal (we actually never need the old values after the update).
     double ln_timesteps[NSTEPS+1];
     // -- 1LPT
-    double D1[NSTEPS+1]; // 1LPT Growth factor D1(a)
+    double D1[NSTEPS+1]; // 1LPT growth factor D1(a)
     double G1[NSTEPS+1]; // G1(a) = dD1(a)/dln(a) * H  ==>  Growth rate: f1(a) = G1/(H*D1)
     // -- 2LPT
-    double D2[NSTEPS+1]; // 2LPT Growth factor D2(a)
+    double D2[NSTEPS+1]; // 2LPT growth factor D2(a)
     double G2[NSTEPS+1]; // G2(a) = dD2(a)/dln(a) * H  ==>  Growth rate: f2(a) = G2/(H*D2)
     // -- 3LPT
-    double D3a[NSTEPS+1]; // 3LPT Growth factor D3a(a)
+    double D3a[NSTEPS+1]; // 3LPT growth factor D3a(a)
     double G3a[NSTEPS+1]; // G3a(a) = dD3a(a)/dln(a) * H  ==>  Growth rate: f3a(a) = G3a/(H*D3a)
-    double D3b[NSTEPS+1]; // 3LPT Growth factor D3b(a)
+    double D3b[NSTEPS+1]; // 3LPT growth factor D3b(a)
     double G3b[NSTEPS+1]; // G3b(a) = dD3b(a)/dln(a) * H  ==>  Growth rate: f3b(a) = G3b/(H*D3b)
-    double D3c[NSTEPS+1]; // 3LPT Growth factor D3c(a)
+    double D3c[NSTEPS+1]; // 3LPT growth factor D3c(a)
     double G3c[NSTEPS+1]; // G3c(a) = dD3c(a)/dln(a) * H  ==>  Growth rate: f3c(a) = G3c/(H*D3c)
 
-    /*
-    ** Set boundary conditions
+    /* Set initial conditions for growth ODEs.
+    ** We use the conventions of all growth factors being positive.
     */
-    a_init = exp(lna_init);
-    D1[0] = a_init + 2.0/3.0*csmRadMatEquivalence(csm);
-    G1[0] = csmExp2Hub(csm, a_init)*a_init;
-
-    // This is the analytical approximation
-    //double AnApprox = -3. * D1[0]*D1[0]/(7. * pow(csm->val.dOmega0,1./143.));
-
-    D2[0] = -2.0/3.0*csmRadMatEquivalence(csm)*a_init;
-    G2[0] = -2.0/3.0*csmRadMatEquivalence(csm)*a_init*csmExp2Hub(csm, a_init);
-
-    // !!! Set up properly
-    D3a[0] = D2[0];
-    G3a[0] = G2[0];
-    D3b[0] = D2[0];
-    G3b[0] = G2[0];
-    D3c[0] = D2[0];
-    G3c[0] = G2[0];
+    if (csm->val.dOmega0 == 0.) {
+        fprintf(stderr, "dOmega0 = 0.0 not acceptable with !bClass\n");
+        abort();
+    }
+    if (csmRadMatEquivalence(csm) < a_init) {
+        /* Use matter-only initial conditions for growth ODEs */
+        double Cm = 1.;  // arbitrary
+        D1[0] = Cm*a_init;
+        G1[0] = H_init*D1[0];
+        D2[0] = 3./7.*pow(D1[0], 2.);
+        G2[0] = 2.*H_init*D2[0];
+        D3a[0] = 1./3.*pow(D1[0], 3.);
+        G3a[0] = 3.*H_init*D3a[0];
+        D3b[0] = 10./21.*pow(D1[0], 3.);
+        G3b[0] = 3.*H_init*D3b[0];
+        D3c[0] = 1./7.*pow(D1[0], 3.);
+        G3c[0] = 3.*H_init*D3c[0];
+    }
+    else {
+        /* Use boundary conditions for early radiation domination */
+        double Cr = 1.;  // arbitrary
+        double dOmegaRad_eff = pow(a_init, 4.)*pow(H_init/csm->val.dHubble0, 2.);
+        double eps = 3./2.*csm->val.dOmega0/dOmegaRad_eff*a_init;
+        D1 [0] = pow(Cr, 1.)       *(1. + 1.*eps + 1./4.*eps*eps);
+        G1 [0] = pow(Cr, 1.)*H_init*(0. + 1.*eps + 1./2.*eps*eps);
+        D2 [0] = pow(Cr, 2.)       *(0. + 1.*eps + 3./4.*eps*eps);
+        G2 [0] = pow(Cr, 2.)*H_init*(0. + 1.*eps + 3./2.*eps*eps);
+        D3a[0] = pow(Cr, 3.)       *(0. + 2.*eps + 2./1.*eps*eps);
+        G3a[0] = pow(Cr, 3.)*H_init*(0. + 2.*eps + 4./1.*eps*eps);
+        D3b[0] = pow(Cr, 3.)       *(0. + 2.*eps + 5./2.*eps*eps);
+        G3b[0] = pow(Cr, 3.)*H_init*(0. + 2.*eps + 5./1.*eps*eps);
+        D3c[0] = pow(Cr, 3.)       *(0. + 1.*eps + 3./4.*eps*eps);
+        G3c[0] = pow(Cr, 3.)*H_init*(0. + 1.*eps + 3./2.*eps*eps);
+    }
 
     //Classical RK4 Solver
     double k0, k1, k2, k3;
@@ -1876,7 +1890,7 @@ void csmComoveGrowth(CSM csm, double a,
         q0 = stepwidth * RK4_f3b(csm, ln_timesteps[i], G3b[i]);
         r0 = stepwidth * RK4_g3b(csm, ln_timesteps[i], D1[i], D2[i], D3b[i], G3b[i]);
         s0 = stepwidth * RK4_f3c(csm, ln_timesteps[i], G3c[i]);
-        t0 = stepwidth * RK4_g3c(csm, ln_timesteps[i], D1[i], D3c[i], G3c[i]);  // !!! may not require D3c
+        t0 = stepwidth * RK4_g3c(csm, ln_timesteps[i], D1[i], G3c[i]);
 
         //RK4 step 2
         k1 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth/2.0, G1[i] + l0/2.0);
@@ -1890,7 +1904,7 @@ void csmComoveGrowth(CSM csm, double a,
         q1 = stepwidth * RK4_f3b(csm, ln_timesteps[i] + stepwidth/2.0, G3b[i] + r0/2.0);
         r1 = stepwidth * RK4_g3b(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k0/2.0, D2[i]  + m0/2.0, D3b[i] + q0/2.0, G3b[i] + r0/2.0);
         s1 = stepwidth * RK4_f3c(csm, ln_timesteps[i] + stepwidth/2.0, G3c[i] + t0/2.0);
-        t1 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k0/2.0, D3c[i] + s0/2.0, G3c[i] + t0/2.0);  // !!! may not require D3c
+        t1 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k0/2.0, G3c[i] + t0/2.0);
 
         //RK4 step 3
         k2 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth/2.0, G1[i] + l1/2.0);
@@ -1904,7 +1918,7 @@ void csmComoveGrowth(CSM csm, double a,
         q2 = stepwidth * RK4_f3b(csm, ln_timesteps[i] + stepwidth/2.0, G3b[i] + r1/2.0);
         r2 = stepwidth * RK4_g3b(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k1/2.0, D2[i]  + m1/2.0, D3b[i] + q1/2.0, G3b[i] + r1/2.0);
         s2 = stepwidth * RK4_f3c(csm, ln_timesteps[i] + stepwidth/2.0, G3c[i] + t1/2.0);
-        t2 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k1/2.0, D3c[i] + s1/2.0, G3c[i] + t1/2.0);  // !!! may not require D3c
+        t2 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k1/2.0, G3c[i] + t1/2.0);
 
         //RK4 step 4
         k3 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth, G1[i] + l2);
@@ -1918,7 +1932,7 @@ void csmComoveGrowth(CSM csm, double a,
         q3 = stepwidth * RK4_f3b(csm, ln_timesteps[i] + stepwidth, G3b[i] + r2);
         r3 = stepwidth * RK4_g3b(csm, ln_timesteps[i] + stepwidth, D1[i]  + k2, D2[i]  + m2, D3b[i] + q2, G3b[i] + r2);
         s3 = stepwidth * RK4_f3c(csm, ln_timesteps[i] + stepwidth, G3c[i] + t2);
-        t3 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth, D1[i]  + k2, D3c[i] + s2, G3c[i] + t2);  // !!! may not require D3c
+        t3 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth, D1[i]  + k2, G3c[i] + t2);
 
         //Update
         D1[i+1] = D1[i] + (k0 + 2*k1 + 2*k2 + k3)/6.0;
