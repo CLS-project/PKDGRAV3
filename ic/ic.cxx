@@ -173,6 +173,36 @@ PowerTransfer::PowerTransfer(CSM csm, double a, int nTf, double *tk, double *tf)
     }
 }
 
+/* Function for determining the total number of grids needed as well as
+** the grid index mapping used during LPT computations.
+*/
+gridInfoLPT getGridInfoLPT(int iLPT) {
+    int bExtraTmpGridFor1LPT = 1;  // allow one additional temporary grid when doing 1LPT only?
+    gridInfoLPT gridInfo;
+    gridInfo.nGrids = 6;  // particle positions and velocities
+    if (iLPT >= 1) {
+        /* For 1LPT we need 1 potential grid and one temporary grid */
+        gridInfo.indexPhi1 = gridInfo.nGrids++;
+        gridInfo.indexTmp0 = gridInfo.nGrids++;
+        /* We can save time by having one additional temporary grid */
+        gridInfo.indexTmp1 = gridInfo.indexTmp0;
+        if (iLPT == 1 && bExtraTmpGridFor1LPT) {
+            gridInfo.indexTmp1 = gridInfo.nGrids++;
+        }
+    }
+    if (iLPT >= 2) {
+        /* For 2LPT we need 1 additional potential grid
+        ** and one additional temporary grid.
+        */
+        gridInfo.indexPhi2 = gridInfo.nGrids++;
+        gridInfo.indexTmp1 = gridInfo.nGrids++;
+    }
+    if (iLPT >= 3) {
+        /* For 3LPT we need 1 additional potential grid */
+        gridInfo.indexPhi3 = gridInfo.nGrids++;
+    }
+    return gridInfo;
+}
 
 
 
@@ -237,20 +267,22 @@ enabledTerms checkEnabledTerms(PKD pkd) {
 void diffIFFT(PKD pkd, MDLFFT fft, complex_array_t &gridIn, complex_array_t &gridOut,
               float kFundamental, int i, int j = -1) {
     uint32_t nvec[] = {fft->rgrid->n1, fft->rgrid->n2, fft->rgrid->n3};
+    uint32_t ni = nvec[i];
     if (j == -1) {
         /* Differentiate along dimension i */
         for (auto index = gridOut.begin(); index != gridOut.end(); index++) {
             auto pos = index.position();
-            float ki = fwrap(pos[i], nvec[i])*kFundamental;
+            float ki = fwrap(pos[i], ni)*kFundamental;
             *index = gridIn(pos)*ki*I;  // diff. along dimension i: ki*sqrt(-1)
         }
     }
     else {
         /* Differentiate along dimensions i and j */
+        uint32_t nj = nvec[j];
         for (auto index = gridOut.begin(); index != gridOut.end(); index++) {
             auto pos = index.position();
-            float ki = fwrap(pos[i], nvec[i])*kFundamental;
-            float kj = fwrap(pos[j], nvec[j])*kFundamental;
+            float ki = fwrap(pos[i], ni)*kFundamental;
+            float kj = fwrap(pos[j], nj)*kFundamental;
             *index = -gridIn(pos)*ki*kj;  // diff. along dimension i and j: -ki*kj
         }
     }
@@ -355,7 +387,6 @@ void handleLPTTerm(
             /* First needed diff. potential present amongst
             ** temporary grids. It has been moved to the front.
             */
-            if (pkd->Self() == 0) printf("!!! Move reusable tmp to front\n");
             reuseFirst = 1;
             break;
         }
@@ -368,24 +399,24 @@ void handleLPTTerm(
         ** so that it is not used as the base grid.
         */
         for (auto n = 1; n < diffPots.size(); n++) {
-            if (diffPot.gridIndex != diffPots[n].gridIndex
-                    || diffPot.diffs[0] != diffPots[n].diffs[0]
-                    || diffPot.diffs[1] != diffPots[n].diffs[1]
+            if (diffPot.gridIndex == diffPots[n].gridIndex
+                    && diffPot.diffs[0] == diffPots[n].diffs[0]
+                    && diffPot.diffs[1] == diffPots[n].diffs[1]
                ) {
-                /* Found unique second diff. potential */
-                diffPot = diffPots[n];
-                for (auto _ = 0; _ < notes.size(); _++) {
-                    note = getTmpNote(notes);
-                    if (reusableTmp(*note, diffPot)) {
-                        /* Second needed diff. potential present amongst
-                        ** temporary grids. It has been moved to the back.
-                        */
-                        if (pkd->Self() == 0) printf("!!! Move reusable tmp to back\n");
-                        break;
-                    }
-                }
-                break;
+                continue;
             }
+            /* Found unique second diff. potential */
+            diffPot = diffPots[n];
+            for (auto _ = 0; _ < notes.size(); _++) {
+                note = getTmpNote(notes);
+                if (reusableTmp(*note, diffPot)) {
+                    /* Second needed diff. potential present amongst
+                    ** temporary grids. It has been moved to the back.
+                    */
+                    break;
+                }
+            }
+            break;
         }
     }
     /* Obtain the first potential, differentiated as needed.
@@ -396,13 +427,11 @@ void handleLPTTerm(
     auto gridBase_R = R[noteBase->gridIndex];
     auto gridBase_K = K[noteBase->gridIndex];
     if (!reusableTmp(*noteBase, diffPot)) {
-        if (pkd->Self() == 0) printf("!!! Constructing base grid\n");
         diffIFFT(pkd, fft, K[diffPot.gridIndex], gridBase_K, kFundamental,
                  diffPot.diffs[0], diffPot.diffs[1]);
     }
     else {
-        /* Reuse base grid as is */
-        if (pkd->Self() == 0) printf("!!! Reusing base grid\n");
+        ;  // reuse base grid as is
     }
     noteBase->state = TMP_STATE::INACTIVE;  // flag as being non-reusable
     /* Obtain grid for temporary storage */
@@ -418,7 +447,6 @@ void handleLPTTerm(
             ** Copy base grid into temporary grid. We could avoid this
             ** copying, but doing it allows for later reusage.
             */
-            if (pkd->Self() == 0) printf("!!! Square: Copying base into tmp\n");
             for (auto index = gridBase_K.begin(); index != gridBase_K.end(); index++) {
                 auto pos = index.position();
                 gridTmp_K(pos) = *index;
@@ -426,13 +454,11 @@ void handleLPTTerm(
         }
         else if (!reusableTmp(*noteTmp, diffPot)) {
             /* Construct grid */
-            if (pkd->Self() == 0) printf("!!! Constructing tmp grid\n");
             diffIFFT(pkd, fft, K[diffPot.gridIndex], gridTmp_K, kFundamental,
                      diffPot.diffs[0], diffPot.diffs[1]);
         }
         else {
-            /* Reuse temporary grid as is */
-            if (pkd->Self() == 0) printf("!!! Reusing tmp\n");
+            ;  // reuse temporary grid as is
         }
         /* Note down the contents of the temporary grid */
         noteTmp->diffPot = diffPot;
@@ -499,25 +525,19 @@ void handleLPTTerm(
 */
 void carryout1LPT(
     PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
-    int gridIndexPhi1, std::queue<tmpNote *> &notes,
+    gridInfoLPT gridInfo,
     growthFactors growth, int iSeed, int bFixed, float fPhase, int nGrid, double dBoxSize,
     double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ,
     int printIndent = 0
 ) {
-
-    // !!!
-    auto enabled = checkEnabledTerms(pkd);
-
     float kFundamental = 2.*M_PI/dBoxSize;
     CSM csm = pkd->csm;
     int bClass = csm->val.classData.bClass;
-    int gridIndexTmp0 = getTmpNote(notes)->gridIndex;
-    int gridIndexTmp1 = getTmpNote(notes)->gridIndex;
-    int onlyOneTmpGrid = (gridIndexTmp0 == gridIndexTmp1);
-    auto Phi1_K = K[gridIndexPhi1];
-    auto tmp0_R = R[gridIndexTmp0];
-    auto tmp0_K = K[gridIndexTmp0];
-    auto tmp1_K = K[gridIndexTmp1];
+    int onlyOneTmpGrid = (gridInfo.indexTmp0 == gridInfo.indexTmp1);
+    auto Phi1_K = K[gridInfo.indexPhi1];
+    auto tmp0_R = R[gridInfo.indexTmp0];
+    auto tmp0_K = K[gridInfo.indexTmp0];
+    auto tmp1_K = K[gridInfo.indexTmp1];
     float transferFactor = pow(kFundamental, 1.5)/dBoxSize;
     float velocityFactor = a*a*csmExp2Hub(csm, a)*growth.f1;
     /* Prepare transfer function (only used when not using CLASS) */
@@ -602,25 +622,26 @@ void carryout1LPT(
                 printf("%*sBoosting velocities\n", printIndent, "");
             }
         }
-        auto &Psi1_R = tmp0_R;  // displacement field
-        auto &Psi1_K = tmp0_K;
+        auto &Psi1_i_R = tmp0_R;  // displacement field
+        auto &Psi1_i_K = tmp0_K;
 
         // !!!
+        auto enabled = checkEnabledTerms(pkd);
         if (!enabled.term1) continue;
 
         for (auto i = 0; i < 3; i++) {
-            diffIFFT(pkd, fft, Phi1_K, Psi1_K, kFundamental, i);
+            diffIFFT(pkd, fft, Phi1_K, Psi1_i_K, kFundamental, i);
             for (auto index = output.begin(); index != output.end(); index++) {
                 auto pos = index.position();
                 if (!bClass) {
-                    index->dr[i] = Psi1_R(pos);
-                    index-> v[i] = velocityFactor*Psi1_R(pos);
+                    index->dr[i] = Psi1_i_R(pos);
+                    index-> v[i] = velocityFactor*Psi1_i_R(pos);
                 }
                 else if (variable == 0) {
-                    index->dr[i] = Psi1_R(pos);
+                    index->dr[i] = Psi1_i_R(pos);
                 }
                 else {    // variable == 1
-                    index-> v[i] = Psi1_R(pos);
+                    index-> v[i] = Psi1_i_R(pos);
                 }
             }
         }
@@ -634,16 +655,16 @@ void carryout1LPT(
 */
 void carryout2LPT(
     PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
-    int gridIndexPhi1, int gridIndexPhi2, std::queue<tmpNote *> &notes,
+    gridInfoLPT gridInfo, std::queue<tmpNote *> &notes,
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
 ) {
     float kFundamental = 2.*M_PI/dBoxSize;
     float fftFactor = dBoxSize/pow(nGrid, 3.);
-    auto Phi2_R = R[gridIndexPhi2];
-    auto Phi2_K = K[gridIndexPhi2];
+    auto Phi2_R = R[gridInfo.indexPhi2];
+    auto Phi2_K = K[gridInfo.indexPhi2];
     float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f2;
-    /* The 2LPT potential looks like
+    /* The 2LPT potential is
     **   \nabla^2 \Phi2 = D2/D1^2 (
     **       - \Phi1,00 \Phi1,11
     **       - \Phi1,11 \Phi1,22
@@ -652,22 +673,24 @@ void carryout2LPT(
     **       + \Phi1,12 \Phi1,12
     **       + \Phi1,20 \Phi1,20
     **   )
-    ** where all growth factors are taken to be positive.
+    ** with comma denoting differentiation and with all growth factors positive.
+    ** The displacement field is
+    **   \Psi2[i] = \Phi2,i
     */
     if (pkd->Self() == 0) printf("%*sBuilding potential\n", printIndent, "");
     float potentialFactor = growth.D2/pow(growth.D1, 2.);
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi2, LPT_TERM_OP::EQ,    -1., {{gridIndexPhi1, 0, 0}, {gridIndexPhi1, 1, 1}});
+    gridInfo.indexPhi2, LPT_TERM_OP::EQ,    -1., {{gridInfo.indexPhi1, 0, 0}, {gridInfo.indexPhi1, 1, 1}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi2, LPT_TERM_OP::MIN_EQ, 1., {{gridIndexPhi1, 1, 1}, {gridIndexPhi1, 2, 2}});
+    gridInfo.indexPhi2, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, 1, 1}, {gridInfo.indexPhi1, 2, 2}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi2, LPT_TERM_OP::MIN_EQ, 1., {{gridIndexPhi1, 2, 2}, {gridIndexPhi1, 0, 0}});
+    gridInfo.indexPhi2, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, 2, 2}, {gridInfo.indexPhi1, 0, 0}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridIndexPhi1, 0, 1}, {gridIndexPhi1, 0, 1}});
+    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 0, 1}, {gridInfo.indexPhi1, 0, 1}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridIndexPhi1, 1, 2}, {gridIndexPhi1, 1, 2}});
-    handleLPTTerm(pkd, fft, R, K, notes, kFundamental, gridIndexPhi2, LPT_TERM_OP::PLS_EQ, 1.,
-    {{gridIndexPhi1, 2, 0}, {gridIndexPhi1, 2, 0}});
+    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 1, 2}, {gridInfo.indexPhi1, 1, 2}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 2, 0}, {gridInfo.indexPhi1, 2, 0}});
     FFTLaplacianInverse(pkd, fft, Phi2_R, Phi2_K, kFundamental, fftFactor*potentialFactor);
     /* Construct displacement field from potential,
     ** displace positions and boost velocities.
@@ -675,38 +698,44 @@ void carryout2LPT(
     if (pkd->Self() == 0) printf("%*sDisplacing positions and boosting velocities\n", printIndent, "");
     auto note = getTmpNote(notes);
     note->state = TMP_STATE::INACTIVE;  // flag as being non-reusable
-    auto Psi2_R = R[note->gridIndex];
-    auto Psi2_K = K[note->gridIndex];
+    auto Psi2_i_R = R[note->gridIndex];
+    auto Psi2_i_K = K[note->gridIndex];
 
     // !!!
     auto enabled = checkEnabledTerms(pkd);
     if (!enabled.term2) return;
 
     for (auto i = 0; i < 3; i++) {
-        diffIFFT(pkd, fft, Phi2_K, Psi2_K, kFundamental, i);
+        diffIFFT(pkd, fft, Phi2_K, Psi2_i_K, kFundamental, i);
         for (auto index = output.begin(); index != output.end(); index++) {
             auto pos = index.position();
-            index->dr[i] += Psi2_R(pos);
-            index-> v[i] += velocityFactor*Psi2_R(pos);
+            index->dr[i] += Psi2_i_R(pos);
+            index-> v[i] += velocityFactor*Psi2_i_R(pos);
         }
     }
 }
 
-/* Function for carrying out 3LPT ('a' term only). Populated \Psi1
-** and \Psi2 (both in Fourier space) are expected as input.
+/* Function for carrying out 3LPT ('a' term only). A populated \Psi1
+** (in Fourier space) is expected as input.
 */
 void carryout3aLPT(
     PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
-    int gridIndexPhi1, int gridIndexPhi2, int gridIndexPhi3a, std::queue<tmpNote *> &notes,
+    gridInfoLPT gridInfo, std::queue<tmpNote *> &notes,
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
 ) {
+
+    // !!!
+    auto enabled = checkEnabledTerms(pkd);
+    if (!enabled.term3a) return;
+
     float kFundamental = 2.*M_PI/dBoxSize;
     float fftFactor = dBoxSize/pow(nGrid, 3.);
-    auto Phi3a_R = R[gridIndexPhi3a];
-    auto Phi3a_K = K[gridIndexPhi3a];
+    fftFactor *= dBoxSize;  // !!! I do not understand why this is needed!
+    auto Phi3a_R = R[gridInfo.indexPhi3];
+    auto Phi3a_K = K[gridInfo.indexPhi3];
     float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f3a;
-    /* The 3LPT (a) potential looks like
+    /* The 3LPT (a) potential is
     **   \nabla^2 \Phi3a = D3a/D1^3 (
     **       +   \Phi1,20 \Phi1,20 \Phi1,11
     **       -   \Phi1,11 \Phi1,22 \Phi1,00
@@ -714,20 +743,22 @@ void carryout3aLPT(
     **       - 2 \Phi1,12 \Phi1,20 \Phi1,01
     **       +   \Phi1,01 \Phi1,01 \Phi1,22
     **   )
-    ** where all growth factors are taken to be positive.
+    ** with comma denoting differentiation and with all growth factors positive.
+    ** The displacement field is
+    **   \Psi3a[i] = \Phi3a,i
     */
     if (pkd->Self() == 0) printf("%*sBuilding potential (a)\n", printIndent, "");
     float potentialFactor = growth.D3a/pow(growth.D1, 3.);
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi3a, LPT_TERM_OP::EQ,     1., {{gridIndexPhi1, 2, 0}, {gridIndexPhi1, 2, 0}, {gridIndexPhi1, 1, 1}});
+    gridInfo.indexPhi3, LPT_TERM_OP::EQ,     1., {{gridInfo.indexPhi1, 2, 0}, {gridInfo.indexPhi1, 2, 0}, {gridInfo.indexPhi1, 1, 1}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi3a, LPT_TERM_OP::MIN_EQ, 1., {{gridIndexPhi1, 1, 1}, {gridIndexPhi1, 2, 2}, {gridIndexPhi1, 0, 0}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, 1, 1}, {gridInfo.indexPhi1, 2, 2}, {gridInfo.indexPhi1, 0, 0}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi3a, LPT_TERM_OP::PLS_EQ, 1., {{gridIndexPhi1, 0, 0}, {gridIndexPhi1, 1, 2}, {gridIndexPhi1, 1, 2}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 0, 0}, {gridInfo.indexPhi1, 1, 2}, {gridInfo.indexPhi1, 1, 2}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi3a, LPT_TERM_OP::MIN_EQ, 2., {{gridIndexPhi1, 1, 2}, {gridIndexPhi1, 2, 0}, {gridIndexPhi1, 0, 1}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 2., {{gridInfo.indexPhi1, 1, 2}, {gridInfo.indexPhi1, 2, 0}, {gridInfo.indexPhi1, 0, 1}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridIndexPhi3a, LPT_TERM_OP::PLS_EQ, 1., {{gridIndexPhi1, 0, 1}, {gridIndexPhi1, 0, 1}, {gridIndexPhi1, 2, 2}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 0, 1}, {gridInfo.indexPhi1, 0, 1}, {gridInfo.indexPhi1, 2, 2}});
     FFTLaplacianInverse(pkd, fft, Phi3a_R, Phi3a_K, kFundamental, fftFactor*potentialFactor);
     /* Construct displacement field from potential,
     ** displace positions and boost velocities.
@@ -735,19 +766,165 @@ void carryout3aLPT(
     if (pkd->Self() == 0) printf("%*sDisplacing positions and boosting velocities\n", printIndent, "");
     auto note = getTmpNote(notes);
     note->state = TMP_STATE::INACTIVE;  // flag as being non-reusable
-    auto Psi3a_R = R[note->gridIndex];
-    auto Psi3a_K = K[note->gridIndex];
+    auto Psi3a_i_R = R[note->gridIndex];
+    auto Psi3a_i_K = K[note->gridIndex];
+    for (auto i = 0; i < 3; i++) {
+        diffIFFT(pkd, fft, Phi3a_K, Psi3a_i_K, kFundamental, i);
+        for (auto index = output.begin(); index != output.end(); index++) {
+            auto pos = index.position();
+            index->dr[i] += Psi3a_i_R(pos);
+            index-> v[i] += velocityFactor*Psi3a_i_R(pos);
+        }
+    }
+}
+
+/* Function for carrying out 3LPT ('b' term only). Populated \Psi1
+** and \Psi2 (both in Fourier space) are expected as input.
+*/
+void carryout3bLPT(
+    PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
+    gridInfoLPT gridInfo, std::queue<tmpNote *> &notes,
+    growthFactors growth, int nGrid, double dBoxSize, double a,
+    int printIndent = 0
+) {
 
     // !!!
     auto enabled = checkEnabledTerms(pkd);
-    if (!enabled.term3a) return;
+    if (!enabled.term3b) return;
 
+    float kFundamental = 2.*M_PI/dBoxSize;
+    float fftFactor = dBoxSize/pow(nGrid, 3.);
+    auto Phi3b_R = R[gridInfo.indexPhi3];
+    auto Phi3b_K = K[gridInfo.indexPhi3];
+    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f3b;
+    /* The 3LPT (b) potential is
+    **   \nabla^2 \Phi3b = D3b/(D1 D2) (
+    **       - ½ \Phi1,22 \Phi2,00
+    **       - ½ \Phi2,00 \Phi1,11
+    **       - ½ \Phi1,11 \Phi2,22
+    **       - ½ \Phi2,22 \Phi1,00
+    **       - ½ \Phi1,00 \Phi2,11
+    **       - ½ \Phi2,11 \Phi1,22
+    **       +   \Phi2,20 \Phi1,20
+    **       +   \Phi2,01 \Phi1,01
+    **       +   \Phi2,12 \Phi1,12
+    **   )
+    ** with comma denoting differentiation and with all growth factors positive.
+    ** The displacement field is
+    **   \Psi3b[i] = \Phi3b,i
+    */
+    if (pkd->Self() == 0) printf("%*sBuilding potential (b)\n", printIndent, "");
+    float potentialFactor = growth.D3b/(growth.D1*growth.D2);
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::EQ,    -0.5, {{gridInfo.indexPhi1, 2, 2}, {gridInfo.indexPhi2, 0, 0}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, 0, 0}, {gridInfo.indexPhi1, 1, 1}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi1, 1, 1}, {gridInfo.indexPhi2, 2, 2}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, 2, 2}, {gridInfo.indexPhi1, 0, 0}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi1, 0, 0}, {gridInfo.indexPhi2, 1, 1}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, 1, 1}, {gridInfo.indexPhi1, 2, 2}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, 2, 0}, {gridInfo.indexPhi1, 2, 0}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, 0, 1}, {gridInfo.indexPhi1, 0, 1}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, 1, 2}, {gridInfo.indexPhi1, 1, 2}});
+    FFTLaplacianInverse(pkd, fft, Phi3b_R, Phi3b_K, kFundamental, fftFactor*potentialFactor);
+    /* Construct displacement field from potential,
+    ** displace positions and boost velocities.
+    */
+    if (pkd->Self() == 0) printf("%*sDisplacing positions and boosting velocities\n", printIndent, "");
+    auto note = getTmpNote(notes);
+    note->state = TMP_STATE::INACTIVE;  // flag as being non-reusable
+    auto Psi3b_i_R = R[note->gridIndex];
+    auto Psi3b_i_K = K[note->gridIndex];
     for (auto i = 0; i < 3; i++) {
-        diffIFFT(pkd, fft, Phi3a_K, Psi3a_K, kFundamental, i);
+        diffIFFT(pkd, fft, Phi3b_K, Psi3b_i_K, kFundamental, i);
         for (auto index = output.begin(); index != output.end(); index++) {
             auto pos = index.position();
-            index->dr[i] += Psi3a_R(pos);
-            index-> v[i] += velocityFactor*Psi3a_R(pos);
+            index->dr[i] += Psi3b_i_R(pos);
+            index-> v[i] += velocityFactor*Psi3b_i_R(pos);
+        }
+    }
+}
+
+/* Function for carrying out 3LPT ('c' term only; A3[i]). Populated
+** \Psi1 and \Psi2 (both in Fourier space) are expected as input.
+*/
+void carryout3cLPT(
+    PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
+    gridInfoLPT gridInfo, int i, std::queue<tmpNote *> &notes,
+    growthFactors growth, int nGrid, double dBoxSize, double a,
+    int printIndent = 0
+) {
+
+    // !!!
+    auto enabled = checkEnabledTerms(pkd);
+    if (!enabled.term3c) return;
+
+    float kFundamental = 2.*M_PI/dBoxSize;
+    float fftFactor = dBoxSize/pow(nGrid, 3.);
+    auto A3c_i_R = R[gridInfo.indexPhi3];
+    auto A3c_i_K = K[gridInfo.indexPhi3];
+    int j = (i + 1)%3;
+    int k = (i + 2)%3;
+    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f3c;
+    /* The 3LPT (c) potential is
+    **   \nabla^2 A3c[i] = D3c/(D1 D2) (
+    **       + \Phi2,jj \Phi1,jk
+    **       - \Phi1,jk \Phi2,kk
+    **       - \Phi1,ij \Phi2,ik
+    **       - \Phi1,jj \Phi2,jk
+    **       + \Phi2,jk \Phi1,kk
+    **       + \Phi2,ij \Phi1,ik
+    **   )
+    ** with comma denoting differentiation and with all growth factors positive.
+    ** Here {i, j, k} all take on definite values; no implicit summation.
+    ** The displacement field is
+    **   \Psi3c[i] = A3c[k],j - A3c[j],k
+    */
+    if (pkd->Self() == 0) printf("%*sBuilding potential (c, %c%c)\n", printIndent, "", 'x' + j, 'x' + k);
+    float potentialFactor = growth.D3c/(growth.D1*growth.D2);
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::EQ,     1., {{gridInfo.indexPhi2, j, j}, {gridInfo.indexPhi1, j, k}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, j, k}, {gridInfo.indexPhi2, k, k}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, i, j}, {gridInfo.indexPhi2, i, k}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, j, j}, {gridInfo.indexPhi2, j, k}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi2, j, k}, {gridInfo.indexPhi1, k, k}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi2, i, j}, {gridInfo.indexPhi1, i, k}});
+    FFTLaplacianInverse(pkd, fft, A3c_i_R, A3c_i_K, kFundamental, fftFactor*potentialFactor);
+    /* Construct displacement field from potential,
+    ** displace positions and boost velocities.
+    */
+    if (pkd->Self() == 0) printf("%*sDisplacing positions and boosting velocities\n", printIndent, "");
+    auto note = getTmpNote(notes);
+    note->state = TMP_STATE::INACTIVE;  // flag as being non-reusable
+    auto Psi3c_j_R = R[note->gridIndex];
+    auto Psi3c_j_K = K[note->gridIndex];
+    for (j = 0; j < 3; j++) {
+        if (j == i) {
+            continue;
+        }
+        for (k = 0; k < 3; k++) {
+            if (k != i && k != j) {
+                break;
+            }
+        }
+        int sign = 2*(k == (j + 1)%3) - 1;
+        diffIFFT(pkd, fft, A3c_i_K, Psi3c_j_K, sign*kFundamental, k);
+        for (auto index = output.begin(); index != output.end(); index++) {
+            auto pos = index.position();
+            index->dr[j] += Psi3c_j_R(pos);
+            index-> v[j] += velocityFactor*Psi3c_j_R(pos);
         }
     }
 }
@@ -760,9 +937,11 @@ int pkdGenerateIC_new(  // !!! remove _new
     double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ,
     int printIndent = 4
 ) {
-    int bExtraTmpGridFor1LPT = 1;  // allow one additional grid when doing 1LPT only?
-    if ((iLPT < 1) || (iLPT > 3)) {
-        fprintf(stderr, "pkdGenerateIC() implements 1LPT, 2LPT, 3LPT, but iLPT = %d\n", iLPT);
+    /* This function implements LPT or order 0 -- 3,
+    ** with 0 corresponding to the pre-initial conditions.
+    */
+    if (iLPT < 0 || iLPT > 3) {
+        fprintf(stderr, "pkdGenerateIC() implements 0LPT, 1LPT, 2LPT, 3LPT, but iLPT = %d\n", iLPT);
         abort();
     }
     /* Prepare growth factors and rates */
@@ -774,38 +953,12 @@ int pkdGenerateIC_new(  // !!! remove _new
     ** Note that "data" points to the same block for all threads.
     ** Particles will overlap K[0] through K[5] eventually.
     */
-    int gridIndexPhi1 = -1;   // 1LPT potential (persistent)
-    int gridIndexPhi2 = -1;   // 2LPT potential (persistent)
-    int gridIndexPhi3 = -1;   // 3LPT potentials
-    int gridIndexTmp0 = -1;   // temporary grid
-    int gridIndexTmp1 = -1;   // temporary grid
-    int nGrids = 6; // particle positions and velocities
-    if (iLPT >= 1) {
-        /* For 1LPT we need 1 potential grid and one temporary grid */
-        gridIndexPhi1 = nGrids++;
-        gridIndexTmp0 = nGrids++;
-        /* We can save time by having one additional temporary grid */
-        gridIndexTmp1 = gridIndexTmp0;
-        if (iLPT == 1 && bExtraTmpGridFor1LPT) {
-            gridIndexTmp1 = nGrids++;
-        }
-    }
-    if (iLPT >= 2) {
-        /* For 2LPT we need 1 additional potential grid
-        ** and one additional temporary grid.
-        */
-        gridIndexPhi2 = nGrids++;
-        gridIndexTmp1 = nGrids++;
-    }
-    if (iLPT >= 3) {
-        /* For 3LPT we need 1 additional potential grid */
-        gridIndexPhi3 = nGrids++;
-    }
-    real_array_t    R[nGrids];
-    complex_array_t K[nGrids];
+    gridInfoLPT gridInfo = getGridInfoLPT(iLPT);
+    real_array_t    R[gridInfo.nGrids];
+    complex_array_t K[gridInfo.nGrids];
     GridInfo G(pkd->mdl, fft);
     auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl, 0, 0, pkd->particles));
-    for (auto i = 0; i < nGrids; i++) {
+    for (auto i = 0; i < gridInfo.nGrids; i++) {
         G.setupArray(data, K[i]);
         G.setupArray(data, R[i]);
         data += fft->rgrid->nLocal;
@@ -820,17 +973,41 @@ int pkdGenerateIC_new(  // !!! remove _new
     ** temporary grids currently holds (if anything).
     */
     std::queue<tmpNote *> notes;
-    tmpNote note0 {gridIndexTmp0};
-    tmpNote note1 {gridIndexTmp1};
+    tmpNote note0 {gridInfo.indexTmp0};
+    tmpNote note1 {gridInfo.indexTmp1};
     notes.push(&note0);
     notes.push(&note1);
+
+    // !!! Needed while testing individual terms
+    for (auto index = output.begin(); index != output.end(); index++) {
+        auto pos = index.position();
+        for (auto i = 0; i < 3; i++) {
+            index->dr[i] = 0.;
+            index-> v[i] = 0.;
+        }
+    }
+
     /* Carry out the LPT IC generation, one order at a time */
+    if (iLPT == 0) {
+        /* No LPT is to be carried out.
+        ** Nullify displacements and boosts.
+        */
+        for (auto index = output.begin(); index != output.end(); index++) {
+            auto pos = index.position();
+            for (auto i = 0; i < 3; i++) {
+                index->dr[i] = 0.;
+                index-> v[i] = 0.;
+            }
+        }
+    }
     if (iLPT >= 1) {
         /* 1LPT (Zeldovich) */
         if (pkd->Self() == 0) printf("%*sCarrying out 1LPT\n", printIndent, "");
         carryout1LPT(
-            pkd, fft, output, R, K, gridIndexPhi1, notes,
-            growth, iSeed, bFixed, fPhase, nGrid, dBoxSize, a, nTf, tk, tf, noiseMean, noiseCSQ,
+            pkd, fft, output, R, K,
+            gridInfo,
+            growth, iSeed, bFixed, fPhase, nGrid, dBoxSize,
+            a, nTf, tk, tf, noiseMean, noiseCSQ,
             printIndent + 4
         );
     }
@@ -838,7 +1015,7 @@ int pkdGenerateIC_new(  // !!! remove _new
         /* 2LPT */
         if (pkd->Self() == 0) printf("%*sCarrying out 2LPT\n", printIndent, "");
         carryout2LPT(
-            pkd, fft, output, R, K, gridIndexPhi1, gridIndexPhi2, notes,
+            pkd, fft, output, R, K, gridInfo, notes,
             growth, nGrid, dBoxSize, a,
             printIndent + 4
         );
@@ -847,10 +1024,24 @@ int pkdGenerateIC_new(  // !!! remove _new
         if (pkd->Self() == 0) printf("%*sCarrying out 3LPT\n", printIndent, "");
         /* 3LPT ('a' term) */
         carryout3aLPT(
-            pkd, fft, output, R, K, gridIndexPhi1, gridIndexPhi2, gridIndexPhi3, notes,
+            pkd, fft, output, R, K, gridInfo, notes,
             growth, nGrid, dBoxSize, a,
             printIndent + 4
         );
+        /* 3LPT ('b' term) */
+        carryout3bLPT(
+            pkd, fft, output, R, K, gridInfo, notes,
+            growth, nGrid, dBoxSize, a,
+            printIndent + 4
+        );
+        /* 3LPT ('c' term) */
+        for (int i = 0; i < 3; i++) {
+            carryout3cLPT(
+                pkd, fft, output, R, K, gridInfo, i, notes,
+                growth, nGrid, dBoxSize, a,
+                printIndent + 4
+            );
+        }
     }
     /* Done with LPT */
     return nLocal;

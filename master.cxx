@@ -379,8 +379,8 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     // Add some ephemeral memory (if needed) for the linGrid. 3 grids are stored : forceX, forceY, forceZ
     e |= EphemeralMemory(mdl,parameters.get_nGridLin(),3);
 
-    // Calculate constraint for generating initial conditions. We need 10 grids for the initial conditions
-    EphemeralMemory ic_memory(mdl,parameters.get_nGrid(),10);
+    // Calculate constraint for generating initial conditions
+    EphemeralMemory ic_memory(mdl, parameters.get_nGrid(), getGridInfoLPT(parameters.get_iLPT()).nGrids);
 
     ps.nEphemeralBytes = e.per_particle;
     ps.nMinEphemeral = e.per_process;
