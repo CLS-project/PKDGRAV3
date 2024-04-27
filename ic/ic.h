@@ -69,7 +69,7 @@ typedef struct {
 
 gridInfoLPT getGridInfoLPT(int iLPT);
 
-int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int iLPT,double dBoxSize,
-                  double a,int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ);
+int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid, int iLPT, double dBoxSize,
+                  double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ);
 #endif
 #endif

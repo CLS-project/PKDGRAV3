@@ -204,63 +204,6 @@ gridInfoLPT getGridInfoLPT(int iLPT) {
     return gridInfo;
 }
 
-
-
-
-
-
-// !!!
-typedef struct {
-    int term1;
-    int term2;
-    int term3a;
-    int term3b;
-    int term3c;
-} enabledTerms;
-enabledTerms checkEnabledTerms(PKD pkd) {
-    int enable_term1 = 1;
-    int enable_term2 = 1;
-    int enable_term3a = 1;
-    int enable_term3b = 1;
-    int enable_term3c = 1;
-    char *term_str;
-    term_str = getenv("term1");
-    if (term_str != NULL && strcmp(term_str, "False") == 0)
-        enable_term1 = 0;
-    term_str = getenv("term2");
-    if (term_str != NULL && strcmp(term_str, "False") == 0)
-        enable_term2 = 0;
-    term_str = getenv("term3a");
-    if (term_str != NULL && strcmp(term_str, "False") == 0)
-        enable_term3a = 0;
-    term_str = getenv("term3b");
-    if (term_str != NULL && strcmp(term_str, "False") == 0)
-        enable_term3b = 0;
-    term_str = getenv("term3c");
-    if (term_str != NULL && strcmp(term_str, "False") == 0)
-        enable_term3c = 0;
-    if (pkd->Self() == 0) {
-        printf("\nEnabled terms: ");
-        if (enable_term1) printf("1 ");
-        if (enable_term2) printf("2 ");
-        if (enable_term3a) printf("3a ");
-        if (enable_term3b) printf("3b ");
-        if (enable_term3c) printf("3c ");
-        printf("\n\n");
-    }
-    enabledTerms enabled;
-    enabled.term1 = enable_term1;
-    enabled.term2 = enable_term2;
-    enabled.term3a = enable_term3a;
-    enabled.term3b = enable_term3b;
-    enabled.term3c = enable_term3c;
-    return enabled;
-}
-
-
-
-
-
 /* Function for out-of-place differentiation (once of twice)
 ** of a Fourier grid, followed by an inverse Fourier transform.
 */
@@ -633,11 +576,6 @@ void carryout1LPT(
         }
         auto &Psi1_i_R = tmp0_R;  // displacement or boost field
         auto &Psi1_i_K = tmp0_K;
-
-        // !!!
-        auto enabled = checkEnabledTerms(pkd);
-        if (!enabled.term1) continue;
-
         for (auto i = 0; i < 3; i++) {
             diffIFFT(pkd, fft, Phi1_K, Psi1_i_K, kFundamental, i);
             for (auto index = output.begin(); index != output.end(); index++) {
@@ -715,11 +653,6 @@ void carryout2LPT(
     note->state = TMP_STATE::INACTIVE;  // flag as being non-reusable
     auto Psi2_i_R = R[note->gridIndex];
     auto Psi2_i_K = K[note->gridIndex];
-
-    // !!!
-    auto enabled = checkEnabledTerms(pkd);
-    if (!enabled.term2) return;
-
     for (auto i = 0; i < 3; i++) {
         diffIFFT(pkd, fft, Phi2_K, Psi2_i_K, kFundamental, i);
         for (auto index = output.begin(); index != output.end(); index++) {
@@ -739,11 +672,6 @@ void carryout3aLPT(
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
 ) {
-
-    // !!!
-    auto enabled = checkEnabledTerms(pkd);
-    if (!enabled.term3a) return;
-
     float kFundamental = 2.*M_PI/dBoxSize;
     float fftFactor = pow(nGrid, -3.);
     float displaceFactor = 1./dBoxSize;
@@ -802,11 +730,6 @@ void carryout3bLPT(
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
 ) {
-
-    // !!!
-    auto enabled = checkEnabledTerms(pkd);
-    if (!enabled.term3b) return;
-
     float kFundamental = 2.*M_PI/dBoxSize;
     float fftFactor = pow(nGrid, -3.);
     float displaceFactor = 1./dBoxSize;
@@ -877,11 +800,6 @@ void carryout3cLPT(
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
 ) {
-
-    // !!!
-    auto enabled = checkEnabledTerms(pkd);
-    if (!enabled.term3c) return;
-
     float kFundamental = 2.*M_PI/dBoxSize;
     float fftFactor = pow(nGrid, -3.);
     float displaceFactor = 1./dBoxSize;
@@ -949,11 +867,11 @@ void carryout3cLPT(
 /* Function responsible for generating particle initial conditions
 ** through Lagrangian perturbation theory.
 */
-int pkdGenerateIC_new(  // !!! remove _new
+int pkdGenerateIC(
     PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid, int iLPT, double dBoxSize,
-    double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ,
-    int printIndent = 4
+    double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ
 ) {
+    int printIndent = 4;
     /* This function implements LPT or order 0 -- 3,
     ** with 0 corresponding to the pre-initial conditions.
     */
@@ -994,20 +912,10 @@ int pkdGenerateIC_new(  // !!! remove _new
     tmpNote note1 {gridInfo.indexTmp1};
     notes.push(&note0);
     notes.push(&note1);
-
-    // !!! Needed while testing individual terms
-    for (auto index = output.begin(); index != output.end(); index++) {
-        auto pos = index.position();
-        for (auto i = 0; i < 3; i++) {
-            index->dr[i] = 0.;
-            index-> v[i] = 0.;
-        }
-    }
-
     /* Carry out the LPT IC generation, one order at a time */
     if (iLPT == 0) {
         /* No LPT is to be carried out.
-        ** Nullify displacements and boosts.
+        ** Nullify displacements and velocities.
         */
         for (auto index = output.begin(); index != output.end(); index++) {
             auto pos = index.position();
@@ -1061,270 +969,6 @@ int pkdGenerateIC_new(  // !!! remove _new
         }
     }
     /* Done with LPT */
-    return nLocal;
-}
-
-
-
-
-// !!! ORI BELOW
-int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid, int iLPT, double dBoxSize,
-                  double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ) {
-
-
-    // !!!
-    char *newlptscheme_str;
-    newlptscheme_str = getenv("newlptscheme");
-    if (newlptscheme_str != NULL && strcmp(newlptscheme_str, "True") == 0)
-        return pkdGenerateIC_new(pkd, fft, iSeed, bFixed, fPhase, nGrid, iLPT, dBoxSize,
-                                 a, nTf, tk, tf, noiseMean, noiseCSQ);
-
-
-    // !!!
-    if ((iLPT < 1) || (iLPT > 3)) {
-        fprintf(stderr, "Old pkdGenerateIC not suitable for iLPT = %d\n", iLPT);
-        abort();
-    }
-
-    // !!!
-    auto enabled = checkEnabledTerms(pkd);
-
-
-    double pi = 4.*atan(1.);
-    CSM csm = pkd->csm;
-    int bClass = csm->val.classData.bClass;
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(pkd->mdl);
-    NoiseGenerator ng(iSeed, bFixed, fPhase);
-    /* Prepare growth factors and transfer function */
-    double D1_0, D2_0, D3a_0, D3b_0, D3c_0, f1_0, f2_0, f3a_0, f3b_0, f3c_0;
-    double D1_a, D2_a, D3a_a, D3b_a, D3c_a, f1_a, f2_a, f3a_a, f3b_a, f3c_a;
-    csmComoveGrowth(csm, 1., &D1_0, &D2_0, &D3a_0, &D3b_0, &D3c_0, &f1_0, &f2_0, &f3a_0, &f3b_0, &f3c_0);
-    csmComoveGrowth(csm,  a, &D1_a, &D2_a, &D3a_a, &D3b_a, &D3c_a, &f1_a, &f2_a, &f3a_a, &f3b_a, &f3c_a);
-    double dOmega = csm->val.dOmega0/(a*a*a*pow(csmExp2Hub(csm, a)/csm->val.dHubble0, 2.0));
-    double f1_approx =    pow(dOmega, 5./ 9.);
-    double f2_approx = 2.*pow(dOmega, 6./11.);
-    PowerTransfer transfer(csm, a, nTf, tk, tf);
-    if (bClass) {
-        double D1_internal, D2_internal, D3a_internal, D3b_internal, D3c_internal;
-        double f1_internal, f2_internal, f3a_internal, f3b_internal, f3c_internal;
-        csm->val.classData.bClassGrowth = 0;
-        csmComoveGrowth(csm, a,
-                        &D1_internal, &D2_internal, &D3a_internal, &D3b_internal, &D3c_internal,
-                        &f1_internal, &f2_internal, &f3a_internal, &f3b_internal, &f3c_internal);
-        csm->val.classData.bClassGrowth = 1;
-        if (mdl->Self() == 0) {
-            printf("f1 = %.12g (CLASS), %.12g (internal but CLASS background), %.12g (approx)\n", f1_a, f1_internal, f1_approx);
-            if (iLPT >= 2)
-                printf("f2 = %.12g (CLASS), %.12g (internal but CLASS background), %.12g (approx)\n", f2_a, f2_internal, f2_approx);
-        }
-    }
-    else {
-        if (mdl->Self() == 0) {
-            printf("f1 = %.12g (internal), %.12g (approx)\n", f1_a, f1_approx);
-            if (iLPT >= 2)
-                printf("f2 = %.12g (internal), %.12g (approx)\n", f2_a, f2_approx);
-        }
-    }
-    fflush(stdout);
-    /* Set up grids.
-    ** Note that "data" points to the same block for all threads.
-    ** Particles will overlap K[0] through K[5] eventually.
-    */
-    GridInfo G(pkd->mdl, fft);
-    complex_array_t K[10];
-    real_array_t    R[10];
-    auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->particles));
-    for (auto i=0; i<10; ++i) {
-        G.setupArray(data, K[i]);
-        G.setupArray(data, R[i]);
-        data += fft->rgrid->nLocal;
-    }
-    /* Create a local view of our part of the output array */
-    basicParticleArray output = getOutputArray(pkd, G, R[0]);
-    int nLocal = blitz::product(R[7].shape());
-    /* Do 2LPT before 1LPT */
-    float fft_normalization = dBoxSize/pow(nGrid, 3.);
-    float k_fundamental = 2*pi/dBoxSize;
-    float transfer_factor = pow(k_fundamental, 1.5)/dBoxSize;
-    float vel_factor1 = a*a*csmExp2Hub(csm, a)*f1_a;
-    float vel_factor2 = a*a*csmExp2Hub(csm, a)*f2_a;
-    float kx, ky, kz, k2, x, amp;
-    if (iLPT >= 2) {
-        /* Generate primordial white noise for 2LPT */
-        if (mdl->Self()==0) {
-            printf("Generating primordial noise\n"); fflush(stdout);
-        }
-        ng.FillNoise(K[6], nGrid, noiseMean, noiseCSQ);
-        /* 2LPT particle displacements */
-        if (mdl->Self() == 0) {
-            printf("Imprinting 2LPT density spectrum\n"); fflush(stdout);
-        }
-        complex<float> psi_x, psi_y, psi_z;
-        for (auto index = K[6].begin(); index != K[6].end(); index++) {
-            auto pos = index.position();
-            kx = fwrap(pos[0], fft->rgrid->n1)*k_fundamental;
-            ky = fwrap(pos[1], fft->rgrid->n2)*k_fundamental;
-            kz = fwrap(pos[2], fft->rgrid->n3)*k_fundamental;
-            k2 = kx*kx + ky*ky + kz*kz;
-            if (k2 == 0.) {
-                for (auto i = 0; i < 6; i++)
-                    K[i](pos) = 0.;
-                continue;
-            }
-            if (bClass)
-                amp = -csmDelta_m(csm, a, sqrt(k2));  // delta < 0 in CLASS convention
-            else
-                amp = transfer_factor*sqrt(transfer.getAmplitude(sqrt(k2)));
-            /* 1LPT grid values */
-            psi_x = (*index)*amp*kx/k2*(-I);
-            psi_y = (*index)*amp*ky/k2*(-I);
-            psi_z = (*index)*amp*kz/k2*(-I);
-            /* 2LPT grids */
-            K[0](pos) = psi_x*kx*I;  // \psi_x,x
-            K[1](pos) = psi_y*ky*I;  // \psi_y,y
-            K[2](pos) = psi_z*kz*I;  // \psi_z,z
-            K[3](pos) = psi_x*ky*I;  // \psi_x,y = \psi_y,x
-            K[4](pos) = psi_y*kz*I;  // \psi_y,z = \psi_z,y
-            K[5](pos) = psi_z*kx*I;  // \psi_z,x = \psi_x,z
-        }
-        char terms[6][3] = {"xx", "yy", "zz", "xy", "yz", "zx"};
-        for (auto i = 0; i < 6; i++) {
-            if (mdl->Self() == 0) {
-                printf("Generating 2LPT %s term\n", terms[i]); fflush(stdout);
-            }
-            mdl->IFFT(fft, (FFTW3(complex) *)K[i].dataFirst());
-        }
-        /* Calculate the source term */
-        if (mdl->Self()==0) {
-            printf("Generating 2LPT source term\n"); fflush(stdout);
-        }
-        amp = -D2_a/(D1_a*D1_a)*fft_normalization; // !!! negated due to old convention
-        for (auto index = R[6].begin(); index != R[6].end(); index++) {
-            auto pos = index.position();
-            *index = amp*(
-                         + R[0](pos)*R[1](pos)  // \psi_x,x * \psi_y,y
-                         + R[1](pos)*R[2](pos)  // \psi_y,y * \psi_z,z
-                         + R[2](pos)*R[0](pos)  // \psi_z,z * \psi_x,x
-                         - R[3](pos)*R[3](pos)  // \psi_x,y * \psi_y,x = (\psi_x,y)^2
-                         - R[4](pos)*R[4](pos)  // \psi_y,z * \psi_z,y = (\psi_y,z)^2
-                         - R[5](pos)*R[5](pos)  // \psi_z,x * \psi_x,z = (\psi_z,x)^2
-                     );
-        }
-        mdl->FFT(fft, R[6].dataFirst());
-        for (auto index = K[6].begin(); index != K[6].end(); index++) {
-            auto pos = index.position();
-            kx = fwrap(pos[0], fft->rgrid->n1)*k_fundamental;
-            ky = fwrap(pos[1], fft->rgrid->n2)*k_fundamental;
-            kz = fwrap(pos[2], fft->rgrid->n3)*k_fundamental;
-            k2 = kx*kx + ky*ky + kz*kz;
-            if (k2 == 0.) {
-                for (auto i = 0; i < 3; i++)
-                    K[7 + i](pos) = 0.;
-                continue;
-            }
-            K[7](pos) = (*index)*kx/k2*(-I);
-            K[8](pos) = (*index)*ky/k2*(-I);
-            K[9](pos) = (*index)*kz/k2*(-I);
-        }
-        for (auto i = 0; i < 3; i++) {
-            if (mdl->Self() == 0) {
-                printf("Generating 2LPT %c displacements\n", 'x' + i); fflush(stdout);
-            }
-            mdl->IFFT(fft, (FFTW3(complex) *)K[7 + i].dataFirst());
-        }
-        /* Set particle positions and velocities to the 2LPT values */
-        if (mdl->Self() == 0 ) {
-            printf("Displacing particle positions and boosting velocities (2LPT)\n"); fflush(stdout);
-        }
-        for (auto index = output.begin(); index != output.end(); index++) {
-            auto pos = index.position();
-            for (auto i = 0; i < 3; i++) {
-                x = R[7 + i](pos);
-                index->dr[i] = x;
-
-                // !!!
-                if (!enabled.term2) index->dr[i] = 0.0;
-
-                index-> v[i] = x*vel_factor2;
-            }
-        }
-    }  // done with 2LPT
-    /* Generate primordial white noise for 1LPT */
-    if (mdl->Self() == 0) {
-        printf("Generating primordial noise\n"); fflush(stdout);
-    }
-    ng.FillNoise(K[6], nGrid, noiseMean, noiseCSQ);
-    /* 1LPT particle displacements and velocities */
-    for (auto quantity = 0; quantity < 1 + bClass; quantity++) {  // 0: positions, 1: velocities
-        if (mdl->Self() == 0) {
-            printf("Imprinting %s spectrum\n", quantity == 0 ? "density" : "velocity");
-            fflush(stdout);
-        }
-        for (auto index = K[6].begin(); index != K[6].end(); index++) {
-            auto pos = index.position();
-            kx = fwrap(pos[0], fft->rgrid->n1)*k_fundamental;
-            ky = fwrap(pos[1], fft->rgrid->n2)*k_fundamental;
-            kz = fwrap(pos[2], fft->rgrid->n3)*k_fundamental;
-            k2 = kx*kx + ky*ky + kz*kz;
-            if (k2 == 0.) {
-                for (auto i = 0; i < 3; i++)
-                    K[7 + i](pos) = 0.;
-                continue;
-            }
-            if (bClass) {
-                if (quantity == 0)
-                    amp = -csmDelta_m(csm, a, sqrt(k2));  // delta < 0 in CLASS convention
-                else
-                    amp =  csmTheta_m(csm, a, sqrt(k2));
-            }
-            else
-                /* The same transfer function is used for both
-                ** delta and theta when using back-scaling.
-                */
-                amp = transfer_factor*sqrt(transfer.getAmplitude(sqrt(k2)));
-            K[7](pos) = (*index)*amp*kx/k2*(-I);
-            K[8](pos) = (*index)*amp*ky/k2*(-I);
-            K[9](pos) = (*index)*amp*kz/k2*(-I);
-        }
-        for (auto i = 0; i < 3; i++) {
-            if (mdl->Self() == 0) {
-                printf("Generating %c %s\n", 'x' + i, quantity == 0 ? "displacements" : "velocities");
-                fflush(stdout);
-            }
-            mdl->IFFT(fft, (FFTW3(complex) *)K[7 + i].dataFirst());
-        }
-        /* Displace particle positions or/and boost velocities */
-        if (mdl->Self() == 0) {
-            if (bClass) {
-                if (quantity == 0)
-                    printf("Displacing particle positions\n");
-                else
-                    printf("Boosting particle velocities\n");
-            }
-            else
-                printf("Displacing particle positions and boosting velocities\n");
-            fflush(stdout);
-        }
-        for (auto index = output.begin(); index != output.end(); index++) {
-
-            // !!!
-            if (!enabled.term1) break;
-
-            auto pos = index.position();
-            for (auto i = 0; i < 3; i++) {
-                if (quantity == 0) {
-                    if (iLPT >= 2) index->dr[i] += R[7 + i](pos);
-                    else       index->dr[i]  = R[7 + i](pos);
-                }
-                else if (iLPT >= 2) index->v[i] += R[7 + i](pos);
-                else            index->v[i]  = R[7 + i](pos);
-                if (!bClass) {
-                    if (iLPT >= 2)  index->v[i] += vel_factor1*R[7 + i](pos);
-                    else        index->v[i]  = vel_factor1*R[7 + i](pos);
-                }
-            }
-        }
-    }
     return nLocal;
 }
 
