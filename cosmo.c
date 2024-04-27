@@ -539,7 +539,7 @@ void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
     ** the csmDelta_m(), csmTheta_m() or csmDelta_lin() function,
     ** the corresponding transfer function is looked up via spline
     ** interpolation and zeta(k) is constructed through a call
-    ** to csmZeta(). We could also multiply  the zeta(k) values on now
+    ** to csmZeta(). We could also multiply the zeta(k) values on now
     ** and be done with it, but this will make the interpolations
     ** slightly poorer.
     ** The transfer functions bears units. Specifically, the delta
@@ -549,12 +549,17 @@ void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
     ** 3D FFT, a unitless delta(\vec{x}) is obtained by multiplying by
     ** the Fourier normalization boxsize^(-3/2). We include this
     ** normalization directly on the transfer functions.
-    ** ACTUALLY, it turns out that we need a factor of boxsize^(-5/2),
-    ** for some reason?
+    ** It turns out that we need an additional factor boxsize^(-1),
+    ** meaning boxsize^(-5/2) in total, due to the way the box size is
+    ** applied elsewhere in the code. We need to remember to undo this
+    ** additional factor boxsize^(-1) when doing LPT, hence why we
+    ** write it out explicitly below.
     */
+    double unitFactor = pow(dBoxSize, -3./2.);
+    unitFactor /= dBoxSize;  // explicit additional factor boxsize^(-1)
     /* delta_m[a, k] */
     for (i = 0; i < size_a*size_k; i++) {
-        csm->val.classData.perturbations.delta_m[i] *= pow(dBoxSize, -2.5);
+        csm->val.classData.perturbations.delta_m[i] *= unitFactor;
     }
     /* theta_m[a, k]
     ** Here we reuse unit_conversion_time to convert the unit of theta
@@ -567,18 +572,19 @@ void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
         a = csm->val.classData.perturbations.a[i];
         for (j = 0; j < size_k; j++) {
             csm->val.classData.perturbations.theta_m[i*size_k + j] *=
-                unit_conversion_time*a*pow(dBoxSize, -2.5);
+                unit_conversion_time*a*unitFactor;
         }
     }
     /* delta_lin[a, k] */
     if (nLinear) {
         for (i = 0; i < size_a*size_k; i++) {
-            csm->val.classData.perturbations.delta_lin[i] *= pow(dBoxSize, -2.5);
+            csm->val.classData.perturbations.delta_lin[i] *= unitFactor;
         }
     }
+    /* delta_pk[a, k] */
     if (nPower) {
         for (i = 0; i < size_a*size_k; i++) {
-            csm->val.classData.perturbations.delta_pk[i] *= pow(dBoxSize, -2.5);
+            csm->val.classData.perturbations.delta_pk[i] *= unitFactor;
         }
     }
 

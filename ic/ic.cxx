@@ -538,8 +538,17 @@ void carryout1LPT(
     auto tmp0_R = R[gridInfo.indexTmp0];
     auto tmp0_K = K[gridInfo.indexTmp0];
     auto tmp1_K = K[gridInfo.indexTmp1];
-    float transferFactor = pow(kFundamental, 1.5)/dBoxSize;
-    float velocityFactor = a*a*csmExp2Hub(csm, a)*growth.f1;
+    /* Factor needed to obtain actual potential values from csmDelta_m()
+    ** and csmTheta_m() (bClass) or transfer.getAmplitude() (!bClass).
+    ** The factor dBoxSize needed for bClass cancels out the additional
+    ** factor dBoxSize^(-1) that goes into unitFactor in csmClassRead().
+    ** Note that we will need to put dBoxSize^(-1) back in to obtain the
+    ** final particle displacement and boost, but for the 1LPT potential
+    ** itself (which feeds into 2LPT, 3LPT, ...) this should not be used.
+    */
+    float transferFactor = bClass ? dBoxSize : pow(kFundamental, 1.5);
+    float displaceFactor = 1./dBoxSize;
+    float velocityFactor = displaceFactor*a*a*csmExp2Hub(csm, a)*growth.f1;
     /* Prepare transfer function (only used when not using CLASS) */
     PowerTransfer transfer(csm, a, nTf, tk, tf);
     /* Set particle velocities and positions (in that order).
@@ -568,11 +577,11 @@ void carryout1LPT(
         **     \Psi1 = \nabla \Phi1
         **   For back-scaling (!bClass):
         **     Here we furhter use
-        **       \theta ~= - a*H*f*\delta
-        **       => d\Phi1/dtau ~= a H f \Phi1
-        **       => u1 ~= a H f \nabla \Phi1
+        **       \theta ~= - a H f1 \delta
+        **       => d\Phi1/dtau ~= a H f1 \Phi1
+        **       => u1 ~= a H f1 \nabla \Phi1
         **     The velocities used in PKDGRAV has an extra factor a,
-        **     so really we need to use (a^2 H f) as the prefactor.
+        **     so really we need to use (a^2 H f1) as the prefactor.
         **     Note that this extra a is already in the \theta stored
         **     as CLASS data.
         */
@@ -598,7 +607,7 @@ void carryout1LPT(
             float k2Phys = k2*kFundamental*kFundamental;
             float amp;
             if (!bClass) {
-                amp = transferFactor*sqrt(transfer.getAmplitude(sqrt(k2Phys)));
+                amp = sqrt(transfer.getAmplitude(sqrt(k2Phys)));
             }
             else if (variable == 0) {
                 amp = -csmDelta_m(csm, a, sqrt(k2Phys));
@@ -606,7 +615,7 @@ void carryout1LPT(
             else {    // variable == 1
                 amp = csmTheta_m(csm, a, sqrt(k2Phys));
             }
-            Phi1_K(pos) = (*index)*amp/(-k2Phys);  // inverse Laplacian: 1/(-k^2)
+            Phi1_K(pos) = (*index)*transferFactor*amp/(-k2Phys);  // inverse Laplacian: 1/(-k^2)
         }
         /* Construct displacement field from potential,
         ** displace positions and boost velocities.
@@ -622,7 +631,7 @@ void carryout1LPT(
                 printf("%*sBoosting velocities\n", printIndent, "");
             }
         }
-        auto &Psi1_i_R = tmp0_R;  // displacement field
+        auto &Psi1_i_R = tmp0_R;  // displacement or boost field
         auto &Psi1_i_K = tmp0_K;
 
         // !!!
@@ -634,14 +643,19 @@ void carryout1LPT(
             for (auto index = output.begin(); index != output.end(); index++) {
                 auto pos = index.position();
                 if (!bClass) {
-                    index->dr[i] = Psi1_i_R(pos);
+                    index->dr[i] = displaceFactor*Psi1_i_R(pos);
                     index-> v[i] = velocityFactor*Psi1_i_R(pos);
                 }
                 else if (variable == 0) {
-                    index->dr[i] = Psi1_i_R(pos);
+                    index->dr[i] = displaceFactor*Psi1_i_R(pos);
                 }
                 else {    // variable == 1
-                    index-> v[i] = Psi1_i_R(pos);
+                    /* Note that we really do need the displaceFactor
+                    ** and not the velocityFactor here, as the needed
+                    ** velocity information is already present within
+                    ** Psi1_i_R (from csmTheta_m()).
+                    */
+                    index->v[i] = displaceFactor*Psi1_i_R(pos);
                 }
             }
         }
@@ -660,10 +674,11 @@ void carryout2LPT(
     int printIndent = 0
 ) {
     float kFundamental = 2.*M_PI/dBoxSize;
-    float fftFactor = dBoxSize/pow(nGrid, 3.);
+    float fftFactor = pow(nGrid, -3.);
+    float displaceFactor = 1./dBoxSize;
+    float velocityFactor = displaceFactor*a*a*csmExp2Hub(pkd->csm, a)*growth.f2;
     auto Phi2_R = R[gridInfo.indexPhi2];
     auto Phi2_K = K[gridInfo.indexPhi2];
-    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f2;
     /* The 2LPT potential is
     **   \nabla^2 \Phi2 = D2/D1^2 (
     **       - \Phi1,00 \Phi1,11
@@ -709,7 +724,7 @@ void carryout2LPT(
         diffIFFT(pkd, fft, Phi2_K, Psi2_i_K, kFundamental, i);
         for (auto index = output.begin(); index != output.end(); index++) {
             auto pos = index.position();
-            index->dr[i] += Psi2_i_R(pos);
+            index->dr[i] += displaceFactor*Psi2_i_R(pos);
             index-> v[i] += velocityFactor*Psi2_i_R(pos);
         }
     }
@@ -730,11 +745,11 @@ void carryout3aLPT(
     if (!enabled.term3a) return;
 
     float kFundamental = 2.*M_PI/dBoxSize;
-    float fftFactor = dBoxSize/pow(nGrid, 3.);
-    fftFactor *= dBoxSize;  // !!! I do not understand why this is needed!
+    float fftFactor = pow(nGrid, -3.);
+    float displaceFactor = 1./dBoxSize;
+    float velocityFactor = displaceFactor*a*a*csmExp2Hub(pkd->csm, a)*growth.f3a;
     auto Phi3a_R = R[gridInfo.indexPhi3];
     auto Phi3a_K = K[gridInfo.indexPhi3];
-    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f3a;
     /* The 3LPT (a) potential is
     **   \nabla^2 \Phi3a = D3a/D1^3 (
     **       +   \Phi1,20 \Phi1,20 \Phi1,11
@@ -772,7 +787,7 @@ void carryout3aLPT(
         diffIFFT(pkd, fft, Phi3a_K, Psi3a_i_K, kFundamental, i);
         for (auto index = output.begin(); index != output.end(); index++) {
             auto pos = index.position();
-            index->dr[i] += Psi3a_i_R(pos);
+            index->dr[i] += displaceFactor*Psi3a_i_R(pos);
             index-> v[i] += velocityFactor*Psi3a_i_R(pos);
         }
     }
@@ -793,10 +808,11 @@ void carryout3bLPT(
     if (!enabled.term3b) return;
 
     float kFundamental = 2.*M_PI/dBoxSize;
-    float fftFactor = dBoxSize/pow(nGrid, 3.);
+    float fftFactor = pow(nGrid, -3.);
+    float displaceFactor = 1./dBoxSize;
+    float velocityFactor = displaceFactor*a*a*csmExp2Hub(pkd->csm, a)*growth.f3b;
     auto Phi3b_R = R[gridInfo.indexPhi3];
     auto Phi3b_K = K[gridInfo.indexPhi3];
-    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f3b;
     /* The 3LPT (b) potential is
     **   \nabla^2 \Phi3b = D3b/(D1 D2) (
     **       - ½ \Phi1,22 \Phi2,00
@@ -846,7 +862,7 @@ void carryout3bLPT(
         diffIFFT(pkd, fft, Phi3b_K, Psi3b_i_K, kFundamental, i);
         for (auto index = output.begin(); index != output.end(); index++) {
             auto pos = index.position();
-            index->dr[i] += Psi3b_i_R(pos);
+            index->dr[i] += displaceFactor*Psi3b_i_R(pos);
             index-> v[i] += velocityFactor*Psi3b_i_R(pos);
         }
     }
@@ -867,12 +883,13 @@ void carryout3cLPT(
     if (!enabled.term3c) return;
 
     float kFundamental = 2.*M_PI/dBoxSize;
-    float fftFactor = dBoxSize/pow(nGrid, 3.);
+    float fftFactor = pow(nGrid, -3.);
+    float displaceFactor = 1./dBoxSize;
+    float velocityFactor = displaceFactor*a*a*csmExp2Hub(pkd->csm, a)*growth.f3c;
     auto A3c_i_R = R[gridInfo.indexPhi3];
     auto A3c_i_K = K[gridInfo.indexPhi3];
     int j = (i + 1)%3;
     int k = (i + 2)%3;
-    float velocityFactor = a*a*csmExp2Hub(pkd->csm, a)*growth.f3c;
     /* The 3LPT (c) potential is
     **   \nabla^2 A3c[i] = D3c/(D1 D2) (
     **       + \Phi2,jj \Phi1,jk
@@ -923,7 +940,7 @@ void carryout3cLPT(
         diffIFFT(pkd, fft, A3c_i_K, Psi3c_j_K, sign*kFundamental, k);
         for (auto index = output.begin(); index != output.end(); index++) {
             auto pos = index.position();
-            index->dr[j] += Psi3c_j_R(pos);
+            index->dr[j] += displaceFactor*Psi3c_j_R(pos);
             index-> v[j] += velocityFactor*Psi3c_j_R(pos);
         }
     }
