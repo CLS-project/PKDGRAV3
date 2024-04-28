@@ -463,7 +463,7 @@ void handleLPTTerm(
 }
 
 /* Function for carrying out 1LPT (Zeldovich). Besides setting particle
-** positions and velocities, the \Psi1 potential (in Fourier space)
+** positions and velocities, the \Phi1 potential (in Fourier space)
 ** will be available after this function returns.
 */
 void carryout1LPT(
@@ -601,8 +601,8 @@ void carryout1LPT(
 }
 
 /* Function for carrying out 2LPT. Besides updating particle positions
-** and velocities, the \Psi2 potential (in Fourier space) will be
-** available after this function returns. A populated \Psi1 (in Fourier
+** and velocities, the \Phi2 potential (in Fourier space) will be
+** available after this function returns. A populated \Phi1 (in Fourier
 ** space) is expected as input.
 */
 void carryout2LPT(
@@ -663,7 +663,7 @@ void carryout2LPT(
     }
 }
 
-/* Function for carrying out 3LPT ('a' term only). A populated \Psi1
+/* Function for carrying out 3LPT ('a' term only). A populated \Phi1
 ** (in Fourier space) is expected as input.
 */
 void carryout3aLPT(
@@ -721,8 +721,8 @@ void carryout3aLPT(
     }
 }
 
-/* Function for carrying out 3LPT ('b' term only). Populated \Psi1
-** and \Psi2 (both in Fourier space) are expected as input.
+/* Function for carrying out 3LPT ('b' term only). Populated \Phi1
+** and \Phi2 (both in Fourier space) are expected as input.
 */
 void carryout3bLPT(
     PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
@@ -792,7 +792,7 @@ void carryout3bLPT(
 }
 
 /* Function for carrying out 3LPT ('c' term only; A3[i]). Populated
-** \Psi1 and \Psi2 (both in Fourier space) are expected as input.
+** \Phi1 and \Phi2 (both in Fourier space) are expected as input.
 */
 void carryout3cLPT(
     PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
