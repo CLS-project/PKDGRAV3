@@ -1641,7 +1641,7 @@ static double RK4_g3c(CSM csm, double lna, double D1, double G3c) {
 void csmComoveGrowth(CSM csm, double a,
                      double *D1LPT, double *D2LPT, double *D3aLPT, double *D3bLPT, double *D3cLPT,
                      double *f1LPT, double *f2LPT, double *f3aLPT, double *f3bLPT, double *f3cLPT) {
-    if (csm->val.classData.bClass && csm->val.classData.bClassGrowth && 0) {  // !!!
+    if (csm->val.classData.bClass && csm->val.classData.bClassGrowth) {
         int future = (a > csm->val.classData.background.a[csm->val.classData.background.size - 1]);
         double fac_extrapolate = (a - csm->val.classData.background.a[csm->val.classData.background.size - 1])
                                  /(

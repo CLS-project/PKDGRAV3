@@ -258,7 +258,7 @@ void FFTLaplacianInverse(PKD pkd, MDLFFT fft, real_array_t &grid_R, complex_arra
 }
 
 /* Helper functionality for building up LPT potentials */
-typedef struct {
+struct growthFactors {
     double D1;
     double f1;
     double D2;
@@ -269,20 +269,20 @@ typedef struct {
     double f3b;
     double D3c;
     double f3c;
-} growthFactors;
-typedef struct {
+};
+struct differentiatedPotential {
     int gridIndex = -1;
     int diffs[2] = {-1, -1};
-} differentiatedPotential;
+};
 enum class TMP_STATE {
     INACTIVE,  // contents of temporary grid not relevant
     ACTIVE,    // contents of temporary grid may be reused
 };
-typedef struct {
+struct tmpNote {
     int gridIndex = -1;
     TMP_STATE state = TMP_STATE::INACTIVE;
     differentiatedPotential diffPot;
-} tmpNote;
+};
 enum class LPT_TERM_OP {
     EQ,      //  =
     PLS_EQ,  // +=

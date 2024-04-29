@@ -169,7 +169,7 @@ extern "C" {
 #endif
 
 /* This is the same as gsl_spline_eval, except that it will extrapolate beyond the end. */
-inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
+static inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
     if (v>spline->x[spline->size-1]) {
         double m = (spline->y[spline->size-1] - spline->y[spline->size-2])
                    / (spline->x[spline->size-1] - spline->x[spline->size-2]);

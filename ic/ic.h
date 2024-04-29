@@ -58,14 +58,14 @@ typedef struct {
     FFTW3(real) vx,vy,vz;
 } gridpsc;
 
-typedef struct {
+struct gridInfoLPT {
     int nGrids = 0;
     int indexPhi1 = -1;  // 1LPT potential (persistent)
     int indexPhi2 = -1;  // 2LPT potential (persistent)
     int indexPhi3 = -1;  // 3LPT potentials
     int indexTmp0 = -1;  // temporary grid
     int indexTmp1 = -1;  // temporary grid
-} gridInfoLPT;
+};
 
 gridInfoLPT getGridInfoLPT(int iLPT);
 
