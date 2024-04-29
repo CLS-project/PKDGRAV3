@@ -817,8 +817,8 @@ help="Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot"
 
 ["Initial Conditions"]
 docs='''
-The code contains an Initial Condition (IC) generator that supports both
-first order (Zeldovich) and second order Lagrangian perturbation theory.
+The code contains an Initial Condition (IC) generator that supports first
+order (Zeldovich), second order and third order Lagrangian perturbation theory.
 It is important that the cosmological parameters be properly set,
 so refer to that section for details.
 '''
