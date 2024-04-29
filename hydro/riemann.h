@@ -118,7 +118,7 @@ private:
         dtype v_line_L, dtype v_line_R, dtype cs_L, dtype cs_R) {
         dtype pmin, pmax;
         // start with the usual lowest-order guess for the contact wave pressure
-        dtype pv = 0.5*(L_p+R_p) - 0.125*(v_line_R-v_line_L)*(L_p+R_p)*(cs_L+cs_R);
+        dtype pv = 0.5*(L_p+R_p) - 0.125*(v_line_R-v_line_L)*(L_rho+R_rho)*(cs_L+cs_R);
 
         pmin = min(L_p,R_p);
         pmax = max(L_p,R_p);
