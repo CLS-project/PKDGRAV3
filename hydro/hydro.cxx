@@ -100,9 +100,6 @@ void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::
         pa = a;
     }
 
-    psph->mom += 0.5 * pDelta * (psph->lastMass*psph->lastAcc + p.mass()*pa);
-    p.velocity() = psph->mom / p.mass();
-
     double gravE_dmdt = 0.;
 #ifndef USE_MFM
     // IA: Multiplying here by 'a' instead of doing it at hydro.c is simpler and more efficient.
@@ -115,6 +112,7 @@ void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::
     const double gravE = 0.5 * pDelta * (dot(psph->lastMom,psph->lastAcc) +
                                          dot(psph->mom,pa));
 
+    psph->mom += 0.5 * pDelta * (psph->lastMass*psph->lastAcc + p.mass()*pa);
     psph->E += gravE - 0.5*gravE_dmdt;
 }
 
