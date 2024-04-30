@@ -76,8 +76,8 @@ int main(int argc,char *argv[]) {
     char buffer[200];
     powerParameters P;
     double a;
-    double D1_0, D2_0, f1_0, f2_0;
-    double D1_a, D2_a, f1_a, f2_a;
+    double D1_0, D2_0, D3a_0, D3b_0, D3c_0, f1_0, f2_0, f3a_0, f3b_0, f3c_0;
+    double D1_a, D2_a, D3a_a, D3b_a, D3c_a, f1_a, f2_a, f3a_a, f3b_a, f3c_a;
     FILE *fp;
 
     if (argc<6) {
@@ -92,8 +92,8 @@ int main(int argc,char *argv[]) {
     csm->val.dSpectral = atof(argv[4]);
     a = 1.0 / (1.0 + atof(argv[5]));
 
-    csmComoveGrowth(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0);
-    csmComoveGrowth(csm, a,   &D1_a, &D2_a, &f1_a, &f2_a);
+    csmComoveGrowth(csm, 1.0, &D1_0, &D2_0, &D3a_0, &D3b_0, &D3c_0, &f1_0, &f2_0, &f3a_0, &f3b_0, &f3c_0);
+    csmComoveGrowth(csm, a,   &D1_a, &D2_a, &D3a_a, &D3b_a, &D3c_a, &f1_a, &f2_a, &f3a_a, &f3b_a, &f3c_a);
 
     fp = fopen(argv[1],"r");
     if (fp == NULL) {

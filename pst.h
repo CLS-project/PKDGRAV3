@@ -810,7 +810,7 @@ struct inGenerateIC {
     int bFixed;
     float fPhase;
     int nGrid;
-    int b2LPT;
+    int iLPT;
     int bICgas;
     int nBucket;
     double dInitialT;

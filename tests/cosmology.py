@@ -42,12 +42,12 @@ class TestCosmology(unittest.TestCase):
         self.assertAlmostEqual(self.csm.comoving_kick_factor(0.1,0.01),0.024310129641862636,places=15)
 
     def testComoveGrowth(self):
-        (D1,D2,f1,f2) = self.csm.comoving_growth(1.0)
+        (D1,D2,D3a,D3b,D3c,f1,f2,f3a,f3b,f3c) = self.csm.comoving_growth(1.0)
         self.assertAlmostEqual(D1, 0.7906690062585626,places=15)
         self.assertAlmostEqual(D2,-0.27011339275752816,places=15)
         self.assertAlmostEqual(f1, 0.5318013708768904,places=15)
         self.assertAlmostEqual(f2, 1.078089485168238,places=15)
-        (D1,D2,f1,f2) = self.csm.comoving_growth(0.1)
+        (D1,D2,D3a,D3b,D3c,f1,f2,f3a,f3b,f3c) = self.csm.comoving_growth(0.1)
         self.assertAlmostEqual(D1, 0.09996140149711615,places=15)
         self.assertAlmostEqual(D2,-0.004282470274411355,places=15)
         self.assertAlmostEqual(f1, 0.9988427590347082,places=15)
