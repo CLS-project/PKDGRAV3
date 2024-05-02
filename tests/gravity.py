@@ -36,7 +36,7 @@ class TestGravityB0Final(unittest.TestCase):
     @data([0.70,0.001],[0.60,0.0005],[0.55,0.0004],[0.40,8e-5],)
     @unpack
     def testGravityNonPeriodic(self,theta,target_rms):
-        msr.set_parameters(bPeriodic=False,bEwald=False,nReplicas=None,bEpsAccStep=True)
+        msr.set_parameters(bPeriodic=False,bEwald=False,nReplicas=None,bEpsAccStep=True,bMemIntegerPosition=True)
         msr.domain_decompose()
         msr.build_tree()
         msr.gravity(time=self.time,theta=theta) 
@@ -61,7 +61,7 @@ class TestGravityB0Periodic(unittest.TestCase):
     @data([0.70,0.0012],[0.60,0.00055],[0.55,0.0004],[0.40,0.0001],)
     @unpack
     def testGravityPeriodic(self,theta,target_rms):
-        msr.set_parameters(bPeriodic=True,bEwald=True,nReplicas=2,bEpsAccStep=True)
+        msr.set_parameters(bPeriodic=True,bEwald=True,nReplicas=2,bEpsAccStep=True,bMemIntegerPosition=True)
         msr.domain_decompose()
         msr.build_tree(ewald=True)
         msr.gravity(time=self.time,theta=theta) 

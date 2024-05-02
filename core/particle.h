@@ -549,7 +549,7 @@ public:
     public:
         using SingleElement::SingleElement;
     public:
-        static double IntPosToDbl(int32_t pos) {return pos*1.0/INTEGER_FACTOR;}
+        // static double IntPosToDbl(int32_t pos) {return pos*1.0/INTEGER_FACTOR;}
     public:
         using coord = blitz::TinyVector<double,3>;
         using icoord= blitz::TinyVector<int32_t,3>;
@@ -674,7 +674,8 @@ public:
     void initialize(bool bIntegerPosition,bool bNoParticleOrder) {
         this->bIntegerPosition = bIntegerPosition;
         this->bNoParticleOrder = bNoParticleOrder;
-        dataStore<PARTICLE,PKD_FIELD>::initialize(bNoParticleOrder ? sizeof(UPARTICLE) : sizeof(PARTICLE));
+        if (bNoParticleOrder) dataStore<PARTICLE,PKD_FIELD>::set_header<UPARTICLE>();
+        else dataStore<PARTICLE,PKD_FIELD>::set_header<PARTICLE>();
         ParticleClasses.reserve(PKD_MAX_CLASSES);
     }
     auto integerized() const {return bIntegerPosition;}

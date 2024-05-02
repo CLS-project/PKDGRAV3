@@ -26,7 +26,7 @@
 //! container is created. This class provides a way to access the
 //! individual fields
 template<typename DATA,typename FIELD>
-class dataStore : public dataFields<DATA,FIELD> {
+class dataStore : public datafields::Fields<DATA,FIELD> {
 protected:
     DATA *pStore = nullptr;         //!< Pointer to the first element
     int nStore = 0;                 //!< Maximum number of element that can be stored
@@ -43,7 +43,7 @@ public:
 protected:
     DATA *Base() const { return pStore; }
 public:
-    using dataFields<DATA,FIELD>::Element;
+    using datafields::Fields<DATA,FIELD>::Element;
     DATA *Element(int i) const { return this->Element(Base(),i); }
     int FreeStore() const { return nStore; }
     int Local() const { return nLocal; }

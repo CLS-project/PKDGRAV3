@@ -349,7 +349,13 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     particles.initialize(this->bIntegerPosition,this->bNoParticleOrder);
 
-    if (!this->bIntegerPosition) particles.add<double[3]>(PKD_FIELD::oPosition,"r");
+    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"r");
+    else                        particles.add<double[3]>(PKD_FIELD::oPosition,"r");
+    if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
+        if (sizeof(vel_t) == sizeof(double)) particles.add<double[3]>(PKD_FIELD::oVelocity,"v");
+        else                                 particles.add<float[3]>(PKD_FIELD::oVelocity,"v");
+    }
+
     if ( mMemoryModel & PKD_MODEL_PARTICLE_ID ) particles.add<int64_t>(PKD_FIELD::oParticleID,"id");
     /*
     ** Add a global group id. This is used when outputing an array of particles with
@@ -357,46 +363,27 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** 64 bit integer.
     */
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
-    if ( mMemoryModel & PKD_MODEL_VELOCITY && sizeof(vel_t) == sizeof(double))
-        particles.add<double[3]>(PKD_FIELD::oVelocity,"v");
-    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"r");
-    if ( mMemoryModel & PKD_MODEL_SPH )
-#ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
-#else
-        particles.add<meshless::FIELDS>(PKD_FIELD::oSph,"hydro");
-#endif
+
+    if ( mMemoryModel & PKD_MODEL_SPH ) {
+        auto gas = particles.overlay(PKD_FIELD::oSph);
+        gas.add<meshless::FIELDS>(PKD_FIELD::oSph,"hydro");
+    }
 
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
     if ( mMemoryModel & PKD_MODEL_STAR ) {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
-        // The star field is overlaid on the sph field
-        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oStar,"star",particles.offset(PKD_FIELD::oSph));
-#else
-        particles.add<meshless::STAR>(PKD_FIELD::oStar,"star");
-#endif
+        auto star = particles.overlay(PKD_FIELD::oSph); // Overlay the star field on the sph field
+        star.add<meshless::STAR>(PKD_FIELD::oStar,"star");
     }
 
 #ifdef BLACKHOLES
     if ( mMemoryModel & PKD_MODEL_BH ) {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
-        // The blackhole field is overlaid on the sph field
-        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh",particles.offset(PKD_FIELD::oSph));
-#else
-        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh");
-#endif
+        auto bh = particles.overlay(PKD_FIELD::oSph); // Overlay the blackhole field on the sph field
+        bh.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh");
     }
 #endif // BLACKHOLES
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
         particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth,"vsmooth");
-    if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
-        if (sizeof(vel_t) == sizeof(float)) {
-            particles.add<float[3]>(PKD_FIELD::oVelocity,"v");
-        }
-    }
     if ( mMemoryModel & PKD_MODEL_ACCELERATION )
         particles.add<float[3]>(PKD_FIELD::oAcceleration,"a");
 
@@ -418,7 +405,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_POTENTIAL ) {
         particles.add<float>(PKD_FIELD::oPotential,"phi");
     }
-    particles.align();
+    particles.commit();
 
     /*
     ** Tree node memory models
@@ -453,7 +440,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     if ( mMemoryModel & PKD_MODEL_NODE_MOMENT ) {
         tree.add<FMOMR>(KDN_FIELD::oNodeMom,"mom");
-        tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass",tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
+        auto moment = tree.overlay(KDN_FIELD::oNodeMom);
+        moment.add<mass_t>(KDN_FIELD::oNodeMass,"mass",offsetof(FMOMR,m));
+        // tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass",tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
     }
     else tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass");
 
@@ -470,7 +459,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
                 (uint64_t)tree.ElementSize(), (uint64_t)MaxNodeSize());
     }
     assert(tree.ElementSize()<=MaxNodeSize());
-    tree.align();
+    tree.commit();
 
     /*
     ** We need to allocate one large chunk of memory for:
