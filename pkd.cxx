@@ -1642,7 +1642,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
     // However, we add this in the header so it can be parsed by other tools
     fioSetAttr(fio, HDF5_HEADER_G, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
 
-    float fSoft = pkdSoft(pkd,pkd->Particle(0)); // we take any particle
+    float fSoft = pkd->particles[0].soft(); // we take any particle
     fioSetAttr(fio, HDF5_HEADER_G, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
 
     /*
@@ -2102,10 +2102,11 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 }
 
 void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bParticleOutput) {
-    const auto &v = pkd->particles.velocity(p);
+    auto P = pkd->particles[p];
+    const auto &v = P.velocity();
     if (pkd->afiLightCone.fd>0 && bParticleOutput) {
         LIGHTCONEP *pLC = pkd->pLightCone;
-        pLC[pkd->nLightCone].id = p->iOrder;
+        pLC[pkd->nLightCone].id = P.order();
         pLC[pkd->nLightCone].pos[0] = r[0];
         pLC[pkd->nLightCone].pos[1] = r[1];
         pLC[pkd->nLightCone].pos[2] = r[2];
@@ -2127,7 +2128,7 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
         assert(id<mdlThreads(pkd->mdl));
         assert(idx < pkd->nHealpixPerDomain);
         auto m = static_cast<healpixData *>(mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id));
-        if (pkdGetGroup(pkd,p)) {
+        if (P.group()) {
             if (m->nGrouped < 0xffffffffu) ++m->nGrouped; /* Increment with saturate */
         }
         else {

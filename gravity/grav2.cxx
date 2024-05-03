@@ -503,7 +503,6 @@ static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU=t
 
 static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
     double dOmega, f;
-    double r[3];
 
     if (wp->ts->dTime < wp->SPHoptions->CentrifugalT0) {
         return;
@@ -517,7 +516,8 @@ static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
 
     f = dOmega * dOmega;
     for (int i=0; i< wp->nP; i++) {
-        pkdGetPos1(pkd,wp->pPart[i],r);
+        auto P = pkd->particles[wp->pPart[i]];
+        auto r = P.position();
         wp->pInfoOut[i].a[0] += f * r[0];
         wp->pInfoOut[i].a[1] += f * r[1];
     }
@@ -885,8 +885,6 @@ int pkdGravInteract(PKD pkd,
             r[0] = c[0] + in[0];
             r[1] = c[1] + in[1];
             r[2] = c[2] + in[2];
-            //p = wp->pPart[i];
-            //pkdGetPos1(p.r,r);
             float fMass = p.mass();
             float fSoft = p.soft();
             const auto &v = p.velocity();

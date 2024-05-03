@@ -39,10 +39,10 @@ static void combJoinLoops(void *vctx, void *v1, const void *v2) {
 static void initSetArc(void *vpkd, void *v) {}
 static void combSetArc(void *vpkd, void *v1, const void *v2) {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p1 = (PARTICLE *)v1;
-    const PARTICLE *p2 = (const PARTICLE *)v2;
-    if (p2->bMarked) p1->bMarked = 1;
-    assert( pkdGetGroup(pkd,p1) == pkdGetGroup(pkd,p2) );
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(v1)];
+    const auto p2 = pkd->particles[static_cast<const PARTICLE *>(v2)];
+    if (p2.is_marked()) p1.set_marked(true);
+    assert(p1.group() == p2.group());
 }
 
 /*
@@ -280,10 +280,12 @@ int smHopLink(SMX smx,SMF *smf) {
     nSpur = 0;
     for (pi=1; pi<nGroups; ++pi) {
         auto p1 = static_cast<PARTICLE *>(mdlAcquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid));
-        int gid1 = pkdGetGroup(pkd,p1);
+        auto P1 = pkd->particles[p1];
+        int gid1 = P1.group();
         auto g1 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,gid1,ga[pi].id.iPid));
         auto p2 = static_cast<PARTICLE *>(mdlAcquire(mdl,CID_PARTICLE,g1->iIndex,g1->iPid));
-        int gid2 = pkdGetGroup(pkd,p2);
+        auto P2 = pkd->particles[p2];
+        int gid2 = P2.group();
         auto g2 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,gid2,g1->iPid));
         assert (g2->iPid == g1->iPid);
         ga[pi].id.iPid   = g2->iPid;
@@ -429,7 +431,6 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     return smf->bDone;
 }
 
-
 int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, blitz::TinyVector<double,3> dPeriod) {
     MDL mdl = pkd->mdl;
     struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
@@ -446,7 +447,6 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, blitz::TinyVector<d
     pkd->hopSavedRoots = 0;
     return pkd->nLocalGroups;
 }
-
 
 static void initHopGetRoots(void *vpkd, void *v) {
     HopGroupTable *g = (HopGroupTable *)v;
@@ -585,7 +585,6 @@ typedef struct EnergyElement {
     int i;
 } EE;
 
-
 static int cmpEE(const void *p1,const void *p2) {
     EE *a = (EE *)p1;
     EE *b = (EE *)p2;
@@ -691,4 +690,3 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz:
 
     return nEvaporated;
 }
-

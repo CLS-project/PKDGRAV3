@@ -637,62 +637,12 @@ static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, 
 ** code should care about sizes of the particle structure.
 */
 
-static inline int32_t pkdGetGroup( PKD pkd, const PARTICLE *p ) {
-    return pkd->particles.group(p);
-}
-static inline int64_t pkdGetGlobalGid( PKD pkd, const PARTICLE *p ) {
-    return pkd->particles.global_gid(p);
-}
-static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
-    pkd->particles.set_group(p,gid);
-}
-static inline void pkdSetGlobalGid( PKD pkd, PARTICLE *p, uint64_t gid ) {
-    pkd->particles.global_gid(p) = gid;
-}
-
-static inline float pkdDensity( PKD pkd, const PARTICLE *p ) {
-    return pkd->particles.density(p);
-}
-static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
-    pkd->particles.set_density(p,fDensity);
-}
-
-/* Here is the new way of getting mass and softening */
-static inline float pkdMass( PKD pkd, PARTICLE *p ) {
-    return pkd->particles.mass(p);
-}
-static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
-    return pkd->particles.soft0(p);
-}
-static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
-    return pkd->particles.soft(p);
-}
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->particles.species(p);
 }
 static inline int pkdiMat( PKD pkd, PARTICLE *p ) {
     return pkd->particles.iMat(p);
 }
-
-static inline double pkdPos(PKD pkd,PARTICLE *p,int d) {
-    if (pkd->bIntegerPosition) return pkdIntPosToDbl(pkd,pkd->particles.get<int32_t[3]>(p,PKD_FIELD::oPosition)[d]);
-    else return pkd->particles.get<double[3]>(p,PKD_FIELD::oPosition)[d];
-}
-static inline void pkdSetPos(PKD pkd,PARTICLE *p,int d,double v) {
-    if (pkd->bIntegerPosition) pkd->particles.get<int32_t[3]>(p,PKD_FIELD::oPosition)[d] = pkdDblToIntPos(pkd,v);
-    else pkd->particles.get<double[3]>(p,PKD_FIELD::oPosition)[d] = v;
-}
-#define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
-#define pkdGetPos1(pkd,p,d) pkdGetPos3(pkd,p,(d)[0],(d)[1],(d)[2])
-
-#if defined(__AVX__) && defined(USE_SIMD)
-static inline __m128i pkdGetPosRaw(PKD pkd,PARTICLE *p) {
-    return _mm_loadu_si128(&pkd->particles.get<__m128i>(p,PKD_FIELD::oPosition));
-}
-static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
-    return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
-}
-#endif
 
 static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
     return (pkdSpecies(pkd,p) == FIO_SPECIES_UNKNOWN);

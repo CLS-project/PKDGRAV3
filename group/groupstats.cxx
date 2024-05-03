@@ -79,8 +79,6 @@ double illinois(double (*func)(double),double r,double s,double xacc,int *pnIter
 }
 #endif
 
-
-
 /*
 ** Stuff to calculate group properties...
 */
@@ -184,7 +182,6 @@ static void combShrink(void *vpkd, void *v1, const void *v2) {
     }
     g1->nEnclosed += g2->nEnclosed;
 }
-
 
 static void initAngular(void *vpkd, void *v) {
     TinyGroupTable *g = (TinyGroupTable *)v;
@@ -338,7 +335,7 @@ static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,doubl
                 dz = r[2] - p_r[2];
                 fDist2 = dx*dx + dy*dy + dz*dz;
                 if (fDist2 <= fBall2) {
-                    fMass += pkdMass(pkd,p);
+                    fMass += p.mass();
                 }
             }
         }
@@ -376,7 +373,6 @@ double pkdGatherMass(PKD pkd,remoteID *S,double fBall,TinyVector<double,3> r,int
     return (fMass);
 }
 
-
 typedef struct {
     float a;
     float b;
@@ -384,7 +380,6 @@ typedef struct {
     int iter;            /* this is only used for a diagnostic */
     int gid;
 } RootFindingTable;
-
 
 void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,double rEnvironment[2],uint64_t iGlobalStart) {
     const int bDoShrinkingSphere = 0;
@@ -398,11 +393,11 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
     int i,j,gid,n;
     int nLocalGroups;
     double *dAccumulate;
-    MassRadius *mr,*mrFree,*rootFunction;
+    MassRadius *mr, *mrFree, *rootFunction;
     remoteID *S;
-    uint32_t *iGrpOffset,*iGrpEnd;
+    uint32_t *iGrpOffset, *iGrpEnd;
     int nRootFind,bIncomplete,nMaxIter,iter;
-    int *mrIndex,iRoot,*bRemoteDone;
+    int *mrIndex,iRoot, *bRemoteDone;
     RootFindingTable *rootFindingTable;
     ShrinkStruct *shrink;
     int bShrink;
@@ -1126,7 +1121,6 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
     */
     pkd->nLocalGroups = nLocalGroups;
 
-
     /*
     ** IA: We copy part of the stats to a even smaller structure that will survive later in memory
     **  such that it can be used for planting the BH seeds
@@ -1140,7 +1134,6 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
         pkd->veryTinyGroupTable[gid].fMass = pkd->tinyGroupTable[gid].fMass;
         pkd->veryTinyGroupTable[gid].nBH = pkd->tinyGroupTable[gid].nBH;
     }
-
 
     /*
     ** Clear pkd->ga so that later gravity calculations don't set the minimum potential again.
