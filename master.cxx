@@ -79,6 +79,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/calcroot.h"
 #include "core/select.h"
 #include "core/fftsizes.h"
+#include "core/countspecies.h"
 #include "io/restore.h"
 #include "initlightcone.h"
 
@@ -3464,6 +3465,16 @@ void MSR::MoveDeletedParticles() {
     nGas = Nout.nGas;
     nStar = Nout.nStar;
     nBH = Nout.nBH;
+}
+
+void MSR::CountSpecies() {
+    ServiceCountSpecies::output out;
+    mdl->RunService(PST_COUNTSPECIES,&out);
+    assert(out.counts[FIO_SPECIES_SPH] == nGas);
+    assert(out.counts[FIO_SPECIES_DARK] == nDark);
+    assert(out.counts[FIO_SPECIES_STAR] == nStar);
+    assert(out.counts[FIO_SPECIES_BH] == nBH);
+    nMaxOrder = out.nMaxOrder;
 }
 
 void MSR::GetNParts() { /* JW: Not pretty -- may be better way via fio */

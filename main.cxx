@@ -38,6 +38,7 @@
 #include "core/calcroot.h"
 #include "core/select.h"
 #include "core/fftsizes.h"
+#include "core/countspecies.h"
 
 #include "io/service.h"
 #include "io/restore.h"
@@ -114,6 +115,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSelSphere>(pst));
     mdl->AddService(std::make_unique<ServiceSelCylinder>(pst));
     mdl->AddService(std::make_unique<ServiceFftSizes>(pst));
+    mdl->AddService(std::make_unique<ServiceCountSpecies>(pst));
     mdl->AddService(std::make_unique<ServiceFileSizes>(pst));
     mdl->AddService(std::make_unique<ServiceRestore>(pst));
     mdl->AddService(std::make_unique<ServiceCalcBound>(pst));

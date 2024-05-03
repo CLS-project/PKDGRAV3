@@ -198,7 +198,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
 	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
-	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
+	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c core/countspecies.cxx
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx core/particle.cxx core/memory.cxx core/fftsizes.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx

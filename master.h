@@ -166,14 +166,14 @@ public:
     void GroupStats();
     void HopWrite(const char *fname);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-    MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
+            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
     void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
     void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-    GridBinK(int nBins, int iGrid);
+            GridBinK(int nBins, int iGrid);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
     void GridCreateFFT(int nGrid);
@@ -416,6 +416,7 @@ protected:
     void CalcBound();
     void MoveDeletedParticles();
     void GetNParts();
+    void CountSpecies();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
     mdl::ServiceBuffer GetParticles(std::vector<std::int64_t> &particle_ids);
@@ -514,7 +515,7 @@ protected:
     void InitBall();
 
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-    MeasureLinPk(int nGridLin,double a,double dBoxSize);
+            MeasureLinPk(int nGridLin,double a,double dBoxSize);
     void OutputPk(int iStep,double dTime);
     void OutputLinPk(int iStep, double dTime);
 
