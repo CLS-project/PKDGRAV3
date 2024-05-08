@@ -1396,48 +1396,39 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         /* Expand the particles by adding an iOrder */
         assert(sizeof(expandParticle) >= sizeof(basicParticle));
         overlayedParticle   *pbBase = (overlayedParticle *)pkd->particles.Element(0);
-        int iz = fft->rgrid->rs[myProc] + fft->rgrid->rn[myProc];
-        int iy=0, ix=0;
+        blitz::TinyVector<int,3> index(0,0,fft->rgrid->rs[myProc] + fft->rgrid->rn[myProc]);
         float inGrid = 1.0 / in->nGrid;
         for (i=nLocal-1; i>=0; --i) {
             basicParticle  *b = &pbBase->b + i;
             basicParticle temp;
             memcpy(&temp,b,sizeof(temp));
-            if (ix>0) --ix;
+            if (index[0]>0) --index[0];
             else {
-                ix = in->nGrid-1;
-                if (iy>0) --iy;
+                index[0] = in->nGrid-1;
+                if (index[1]>0) --index[1];
                 else {
-                    iy = in->nGrid-1;
-                    --iz;
-                    assert(iz>=0);
+                    index[1] = in->nGrid-1;
+                    --index[2];
+                    assert(index[2]>=0);
                 }
             }
             // If we have no particle order convert directly to Integerized positions.
             // We do this to save space as an "Integer" particle is small.
             if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
                 integerParticle *p = &pbBase->i + i;
-                p->v[2] = temp.v[2];
-                p->v[1] = temp.v[1];
-                p->v[0] = temp.v[0];
-                p->r[2] = pkdDblToIntPos(pkd,temp.dr[2] + (iz+0.5) * inGrid - 0.5);
-                p->r[1] = pkdDblToIntPos(pkd,temp.dr[1] + (iy+0.5) * inGrid - 0.5);
-                p->r[0] = pkdDblToIntPos(pkd,temp.dr[0] + (ix+0.5) * inGrid - 0.5);
+                p->v = temp.v;
+                p->r = pkd->convert(blitz::TinyVector<double,3>(temp.dr + (index+0.5) * inGrid - 0.5));
             }
             else {
                 expandParticle *p = &pbBase->e + i;
-                p->v[2] = temp.v[2];
-                p->v[1] = temp.v[1];
-                p->v[0] = temp.v[0];
-                p->dr[2] = temp.dr[2];
-                p->dr[1] = temp.dr[1];
-                p->dr[0] = temp.dr[0];
-                p->ix = ix;
-                p->iy = iy;
-                p->iz = iz;
+                p->v = temp.v;
+                p->dr = temp.dr;
+                p->ix = index[0];
+                p->iy = index[1];
+                p->iz = index[2];
             }
         }
-        assert(ix==0 && iy==0 && iz==fft->rgrid->rs[myProc]);
+        assert(index[0]==0 && index[1]==0 && index[2]==fft->rgrid->rs[myProc]);
         /* Now we need to move excess particles between nodes so nStore is obeyed. */
         pkd->fft = fft; /* This is freed in pstMoveIC() */
     }

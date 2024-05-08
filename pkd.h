@@ -37,6 +37,7 @@
 #include "units.h"
 #include "io/fio.h"
 #include "basetype.h"
+#include "core/integerize.h"
 #include "core/treenode.h"
 #include "io/iomodule.h"
 #include "SPH/SPHOptions.h"
@@ -354,14 +355,15 @@ typedef struct {
     float fPotential;
 } healpixData;
 
-class pkdContext {
+class pkdContext : public Integerize {
 public:
     explicit pkdContext(
         mdl::mdlClass *mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
         int nTreeBitsLo, int nTreeBitsHi,
         int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
-        uint64_t mMemoryModel);
+        uint64_t mMemoryModel, uint32_t nIntegerFactor);
     virtual ~pkdContext();
+    void set_factor(std::uint32_t factor);
 
 protected:  // Support for memory models
     int NodeAddStruct    (int n);   // Add a NODE structure: assume double alignment

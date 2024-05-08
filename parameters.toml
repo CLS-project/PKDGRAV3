@@ -949,6 +949,19 @@ Enabling this feature changes positions to 32-bit integers. This can only be use
 with periodical boxes, and will save 12 bytes of memory per particle.
 '''
 
+["Memory Model and Control".nIntegerFactor]
+flag="ifactor"
+default=0x80000000
+help="Factor to use for integerized coordinates"
+docs='''
+This is the factor used to convert between integer and double precision coordinates.
+This can be used to effectively reduce the resolution of the grid which you would
+only do for testing. This must not exceed the value of an unsigned 32-bit integer,
+and must be somewhat less to account for particles that drift outside the unit box.
+DO NOT ADJUST THIS PARAMETER UNLESS YOU KNOW EXACTLY WHAT YOU ARE DOING.
+The accuracy will not improve -- only get worse.
+'''
+
 ["Memory Model and Control".bMemUnordered]
 flag="unordered"
 default=false

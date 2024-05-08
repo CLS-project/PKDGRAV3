@@ -36,10 +36,6 @@
 
 #define PKD_MAX_CLASSES 256
 
-#define INTEGER_FACTOR 0x80000000u
-#define pkdDblToIntPos(pkd,d) (int32_t)((d)*INTEGER_FACTOR)
-#define pkdIntPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
-
 #ifdef NN_FLAG_IN_PARTICLE
     #define IORDERBITS 42
 #else
@@ -347,6 +343,7 @@ protected:
 public:
     using coord = blitz::TinyVector<double,3>;
     using icoord= blitz::TinyVector<int32_t,3>;
+    using Integerize::set_factor;
     void PhysicalSoft(double dSoftMax,double dFac,int bSoftMaxMul) {
         fSoftFac = dFac;
         fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
@@ -548,8 +545,6 @@ public:
     class Particle : public SingleElement<PARTICLE,particleStore> {
     public:
         using SingleElement::SingleElement;
-    public:
-        // static double IntPosToDbl(int32_t pos) {return pos*1.0/INTEGER_FACTOR;}
     public:
         using coord = blitz::TinyVector<double,3>;
         using icoord= blitz::TinyVector<int32_t,3>;

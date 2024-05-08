@@ -259,6 +259,7 @@ struct inInitializePStore {
     blitz::TinyVector<double,3> fPeriod;
     uint64_t nMinEphemeral;
     uint64_t nMinTotalStore;
+    uint32_t nIntegerFactor;
     int nEphemeralBytes;
     int nTreeBitsLo;
     int nTreeBitsHi;

@@ -351,6 +351,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.iWorkQueueSize  = parameters.get_iWorkQueueSize();
     ps.fPeriod = parameters.get_dPeriod();
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
+    ps.nIntegerFactor = parameters.get_nIntegerFactor();
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
     printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",

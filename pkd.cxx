@@ -303,17 +303,26 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
     pkd->nBoxLC[l] = nBox;
 }
 
+void pkdContext::set_factor(std::uint32_t factor) {
+    assert(particles.Local() == 0); // Must be called before any particles are allocated
+    assert(tree.Nodes() == 0); // Must be called before any nodes are allocated
+    Integerize::set_factor(factor);
+    particles.set_factor(factor);
+    tree.set_factor(factor);
+}
+
 pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
                        const TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
-                       uint64_t mMemoryModel) : mdl(mdl),
+                       uint64_t mMemoryModel, uint32_t nIntegerFactor) : mdl(mdl),
     pLightCone(nullptr), pHealpixData(nullptr), csm(nullptr) {
     PARTICLE *p;
     uint32_t pi;
     int j,ism;
 
+    set_factor(nIntegerFactor);
     io_init(&afiLightCone,0,0,IO_AIO|IO_LIBAIO);
 
 #define RANDOM_SEED 1
@@ -879,35 +888,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 }
 
 void pkdEnforcePeriodic(PKD pkd,Bound bnd) {
-    int i;
-#if defined(USE_SIMD) && defined(__SSE2__)
-    if (pkd->bIntegerPosition) {
-        __m128i period = _mm_set1_epi32 (INTEGER_FACTOR);
-        __m128i top = _mm_setr_epi32 ( (INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,0x7fffffff );
-        __m128i bot = _mm_setr_epi32 (-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-0x80000000 );
-
-        auto pPos = &pkd->particles.get<char>(pkd->Particle(0),PKD_FIELD::oPosition);
-        const int iSize = pkd->particles.ParticleSize();
-        for (i=0; i<pkd->Local(); ++i) {
-            __m128i v = _mm_loadu_si128((__m128i *)pPos);
-            __m128i *r = (__m128i *)pPos;
-            pPos += iSize;
-            _mm_prefetch(pPos,_MM_HINT_T0);
-            v = _mm_sub_epi32(_mm_add_epi32(v,_mm_and_si128(_mm_cmplt_epi32(v,bot),period)),
-                              _mm_and_si128(_mm_cmpgt_epi32(v,top),period));
-            /* The fourth field (not part of position) is not modified because of bot/top */
-            _mm_storeu_si128(r,v);
-            //  r[0] = _mm_extract_epi32 (v,0);
-            //  r[1] = _mm_extract_epi32 (v,1);
-            //  r[2] = _mm_extract_epi32 (v,2);
-        }
-    }
-    else
-#endif
-    {
-        for (auto &p : pkd->particles) {
-            p.set_position(bnd.wrap(p.position()));
-        }
+    for (auto &p : pkd->particles) {
+        p.set_position(bnd.wrap(p.position()));
     }
 }
 
