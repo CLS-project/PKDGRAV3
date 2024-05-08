@@ -323,8 +323,8 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         result.ay = - Im * (PPoverRho2 * PdWdy + IPoverRho2 * IdWdy + Piij * dWdy) * aFac;
         result.az = - Im * (PPoverRho2 * PdWdz + IPoverRho2 * IdWdz + Piij * dWdz) * aFac;
 
-        // divv
-        result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        // physical divv as used in gasoline
+        result.divv = - Im / Irho * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz + H * d2 * PdWdx / dx);
 
         // timestep
         dtC = 1.0f + 0.6f * alpha;
