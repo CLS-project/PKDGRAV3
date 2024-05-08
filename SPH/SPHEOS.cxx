@@ -23,24 +23,10 @@
 
 #include "SPHEOS.h"
 
-float SPHEOSconvertAtoU(float rho, float u, int iMat, SPHOptions *SPHoptions) {
-    if (iMat == 0 && SPHoptions->useBuiltinIdeal && SPHoptions->useIsentropic) {
-        u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
-    }
-    return u;
-}
-
-float SPHEOSconvertUtoA(float rho, float u, int iMat, SPHOptions *SPHoptions) {
-    if (iMat == 0 && SPHoptions->useBuiltinIdeal && SPHoptions->useIsentropic) {
-        u = u * (SPHoptions->gamma - 1.0f) / pow(rho, SPHoptions->gamma - 1.0f);
-    }
-    return u;
-}
-
 float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat, SPHOptions *SPHoptions) {
     float P = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
-        u = SPHEOSconvertAtoU(rho, u, iMat, SPHoptions);
+        if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
         if (T) *T = u / SPHoptions->TuFac;
         *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
         P = (SPHoptions->gamma - 1.0f) * rho * u;
@@ -63,7 +49,7 @@ float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
     float u = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         u = T * SPHoptions->TuFac;
-        u = SPHEOSconvertAtoU(rho, u, iMat, SPHoptions);
+        if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
     }
     else {
 #ifdef HAVE_EOSLIB_H
@@ -76,7 +62,7 @@ float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
 float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoptions) {
     float T = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
-        u = SPHEOSconvertAtoU(rho, u, iMat, SPHoptions);
+        if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
         T = u / SPHoptions->TuFac;
     }
     else {
