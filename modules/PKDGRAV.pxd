@@ -197,7 +197,7 @@ cpdef restart(object arguments,object specified,list species,list classes,int n,
 # cpdef load(str filename)
 cpdef save(str filename,double time=*)
 cpdef domain_decompose(int rung=*)
-cpdef build_tree(bool ewald=*)
+# cpdef build_tree(bool ewald=*)
 cpdef reorder()
 #cpdef simulate()
 cpdef measure_pk(int grid,int bins=*,double a=*,bool interlace=*,int order=*,double L=*)

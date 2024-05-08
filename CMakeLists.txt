@@ -203,7 +203,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx core/particle.cxx core/memory.cxx core/fftsizes.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
-	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
+	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/updaterung.cxx gravity/zeronewrung.cxx
 	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
 	eEOS/eEOS.cxx
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx

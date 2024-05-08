@@ -14,19 +14,28 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "countrungs.h"
+#include "updaterung.h"
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceCountRungs::input>()  || std::is_standard_layout<ServiceCountRungs::input>());
-static_assert(std::is_void<ServiceCountRungs::output>() || std::is_standard_layout<ServiceCountRungs::output>());
+static_assert(std::is_void<ServiceUpdateRung::input>()  || std::is_standard_layout<ServiceUpdateRung::input>());
+static_assert(std::is_void<ServiceUpdateRung::output>() || std::is_standard_layout<ServiceUpdateRung::output>());
 
-int ServiceCountRungs::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    static_assert(std::is_void<input>());
+int ServiceUpdateRung::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto const &in = * static_cast<input *>(vin);
     auto &out = * static_cast<output *>(vout);
     auto pkd = pst->plcl->pkd;
+
+    assert(!pkd->bNoParticleOrder);
     out = 0;
-    for (auto &p : pkd->particles) ++out[p.rung()];
+    for (auto &p : pkd->particles) {
+        if ( p.is_active() ) {
+            if ( p.new_rung() >  in.uMaxRung ) p.set_new_rung(in.uMaxRung);
+            if ( p.new_rung() >= in.uMinRung ) p.set_rung(p.new_rung());
+            else if ( p.rung() > in.uMinRung ) p.set_rung(in.uMinRung);
+        }
+        out[p.rung()] += 1;
+    }
     pkd->nRung = out;
     return sizeof(output);
 }

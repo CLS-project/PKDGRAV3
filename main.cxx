@@ -67,6 +67,7 @@
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
+#include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 
 time_t timeGlobalSignalTime = 0;
@@ -125,6 +126,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSetSoft>(pst));
     mdl->AddService(std::make_unique<ServiceActiveRung>(pst));
     mdl->AddService(std::make_unique<ServiceCountRungs>(pst));
+    mdl->AddService(std::make_unique<ServiceUpdateRung>(pst));
     mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
     mdl->AddService(std::make_unique<ServiceGetOrdSplits>(pst));
 #ifdef HAVE_ROCKSTAR

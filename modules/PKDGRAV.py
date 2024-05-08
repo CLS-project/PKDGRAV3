@@ -45,7 +45,7 @@ def generate_ic(cosmology : Cosmology,*,grid : int,seed : int,z : float,L : floa
     :param integer seed: random seed
     :param number z: starting redshift
     :param number L: length unit of the box
-    :param integer order: IC order, 1=Zeldovich, 2=2LPT
+    :param integer order: IC order, 1=Zeldovich, 2=2LPT, 3=3LPT
     :param Boolean fixed_amplitude: use fixed amplitude for the power spectrum
     :param number phase_pi: phase of the initial conditions (in units of :math:`\\pi` radians, normally 0 or 1)
     :return: time
@@ -53,8 +53,9 @@ def generate_ic(cosmology : Cosmology,*,grid : int,seed : int,z : float,L : floa
     msr0.parameters.set(msr0.parameters.str_bFixedAmpIC,fixed_amplitude)
     msr0.parameters.set(msr0.parameters.str_dFixedAmpPhasePI,phase_pi)
     if order is None: pass
-    elif order == 1:  msr0.parameters.set(msr0.parameters.str_b2LPT,False)
-    elif order == 2:  msr0.parameters.set(msr0.parameters.str_b2LPT,True)
+    elif order == 1: msr0.parameters.set(msr0.parameters.str_iLPT, 1)
+    elif order == 2: msr0.parameters.set(msr0.parameters.str_iLPT, 2)
+    elif order == 3: msr0.parameters.set(msr0.parameters.str_iLPT, 3)
     else:             raise ValueError("invalid IC order")
     set_parameters(**kwargs)
     return msr0.GenerateIC(grid,seed,z,L,cosmology._csm)
@@ -88,13 +89,14 @@ def domain_decompose(rung=0):
     """
     msr0.DomainDecomp(rung)
 
-def build_tree(ewald=False):
+def build_tree(ewald=None):
     """
     Builds a tree in each domain
 
     :param Boolean ewald: construct a moment for Ewald if true
     """
-    msr0.BuildTree(ewald)
+    bEwald = msr0.parameters.get_bEwald() if ewald is None else ewald
+    msr0.BuildTree(bEwald)
 
 def reorder():
     """
@@ -104,7 +106,7 @@ def reorder():
     msr0.Reorder()
 
 
-def gravity(time=0.0,delta=0.0,theta=0.7,rung=0,ewald=None,step=0.0,kick_close=True,kick_open=True, only_marked=False):
+def gravity(time=0.0,delta=0.0,theta=0.7,rung=0,ewald=None,step=0.0,kick_close=True,kick_open=False, only_marked=False):
     bEwald = msr0.parameters.get_bEwald() if ewald is None else ewald
     bGravStep = msr0.parameters.get_bGravStep()
     nPartRhoLoc = msr0.parameters.get_nPartRhoLoc()

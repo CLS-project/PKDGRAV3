@@ -186,8 +186,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstGetMinDt,
                   0, sizeof(struct outGetMinDt));
     //
-    mdlAddService(mdl,PST_CACHEBARRIER,pst,(fcnService_t *)pstCacheBarrier,
-                  0,0);
     mdlAddService(mdl,PST_ROPARTICLECACHE,pst,(fcnService_t *)pstROParticleCache,
                   0,0);
     mdlAddService(mdl,PST_PARTICLECACHEFINISH,pst,(fcnService_t *)pstParticleCacheFinish,
@@ -240,8 +238,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstStellarEvolutionInit,
                   sizeof(struct inStellarEvolutionInit),0);
 #endif
-    mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t *)pstUpdateRung,
-                  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
     mdlAddService(mdl,PST_COLNPARTS,pst,(fcnService_t *)pstColNParts,
                   0,nThreads*sizeof(struct outColNParts));
     mdlAddService(mdl,PST_NEWORDER,pst,(fcnService_t *)pstNewOrder,
@@ -1608,19 +1604,6 @@ int pstChemCompInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 
-int pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
-        pstCacheBarrier(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        mdlCacheBarrier(pst->mdl,CID_CELL);
-    }
-    return 0;
-}
-
 int pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
 
@@ -1784,29 +1767,6 @@ int pstCorrectEnergy(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pkdCorrectEnergy(plcl->pkd,in->dTuFac,in->z,in->dTime,in->iDirection);
     }
     return 0;
-}
-
-int pstUpdateRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct outUpdateRung outTemp;
-    auto in = static_cast<struct inUpdateRung *>(vin);
-    auto out = static_cast<struct outUpdateRung *>(vout);
-    int i;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_UPDATERUNG,vin,nIn);
-        pstUpdateRung(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outTemp,NULL);
-        for (i=0; i<in->uMaxRung; ++i) {
-            out->nRungCount[i] += outTemp.nRungCount[i];
-        }
-    }
-    else {
-        pkdUpdateRung(plcl->pkd,in->uRungLo,in->uRungHi,
-                      in->uMinRung,in->uMaxRung,out->nRungCount);
-    }
-    return sizeof(*out);
 }
 
 int pstColNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
