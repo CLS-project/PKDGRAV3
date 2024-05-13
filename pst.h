@@ -172,7 +172,6 @@ enum pst_service {
     PST_REMOVEDELETED,
     PST_COLNPARTS,
     PST_NEWORDER,
-    PST_GETNPARTS,
     PST_SETNPARTS,
     PST_NEW_FOF,
     PST_FOF_PHASES,
@@ -758,16 +757,7 @@ int pstColNParts(PST, void *, int, void *, int);
 int pstNewOrder(PST, void *, int, void *, int);
 
 /* PST_GETNPARTS */
-/* see pkd.h
- struct outGetNParts {
-    int n;
-    int nGas;
-    int nDark;
-    int nStar;
-    };
-*/
 int pstMoveDeletedParticles(PST,void *,int,void *,int );
-int pstGetNParts(PST, void *, int, void *, int);
 
 /* PST_SETNPARTS */
 struct inSetNParts {

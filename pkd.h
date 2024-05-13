@@ -804,7 +804,6 @@ struct outGetNParts {
 };
 
 void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH);
-void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,

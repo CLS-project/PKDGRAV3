@@ -2832,28 +2832,6 @@ void pkdNewOrder(PKD pkd,int nStart) {
     }
 }
 
-/// @brief Count the number of each species of particle
-void pkdGetNParts(PKD pkd, struct outGetNParts *out ) {
-    TinyVector<int,FIO_SPECIES_LAST> counts = 0;
-    total_t iMaxOrder = 0;
-    // Loop over all particles and accumulate counts for each species.
-    // Also keep track of the maximum iOrder found.
-    std::for_each(pkd->particles.begin(),pkd->particles.end(),
-    [&counts,&iMaxOrder](auto &p) {
-        iMaxOrder = std::max(iMaxOrder,p.order());
-        ++counts[p.species()];
-    });
-
-    out->n     = blitz::sum(counts);
-    out->nGas  = counts[FIO_SPECIES_SPH];
-    out->nDark = counts[FIO_SPECIES_DARK];
-    out->nStar = counts[FIO_SPECIES_STAR];
-    out->nBH   = counts[FIO_SPECIES_BH];
-    out->nMaxOrder = iMaxOrder;
-
-    pkdSetNParts(pkd, out->nGas, out->nDark, out->nStar, out->nBH);
-}
-
 void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar, int nBH) {
     pkd->nGas = nGas;
     pkd->nDark = nDark;

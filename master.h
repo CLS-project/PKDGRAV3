@@ -415,7 +415,6 @@ protected:
     void CalcBound(Bound &bnd);
     void CalcBound();
     void MoveDeletedParticles();
-    void GetNParts();
     void CountSpecies();
     void RemoveDeleted();
     double AdjustTime(double aOld, double aNew);

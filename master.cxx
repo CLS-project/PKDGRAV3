@@ -648,7 +648,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs) {
         SetSPHoptions();
         InitializeEOS();
     }
-    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.get_bAddDelete()) CountSpecies();
     if (parameters.has_achOutTimes()) {
         nSteps = ReadOuts(dTime);
     }
@@ -754,7 +754,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         SetSPHoptions();
         InitializeEOS();
     }
-    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.get_bAddDelete()) CountSpecies();
     if (parameters.has_achOutTimes()) {
         nSteps = ReadOuts(dTime);
     }
@@ -3490,27 +3490,6 @@ void MSR::CountSpecies() {
     nMaxOrder = out.nMaxOrder;
 }
 
-void MSR::GetNParts() { /* JW: Not pretty -- may be better way via fio */
-    struct outGetNParts outget;
-
-    pstGetNParts(pst,NULL,0,&outget,sizeof(outget));
-    assert(outget.nGas == nGas);
-    assert(outget.nDark == nDark);
-    assert(outget.nStar == nStar);
-    assert(outget.nBH == nBH);
-    nMaxOrder = outget.nMaxOrder;
-#if 0
-    if (outget.iMaxOrderGas > nMaxOrder) {
-        nMaxOrder = outget.iMaxOrderGas;
-        fprintf(stderr,"WARNING: Largest iOrder of gas > Largest iOrder of star\n");
-    }
-    if (outget.iMaxOrderDark > nMaxOrder) {
-        nMaxOrder = outget.iMaxOrderDark;
-        fprintf(stderr,"WARNING: Largest iOrder of dark > Largest iOrder of star\n");
-    }
-#endif
-}
-
 void MSR::AddDelParticles() {
     struct inSetNParts in;
     int i;
@@ -4341,7 +4320,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
     // IA: If we allow for adding/deleting particles, we need to recount them to have the
     //  correct number of particles per specie
-    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.get_bAddDelete()) CountSpecies();
 
     printf( "Writing output for step %d\n", iStep );
 

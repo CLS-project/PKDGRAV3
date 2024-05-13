@@ -46,7 +46,7 @@ double MSR::LoadOrGenerateIC() {
     else {
         printf("No input file specified\n");
     }
-    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.get_bAddDelete()) CountSpecies();
     return dTime;
 }
 

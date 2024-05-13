@@ -242,8 +242,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   0,nThreads*sizeof(struct outColNParts));
     mdlAddService(mdl,PST_NEWORDER,pst,(fcnService_t *)pstNewOrder,
                   nThreads*sizeof(uint64_t),0);
-    mdlAddService(mdl,PST_GETNPARTS,pst,(fcnService_t *)pstGetNParts,
-                  0,sizeof(struct outGetNParts));
     mdlAddService(mdl,PST_SETNPARTS,pst,(fcnService_t *)pstSetNParts,
                   sizeof(struct inSetNParts),0);
     mdlAddService(mdl,PST_NEW_FOF,pst,(fcnService_t *)pstNewFof,
@@ -1801,28 +1799,6 @@ int pstNewOrder(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pkdNewOrder(plcl->pkd, in[pst->idSelf]);
     }
     return  0;
-}
-
-int pstGetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto out = static_cast<struct outGetNParts *>(vout);
-
-    if (pst->nLeaves > 1) {
-        struct outGetNParts outtmp;
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETNPARTS,vin,nIn);
-        pstGetNParts(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,(void *) &outtmp,NULL);
-
-        out->n += outtmp.n;
-        out->nGas += outtmp.nGas;
-        out->nDark += outtmp.nDark;
-        out->nStar += outtmp.nStar;
-        out->nBH += outtmp.nBH;
-        if (outtmp.nMaxOrder > out->nMaxOrder) out->nMaxOrder = outtmp.nMaxOrder;
-    }
-    else {
-        pkdGetNParts(pst->plcl->pkd, out);
-    }
-    return sizeof(struct outGetNParts);
 }
 
 int pstSetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
