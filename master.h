@@ -417,6 +417,7 @@ protected:
     void MoveDeletedParticles();
     void GetNParts();
     void CountSpecies();
+    void RemoveDeleted();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
     mdl::ServiceBuffer GetParticles(std::vector<std::int64_t> &particle_ids);

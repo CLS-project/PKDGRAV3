@@ -80,6 +80,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/select.h"
 #include "core/fftsizes.h"
 #include "core/countspecies.h"
+#include "core/removedeleted.h"
 #include "io/restore.h"
 #include "initlightcone.h"
 
@@ -3466,6 +3467,17 @@ void MSR::MoveDeletedParticles() {
     nGas = Nout.nGas;
     nStar = Nout.nStar;
     nBH = Nout.nBH;
+}
+
+void MSR::RemoveDeleted() {
+    ServiceRemoveDeleted::output out;
+    mdl->RunService(PST_REMOVEDELETED,&out);
+    N = blitz::sum(out.counts);
+    nGas = out.counts[FIO_SPECIES_SPH];
+    nDark = out.counts[FIO_SPECIES_DARK];
+    nStar = out.counts[FIO_SPECIES_STAR];
+    nBH = out.counts[FIO_SPECIES_BH];
+    nMaxOrder = out.nMaxOrder;
 }
 
 void MSR::CountSpecies() {
