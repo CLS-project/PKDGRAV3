@@ -325,7 +325,8 @@ uint64_t MSR::getMemoryModel() {
 
     if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
-    if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_ACCELERATION);
+    if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_MFM | PKD_MODEL_ACCELERATION);
+    if (MeshlessFiniteVolume())                mMemoryModel |=  PKD_MODEL_MFV;
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
@@ -355,11 +356,11 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.nIntegerFactor = parameters.get_nIntegerFactor();
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
            parameters.get_bMemIntegerPosition() ? " INTEGER_POSITION" : " DOUBLE_POSITION",
            SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
            SHOW(GROUPS),SHOW(MASS),SHOW(DENSITY),
-           SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),SHOW(NEW_SPH),
+           SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(MFM),SHOW(MFV),SHOW(NEW_SPH),
            SHOW(STAR),SHOW(PARTICLE_ID),SHOW(BH),SHOW(GLOBALGID),
            SHOW(NODE_MOMENT),SHOW(NODE_ACCEL),SHOW(NODE_VEL),SHOW(NODE_SPHBNDS),
            SHOW(NODE_BND),SHOW(NODE_VBND),SHOW(NODE_BOB));

@@ -1,5 +1,4 @@
 #include "gtest/gtest.h"
-#define USE_MFM
 #include <vector>
 #include <cmath>
 
@@ -17,7 +16,6 @@ protected:
     int width() {
         return dtype::width();
     }
-
 
     SMF smf;
     std::vector<double> n_unit {1., 0., 0.};
@@ -62,7 +60,7 @@ protected:
 
     dtype solve() {
         mtype mask = static_cast<dtype>(0.) == 0.;
-        RiemannSolverExact<dtype,mtype> riemann(dConstGamma,mask);
+        RiemannSolverExact<dtype,mtype> riemann(dConstGamma,mask,false); // false=MFM
         return riemann.solve(vrho_R, vp_R, vv_R,
                              vrho_L, vp_L, vv_L,
                              vP_M, vS_M,
@@ -236,7 +234,6 @@ TEST_F(RiemannTestVec, NaNguard) {
     EXPECT_EQ(nan_guard(vtest, zero), 1);
 }
 
-
 TEST_F(RiemannTestVec, VecVacuum) {
 
     double allrho_R[4] = {0., 1.,   1.,   1.0    };
@@ -357,4 +354,3 @@ TEST_F(RiemannTestNoVec, InternalVacuum) {
     EXPECT_NEAR(P_M, 0.0, TOL);
     EXPECT_NEAR(S_M, 0.0, TOL);
 }
-

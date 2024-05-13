@@ -108,6 +108,16 @@ struct  BH_ACCRETOR {
 };
 #endif
 
+// These fields are required for meshless finite volume (MFV),
+// in addition to the meshless finate mass (MFM) fields (FIELDS).
+struct MFV {
+    BOOST_HANA_DEFINE_STRUCT(
+        MFV,
+        (blitz::TinyVector<myreal,3>, lastDrDotFrho),
+        (blitz::TinyVector<myreal,3>, drDotFrho)
+    );
+};
+
 struct FIELDS {
     BOOST_HANA_DEFINE_STRUCT(
         FIELDS,
@@ -129,9 +139,6 @@ struct FIELDS {
         (myreal, lastE),
         (myreal, lastUint),
         (myreal, lastHubble), // TODO: Maybe there is a more intelligent way to avoid saving this...
-#ifndef USE_MFM
-        (blitz::TinyVector<myreal,3>, lastDrDotFrho),
-#endif
         (float, c),        /* sound speed */
 
         (float, lastMass),
@@ -144,9 +151,6 @@ struct FIELDS {
         (blitz::TinyVector<myreal,3>,  Fmom),
         (myreal, Fene),
 
-#ifndef USE_MFM
-        (blitz::TinyVector<double,3>, drDotFrho),
-#endif
         /* IA: Conserved variables */
         (blitz::TinyVector<double,3>,  mom),
         (double, E),
@@ -313,6 +317,7 @@ enum PKD_FIELD {
     oDensity, /* One float */
     oBall, /* One float */
     oSph, /* Sph structure */
+    oMFV, /* MFV structure */
     oNewSph, /* NewSph structure */
     oStar, /* Star structure */
     oBH, /* BH structure */
@@ -469,6 +474,12 @@ public:
 #endif
         return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
     }
+    auto &mfv( PARTICLE *p ) const {
+        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+    }
+    const auto &mfv( const PARTICLE *p ) const {
+        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+    }
     /* NewSph variables */
     auto &newsph( PARTICLE *p ) const {
         return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
@@ -553,6 +564,7 @@ public:
         bool have_acceleration() const {return have(PKD_FIELD::oAcceleration);}
         bool have_potential()    const {return have(PKD_FIELD::oPotential);}
         bool have_sph()          const {return have(PKD_FIELD::oSph);}
+        bool have_mfv()          const {return have(PKD_FIELD::oMFV);}
         bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
         bool have_star()         const {return have(PKD_FIELD::oStar);}
         bool have_ball()         const {return have(PKD_FIELD::oBall);}
@@ -613,6 +625,7 @@ public:
         auto species()      const {return store().species(p);}
         auto imaterial()    const {return store().iMat(p);}
         auto &sph()         const { return store().sph(p); }
+        auto &mfv()         const { return store().mfv(p); }
         auto &newsph()      const { return store().newsph(p); }
         auto &star()        const { return store().star(p); }
         auto &BH()          const { return store().BH(p); }

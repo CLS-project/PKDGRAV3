@@ -365,9 +365,17 @@ protected:
     int NewSPH()          const {
         return parameters.get_hydro_model() == HYDRO_MODEL::SPH;
     }
+    int MeshlessFiniteMass()   const {
+        auto model = parameters.get_hydro_model();
+        return model == HYDRO_MODEL::MFM;
+    }
+    int MeshlessFiniteVolume() const {
+        auto model = parameters.get_hydro_model();
+        return model == HYDRO_MODEL::MFV;
+    }
     int MeshlessHydro()   const {
         auto model = parameters.get_hydro_model();
-        return model == HYDRO_MODEL::MFM || model == HYDRO_MODEL::MFV;
+        return MeshlessFiniteMass() || MeshlessFiniteVolume();
     }
     int DoGravity()       const {
         return parameters.get_bDoGravity();

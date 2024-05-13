@@ -1164,10 +1164,11 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 Sph.lastHubble = 0.0;
                 Sph.lastMass = fGasMass;
                 Sph.lastAcc = 0.;
-#ifndef USE_MFM
-                Sph.lastDrDotFrho = 0.;
-                Sph.drDotFrho = 0.;
-#endif
+                if (pgas.have_mfv()) {
+                    auto &mfv = pgas.mfv();
+                    mfv.lastDrDotFrho = 0.;
+                    mfv.drDotFrho = 0.;
+                }
                 //Sph.fLastBall = 0.0;
                 Sph.lastUpdateTime = -1.;
                 // Sph.nLastNeighs = 100;

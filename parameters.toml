@@ -1076,7 +1076,7 @@ Possible values are:
  - ``HYDRO_MODEL.NONE``: Do not use hydrodynamics
  - ``HYDRO_MODEL.SPH``: Smoothed-Particle Hydrodynamics (SPH)
  - ``HYDRO_MODEL.MFM``: Meshless Finite-Mass Hydrodynamics (MFM)
- - ``HYDRO_MODEL.MFM``: Meshless Finite-Volume Hydrodynamics (MFV)
+ - ``HYDRO_MODEL.MFV``: Meshless Finite-Volume Hydrodynamics (MFV)
 '''
 
 ["Gas".nSmooth]

@@ -101,13 +101,14 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_BALL         (1<<8)  /* Ball for each particle */
 #define PKD_MODEL_SOFTENING    (1<<9)  /* Softening for each particle */
 #define PKD_MODEL_VELSMOOTH    (1<<10) /* Velocity Smoothing */
-#define PKD_MODEL_SPH          (1<<11) /* Sph Fields */
-#define PKD_MODEL_STAR         (1<<12) /* Star Fields */
-#define PKD_MODEL_PARTICLE_ID  (1<<13) /* Particles have a unique ID */
-#define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
-#define PKD_MODEL_INTEGER_POS  (1<<15) /* Particles do not have an order */
-#define PKD_MODEL_BH           (1<<16) /* BH fields */
-#define PKD_MODEL_GLOBALGID    (1<<17) /* Global group identifier per particle */
+#define PKD_MODEL_MFM          (1<<11) /* Sph Fields */
+#define PKD_MODEL_MFV          (1<<12) /* Sph Fields */
+#define PKD_MODEL_STAR         (1<<13) /* Star Fields */
+#define PKD_MODEL_PARTICLE_ID  (1<<14) /* Particles have a unique ID */
+#define PKD_MODEL_UNORDERED    (1<<15) /* Particles do not have an order */
+#define PKD_MODEL_INTEGER_POS  (1<<16) /* Particles do not have an order */
+#define PKD_MODEL_BH           (1<<17) /* BH fields */
+#define PKD_MODEL_GLOBALGID    (1<<18) /* Global group identifier per particle */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */

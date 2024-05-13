@@ -373,9 +373,11 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     */
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
 
-    if ( mMemoryModel & PKD_MODEL_SPH ) {
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
         auto gas = particles.overlay(PKD_FIELD::oSph);
         gas.add<meshless::FIELDS>(PKD_FIELD::oSph,"hydro");
+        if ( mMemoryModel & PKD_MODEL_MFV )
+            gas.add<meshless::MFV>(PKD_FIELD::oMFV,"mfv");
     }
 
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
@@ -402,9 +404,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_SOFTENING )
         particles.add<float>(PKD_FIELD::oSoft,"soft");
 
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
         particles.add<float>(PKD_FIELD::oBall,"ball");
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
         particles.add<float>(PKD_FIELD::oDensity,"rho");
 
     if ( (mMemoryModel & PKD_MODEL_GROUPS) && !this->bNoParticleOrder) {
@@ -429,7 +431,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
         tree.add<Bound>(KDN_FIELD::oNodeVBnd,"vbnd");
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
         tree.add<double[3]>(KDN_FIELD::oNodeVelocity,"v");
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_BH) ) {
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_BH) ) {
 #ifdef OPTIM_REORDER_IN_NODES
         tree.add<int32_t>(KDN_FIELD::oNodeNgas,"ngas");
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
@@ -789,10 +791,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     Sph.lastHubble = 0.0;
                     Sph.lastMass = fMass;
                     Sph.lastAcc = 0.;
-#ifndef USE_MFM
-                    Sph.lastDrDotFrho = 0.;
-                    Sph.drDotFrho = 0.;
-#endif
+                    if (p.have_mfv()) {
+                        auto &mfv = p.mfv();
+                        mfv.lastDrDotFrho = 0.;
+                        mfv.drDotFrho = 0.;
+                    }
                     //Sph.fLastBall = 0.0;
                     Sph.lastUpdateTime = -1.;
                     // Sph.nLastNeighs = 100;
@@ -2251,9 +2254,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
     assert(pkd->particles.present(PKD_FIELD::oVelocity));
-#ifndef USE_MFM
-    assert(pkd->particles.present(PKD_FIELD::oMass));
-#endif
+    assert(pkd->particles.present(PKD_FIELD::oMass) || !pkd->particles.present(PKD_FIELD::oMFV));
 
     if (bComove) {
         dScaleFactor = csmTime2Exp(pkd->csm,in.dTime);

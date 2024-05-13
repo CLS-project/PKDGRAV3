@@ -110,15 +110,12 @@ struct hydroFluxesFlush {
     meshless::myreal Frho;
     blitz::TinyVector<meshless::myreal,3> Fmom;
     meshless::myreal Fene;
-#ifndef USE_MFM
-    blitz::TinyVector<double,3> drDotFrho;
-#endif
     blitz::TinyVector<double,3> mom;
     double E;
     double Uint;
-#ifndef USE_MFM
+    // Used for the MFV method, ignored otherwise
+    blitz::TinyVector<double,3> drDotFrho;
     float fMass;
-#endif
 };
 
 void packHydroFluxes(void *vpkd,void *dst,const void *src);

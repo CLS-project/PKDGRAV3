@@ -104,13 +104,14 @@ void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::
     p.velocity() = psph->mom / p.mass();
 
     double gravE_dmdt = 0.;
-#ifndef USE_MFM
-    // IA: Multiplying here by 'a' instead of doing it at hydro.c is simpler and more efficient.
-    // However, it may hinder conservation properties. But doing the time average over two steps is not conservative anyway
-    // In the Zeldovich case I have not found any relevant difference among both options
-    if (pDelta > 0.)
-        gravE_dmdt = 0.5 * (dot(psph->lastAcc,psph->lastDrDotFrho) + dot(pa,psph->drDotFrho));
-#endif
+
+    if (pDelta > 0 && p.have_mfv()) {
+        const auto &mfv = p.mfv();
+        // IA: Multiplying here by 'a' instead of doing it at hydro.c is simpler and more efficient.
+        // However, it may hinder conservation properties. But doing the time average over two steps is not conservative anyway
+        // In the Zeldovich case I have not found any relevant difference among both options
+        gravE_dmdt = 0.5 * (dot(psph->lastAcc,mfv.lastDrDotFrho) + dot(pa,mfv.drDotFrho));
+    }
 
     const double gravE = 0.5 * pDelta * (dot(psph->lastMom,psph->lastAcc) +
                                          dot(psph->mom,pa));
@@ -214,10 +215,11 @@ void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, meshless::
 void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
                       const TinyVector<double,3> &pa, double dScaleFactor, double dTime,
                       double dDelta, double dConstGamma) {
-#ifndef USE_MFM
-    psph->lastDrDotFrho = psph->drDotFrho;
-    psph->drDotFrho = 0.;
-#endif
+    if (p.have_mfv()) {
+        auto &mfv = p.mfv();
+        mfv.lastDrDotFrho = mfv.drDotFrho;
+        mfv.drDotFrho = 0.;
+    }
     psph->lastAcc = pa;
     psph->lastMom = psph->mom;
     psph->lastUpdateTime = dTime;
@@ -239,4 +241,3 @@ void hydroResetFluxes(meshless::FIELDS *psph) {
     psph->Fene = 0.0;
     psph->Fmom = 0.0;
 }
-

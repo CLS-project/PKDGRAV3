@@ -514,11 +514,7 @@ int MSR::ValidateParameters() {
                 parameters.set_bDoGas(true);
             }
             if (parameters.get_bNewSPH()) model = HYDRO_MODEL::SPH;
-#ifdef USE_MFM
             else if (parameters.get_bMeshlessHydro()) model = HYDRO_MODEL::MFM;
-#else
-            else if (parameters.get_bMeshlessHydro()) model = HYDRO_MODEL::MFV;
-#endif
         }
         if (model != HYDRO_MODEL::NONE) {
             parameters.set_bDoGas(false);
@@ -563,13 +559,11 @@ int MSR::ValidateParameters() {
             fprintf(stderr,"WARNING: Meshless hydrodynamics requires bMemUnordered. "
                     "Setting bMemUnordered to true\n");
         }
-#ifndef USE_MFM
-        if (!parameters.get_bMemMass()) {
+        if (model == HYDRO_MODEL::MFV && !parameters.get_bMemMass()) {
             parameters.set_bMemMass(true);
             fprintf(stderr,"WARNING: Meshless Finite Volume scheme requires bMemMass. "
                     "Setting bMemMass to true\n");
         }
-#endif
 #ifdef COOLING
         if (parameters.get_bComove()) {
             if (!parameters.has_nStepsSync()) {
