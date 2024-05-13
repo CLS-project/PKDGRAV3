@@ -2745,21 +2745,6 @@ void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
     p.set_new_rung(0);
 }
 
-/* IA: We replace the deleted particles with those at the end of the particle array (which are still valid), making the tree
- *  no longer usable, unless *extreme* care is taken.
- *
- *  We also update the number of particles in the master level, assuming that the values in PKD are correct (i.e., pkdDeleteParticle was called correctly)
- */
-void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH) {
-    auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return !p.is_deleted();});
-    pkd->SetLocal(i - pkd->particles.begin());
-    *n  = pkd->Local();
-    *nGas = pkd->nGas;
-    *nDark = pkd->nDark;
-    *nStar = pkd->nStar;
-    *nBH = pkd->nBH;
-}
-
 void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
                   int *nDeltaStar) {
     int pi, pj;

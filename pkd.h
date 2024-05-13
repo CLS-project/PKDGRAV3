@@ -794,16 +794,6 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
                   int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);
 
-struct outGetNParts {
-    total_t n;
-    total_t nGas;
-    total_t nDark;
-    total_t nStar;
-    total_t nBH;
-    total_t nMaxOrder;
-};
-
-void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH);
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,

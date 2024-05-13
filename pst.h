@@ -133,7 +133,6 @@ enum pst_service {
     PST_BH_INIT,
     PST_BH_ACCRETION,
 #endif
-    PST_MOVEDELETED,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
     PST_KICK,
@@ -755,9 +754,6 @@ int pstColNParts(PST, void *, int, void *, int);
 
 /* PST_NEWORDER */
 int pstNewOrder(PST, void *, int, void *, int);
-
-/* PST_GETNPARTS */
-int pstMoveDeletedParticles(PST,void *,int,void *,int );
 
 /* PST_SETNPARTS */
 struct inSetNParts {

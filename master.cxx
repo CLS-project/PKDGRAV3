@@ -3066,14 +3066,7 @@ int MSR::NewTopStepKDK(
             BHMerger(dTime);
         }
         if (parameters.get_bBHAccretion() && !bBHMerger) {
-            struct outGetNParts Nout;
-
-            Nout.n = 0;
-            Nout.nDark = 0;
-            Nout.nGas = 0;
-            Nout.nStar = 0;
-            Nout.nBH = 0;
-            pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+            RemoveDeleted();
         }
 #endif
 
@@ -3351,7 +3344,7 @@ void MSR::TopStepKDK(
 
         ActiveRung(iKickRung,1);
         DomainDecomp(iKickRung);
-        if (parameters.get_bAddDelete()) MoveDeletedParticles();
+        if (parameters.get_bAddDelete()) RemoveDeleted();
         BuildTree(bEwald);
 
 #ifdef BLACKHOLES
@@ -3445,28 +3438,10 @@ void MSR::TopStepKDK(
 
     if (!iKickRung && !iRung) {
         if (parameters.get_bFindGroups()) GroupStats();
-        if (parameters.get_bAddDelete()) MoveDeletedParticles();
+        if (parameters.get_bAddDelete()) RemoveDeleted();
         BuildTree(bEwald);
     }
 
-}
-
-void MSR::MoveDeletedParticles() {
-    struct outGetNParts Nout;
-
-    Nout.n = 0;
-    Nout.nDark = 0;
-    Nout.nGas = 0;
-    Nout.nStar = 0;
-    Nout.nBH = 0;
-
-    pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-
-    N = Nout.n;
-    nDark = Nout.nDark;
-    nGas = Nout.nGas;
-    nStar = Nout.nStar;
-    nBH = Nout.nBH;
 }
 
 void MSR::RemoveDeleted() {

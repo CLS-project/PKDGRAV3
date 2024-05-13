@@ -179,9 +179,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstBHAccretion,
                   sizeof(struct inBHAccretion), 0);
 #endif
-    mdlAddService(mdl,PST_MOVEDELETED,pst,
-                  (fcnService_t *)pstMoveDeletedParticles,
-                  0, sizeof(struct outGetNParts) );
     mdlAddService(mdl,PST_GETMINDT,pst,
                   (fcnService_t *) pstGetMinDt,
                   0, sizeof(struct outGetMinDt));
@@ -1071,27 +1068,6 @@ int pstBHAccretion(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 }
 #endif
-
-int pstMoveDeletedParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto out = static_cast<struct outGetNParts *>(vout);
-    struct outGetNParts outUpper;
-
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEDELETED,vin,nIn);
-        pstMoveDeletedParticles(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-        out->n += outUpper.n;
-        out->nGas += outUpper.nGas;
-        out->nDark += outUpper.nDark;
-        out->nStar += outUpper.nStar;
-        out->nBH += outUpper.nBH;
-    }
-    else {
-        pkdMoveDeletedParticles(plcl->pkd, &out->n, &out->nGas, &out->nDark, &out->nStar, &out->nBH);
-    }
-    return sizeof(struct outGetNParts);
-}
 
 int pstSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inSmooth *>(vin);
