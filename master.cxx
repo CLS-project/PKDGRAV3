@@ -594,7 +594,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs) {
 
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
-    if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
+    assert(nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
@@ -700,7 +700,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     nSpecies[FIO_SPECIES_BH]   = nBH;
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
-    if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
+    assert(nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 

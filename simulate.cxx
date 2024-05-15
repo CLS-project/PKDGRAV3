@@ -476,57 +476,10 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    HYDRO_MODEL model(HYDRO_MODEL::NONE);
-
-    //****************************************************************************************************************************************************
-    // Remove this block when the old method of specifying hydro is removed
-    //****************************************************************************************************************************************************
-    if (parameters.has_bDoGas() || parameters.has_bMeshlessHydro() || parameters.has_bNewSPH()) {
-        fprintf(stderr, "WARNING: Use hydro_model to select the hydrodynamic solver (omit bDoGas, bMeshlessHydro and bNewSPH).\n");
-    }
-    if (parameters.has_hydro_model()) {
-        model = parameters.get_hydro_model();
-        if (parameters.get_bDoGas()) {
-            fprintf(stderr, "ERROR: bDoGas is not compatible with selecting hydro_model.\n");
-            success = 0;
-        }
-        if (parameters.get_bMeshlessHydro()) {
-            fprintf(stderr, "ERROR: bMeshlessHydro is not compatible with selecting hydro_model.\n");
-            success = 0;
-        }
-        if (parameters.get_bNewSPH()) {
-            fprintf(stderr, "ERROR: bNewSPH is not compatible with selecting hydro_model.\n");
-            success = 0;
-        }
-    }
-    else {
-        if (parameters.get_bDoGas() && !(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) ) {
-            fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
-            return 0;
-        }
-        if (parameters.get_bMeshlessHydro() && parameters.get_bNewSPH()) {
-            fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
-            return 0;
-        }
-        if (parameters.get_bMeshlessHydro() || parameters.get_bNewSPH()) {
-            if (!parameters.get_bDoGas()) {
-                fprintf(stderr,"WARNING: An hydro scheme is selected but bDoGas=0! Did you forget to add bDoGas=1?\n");
-                parameters.set_bDoGas(true);
-            }
-            if (parameters.get_bNewSPH()) model = HYDRO_MODEL::SPH;
-            else if (parameters.get_bMeshlessHydro()) model = HYDRO_MODEL::MFM;
-        }
-        if (model != HYDRO_MODEL::NONE) {
-            parameters.set_bDoGas(false);
-            parameters.set_bMeshlessHydro(false);
-            parameters.set_bNewSPH(false);
-            parameters.set_hydro_model(model);
-        }
-    }
-
     //**************************************************************************
     // Verify the hydro model
     //**************************************************************************
+    auto model = parameters.get_hydro_model();
     switch (model) {
     case HYDRO_MODEL::NONE:
     case HYDRO_MODEL::SPH:

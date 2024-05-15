@@ -1084,11 +1084,6 @@ flag="s"
 default=64
 help="number of particles to smooth over"
 
-["Gas".bDoGas]
-flag="gas"
-default=false
-help="calculate gas/do not calculate gas"
-
 #["Gas".bGasAdiabatic]
 #flag="GasAdiabatic"
 #default=true
@@ -1203,11 +1198,6 @@ flag="KernelType"
 default=0
 help="Kernel type, 0: M4, 1: Wendland C2, 2: Wendland C4, 3: Wendland C6"
 
-["Gas".bNewSPH]
-flag="bNewSPH"
-default=false
-help="Use the new SPH implementation"
-
 ["Gas".bGasBuiltinIdeal]
 flag="GasBuiltinIdeal"
 default=false
@@ -1252,11 +1242,6 @@ help="Maximum omega for centrifugal ramp"
 flag="GasDoExtensiveILPTest"
 default=false
 help="Extensively test the ILP for completeness. Very costly."
-
-["Gas".bMeshlessHydro]
-flag="meshless"
-default=false
-help="Use the new implementation of the hydrodynamics"
 
 ["Gas".bGlobalDt]
 flag="globaldt"
