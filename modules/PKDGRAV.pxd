@@ -143,6 +143,9 @@ cdef extern from "master.h":
                         bool bKickClose,bool bKickOpen,bool bEwald,bool bGravStep,
                         int nPartRhoLoc,bool iTimeStepCrit)
         void *MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins)
+        void GridCreateFFT(int nGrid)
+        void AssignMass(int iAssignment,int iGrid,float fDelta)
+        void OutputGrid(const char *filename, bool k, int iGrid, bool nParaWrite)
         void NewFof(double dTau,int nMinMembers)
         void GroupStats()
         void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth)

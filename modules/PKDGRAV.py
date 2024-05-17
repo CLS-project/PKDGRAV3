@@ -149,6 +149,31 @@ def measure_pk(grid,bins=0,a=1.0,interlace=True,order=3,L=1.0):
     lpk *= L**3
     return (k,pk,npk,lpk)
 
+def grid_create(grid):
+    """
+    Create a grid for the mass assignment
+
+    :param integer grid: grid size for the mass assignment
+    """
+    msr0.GridCreateFFT(grid)
+
+def grid_write(filename,k=False,grid=0):
+    """
+    Write the grid to a file
+
+    :param str filename: the name of the file
+    :param Boolean k: write the k-space grid
+    :param integer grid: grid to write
+    :param Boolean parallel: number of parallel tasks
+    """
+    msr0.OutputGrid(filename.encode('UTF-8'), k, grid, 1)
+
+def assign_mass(order=3,grid=0,delta=0.0):
+    """
+    Assign mass to the grid
+    """
+    msr0.AssignMass(order,grid,delta)
+
 def fof(tau,minmembers=10):
     """
     Friends of friends (fof) group finding
