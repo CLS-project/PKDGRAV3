@@ -249,9 +249,9 @@ template<int Order,typename F>
 static float interpolate(force_array_t &forces, const F r[3]) {
     AssignmentWeights<Order,F> Hx(r[0]),Hy(r[1]),Hz(r[2]);
     float force = 0;
-    for (int i=0; i<Order; ++i) {
-        for (int j=0; j<Order; ++j) {
-            for (int k=0; k<Order; ++k) {
+    for (int i=0; i<=Order; ++i) {
+        for (int j=0; j<=Order; ++j) {
+            for (int k=0; k<=Order; ++k) {
                 force += forces(Hx.i+i,Hy.i+j,Hz.i+k) * Hx.H[i]*Hy.H[j]*Hz.H[k];
             }
         }
@@ -260,14 +260,14 @@ static float interpolate(force_array_t &forces, const F r[3]) {
 }
 
 template<typename F>
-static float force_interpolate(force_array_t &forces, const F r[3],int iAssignment=4) {
+static float force_interpolate(force_array_t &forces, const F r[3],int iAssignment=3) {
     float f;
     switch (iAssignment) {
+    case 0: f=interpolate<0,F>(forces,r); break;
     case 1: f=interpolate<1,F>(forces,r); break;
     case 2: f=interpolate<2,F>(forces,r); break;
     case 3: f=interpolate<3,F>(forces,r); break;
-    case 4: f=interpolate<4,F>(forces,r); break;
-    default: f=0; assert(iAssignment>=1 && iAssignment<=4); abort();
+    default: f=0; assert(iAssignment>=0 && iAssignment<=3); abort();
     }
     return f;
 }
@@ -285,7 +285,7 @@ static void fetch_forces(PKD pkd,int cid,int nGrid,force_array_t &forces, const 
     }
 }
 
-void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
+void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=3) {
     const std::size_t maxSize = 100000; // We would like this to remain in L2 cache
     std::vector<float> dataX, dataY, dataZ;
     dataX.reserve(maxSize);
@@ -294,7 +294,7 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     shape_t index;
     position_t fPeriod(pkd->fPeriod), ifPeriod = 1.0 / fPeriod;
     int nGrid = pkd->fft->rgrid->n1;
-    assert(iAssignment>=1 && iAssignment<=4);
+    assert(iAssignment>=0 && iAssignment<=3);
 
     int iLocal = mdlCore(pkd->mdl) ? 0 : pkd->fft->rgrid->nLocal;
     FFTW3(real)* forceX = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),pkd->pLite));
@@ -304,14 +304,15 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),iLocal );
     mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),iLocal );
 
+    auto pad = (iAssignment+1)/2;
     std::vector<std::uint32_t> stack;
     stack.push_back(ROOT);
     while ( !stack.empty()) {
         auto kdn = pkd->tree[stack.back()];
         stack.pop_back(); // Go to the next node in the tree
         auto bnd = kdn->bound();
-        shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - iAssignment/2;
-        shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid)) + iAssignment/2;
+        shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - pad;
+        shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid)) + pad;
         shape_t ishape = iupper - ilower + 1;
         float3_t flower = ilower;
         std::size_t size = blitz::product(ishape);

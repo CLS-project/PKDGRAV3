@@ -4213,7 +4213,7 @@ void MSR::OutputPk(int iStep,double dTime) {
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
 
-    auto [nPk,fK,fPk,fPkAll] = MeasurePk(parameters.get_iPkOrder(),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk);
+    auto [nPk,fK,fPk,fPkAll] = MeasurePk(int(parameters.get_iPkOrder()),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk);
 
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( parameters.has_dBoxSize() && parameters.get_dBoxSize() > 0.0 ) kfact = parameters.get_dBoxSize();

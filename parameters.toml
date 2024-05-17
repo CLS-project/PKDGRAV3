@@ -150,15 +150,20 @@ See :cite:t:`HockneyEastwood1988`, section 7-8 "Interlacing" for details..
 
 ["Analysis"."Power Spectrum Measurement".iPkOrder]
 flag="pko"
-default=4
+enum = { NGP=0, CIC=1, TSC=2, PCS=3}
+name = "ASSIGNMENT_ORDER"
+default=3
 help="Mass assignment order for measuring P(k)"
 docs='''
-Selects the mass assignment method:
+Selects the mass assignment order. The models should be imported with::
 
-1. Nearest Grid Point (NGP),
-2. Cloud in Cell (CIC),
-3. Triangular Shaped Cloud (TSC), and
-4. Piecewise Cubic Spline (PSC).
+  from PKDGRAV import ASSIGNMENT_ORDER
+
+Possible values are:
+- ``ASSIGNMENT_ORDER.NGP``: Nearest Grid Point
+- ``ASSIGNMENT_ORDER.CIC``: Cloud in Cell
+- ``ASSIGNMENT_ORDER.TSC``: Triangular Shaped Cloud
+- ``ASSIGNMENT_ORDER.PCS``: Piecewise Cubic Spline
 
 The recommended method is PCS. See :cite:t:`2016MNRAS.460.3624S` for details.
 '''

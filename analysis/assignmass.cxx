@@ -39,9 +39,9 @@ template<int Order,typename F>
 static void assign(mass_array_t &masses, const F r[3], F mass) {
     AssignmentWeights<Order,F> Hx(r[0]),Hy(r[1]),Hz(r[2]);
 
-    for (int i=0; i<Order; ++i) {
-        for (int j=0; j<Order; ++j) {
-            for (int k=0; k<Order; ++k) {
+    for (int i=0; i<=Order; ++i) {
+        for (int j=0; j<=Order; ++j) {
+            for (int k=0; k<=Order; ++k) {
                 masses(Hx.i+i,Hy.i+j,Hz.i+k) += Hx.H[i]*Hy.H[j]*Hz.H[k] * mass;
             }
         }
@@ -49,13 +49,13 @@ static void assign(mass_array_t &masses, const F r[3], F mass) {
 }
 
 template<typename F>
-static void assign_mass(mass_array_t &masses, const F r[3], F mass,int iAssignment=4) {
+static void assign_mass(mass_array_t &masses, const F r[3], F mass,int iAssignment=3) {
     switch (iAssignment) {
+    case 0: assign<0,F>(masses,r,mass); break;
     case 1: assign<1,F>(masses,r,mass); break;
     case 2: assign<2,F>(masses,r,mass); break;
     case 3: assign<3,F>(masses,r,mass); break;
-    case 4: assign<4,F>(masses,r,mass); break;
-    default: assert(iAssignment>=1 && iAssignment<=4); abort();
+    default: assert(iAssignment>=0 && iAssignment<=3); abort();
     }
 }
 
@@ -92,7 +92,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     shape_t index;
     position_t fPeriod(pkd->fPeriod), ifPeriod = 1.0 / fPeriod;
 
-    assert(iAssignment>=1 && iAssignment<=4);
+    assert(iAssignment>=0 && iAssignment<=3);
 
     mdlGridCoord first, last;
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
@@ -101,14 +101,15 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     for ( int i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
     mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
 
+    auto pad = (iAssignment+1) / 2;
     std::vector<std::uint32_t> stack;
     stack.push_back(iLocalRoot);
     while ( !stack.empty()) {
         auto kdn = pkd->tree[stack.back()];
         stack.pop_back(); // Go to the next node in the tree
         auto bnd = kdn->bound();
-        shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid + fDelta)) - iAssignment/2;
-        shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid + fDelta)) + iAssignment/2;
+        shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid + fDelta)) - pad;
+        shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid + fDelta)) + pad;
         shape_t ishape = iupper - ilower + 1;
         float3_t flower = ilower;
         std::size_t size = blitz::product(ishape);
@@ -123,8 +124,8 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
                 for ( auto &p : *kdn) { // All particles in this tree cell
                     float3_t r(p.position());
                     r = (r * ifPeriod + 0.5) * nGrid + fDelta;
-                    ilower = shape_t(r) - iAssignment/2;
-                    iupper = shape_t(r) + iAssignment/2;
+                    ilower = shape_t(r) - pad;
+                    iupper = shape_t(r) + pad;
                     ishape = iupper - ilower + 1;
                     flower = ilower;
                     size = blitz::product(ishape);
@@ -174,8 +175,8 @@ void MSR::AssignMass(int iAssignment,int iGrid,float fDelta) {
         "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)"
     };
     struct inAssignMass mass;
-    assert(iAssignment>=1 && iAssignment<=4);
-    printf("Assigning mass using %s (order %d)\n",schemes[iAssignment-1],iAssignment);
+    assert(iAssignment>=0 && iAssignment<=3);
+    printf("Assigning mass using %s (order %d)\n",schemes[iAssignment],iAssignment);
     mass.iAssignment = iAssignment;
     mass.iGrid = iGrid;
     mass.fDelta = fDelta;
@@ -222,7 +223,7 @@ int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 void MSR::WindowCorrection(int iAssignment,int iGrid) {
     struct inWindowCorrection in;
-    assert(iAssignment>=1 && iAssignment<=4);
+    assert(iAssignment>=0 && iAssignment<=3);
     in.iAssignment = iAssignment;
     in.iGrid = iGrid;
     pstWindowCorrection(pst, &in, sizeof(in), NULL, 0);

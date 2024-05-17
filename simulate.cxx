@@ -581,8 +581,8 @@ int MSR::ValidateParameters() {
         parameters.set_nBinsPk(std::min(parameters.has_nBinsPk() ? parameters.get_nBinsPk() : PST_MAX_K_BINS, nGridPk/2));
     }
     auto iPkOrder = parameters.get_iPkOrder();
-    if (iPkOrder<1 || iPkOrder>4) {
-        puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
+    if (iPkOrder<ASSIGNMENT_ORDER::NGP || iPkOrder>ASSIGNMENT_ORDER::PCS) {
+        puts("ERROR: iPkOrder must be 0 (NGP), 1 (CIC), 2 (TSC) or 3 (PCS)");
         return 0;
     }
     if ( parameters.get_nGrid() ) {

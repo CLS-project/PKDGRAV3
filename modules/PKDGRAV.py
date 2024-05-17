@@ -128,7 +128,7 @@ def simulate(**kwargs):
     if dTime >= 0:
         msr0.Simulate(dTime)
 
-def measure_pk(grid,bins=0,a=1.0,interlace=True,order=4,L=1.0):
+def measure_pk(grid,bins=0,a=1.0,interlace=True,order=3,L=1.0):
     """
     Measure the Power spectrum P(k) for the box.
 
@@ -136,7 +136,7 @@ def measure_pk(grid,bins=0,a=1.0,interlace=True,order=4,L=1.0):
     :param integer bins: number of bins for P(k), defaults to half the grid size
     :param number a: expansion factor
     :param Boolean interlace: use interlacing to reduce grid aliasing
-    :param integer order: mass assignment order, 1=NGP, 2=CIC, 3=TSC, 4=PCS
+    :param integer order: mass assignment order, 0=NGP, 1=CIC, 2=TSC, 3=PCS
     :param number L: length unit of the box to convert k and P(k) to physical units
     :return: k, P(k), N(k), Pall(k)
     :rtype: tuple of numpy arrays
