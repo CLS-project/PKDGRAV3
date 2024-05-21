@@ -52,17 +52,20 @@ find_package(Git)
 if(Git_FOUND)
   execute_process(
     COMMAND ${GIT_EXECUTABLE} rev-parse --git-dir
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_DIRECTORY
     ERROR_VARIABLE GIT_ERROR
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   if(NOT "${GIT_DIRECTORY}" STREQUAL "")
-    string(REGEX REPLACE "[^/]+" ".." HOOK_RELATIVE_PATH "${GIT_DIRECTORY}")
-    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${GIT_DIRECTORY}/hooks/pre-commit")
+    if(NOT IS_ABSOLUTE "${GIT_DIRECTORY}")
+      set(GIT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${GIT_DIRECTORY}")
+    endif()
+    file(RELATIVE_PATH HOOK_RELATIVE_PATH "${GIT_DIRECTORY}/hooks" ${CMAKE_CURRENT_SOURCE_DIR})
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${GIT_DIRECTORY}/hooks/pre-commit")
       ADD_CUSTOM_TARGET(link_target ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
-        "../${HOOK_RELATIVE_PATH}/git-pre-commit-hook"
-        "${CMAKE_SOURCE_DIR}/${GIT_DIRECTORY}/hooks/pre-commit" )
+        "${HOOK_RELATIVE_PATH}/git-pre-commit-hook"
+        "${GIT_DIRECTORY}/hooks/pre-commit" )
     endif()
   endif()
 endif()
@@ -158,29 +161,29 @@ add_subdirectory(metal)
 add_subdirectory(tests)
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/parse.pyx
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
-    DEPENDS ${CMAKE_SOURCE_DIR}/make_parse.py
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/parse.pyx
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/parse.pyx
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parameters.toml
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/make_parse.py
+    COMMAND ${PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/make_parse.py ${CMAKE_CURRENT_SOURCE_DIR}/parameters.toml ${CMAKE_CURRENT_BINARY_DIR}/parse.pyx
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     VERBATIM
 )
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/parse.cpp
-    MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/parse.pyx
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/parse.cpp
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_BINARY_DIR}/parse.pyx
     COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
-        -o ${CMAKE_BINARY_DIR}/parse.cpp
-        ${CMAKE_BINARY_DIR}/parse.pyx
+        -o ${CMAKE_CURRENT_BINARY_DIR}/parse.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/parse.pyx
     VERBATIM
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h ${CMAKE_BINARY_DIR}/pkd_parameters.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.h
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
-    DEPENDS ${CMAKE_SOURCE_DIR}/make_parameters.py
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parameters.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/pkd_parameters.h
-    ${CMAKE_BINARY_DIR}/pkd_parameters.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.pxi ${CMAKE_BINARY_DIR}/pkd_enumerations.h
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.h ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.pxi ${CMAKE_CURRENT_BINARY_DIR}/pkd_enumerations.pxi ${CMAKE_CURRENT_BINARY_DIR}/pkd_enumerations.h
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parameters.toml
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/make_parameters.py
+    COMMAND ${PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/make_parameters.py ${CMAKE_CURRENT_SOURCE_DIR}/parameters.toml ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.h
+    ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.pxi ${CMAKE_CURRENT_BINARY_DIR}/pkd_enumerations.pxi ${CMAKE_CURRENT_BINARY_DIR}/pkd_enumerations.h
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     VERBATIM
 )
 
@@ -194,7 +197,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c units.cxx
-	pyrameters.cxx ${CMAKE_BINARY_DIR}/pkd_parameters.h
+	pyrameters.cxx ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.h
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
 	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
@@ -216,46 +219,46 @@ target_link_libraries(${PROJECT_NAME} m)
 #target_link_libraries(tostd m)
 #target_link_libraries(psout m)
 
-make_directory(${CMAKE_BINARY_DIR}/modules)
+make_directory(${CMAKE_CURRENT_BINARY_DIR}/modules)
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/modules/accuracy.cpp
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/accuracy.py
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/accuracy.cpp
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/modules/accuracy.py
     COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
-        -o ${CMAKE_BINARY_DIR}/modules/accuracy.cpp
-        ${CMAKE_SOURCE_DIR}/modules/accuracy.py
+        -o ${CMAKE_CURRENT_BINARY_DIR}/modules/accuracy.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/modules/accuracy.py
     VERBATIM
 )
-target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/accuracy.cpp)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/accuracy.cpp)
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp ${CMAKE_BINARY_DIR}/modules/checkpoint.h
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/checkpoint.pyx
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.cpp ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.h
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/modules/checkpoint.pyx
     COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
-        -o ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp
-        ${CMAKE_SOURCE_DIR}/modules/checkpoint.pyx
+        -o ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/modules/checkpoint.pyx
     VERBATIM
 )
-target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.cpp)
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp ${CMAKE_BINARY_DIR}/modules/PKDGRAV.h
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.py
-    DEPENDS ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.pxd ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/PKDGRAV.cpp ${CMAKE_CURRENT_BINARY_DIR}/modules/PKDGRAV.h
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/modules/PKDGRAV.py
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/modules/PKDGRAV.pxd ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.pxi
     COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
-        -I ${CMAKE_BINARY_DIR}
-        -o ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp
-        ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.py
+        -I ${CMAKE_CURRENT_BINARY_DIR}
+        -o ${CMAKE_CURRENT_BINARY_DIR}/modules/PKDGRAV.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/modules/PKDGRAV.py
     VERBATIM
 )
-target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/PKDGRAV.cpp)
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/cosmology.py
-    DEPENDS ${CMAKE_SOURCE_DIR}/modules/cosmology.pxd
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/modules/cosmology.py
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/modules/cosmology.pxd
     COMMAND ${PYTHON} -m cython --3str --cplus
-        -o ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
-        ${CMAKE_SOURCE_DIR}/modules/cosmology.py
+        -o ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/modules/cosmology.py
     VERBATIM
 )
-target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/cosmology.cpp)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp)
 
 add_library(cosmology MODULE ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp ${CMAKE_CURRENT_SOURCE_DIR}/cosmo.c)
 target_include_directories(cosmology PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GSL_INCLUDE_DIRS} ${HDF5_INCLUDE_DIRS})
@@ -295,7 +298,7 @@ if (Python3_Development_FOUND)
   set(USE_PYTHON TRUE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
   target_link_libraries(${PROJECT_NAME} Python3::Python Python3::NumPy)
-  target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
+  target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_CURRENT_BINARY_DIR}/parse.cpp csmpython.c)
   if (Python3_NumPy_FOUND)
     target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_NumPy_INCLUDE_DIRS})
     target_compile_definitions(${PROJECT_NAME} PUBLIC NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
@@ -417,19 +420,19 @@ set(ROCKSTAR_PATH CACHE STRING "Path to the Rockstar source code")
 if(ROCKSTAR_PATH)
     set(HAVE_ROCKSTAR TRUE)
     file(REAL_PATH ${ROCKSTAR_PATH} rdir EXPAND_TILDE)
-    make_directory(${CMAKE_BINARY_DIR}/rockstar)
-    make_directory(${CMAKE_BINARY_DIR}/rockstar/io)
+    make_directory(${CMAKE_CURRENT_BINARY_DIR}/rockstar)
+    make_directory(${CMAKE_CURRENT_BINARY_DIR}/rockstar/io)
     foreach(file particle.h halo.h io/io_internal.h)
         #find_file(rs_src ${file} PATHS ${rdir} NO_DEFAULT_PATH NO_CACHE REQUIRED)
         add_custom_command(
-            OUTPUT ${CMAKE_BINARY_DIR}/rockstar/${file}
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rockstar/${file}
             MAIN_DEPENDENCY ${rdir}/${file}
             COMMAND ${CMAKE_COMMAND} -E create_symlink
                 ${rdir}/${file}
-                ${CMAKE_BINARY_DIR}/rockstar/${file}
+                ${CMAKE_CURRENT_BINARY_DIR}/rockstar/${file}
             VERBATIM
         )
-        target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/rockstar/${file})
+        target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/rockstar/${file})
     endforeach()
     target_sources(${PROJECT_NAME} PRIVATE analysis/rshaloloadids.cxx analysis/rshalocount.cxx)
 endif()
@@ -646,11 +649,11 @@ if (OPTIM_AVOID_IS_ACTIVE)
 endif (OPTIM_AVOID_IS_ACTIVE)
 ####
 
-find_path(EOSLIB_PATH EOSlib.h HINTS "${CMAKE_SOURCE_DIR}/../EOSlib" NO_DEFAULT_PATH)
-find_path(ANEOSMATERIAL_PATH ANEOSmaterial.h HINTS "${CMAKE_SOURCE_DIR}/../ANEOSmaterial" NO_DEFAULT_PATH)
-find_path(TILLOTSON_PATH tillotson.h HINTS "${CMAKE_SOURCE_DIR}/../tillotson" NO_DEFAULT_PATH)
-find_path(REOS3_PATH reos3.h HINTS "${CMAKE_SOURCE_DIR}/../reos3" NO_DEFAULT_PATH)
-find_path(SCVHEOS_PATH scvheos.h HINTS "${CMAKE_SOURCE_DIR}/../scvh" NO_DEFAULT_PATH)
+find_path(EOSLIB_PATH EOSlib.h HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../EOSlib" NO_DEFAULT_PATH)
+find_path(ANEOSMATERIAL_PATH ANEOSmaterial.h HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../ANEOSmaterial" NO_DEFAULT_PATH)
+find_path(TILLOTSON_PATH tillotson.h HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../tillotson" NO_DEFAULT_PATH)
+find_path(REOS3_PATH reos3.h HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../reos3" NO_DEFAULT_PATH)
+find_path(SCVHEOS_PATH scvheos.h HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../scvh" NO_DEFAULT_PATH)
 if(EOSLIB_PATH)
     message(STATUS "found EOSlib.h in ${EOSLIB_PATH}")
     target_sources(${PROJECT_NAME} PRIVATE ${EOSLIB_PATH}/EOSlib.c ${EOSLIB_PATH}/igeos.c)
@@ -702,12 +705,12 @@ target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} blitz fmt)
 
 enable_testing()
-add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-add_test(NAME gravity   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-add_test(NAME select    COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/select.py    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-add_test(NAME fof   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/foftest.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME gravity   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME select    COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/select.py    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME fof   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/foftest.py   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 if(EOSLIB_PATH AND ANEOSMATERIAL_PATH)
-add_test(NAME NewSPH   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/NewSPH.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME NewSPH   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/NewSPH.py   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 
 if(NOT CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
