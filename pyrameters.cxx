@@ -45,6 +45,7 @@ bool pyrameters::verify(PyObject *kwobj) {
     PyObject *key, *value;
     Py_ssize_t pos = 0;
     while (PyDict_Next(kwobj, &pos, &key, &value)) {
+        if (PyType_Check(value)) continue;
         const char *keyString;
         if (PyUnicode_Check(key)) {
             PyObject *ascii = PyUnicode_AsASCIIString(key);
