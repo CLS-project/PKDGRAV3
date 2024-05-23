@@ -91,23 +91,6 @@ ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     Py_RETURN_NONE;
 }
 
-/********** Analysis Hooks **********/
-
-static PyObject *
-ppy_msr_add_analysis(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    flush_std_files();
-    MSR *msr = self->msr;
-    static char const *kwlist[]= {"callback","memory",NULL};
-    PyObject *callback, *memory;
-    if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "OO:add_analysis", const_cast<char **>(kwlist),
-                &callback, &memory) )
-        return NULL;
-    if (!PyCallable_Check(callback)) return PyErr_Format(PyExc_AttributeError,"callback must be callable");
-    msr->addAnalysis(callback,self,memory);
-    Py_RETURN_NONE;
-}
-
 /********** Start normal simulation **********/
 
 static PyObject *
@@ -943,11 +926,6 @@ static PyMethodDef msr_methods[] = {
     },
 
     {
-        "add_analysis", (PyCFunction)ppy_msr_add_analysis, METH_VARARGS|METH_KEYWORDS,
-        "Add an analysis callback hook"
-    },
-
-    {
         "simulate", (PyCFunction)ppy_msr_simulate, METH_VARARGS|METH_KEYWORDS,
         "Start a regular simulation"
     },
@@ -1227,30 +1205,17 @@ static PyObject *initModuleMSR(void) {
 *   Analysis callback
 \******************************************************************************/
 
-void MSR::addAnalysis(PyObject *callback,MSRINSTANCE *msr, PyObject *memory) {
-    analysis_callbacks.emplace_back(callback,msr,memory);
+void MSR::addAnalysis(PyObject *callback,uint64_t per_particle, uint64_t per_process) {
+    analysis_callbacks.emplace_back(callback,per_particle,per_process);
 }
 
 void MSR::runAnalysis(int iStep,double dTime) {
-    PyObject *call_args = PyTuple_New(1);
-    PyObject *kwargs = PyDict_New();
-    PyObject *step, *time, *a = NULL;
-
-    PyDict_SetItemString(kwargs, "step", step=PyLong_FromLong(iStep));
-    PyDict_SetItemString(kwargs, "time", time=PyFloat_FromDouble(dTime));
-    if (csm->val.bComove) PyDict_SetItemString(kwargs, "a", a=PyFloat_FromDouble(csmTime2Exp(csm,dTime)));
-
+    set_dynamic(iStep,dTime);
     for ( msr_analysis_callback &i : analysis_callbacks) {
-        PyTuple_SetItem(call_args,0,reinterpret_cast<PyObject *>(i.msr));
-        PyObject_Call(i.callback,call_args,kwargs);
+        auto v = parameters.call_dynamic(i.callback);
+        Py_XDECREF(v);
         if (PyErr_Occurred()) PyErr_Print();
     }
-    PyDict_Clear(kwargs);
-    Py_DECREF(step);
-    Py_DECREF(time);
-    Py_XDECREF(a);
-    Py_DECREF(kwargs);
-    Py_DECREF(call_args);
 }
 
 /******************************************************************************\

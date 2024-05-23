@@ -386,24 +386,17 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     // Add some ephemeral memory (if needed) for the linGrid. 3 grids are stored : forceX, forceY, forceZ
     e |= EphemeralMemory(mdl,parameters.get_nGridLin(),3);
 
-    // Calculate constraint for generating initial conditions
-    EphemeralMemory ic_memory(mdl, parameters.get_nGrid(), getGridInfoLPT(parameters.get_iLPT()).nGrids);
-
-    ps.nEphemeralBytes = e.per_particle;
-    ps.nMinEphemeral = e.per_process;
-    ps.nMinTotalStore = ic_memory.per_process;
-
     // Check all registered Python analysis routines and account for their memory requirements
     for ( msr_analysis_callback &i : analysis_callbacks) {
-        auto attr_per_node = PyObject_GetAttrString(i.memory,"bytes_per_node");
-        auto attr_per_part = PyObject_GetAttrString(i.memory,"bytes_per_particle");
-        auto per_node = PyLong_AsSize_t(attr_per_node);
-        auto per_part = PyLong_AsSize_t(attr_per_part);
-        if (ps.nEphemeralBytes < per_part) ps.nEphemeralBytes = per_part;
-        if (ps.nMinEphemeral < per_node) ps.nMinEphemeral = per_node;
-        Py_DECREF(attr_per_node);
-        Py_DECREF(attr_per_part);
+        e |= EphemeralMemory(i.memory);
     }
+    ps.nEphemeralBytes = e.per_particle;
+    ps.nMinEphemeral = e.per_process;
+
+    // Calculate constraint for generating initial conditions
+    EphemeralMemory ic_memory(mdl, parameters.get_nGrid(), getGridInfoLPT(parameters.get_iLPT()).nGrids);
+    ps.nMinTotalStore = ic_memory.per_process;
+
     outInitializePStore pout;
     pstInitializePStore(pst,&ps,sizeof(ps),&pout,sizeof(pout));
     PKD pkd = pst->plcl->pkd;

@@ -87,6 +87,7 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
         if (parameters.get_nSteps() == 0) dDelta = 0.0;
         else dDelta = (tTo-dTime) / (nSteps - iStartStep);
     }
+    parameters.set_dynamic("delta",dDelta);
     return true;
 }
 

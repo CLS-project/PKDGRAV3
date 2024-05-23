@@ -2,15 +2,38 @@
 # cython: always_allow_keywords=True
 
 import cython
+import sys
 # from cython.cimports.cpython import array
 # import array
 import numpy as np
 from cosmology import Cosmology
-import ephemeral
+
+if 'sphinx' not in sys.modules:
+    import ephemeral
 
 def set_parameters(**kwargs):
     if not msr0.parameters.update(kwargs,False):
         raise ValueError("invalid parameter")
+
+def add_analysis(callable,memory=None):
+    """
+    Add an analysis function to the simulation.
+
+    :param callable: the analysis function
+    :param memory: the ephemeral memory required by the analysis function
+
+    If memory is not specified then an attempt is made to use the ephemeral
+    method of the callable to get the memory requirements if it exists.
+    Otherwise it is assumed that the callable does not require ephemeral memory.
+    """
+    if memory is None:
+        if hasattr(callable, 'ephemeral'):
+            memory = callable.ephemeral(__import__('PKDGRAV'))
+        else:
+            memory = ephemeral.PyEphemeralMemory(0,0)
+    if not isinstance(memory,ephemeral.PyEphemeralMemory):
+        raise ValueError("invalid ephemeral memory")
+    msr0.addAnalysis(callable,memory.per_particle,memory.per_process)
 
 def restore(filename,**kwargs):
     """
@@ -168,22 +191,32 @@ def grid_create(grid):
     """
     msr0.GridCreateFFT(grid)
 
-def grid_write(filename,k=False,grid=0):
+def grid_delete():
+    """
+    Delete the grid for the mass assignment
+    """
+    msr0.GridDeleteFFT()
+
+def grid_write(filename,k=False,grid_index=0):
     """
     Write the grid to a file
 
     :param str filename: the name of the file
     :param Boolean k: write the k-space grid
-    :param integer grid: grid to write
+    :param integer grid_index: grid index
     :param Boolean parallel: number of parallel tasks
     """
-    msr0.OutputGrid(filename.encode('UTF-8'), k, grid, 1)
+    msr0.OutputGrid(filename.encode('UTF-8'), k, grid_index, 1)
 
-def assign_mass(order=3,grid=0,delta=0.0):
+def assign_mass(order=3,grid_index=0,delta=0.0):
     """
     Assign mass to the grid
+
+    :param integer order: mass assignment order, 0=NGP, 1=CIC, 2=TSC, 3=PCS
+    :param integer grid_index: which grid number to use
+    :param number delta: grid shift (normally 0.0 or 0.5)
     """
-    msr0.AssignMass(order,grid,delta)
+    msr0.AssignMass(order,grid_index,delta)
 
 def fof(tau,minmembers=10):
     """

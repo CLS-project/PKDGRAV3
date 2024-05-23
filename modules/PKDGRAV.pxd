@@ -12,6 +12,7 @@ cimport numpy as cnp
 cimport cosmo
 from cosmology cimport Cosmology
 from ephemeral cimport EphemeralMemory
+import ephemeral
 
 cdef extern from "blitz/array.h" namespace "blitz" nogil:
     cdef cppclass BLITZ1 "1":
@@ -144,8 +145,10 @@ cdef extern from "master.h":
                         bool bKickClose,bool bKickOpen,bool bEwald,bool bGravStep,
                         int nPartRhoLoc,bool iTimeStepCrit)
         EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
+        void addAnalysis(object callback,uint64_t per_particle, uint64_t per_process)
         void *MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins)
         void GridCreateFFT(int nGrid)
+        void GridDeleteFFT()
         void AssignMass(int iAssignment,int iGrid,float fDelta)
         void OutputGrid(const char *filename, bool k, int iGrid, bool nParaWrite)
         void NewFof(double dTau,int nMinMembers)

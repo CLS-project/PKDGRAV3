@@ -115,3 +115,50 @@ The output is a binary format with the following structure.
     124, int, Number of dark matter particles
     128, uint64_t, Global group ID
     136
+
+----------------------
+General Analysis Hooks
+----------------------
+
+Aside from the legacy analysis functions, it is possible to add custom analysis hooks.
+You can use :func:`PKDGRAV.add_analysis` to add any object instance that is callable by Python.
+The callable object will be passed the following named parameters.
+
+.. tabularcolumns:: |l|l|
+.. csv-table::
+   :header: Name, Description
+
+   msr, the PKDGRAV module
+   step, current integer step number
+   time, simulation time
+   a, the expansion factor (for cosmological simulations)
+   theta, currently calculated theta
+
+
+For example::
+
+    from PKDGRAV import add_analysis, ASSIGNMENT_ORDER
+
+    class MassGrid:
+        grid = 0
+        order = ASSIGNMENT_ORDER.PCS
+        def __init__(self,grid,order=ASSIGNMENT_ORDER.PCS):
+            self.grid = grid
+            self.order = order
+        def __call__(self,msr,step,time,**kwargs):
+            print('calculating density grid')
+            msr.grid_create(self.grid)
+            msr.assign_mass(order=self.order)
+            msr.grid_write('output.{:05d}'.format(step))
+            msr.grid_delete()
+        def ephemeral(self,msr,**kwargs):
+            return msr.grid_ephemeral(self.grid)
+
+
+This class can be used to output a density grid at each step.
+To enable it, use::
+
+    add_analysis(MassGrid(nGrid))
+
+
+

@@ -203,20 +203,16 @@ private:
 public:
     struct msr_analysis_callback {
         PyObject *callback;
-        struct MSRINSTANCE *msr;
-        PyObject *memory;
-        explicit msr_analysis_callback(PyObject *callback,MSRINSTANCE *msr,PyObject *memory) {
-            this->callback = callback;
-            this->msr = msr;
-            this->memory = memory;
+        EphemeralMemory memory;
+        explicit msr_analysis_callback(PyObject *callback,uint64_t per_particle,uint64_t per_process)
+            : callback(callback), memory(per_particle,per_process)  {
             Py_INCREF(callback);
-            Py_INCREF(memory);
         }
-//  ~msr_analysis_callback() {
-//      Py_DECREF(callback);
-//      }
+        ~msr_analysis_callback() {
+            Py_DECREF(callback);
+        }
     };
-    void addAnalysis(PyObject *callback,MSRINSTANCE *msr,PyObject *memory);
+    void addAnalysis(PyObject *callback,uint64_t per_particle, uint64_t per_process);
     void runAnalysis(int iStep,double dTime);
 protected:
     std::list<msr_analysis_callback> analysis_callbacks;

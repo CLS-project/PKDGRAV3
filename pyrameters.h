@@ -261,7 +261,7 @@ public:
 
 public:
     template<typename T> void set_dynamic(const char *name, T value);
-
+    PyObject *call_dynamic(PyObject *callback) const;
 };
 
 template<> PyObject    *pyrameters::get<PyObject *>(const char *name) const;
