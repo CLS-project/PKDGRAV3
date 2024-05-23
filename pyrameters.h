@@ -266,6 +266,7 @@ public:
 
 template<> PyObject    *pyrameters::get<PyObject *>(const char *name) const;
 
+template<> void pyrameters::set_dynamic(const char *name, PyObject     *value);
 template<> void pyrameters::set_dynamic(const char *name, float         value);
 template<> void pyrameters::set_dynamic(const char *name, double        value);
 template<> void pyrameters::set_dynamic(const char *name, std::int32_t  value);

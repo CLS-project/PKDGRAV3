@@ -112,6 +112,14 @@ template<> PyObject *pyrameters::get<PyObject *>(const char *name) const {
     return v;
 }
 
+template<> void pyrameters::set_dynamic(const char *name, PyObject *value) {
+    PyDict_SetItemString(dynamic_,name,value);
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
+}
+
 template<> void pyrameters::set_dynamic(const char *name, double value) {
     auto o = PyFloat_FromDouble(value);
     if (o) {

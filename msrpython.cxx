@@ -1429,6 +1429,7 @@ int MSR::Python(int argc, char *argv[]) {
             exit(1);
         }
         bVDetails = parameters.get_bVDetails();
+        parameters.set_dynamic("msr",PyImport_ImportModule("PKDGRAV"));
     }
 
     return moduleState->bImported || imported ? 0 : -1;
