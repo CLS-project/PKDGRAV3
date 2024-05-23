@@ -27,6 +27,7 @@
 
 #include "pst.h"
 #include "mdl.h"
+#include "core/memory.h"
 #include "pkd_parameters.h"
 #include "pkd_enumerations.h"
 #ifdef COOLING
@@ -165,6 +166,7 @@ public:
     void Hop(double dTime,double dDelta);
     void GroupStats();
     void HopWrite(const char *fname);
+    EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
             MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
     void AssignMass(int iAssignment=3,int iGrid=0,float fDelta=0.0f);

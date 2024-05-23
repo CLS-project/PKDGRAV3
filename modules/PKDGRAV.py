@@ -6,6 +6,7 @@ import cython
 # import array
 import numpy as np
 from cosmology import Cosmology
+import ephemeral
 
 def set_parameters(**kwargs):
     if not msr0.parameters.update(kwargs,False):
@@ -148,6 +149,16 @@ def measure_pk(grid,bins=0,a=1.0,interlace=True,order=3,L=1.0):
     pk *= L**3
     lpk *= L**3
     return (k,pk,npk,lpk)
+
+def grid_ephemeral(grid,count=1):
+    """
+    Return the Ephemeral memory required for the grid
+
+    :param integer grid: grid size for the mass assignment
+    :param integer count: number of grids
+    """
+    result = msr0.EphemeralMemoryGrid(grid,count)
+    return ephemeral.PyEphemeralMemory(result.per_particle,result.per_process)
 
 def grid_create(grid):
     """

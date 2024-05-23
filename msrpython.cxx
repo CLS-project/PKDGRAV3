@@ -1260,6 +1260,7 @@ void MSR::runAnalysis(int iStep,double dTime) {
 extern "C" PyObject *PyInit_CSM(void);
 extern "C" PyObject *PyInit_accuracy(void);
 extern "C" PyObject *PyInit_cosmology(void);
+extern "C" PyObject *PyInit_ephemeral(void);
 
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
@@ -1269,6 +1270,7 @@ int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab("parse", PyInit_parse);
     PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
     PyImport_AppendInittab("accuracy", PyInit_accuracy);
+    PyImport_AppendInittab("ephemeral", PyInit_ephemeral);
 
     PKDGRAV_msr0 = this;
     PyStatus status;

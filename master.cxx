@@ -72,7 +72,6 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #define CYTHON_EXTERN_C extern "C++"
 #include "modules/checkpoint.h"
 
-#include "core/memory.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -338,6 +337,10 @@ uint64_t MSR::getMemoryModel() {
     if (parameters.get_bMemBall())             mMemoryModel |= PKD_MODEL_BALL;
 
     return mMemoryModel;
+}
+
+EphemeralMemory MSR::EphemeralMemoryGrid(int nGrid,int nCount) {
+    return EphemeralMemory(mdl,nGrid,nCount);
 }
 
 std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {

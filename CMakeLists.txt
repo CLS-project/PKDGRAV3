@@ -239,6 +239,15 @@ add_custom_command(
 )
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.cpp)
 add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/ephemeral.cpp
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/modules/ephemeral.pyx
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -o ${CMAKE_CURRENT_BINARY_DIR}/modules/ephemeral.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/modules/ephemeral.pyx
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/ephemeral.cpp)
+add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/PKDGRAV.cpp ${CMAKE_CURRENT_BINARY_DIR}/modules/PKDGRAV.h
     MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/modules/PKDGRAV.py
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/modules/PKDGRAV.pxd ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.pxi
