@@ -488,7 +488,9 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
 
 template<>
 PyObject *MSR::restore(PyObject *file) {
-    auto result = PyObject_CallOneArg(pDill_load, file);
+    PyObject *args = PyTuple_Pack(1, file);
+    auto result = PyObject_CallObject(pDill_load, args);
+    Py_DECREF(args);
     if (!result) { PyErr_Print(); abort(); }
     return result;
 }
