@@ -40,13 +40,21 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     SPHoptions.gamma = parameters.get_dConstGamma();
     SPHoptions.TuFac = units.dGasConst/(SPHoptions.gamma - 1)/parameters.get_dMeanMolWeight();
     SPHoptions.FastGasFraction = parameters.get_dFastGasFraction();
+    SPHoptions.VelocityDamper = 0.0f;
     auto dDelta = parameters.get_dDelta();
     auto dVelocityDamper = parameters.get_dVelocityDamper();
+    auto dVelocityDamperEnd = parameters.get_dVelocityDamperEnd();
+    auto dVelocityDamperEndTime = parameters.get_dVelocityDamperEndTime();
     if (dDelta > 0.0 && dVelocityDamper > 0.0) {
-        SPHoptions.VelocityDamper = 2.0 / dDelta * dVelocityDamper;
-    }
-    else {
-        SPHoptions.VelocityDamper = 0.0f;
+        if ((dVelocityDamperEnd > 0.0) & (dVelocityDamperEndTime > 0.0)) {
+            if (dTime <= dVelocityDamperEndTime) {
+                SPHoptions.VelocityDamper = 2.0 / dDelta * pow(10.0, log10(dVelocityDamperEnd/dVelocityDamper)/dVelocityDamperEndTime*dTime + log10(dVelocityDamper));
+            }
+        }
+        else {
+            SPHoptions.VelocityDamper = 2.0 / dDelta * dVelocityDamper;
+        }
+        printf("Velocity Damper active, VelocityDamper = %g\n", SPHoptions.VelocityDamper * dDelta * 0.5);
     }
     SPHoptions.nSmooth = parameters.get_nSmooth();
     SPHoptions.ballSizeLimit = parameters.get_dBallSizeLimit();

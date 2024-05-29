@@ -495,6 +495,21 @@ int MSR::ValidateParameters() {
         parameters.set_bGasOnTheFlyPrediction(false);
     }
 
+    if (parameters.get_dVelocityDamper() > 0.0) {
+        if ((parameters.get_dVelocityDamperEnd() > 0.0) & (parameters.get_dVelocityDamperEndTime() > 0.0) & (!parameters.get_bGasConsistentPrediction())) {
+            fprintf(stderr,"ERROR: dVelocityDamper, dVelocityDamperEnd and dVelocityDamperEndTime specified, but not bGasConsistentPrediction.");
+            return 0;
+        }
+        else if (parameters.get_dVelocityDamperEnd() > 0.0) {
+            fprintf(stderr,"ERROR: dVelocityDamper and dVelocityDamperEnd specified, but not dVelocityDamperEndTime.");
+            return 0;
+        }
+        else if (parameters.get_dVelocityDamperEndTime() > 0.0) {
+            fprintf(stderr,"ERROR: dVelocityDamper and dVelocityDamperEndTime specified, but not dVelocityDamperEnd.");
+            return 0;
+        }
+    }
+
 #ifndef NN_FLAG_IN_PARTICLE
     if (parameters.get_bNewSPH() && parameters.get_bGasInterfaceCorrection() && parameters.get_dFastGasFraction() > 0.0f) {
         fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");

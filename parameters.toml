@@ -1167,6 +1167,16 @@ flag="VelocityDamper"
 default=0.0
 help="Velocity Damper"
 
+["Gas".dVelocityDamperEnd]
+flag="VelocityDamperEnd"
+default=0.0
+help="Velocity Damper Endnd value"
+
+["Gas".dVelocityDamperEndTime]
+flag="VelocityDamperEndTime"
+default=0.0
+help="Velocity Damper End Time"
+
 ["Gas".dBallSizeLimit]
 flag="ballSizeLimit"
 default=10.0

@@ -4337,7 +4337,7 @@ void MSR::CalcMtot(double *M, uint64_t *N) {
 
 void MSR::SetSPHoptions() {
     struct inSetSPHoptions in;
-    in.SPHoptions = initializeSPHOptions(parameters,csm,1.0);
+    in.SPHoptions = initializeSPHOptions(parameters,csm,0.0);
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
 }
 
