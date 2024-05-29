@@ -46,7 +46,7 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     auto dVelocityDamperEnd = parameters.get_dVelocityDamperEnd();
     auto dVelocityDamperEndTime = parameters.get_dVelocityDamperEndTime();
     if (dDelta > 0.0 && dVelocityDamper > 0.0) {
-        if ((dVelocityDamperEnd > 0.0) & (dVelocityDamperEndTime > 0.0)) {
+        if ((dVelocityDamperEnd > 0.0) && (dVelocityDamperEndTime > 0.0)) {
             if (dTime <= dVelocityDamperEndTime) {
                 SPHoptions.VelocityDamper = 2.0 / dDelta * pow(10.0, log10(dVelocityDamperEnd/dVelocityDamper)/dVelocityDamperEndTime*dTime + log10(dVelocityDamper));
             }
