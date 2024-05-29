@@ -146,10 +146,18 @@ cdef extern from "master.h":
                         int nPartRhoLoc,bool iTimeStepCrit)
         EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
         void addAnalysis(object callback,uint64_t per_particle, uint64_t per_process)
+        # std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
         void *MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins)
+        # std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
+        void *GridBinK(int nBins, int iGrid)
         void GridCreateFFT(int nGrid)
         void GridDeleteFFT()
         void AssignMass(int iAssignment,int iGrid,float fDelta)
+        void DensityContrast(int nGrid,bool k)
+        void WindowCorrection(int iAssignment,int iGrid);
+        void Interlace(int iGridTarget,int iGridSource);
+        void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
+        double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
         void OutputGrid(const char *filename, bool k, int iGrid, bool nParaWrite)
         void NewFof(double dTau,int nMinMembers)
         void GroupStats()
@@ -180,6 +188,18 @@ cdef extern from *:
                 std::move(std::get<3>(t))};
     }
 
+    struct GridBinKStruct {
+        std::vector<std::uint64_t> nPk;
+        std::vector<float>    fK;
+        std::vector<float>    fPk;
+    };
+
+    template<typename T>
+    inline GridBinKStruct UnpackGridBinK(T t) {
+        return {std::move(std::get<0>(t)), 
+                std::move(std::get<1>(t)), 
+                std::move(std::get<2>(t))};
+    }
     """
 
     ctypedef struct MeasurePkStruct:
@@ -190,6 +210,13 @@ cdef extern from *:
 
     MeasurePkStruct UnpackMeasurePk(void *)
 
+    ctypedef struct GridBinKStruct:
+        vector[uint64_t]  nPk
+        vector[float]     fK
+        vector[float]     fPk
+
+    GridBinKStruct UnpackGridBinK(void *)
+
 
 cdef inline tuple MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins):
     cdef MeasurePkStruct result = UnpackMeasurePk(msr0.MeasurePk(iAssignment,bInterlace,nGrid,a,nBins))
@@ -199,6 +226,14 @@ cdef inline tuple MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,in
         cnp.float32_t[:] fPk    = <cnp.float32_t[:result.fPk.size()]>result.fPk.data()
         cnp.float32_t[:] fPkAll = <cnp.float32_t[:result.fPkAll.size()]>result.fPkAll.data()
     return np.array(nPk), np.array(fK), np.array(fPk), np.array(fPkAll)
+
+cdef inline tuple GridBinK(int nBins, iGrid):
+    cdef GridBinKStruct result = UnpackGridBinK(msr0.GridBinK(nBins,iGrid))
+    cdef:
+        cnp.uint64_t[:]  nPk    = <cnp.uint64_t[:result.nPk.size()]>result.nPk.data()
+        cnp.float32_t[:] fK     = <cnp.float32_t[:result.fK.size()]>result.fK.data()
+        cnp.float32_t[:] fPk    = <cnp.float32_t[:result.fPk.size()]>result.fPk.data()
+    return np.array(nPk), np.array(fK), np.array(fPk)
 
 cpdef restart(object arguments,object specified,list species,list classes,int n,str name,
     int step,int steps,double time,double delta,double E,double U,double Utime)

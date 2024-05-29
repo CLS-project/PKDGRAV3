@@ -11,6 +11,9 @@ from cosmology import Cosmology
 if 'sphinx' not in sys.modules:
     import ephemeral
 
+def arguments():
+    return msr0.parameters.arguments()
+
 def set_parameters(**kwargs):
     if not msr0.parameters.update(kwargs,False):
         raise ValueError("invalid parameter")
@@ -173,6 +176,15 @@ def measure_pk(grid,bins=0,a=1.0,interlace=True,order=3,L=1.0):
     lpk *= L**3
     return (k,pk,npk,lpk)
 
+def grid_bin_k(bins,grid_index):
+    """
+    Bin the k-space grid
+
+    :param integer bins: number of bins
+    :param integer grid_index: which grid number to use
+    """
+    return GridBinK(bins,grid_index)
+
 def grid_ephemeral(grid,count=1):
     """
     Return the Ephemeral memory required for the grid
@@ -217,6 +229,63 @@ def assign_mass(order=3,grid_index=0,delta=0.0):
     :param number delta: grid shift (normally 0.0 or 0.5)
     """
     msr0.AssignMass(order,grid_index,delta)
+
+def density_contrast(grid_index=0,k=True):
+    """
+    Compute the density contrast
+
+    :param integer grid_index: which grid number to use
+    """
+    msr0.DensityContrast(grid_index,k)
+
+def grid_interlace(target_grid_index=0,source_grid_index=0):
+    """
+    Interlace the grid
+
+    :param integer target_grid_index: which grid number to use
+    :param integer source_grid_index: which grid number to use
+    """
+    msr0.Interlace(target_grid_index,source_grid_index)
+
+def window_correction(grid_index=0,order=3):
+    """
+    Apply window correction to the grid
+
+    :param integer grid_index: which grid number to use
+    :param integer order: mass assignment order, 0=NGP, 1=CIC, 2=TSC, 3=PCS
+    """
+    msr0.WindowCorrection(grid_index,order) 
+
+def bispectrum_select(k_min,k_max,target_grid_index=0,source_grid_index=1):
+    """
+    Select the bispectrum
+
+    :param integer target_grid_index: which grid number to use
+    :param integer source_grid_index: which grid number to use
+    :param number k_min: minimum k value
+    :param number k_max: maximum k value
+    """
+    msr0.BispectrumSelect(target_grid_index,source_grid_index,k_min,k_max)
+
+def bispectrum_normalize(k_min,k_max,target_grid_index=0):
+    """
+    Normalize the bispectrum
+
+    :param integer target_grid_index: which grid number to use
+    :param number k_min: minimum k value
+    :param number k_max: maximum k value
+    """
+    msr0.BispectrumSelect(target_grid_index,-1,k_min,k_max)
+
+def bispectrum_calculate(grid_index0,grid_index1,grid_index2):
+    """
+    Calculate the bispectrum
+
+    :param integer grid_index0: which grid number to use
+    :param integer grid_index1: which grid number to use
+    :param integer grid_index2: which grid number to use
+    """
+    return msr0.BispectrumCalculate(grid_index0,grid_index1,grid_index2)
 
 def fof(tau,minmembers=10):
     """
