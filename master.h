@@ -108,7 +108,7 @@ private:
     void persist(PyObject *file,int n);
     void persist(PyObject *file,double d);
     template<typename T>
-    T restore(PyObject *file);
+    T restore(PyObject *file,PyObject *replace=Py_None);
 protected:
     int64_t parallel_read_count();
     int64_t parallel_write_count();
@@ -123,7 +123,9 @@ public:
                  double dEcosmo,double dUOld, double dTimeOld,
                  std::vector<PARTCLASS> &aClasses,
                  PyObject *arguments,PyObject *specified);
-    void Restart(const char *filename,PyObject *kwargs);
+    void Restart(const char *filename,PyObject *kwargs,
+                 PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
+                 PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);

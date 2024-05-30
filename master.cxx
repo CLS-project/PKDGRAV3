@@ -487,18 +487,25 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
 }
 
 template<>
-PyObject *MSR::restore(PyObject *file) {
+PyObject *MSR::restore(PyObject *file,PyObject *replace) {
     PyObject *args = PyTuple_Pack(1, file);
     auto result = PyObject_CallObject(pDill_load, args);
     Py_DECREF(args);
     if (!result) { PyErr_Print(); abort(); }
+    // If we are replacing the parameter, throw away the old one
+    // and return the new one
+    if (replace != Py_None) {
+        Py_DECREF(result);
+        Py_INCREF(replace);
+        return replace;
+    }
     return result;
 }
 
 // Specialization for int
 template<>
-int MSR::restore(PyObject *file) {
-    auto result = restore<PyObject *>(file);
+int MSR::restore(PyObject *file,PyObject *replace) {
+    auto result = restore<PyObject *>(file,replace);
     auto value = PyLong_AsLong(result);
     Py_DECREF(result);
     return value;
@@ -506,14 +513,16 @@ int MSR::restore(PyObject *file) {
 
 // Specialization for double
 template<>
-double MSR::restore(PyObject *file) {
-    auto result = restore<PyObject *>(file);
+double MSR::restore(PyObject *file,PyObject *replace) {
+    auto result = restore<PyObject *>(file,replace);
     auto value = PyFloat_AsDouble(result);
     Py_DECREF(result);
     return value;
 }
 
-void MSR::Restart(const char *filename,PyObject *kwargs) {
+void MSR::Restart(const char *filename,PyObject *kwargs,
+                  PyObject *species,PyObject *classes, PyObject *step, PyObject *steps,
+                  PyObject *time, PyObject *delta, PyObject *E, PyObject *U, PyObject *Utime) {
     auto sec = MSR::Time();
 
     std::string pkl_filename = filename;
@@ -538,7 +547,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs) {
         abort();
     }
 
-    auto species_list = restore<PyObject *>(pFile);
+    auto species_list = restore<PyObject *>(pFile,species);
     fioSpeciesList nSpecies;
     for (auto i = 0; i < FIO_SPECIES_LAST; ++i) {
         nSpecies[i] = PyLong_AsUnsignedLongLong(PyList_GetItem(species_list, i));
@@ -566,13 +575,13 @@ void MSR::Restart(const char *filename,PyObject *kwargs) {
         aCheckpointClasses[i].iMat = PyLong_AsLong(iMatObj);
     }
 
-    auto iStep = restore<int>(pFile);
-    auto nSteps = restore<int>(pFile);
-    auto dTime = restore<double>(pFile);
-    auto dDelta = restore<double>(pFile);
-    this->dEcosmo = restore<double>(pFile);
-    this->dUOld = restore<double>(pFile);
-    this->dTimeOld = restore<double>(pFile);
+    auto iStep = restore<int>(pFile,step);
+    auto nSteps = restore<int>(pFile,steps);
+    auto dTime = restore<double>(pFile,time);
+    auto dDelta = restore<double>(pFile,delta);
+    this->dEcosmo = restore<double>(pFile,E);
+    this->dUOld = restore<double>(pFile,U);
+    this->dTimeOld = restore<double>(pFile,Utime);
 
     auto arguments = restore<PyObject *>(pFile);
     auto specified = restore<PyObject *>(pFile);

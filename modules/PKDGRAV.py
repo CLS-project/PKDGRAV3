@@ -38,13 +38,27 @@ def add_analysis(callable,memory=None):
         raise ValueError("invalid ephemeral memory")
     msr0.addAnalysis(callable,memory.per_particle,memory.per_process)
 
-def restore(filename,**kwargs):
+def restore(filename,species=None,classes=None,step=None,steps=None,time=None,delta=None,E=None,U=None,Utime=None,**kwargs):
     """
     Restore a simulation from a file.
 
     :param str filename: the name of the file
+    :param species: species counts (optional)
+    :param classes: particle classes (optional)
+    :param integer step: current step (optional)
+    :param integer steps: total steps (optional)
+    :param number time: simulation time (optional)
+    :param number delta: time step delta (optional)
+    :param number E: total energy (optional)
+    :param number U: potential energy (optional)
+    :param number Utime: time of potential energy calculation (optional)
+
+    The species and classes parameters are lists of tuples. Each tuple
+    contains the species number, mass, softening, and imat values.
+
+    The kwargs are additional parameters to set.
     """
-    msr0.Restart(filename.encode('UTF-8'),kwargs)
+    msr0.Restart(filename.encode('UTF-8'),kwargs,species,classes,step,steps,time,delta,E,U,Utime)
 
 def restart(arguments,specified,species,classes,n,name,step,steps,time,delta,E,U,Utime):
     ndark = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_DARK])

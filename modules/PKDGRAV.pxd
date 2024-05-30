@@ -126,6 +126,9 @@ cdef extern from "master.h":
         # MSR() except +
         void testv(vector[PARTCLASS] &v)
         void Restart(const char *filename,object kwargs)
+        void Restart(const char *filename, object kwargs,
+                 object species, object classes, object step, object steps,
+                 object time, object delta, object E, object U, object Utime)
         void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
                     size_t nDark, size_t nGas, size_t nStar, size_t nBH,
                     double dEcosmo,double dUOld, double dTimeOld,
