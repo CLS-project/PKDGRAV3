@@ -25,6 +25,7 @@
 #include <functional>
 #include <type_traits>
 #include <iterator>
+#include <boost/hana/define_struct.hpp>
 #include "blitz/array.h"
 #include "datastore.h"
 #include "integerize.h"
@@ -34,10 +35,6 @@
 #include "chemistry.h"
 
 #define PKD_MAX_CLASSES 256
-
-#define INTEGER_FACTOR 0x80000000u
-#define pkdDblToIntPos(pkd,d) (int32_t)((d)*INTEGER_FACTOR)
-#define pkdIntPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
 
 #ifdef NN_FLAG_IN_PARTICLE
     #define IORDERBITS 42
@@ -97,170 +94,234 @@ struct PARTCLASS {
 };
 static_assert(std::is_trivial<PARTCLASS>());
 
+namespace meshless {
+namespace hana = boost::hana;
 typedef double myreal;
 
-struct SPHFIELDS {
-    /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
-    blitz::TinyVector<double,6> B;
-
-    /* IA: Condition number for pathological configurations */
-    myreal Ncond;
-
-    /* IA: Gradients */
-    blitz::TinyVector<myreal,3> gradRho, gradVx, gradVy, gradVz, gradP;
-
-    /* IA: last time this particle's primitve variables were updated */
-    myreal lastUpdateTime;
-    blitz::TinyVector<myreal,3> lastAcc;
-    blitz::TinyVector<myreal,3> lastMom;
-    myreal lastE;
-    myreal lastUint;
-    myreal lastHubble; // TODO: Maybe there is a more intelligent way to avoid saving this...
-#ifndef USE_MFM
-    blitz::TinyVector<myreal,3> lastDrDotFrho;
+#ifdef BLACKHOLES
+struct  BH_ACCRETOR {
+    BOOST_HANA_DEFINE_STRUCT(
+        BH_ACCRETOR,
+        (int, iPid),
+        (int, iIndex)
+    );
+};
 #endif
-    float c;        /* sound speed */
 
-    float lastMass;
+// These fields are required for meshless finite volume (MFV),
+// in addition to the meshless finate mass (MFM) fields (FIELDS).
+struct MFV {
+    BOOST_HANA_DEFINE_STRUCT(
+        MFV,
+        (blitz::TinyVector<myreal,3>, lastDrDotFrho),
+        (blitz::TinyVector<myreal,3>, drDotFrho)
+    );
+};
 
-    /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
-    double omega;
+struct FIELDS {
+    BOOST_HANA_DEFINE_STRUCT(
+        FIELDS,
 
-    /* IA: Fluxes */
-    myreal Frho;
-    blitz::TinyVector<myreal,3>  Fmom;
-    myreal Fene;
+        (blitz::TinyVector<double,6>, B), // IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric
+        (myreal, Ncond),/* IA: Condition number for pathological configurations */
 
-#ifndef USE_MFM
-    blitz::TinyVector<double,3> drDotFrho;
-#endif
-    /* IA: Conserved variables */
-    blitz::TinyVector<double,3>  mom;
-    double E;
-    /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
-    double Uint;
+        /* IA: Gradients */
+        (blitz::TinyVector<myreal,3>, gradRho),
+        (blitz::TinyVector<myreal,3>, gradVx),
+        (blitz::TinyVector<myreal,3>, gradVy),
+        (blitz::TinyVector<myreal,3>, gradVz),
+        (blitz::TinyVector<myreal,3>, gradP),
+
+        /* IA: last time this particle's primitve variables were updated */
+        (myreal, lastUpdateTime),
+        (blitz::TinyVector<myreal,3>, lastAcc),
+        (blitz::TinyVector<myreal,3>, lastMom),
+        (myreal, lastE),
+        (myreal, lastUint),
+        (myreal, lastHubble), // TODO: Maybe there is a more intelligent way to avoid saving this...
+        (float, c),        /* sound speed */
+
+        (float, lastMass),
+
+        /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
+        (double, omega),
+
+        /* IA: Fluxes */
+        (myreal, Frho),
+        (blitz::TinyVector<myreal,3>,  Fmom),
+        (myreal, Fene),
+
+        /* IA: Conserved variables */
+        (blitz::TinyVector<double,3>,  mom),
+        (double, E),
+        /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
+        (double, Uint),
 
 #ifdef ENTROPY_SWITCH
-    double S;
-    double lastS;
-    double maxEkin;
+        (double, S),
+        (double, lastS),
+        (double, maxEkin),
 #endif
 
-    /* IA: Primitive variables */
-    double P;
+        /* IA: Primitive variables */
+        (double, P),
 
-    /* IA: fBall from the last iteration. Used for the bisection algorithm */
-    //float fLastBall;
-    /* IA: Number of neighbors correspoding to that fBall */
-    //int nLastNeighs;
+        /* IA: fBall from the last iteration. Used for the bisection algorithm */
+        //(float, fLastBall),
+        /* IA: Number of neighbors correspoding to that fBall */
+        //(int, nLastNeighs),
 
-    /* IA: TODO temporarly */
-    //uint8_t uNewRung;
+        /* IA: TODO temporarly */
+        //(uint8_t, uNewRung),
 
 #ifdef STAR_FORMATION
-    float SFR;
+        (float, SFR),
 #endif
 
-    blitz::TinyVector<float,ELEMENT_COUNT> ElemMass;
+        (blitz::TinyVector<float,ELEMENT_COUNT>, ElemMass),
 #ifdef HAVE_METALLICITY
-    float fMetalMass;
+        (float, fMetalMass),
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    blitz::TinyVector<float,3> ReceivedMom;
-    float fReceivedMass;
-    float fReceivedE;
+        (blitz::TinyVector<float,3>, ReceivedMom),
+        (float, fReceivedMass),
+        (float, fReceivedE),
 #endif
 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
-    float fAccFBEnergy;
+        (float, fAccFBEnergy),
 #endif
 
 #ifdef BLACKHOLES
-    // This could ideally be stored in a temporal buffer (pLite), but it has some
-    // limitations as it has to be shared when doing mdlAcquire.
-    struct {
-        int iPid;
-        int iIndex;
-    } BHAccretor;
+        // This could ideally be stored in a temporal buffer (pLite), but it has some
+        // limitations as it has to be shared when doing mdlAcquire.
+        (BH_ACCRETOR, BHAccretor),
 #endif
 
-    uint8_t uWake;
+        (uint8_t, uWake)
+    );
 
-};
+}; // FIELDS
 
-struct NEWSPHFIELDS {
-    float Omega;        /* Correction factor */
-    float divv;         /* Divergence of v */
-    float u;            /* Thermodynamical variable, can be T, A(s) or u */
-    float uDot;         /* Derivative of the thermodynamical variable */
-    float cs;           /* Sound speed */
-    float P;            /* Pressure */
-    float oldRho;       /* Rho corresponding to where u is at */
-    float expImb2;      /* exp(-imbalance^2) */
-    float T;            /* Temperature */
-    float vpredx, vpredy, vpredz;     /* predicted velocities */
-};
+struct STAR_METALS {
+    BOOST_HANA_DEFINE_STRUCT(
+        STAR_METALS,
+        (int, oZ),
+        (float, fDeltaZ)
+    );
+}; // STAR_METALS
 
-struct NEWSPHSTRENGTHFIELDS {
-    float Sxx, Syy, Sxy, Sxz, Syz; /* Deviatoric stress tensor (tracefree, symmetric) */
-    float SDotxx, SDotyy, SDotxy, SDotxz, SDotyz; /* Time derivative of deviatoric stress tensor (tracefree, symmetric) */
-    float Spredxx, Spredyy, Spredxy, Spredxz, Spredyz; /* Predicted deviatoric stress tensor (tracefree, symmetric) */
-    float strainJ2; /* J2 tensor invariant of the strain tensor */
-};
-
-struct STARFIELDS {
-    double omega;
+struct STAR {
+    BOOST_HANA_DEFINE_STRUCT(
+        STAR,
+        (double, omega),
 #ifdef STELLAR_EVOLUTION
-    blitz::TinyVector<float,ELEMENT_COUNT> ElemAbun; /* Formation abundances */
-    float fMetalAbun;            /* Formation metallicity */
-    float fInitialMass;
-    float fLastEnrichTime;
-    float fLastEnrichMass;
-    int iLastEnrichMass;
-    float fNextEnrichTime;
-    struct {
-        int oZ;
-        float fDeltaZ;
-    } CCSN, AGB, Lifetime;
-    float fSNIaOnsetTime;
+        (blitz::TinyVector<float,ELEMENT_COUNT>, ElemAbun), /* Formation abundances */
+        (float, fMetalAbun),            /* Formation metallicity */
+        (float, fInitialMass),
+        (float, fLastEnrichTime),
+        (float, fLastEnrichMass),
+        (int, iLastEnrichMass),
+        (float, fNextEnrichTime),
+        (STAR_METALS, CCSN),
+        (STAR_METALS, AGB),
+        (STAR_METALS, Lifetime),
+        (float, fSNIaOnsetTime),
 #endif
-
-    float fTimer;  /* Time of formation */
-
 #ifdef FEEDBACK
-    int bCCSNFBDone;
-    int bSNIaFBDone;
-    float fSNEfficiency;
+        (int, bCCSNFBDone),
+        (int, bSNIaFBDone),
+        (float, fSNEfficiency),
 #endif
+        (float, fTimer)  /* Time of formation */
+    );
+}; // STAR
+
+struct GAS_PIN {
+    BOOST_HANA_DEFINE_STRUCT(
+        GAS_PIN,
+        (int, iPid),
+        (int, iIndex)
+    );
 };
 
-struct BHFIELDS {
-    PARTICLE *pLowPot;
-    double omega;
-    double dInternalMass;
-    blitz::TinyVector<double,3> newPos;
-    double lastUpdateTime;
-    double dAccretionRate;
-    double dEddingtonRatio;
-    double dFeedbackRate;
-    double dAccEnergy;
-    float fTimer;    /* Time of formation */
-    int   doReposition; // = 0 no; > 0 do it ; = 2 ignore gas criteria
+struct BLACKHOLE {
+    BOOST_HANA_DEFINE_STRUCT(
+        BLACKHOLE,
+        (double, omega),
+        (double, dInternalMass),
+        (double, lastUpdateTime),
+        (double, dAccretionRate),
+        (double, dEddingtonRatio),
+        (double, dFeedbackRate),
+        (double, dAccEnergy),
+        (float, fTimer),    /* Time of formation */
+        (GAS_PIN, GasPin),
+        (bool, bForceReposition)
+    );
 };
 
 #ifdef OPTIM_UNION_EXTRAFIELDS
 union EXTRAFIELDS {
-    SPHFIELDS sph;
-    STARFIELDS star;
-    BHFIELDS bh;
+    FIELDS sph;
+    STAR star;
+    BLACKHOLE bh;
 };
 #endif
 
+} // meshless
+
+namespace sph {
+namespace hana = boost::hana;
+
+struct FIELDS {
+    BOOST_HANA_DEFINE_STRUCT(
+        FIELDS,
+        (float, Omega),        // Correction factor
+        (float, divv),         // Divergence of v
+        (float, u),            // Thermodynamical variable, can be T, A(s) or u
+        (float, uDot),         // Derivative of the thermodynamical variable
+        (float, cs),           // Sound speed
+        (float, P),            // Pressure
+        (float, oldRho),       // Rho corresponding to where u is at
+        (float, expImb2),      // exp(-imbalance^2)
+        (float, T),            // Temperature
+        (blitz::TinyVector<float,3>, vpred)  // predicted velocities
+    );
+}; // FIELDS
+
+struct STRENGTHFIELDS {
+    BOOST_HANA_DEFINE_STRUCT(
+        STRENGTHFIELDS,
+        (float, Sxx),      // Deviatoric stress tensor (tracefree, symmetric)
+        (float, Syy),
+        (float, Sxy),
+        (float, Sxz),
+        (float, Syz),
+        (float, SDotxx),   // Time derivative of deviatoric stress tensor (tracefree, symmetric)
+        (float, SDotyy),
+        (float, SDotxy),
+        (float, SDotxz),
+        (float, SDotyz),
+        (float, Spredxx),  // Predicted deviatoric stress tensor (tracefree, symmetric)
+        (float, Spredyy),
+        (float, Spredxy),
+        (float, Spredxz),
+        (float, Spredyz),
+        (float, strainJ2) //J2 tensor invariant of the strain tensor
+    );
+}; // STRENGTHFIELDS
+
+} // sph
+
 struct VELSMOOTH {
-    blitz::TinyVector<float,3> vmean;
-    float divv;
-    float veldisp2;
+    BOOST_HANA_DEFINE_STRUCT(
+        VELSMOOTH,
+        (blitz::TinyVector<float,3>, vmean),
+        (float, divv),
+        (float, veldisp2)
+    );
 };
 
 //! \brief Enumerates all of the optional fields in a PARTICLE
@@ -278,6 +339,7 @@ enum PKD_FIELD {
     oDensity, /* One float */
     oBall, /* One float */
     oSph, /* Sph structure */
+    oMFV, /* MFV structure */
     oNewSph, /* NewSph structure */
     oNewSphStr, /* NewSph strength structure */
     oStar, /* Star structure */
@@ -309,6 +371,7 @@ protected:
 public:
     using coord = blitz::TinyVector<double,3>;
     using icoord= blitz::TinyVector<int32_t,3>;
+    using Integerize::set_factor;
     void PhysicalSoft(double dSoftMax,double dFac,int bSoftMaxMul) {
         fSoftFac = dFac;
         fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
@@ -426,28 +489,34 @@ public:
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
         assert( species(p)==FIO_SPECIES_SPH);
 #endif
-        return get<SPHFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
     }
     const auto &sph( const PARTICLE *p ) const {
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
         assert( species(p)==FIO_SPECIES_SPH);
 #endif
-        return get<SPHFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
+    }
+    auto &mfv( PARTICLE *p ) const {
+        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+    }
+    const auto &mfv( const PARTICLE *p ) const {
+        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
     }
     /* NewSph variables */
     auto &newsph( PARTICLE *p ) const {
-        return get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
+        return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
     }
     const auto &newsph( const PARTICLE *p ) const {
-        return get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
+        return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
     }
 
     /* NewSphStrength variables */
     auto &newsphstr( PARTICLE *p ) const {
-        return get<NEWSPHSTRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
+        return get<sph::STRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
     }
     const auto &newsphstr( const PARTICLE *p ) const {
-        return get<NEWSPHSTRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
+        return get<sph::STRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
     }
 
     auto &star( PARTICLE *p ) const {
@@ -455,9 +524,9 @@ public:
 #ifdef DEBUG_UNION_EXTRAFIELDS
         assert( species(p)==FIO_SPECIES_STAR);
 #endif //DEBUG
-        return get<STARFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::STAR>(p,PKD_FIELD::oSph);
 #else
-        return get<STARFIELDS>(p,PKD_FIELD::oStar);
+        return get<meshless::STAR>(p,PKD_FIELD::oStar);
 #endif
     }
     const auto &star( const PARTICLE *p ) const {
@@ -465,9 +534,9 @@ public:
 #ifdef DEBUG_UNION_EXTRAFIELDS
         assert( species(p)==FIO_SPECIES_STAR);
 #endif //DEBUG
-        return get<STARFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::STAR>(p,PKD_FIELD::oSph);
 #else
-        return get<STARFIELDS>(p,PKD_FIELD::oStar);
+        return get<meshless::STAR>(p,PKD_FIELD::oStar);
 #endif
     }
     auto &BH( PARTICLE *p ) const {
@@ -475,9 +544,9 @@ public:
 #ifdef DEBUG_UNION_EXTRAFIELDS
         assert( dpecies(p)==FIO_SPECIES_BH);
 #endif //DEBUG
-        return get<BHFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oSph);
 #else
-        return get<BHFIELDS>(p,PKD_FIELD::oBH);
+        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oBH);
 #endif
     }
     const auto &BH( const PARTICLE *p ) const {
@@ -485,13 +554,13 @@ public:
 #ifdef DEBUG_UNION_EXTRAFIELDS
         assert( dpecies(p)==FIO_SPECIES_BH);
 #endif //DEBUG
-        return get<BHFIELDS>(p,PKD_FIELD::oSph);
+        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oSph);
 #else
-        return get<BHFIELDS>(p,PKD_FIELD::oBH);
+        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oBH);
 #endif
     }
     auto Timer( PARTICLE *p ) const {
-        return &get<STARFIELDS>(p,PKD_FIELD::oStar).fTimer;
+        return &get<meshless::STAR>(p,PKD_FIELD::oStar).fTimer;
     }
     auto is_deleted(PARTICLE *p) const {
         return (species(p) == FIO_SPECIES_UNKNOWN);
@@ -519,8 +588,6 @@ public:
     public:
         using SingleElement::SingleElement;
     public:
-        static double IntPosToDbl(int32_t pos) {return pos*1.0/INTEGER_FACTOR;}
-    public:
         using coord = blitz::TinyVector<double,3>;
         using icoord= blitz::TinyVector<int32_t,3>;
         bool have_position()     const {return have(PKD_FIELD::oPosition);}
@@ -528,6 +595,7 @@ public:
         bool have_acceleration() const {return have(PKD_FIELD::oAcceleration);}
         bool have_potential()    const {return have(PKD_FIELD::oPotential);}
         bool have_sph()          const {return have(PKD_FIELD::oSph);}
+        bool have_mfv()          const {return have(PKD_FIELD::oMFV);}
         bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
         bool have_newsphstr()    const {return have(PKD_FIELD::oNewSphStr);}
         bool have_star()         const {return have(PKD_FIELD::oStar);}
@@ -589,6 +657,7 @@ public:
         auto species()      const {return store().species(p);}
         auto imaterial()    const {return store().iMat(p);}
         auto &sph()         const { return store().sph(p); }
+        auto &mfv()         const { return store().mfv(p); }
         auto &newsph()      const { return store().newsph(p); }
         auto &newsphstr()   const { return store().newsphstr(p); }
         auto &star()        const { return store().star(p); }
@@ -646,7 +715,8 @@ public:
     void initialize(bool bIntegerPosition,bool bNoParticleOrder) {
         this->bIntegerPosition = bIntegerPosition;
         this->bNoParticleOrder = bNoParticleOrder;
-        dataStore<PARTICLE,PKD_FIELD>::initialize(bNoParticleOrder ? sizeof(UPARTICLE) : sizeof(PARTICLE));
+        if (bNoParticleOrder) dataStore<PARTICLE,PKD_FIELD>::set_header<UPARTICLE>();
+        else dataStore<PARTICLE,PKD_FIELD>::set_header<PARTICLE>();
         ParticleClasses.reserve(PKD_MAX_CLASSES);
     }
     auto integerized() const {return bIntegerPosition;}

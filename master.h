@@ -27,7 +27,9 @@
 
 #include "pst.h"
 #include "mdl.h"
+#include "core/memory.h"
 #include "pkd_parameters.h"
+#include "pkd_enumerations.h"
 #ifdef COOLING
     #include "cooling/cooling_struct.h"
 #endif
@@ -102,6 +104,11 @@ public:
     }
 private:
     int64_t parallel_count(bool bParallel,int64_t nParallel);
+    void persist(PyObject *file,PyObject *obj);
+    void persist(PyObject *file,int n);
+    void persist(PyObject *file,double d);
+    template<typename T>
+    T restore(PyObject *file,PyObject *replace=Py_None);
 protected:
     int64_t parallel_read_count();
     int64_t parallel_write_count();
@@ -109,8 +116,6 @@ protected:
     void Restore(const std::string &filename,int nSizeParticle);
 
 public:
-    size_t getLocalGridMemory(int nGrid);
-
     // I/O and IC Generation
     double GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm=nullptr);
     void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
@@ -118,6 +123,9 @@ public:
                  double dEcosmo,double dUOld, double dTimeOld,
                  std::vector<PARTCLASS> &aClasses,
                  PyObject *arguments,PyObject *specified);
+    void Restart(const char *filename,PyObject *kwargs,
+                 PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
+                 PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
@@ -160,9 +168,10 @@ public:
     void Hop(double dTime,double dDelta);
     void GroupStats();
     void HopWrite(const char *fname);
+    EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
             MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
-    void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
+    void AssignMass(int iAssignment=3,int iGrid=0,float fDelta=0.0f);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
@@ -196,20 +205,16 @@ private:
 public:
     struct msr_analysis_callback {
         PyObject *callback;
-        struct MSRINSTANCE *msr;
-        PyObject *memory;
-        explicit msr_analysis_callback(PyObject *callback,MSRINSTANCE *msr,PyObject *memory) {
-            this->callback = callback;
-            this->msr = msr;
-            this->memory = memory;
+        EphemeralMemory memory;
+        explicit msr_analysis_callback(PyObject *callback,uint64_t per_particle,uint64_t per_process)
+            : callback(callback), memory(per_particle,per_process)  {
             Py_INCREF(callback);
-            Py_INCREF(memory);
         }
-//  ~msr_analysis_callback() {
-//      Py_DECREF(callback);
-//      }
+        ~msr_analysis_callback() {
+            Py_DECREF(callback);
+        }
     };
-    void addAnalysis(PyObject *callback,MSRINSTANCE *msr,PyObject *memory);
+    void addAnalysis(PyObject *callback,uint64_t per_particle, uint64_t per_process);
     void runAnalysis(int iStep,double dTime);
 protected:
     std::list<msr_analysis_callback> analysis_callbacks;
@@ -355,13 +360,22 @@ protected:
         return parameters.get_bDoDensity();
     }
     int DoGas()           const {
-        return parameters.get_bDoGas();
+        return parameters.get_hydro_model() != HYDRO_MODEL::NONE;
     }
     int NewSPH()          const {
-        return parameters.get_bNewSPH();
+        return parameters.get_hydro_model() == HYDRO_MODEL::SPH;
+    }
+    int MeshlessFiniteMass()   const {
+        auto model = parameters.get_hydro_model();
+        return model == HYDRO_MODEL::MFM;
+    }
+    int MeshlessFiniteVolume() const {
+        auto model = parameters.get_hydro_model();
+        return model == HYDRO_MODEL::MFV;
     }
     int MeshlessHydro()   const {
-        return parameters.get_bMeshlessHydro();
+        auto model = parameters.get_hydro_model();
+        return MeshlessFiniteMass() || MeshlessFiniteVolume();
     }
     int DoGravity()       const {
         return parameters.get_bDoGravity();
@@ -408,7 +422,8 @@ protected:
     void ActiveOrder();
     void CalcBound(Bound &bnd);
     void CalcBound();
-    void GetNParts();
+    void CountSpecies();
+    void RemoveDeleted();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
     mdl::ServiceBuffer GetParticles(std::vector<std::int64_t> &particle_ids);
@@ -454,7 +469,6 @@ protected:
     // Meshless hydrodynamics
     void MeshlessGradients(double dTime, double dDelta);
     void MeshlessFluxes(double dTime,double dDelta);
-    void ResetFluxes(double dTime,double dDelta);
     void HydroStep(double dTime, double dDelta);
     void ComputeSmoothing(double dTime, double dDelta);
     void ChemCompInit();
@@ -463,7 +477,7 @@ protected:
 #ifdef COOLING
     // Cooling
     void SetCoolingParam();
-    void CoolingUpdate(float redshift, int sync);
+    void CoolingUpdate(float redshift);
     void CoolingInit(float redshift);
 #endif
 #ifdef GRACKLE
@@ -492,12 +506,15 @@ protected:
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);
     void BHMerger(double dTime);
-    void BHDrift(double dTime, double dDelta);
+    void BHEvolve(double dTime, double dDelta);
+    void BHGasPin(double dTime, double dDelta);
+    void BHReposition();
+    void BHAccretion(double dTime);
     void BHStep(double dTime, double dDelta);
 #endif
 
     void Initialize();
-    void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
+    void writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta);
     void DomainDecompOld(int iRung);
 
     int CountRungs(uint64_t *nRungs);

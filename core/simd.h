@@ -74,6 +74,9 @@ public:
 
     vec() = default;
 #ifdef USE_SIMD
+    template<typename V=vector_t, typename F=scalar_t,
+             std::enable_if_t<sizeof(V) != sizeof(F), bool> = true>
+
     vec(scalar_t const &d);
 #endif
     vec(vector_t const &d) { ymm = d; }
@@ -186,7 +189,7 @@ template<typename v> inline mmask<v> &operator^=(mmask<v> &a,mmask<v> const &b) 
 * AVX512 single precision
 \**********************************************************************/
 
-template<> inline vec<__m512,float>::vec(const float &d) { ymm = _mm512_set1_ps(d); }
+template<> template<> inline vec<__m512,float>::vec(const float &d) { ymm = _mm512_set1_ps(d); }
 template<> inline vec<__m512,float> &vec<__m512,float>::zero() { ymm = _mm512_setzero_ps(); return *this; }
 template<> inline vec<__m512,float> &vec<__m512,float>::load1(float f) { ymm = _mm512_setr_ps(f,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0); return *this; }
 template<> inline vec<__m512,float> &vec<__m512,float>::load(const float *pf) { ymm = _mm512_loadu_ps(pf); return *this; }
@@ -194,7 +197,7 @@ template<> inline const vec<__m512,float> &vec<__m512,float>::store(float *pf) c
 template<> inline const vec<__m512,float> vec<__m512,float>::sign_mask() { return _mm512_castsi512_ps(_mm512_set1_epi32(0x80000000)); }
 inline vec<__m512,float> min(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_min_ps(a,b); }
 inline vec<__m512,float> max(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_max_ps(a,b); }
-//inline vec<__m512,float> abs(vec<__m512,float> const &a) { return _mm512_abs_ps(a); }
+inline vec<__m512,float> abs(vec<__m512,float> const &a) { return _mm512_abs_ps(a); }
 inline vec<__m512,float> operator*(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_mul_ps(a,b); }
 inline vec<__m512,float> operator/(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_div_ps(a,b); }
 inline vec<__m512,float> operator+(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_add_ps(a,b); }
@@ -259,7 +262,7 @@ inline vec<__m512,float> maskz_mov(mmask<__mmask16> const &k,vec<__m512,float> c
 /**********************************************************************\
 * AVX512 32-bit integer
 \**********************************************************************/
-template<> inline vec<__m512i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm512_set1_epi32(d); }
+template<> template<> inline vec<__m512i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm512_set1_epi32(d); }
 template<> inline vec<__m512i,std::int32_t> &vec<__m512i,std::int32_t>::zero() { ymm = _mm512_setzero_si512(); return *this; }
 template<> inline vec<__m512i,std::int32_t> &vec<__m512i,std::int32_t>::load1(std::int32_t f) { ymm = _mm512_setr_epi32(f,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0); return *this; }
 template<> inline vec<__m512i,std::int32_t> &vec<__m512i,std::int32_t>::load(const std::int32_t *pf) { ymm = _mm512_loadu_si512((__m512i *)pf); return *this; }
@@ -285,7 +288,7 @@ inline vec<__m512i,std::int32_t> mask_mov(vec<__m512i,std::int32_t> const &src,m
 /**********************************************************************\
 * AVX512 64-bit integer
 \**********************************************************************/
-template<> inline vec<__m512i,std::int64_t>::vec(const std::int64_t &d) { ymm = _mm512_set1_epi64(d); }
+template<> template<> inline vec<__m512i,std::int64_t>::vec(const std::int64_t &d) { ymm = _mm512_set1_epi64(d); }
 template<> inline vec<__m512i,std::int64_t> &vec<__m512i,std::int64_t>::zero() { ymm = _mm512_setzero_si512(); return *this; }
 template<> inline vec<__m512i,std::int64_t> &vec<__m512i,std::int64_t>::load1(std::int64_t f) { ymm = _mm512_setr_epi64(f,0,0,0,0,0,0,0); return *this; }
 template<> inline vec<__m512i,std::int64_t> &vec<__m512i,std::int64_t>::load(const std::int64_t *pf) { ymm = _mm512_loadu_si512((__m512i *)pf); return *this; }
@@ -312,7 +315,7 @@ inline int testz(mmask<__mmask16> const &a) { return _mm512_kortestz(a,a); }
 * AVX512 double precision
 \**********************************************************************/
 
-template<> inline vec<__m512d,double>::vec(const double &d) { ymm = _mm512_set1_pd(d); }
+template<> template<> inline vec<__m512d,double>::vec(const double &d) { ymm = _mm512_set1_pd(d); }
 template<> inline vec<__m512d,double> &vec<__m512d,double>::zero() { ymm = _mm512_setzero_pd(); return *this; }
 template<> inline vec<__m512d,double> &vec<__m512d,double>::load1(double f) { ymm = _mm512_setr_pd(f,0,0,0,0,0,0,0); return *this; }
 template<> inline vec<__m512d,double> &vec<__m512d,double>::load(const double *pf) { ymm = _mm512_loadu_pd(pf); return *this; }
@@ -320,7 +323,7 @@ template<> inline const vec<__m512d,double> &vec<__m512d,double>::store(double *
 template<> inline const vec<__m512d,double> vec<__m512d,double>::sign_mask() { return _mm512_castsi512_pd(_mm512_set1_epi64(0x8000000000000000)); }
 inline vec<__m512d,double> min(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_min_pd(a,b); }
 inline vec<__m512d,double> max(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_max_pd(a,b); }
-//inline vec<__m512d,double> abs(vec<__m512d,double> const &a) { return _mm512_abs_pd(a); }
+inline vec<__m512d,double> abs(vec<__m512d,double> const &a) { return _mm512_abs_pd(a); }
 inline vec<__m512d,double> operator*(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_mul_pd(a,b); }
 inline vec<__m512d,double> operator/(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_div_pd(a,b); }
 inline vec<__m512d,double> operator+(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_add_pd(a,b); }
@@ -397,7 +400,7 @@ vec<v,ftype> mask_sub(const mtype &k,vec<v,ftype> &a,vec<v,ftype> const &b)
 * AVX single precision
 \**********************************************************************/
 
-template<> inline vec<__m256,float>::vec(const float &d) { ymm = _mm256_set1_ps(d); }
+template<> template<> inline vec<__m256,float>::vec(const float &d) { ymm = _mm256_set1_ps(d); }
 template<> inline vec<__m256,float> &vec<__m256,float>::zero() { ymm = _mm256_setzero_ps(); return *this; }
 template<> inline vec<__m256,float> &vec<__m256,float>::load1(float f) { ymm = _mm256_setr_ps(f,0,0,0,0,0,0,0); return *this; }
 template<> inline vec<__m256,float> &vec<__m256,float>::load(const float *pf) { ymm = _mm256_loadu_ps(pf); return *this; }
@@ -445,7 +448,7 @@ inline int testz(vec<__m256,float> const &a) { return !_mm256_movemask_ps(a); }
 /**********************************************************************\
 * AVX 32-bit integer
 \**********************************************************************/
-template<> inline vec<__m256i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm256_set1_epi32(d); }
+template<> template<> inline vec<__m256i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm256_set1_epi32(d); }
 template<> inline vec<__m256i,std::int32_t> &vec<__m256i,std::int32_t>::zero() { ymm = _mm256_setzero_si256(); return *this; }
 template<> inline vec<__m256i,std::int32_t> &vec<__m256i,std::int32_t>::load1(std::int32_t f) { ymm = _mm256_setr_epi32(f,0,0,0,0,0,0,0); return *this; }
 template<> inline vec<__m256i,std::int32_t> &vec<__m256i,std::int32_t>::load(const std::int32_t *pf) { ymm = _mm256_loadu_si256((__m256i *)pf); return *this; }
@@ -485,7 +488,7 @@ inline vec<__m256i,std::int32_t> operator>(vec<__m256i,std::int32_t> const &a,ve
 * AVX double precision
 \**********************************************************************/
 
-template<> inline vec<__m256d,double>::vec(const double &d) { ymm = _mm256_set1_pd(d); }
+template<> template<> inline vec<__m256d,double>::vec(const double &d) { ymm = _mm256_set1_pd(d); }
 template<> inline vec<__m256d,double> &vec<__m256d,double>::zero() { ymm = _mm256_setzero_pd(); return *this; }
 template<> inline vec<__m256d,double> &vec<__m256d,double>::load1(double f) { ymm = _mm256_setr_pd(f,0,0,0); return *this; }
 template<> inline vec<__m256d,double> &vec<__m256d,double>::load(const double *pf) { ymm = _mm256_loadu_pd(pf); return *this; }
@@ -516,6 +519,7 @@ inline vec<__m256d,double> operator|(vec<__m256d,double> const &a,vec<__m256d,do
 inline vec<__m256d,double> operator^(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_xor_pd(a,b); }
 inline vec<__m256d,double> operator~(vec<__m256d,double> const &a) { return _mm256_xor_pd(a,_mm256_castsi256_pd(_mm256_set1_epi32(0xffffffff))); }
 
+inline vec<__m256d,double> maskz_mov(vec<__m256d,double> const &p,vec<__m256d, double> const &a) { return a & p; }
 inline int movemask(vec<__m256d,double> const &r2) { return _mm256_movemask_pd(r2); }
 inline vec<__m256d,double> mask_mov(vec<__m256d,double> const &src,vec<__m256d,double> const &k,vec<__m256d,double> const &a)
 { return _mm256_blendv_pd(src,a,k); }
@@ -534,7 +538,7 @@ template<> inline vec<__m256i,std::int64_t> &vec<__m256i,std::int64_t>::load(con
 * SSE single precision
 \**********************************************************************/
 
-template<> inline vec<__m128,float>::vec(const float &d) { ymm = _mm_set1_ps(d); }
+template<> template<> inline vec<__m128,float>::vec(const float &d) { ymm = _mm_set1_ps(d); }
 template<> inline vec<__m128,float> &vec<__m128,float>::zero() { ymm = _mm_setzero_ps(); return *this; }
 template<> inline vec<__m128,float> &vec<__m128,float>::load1(float f) { ymm = _mm_setr_ps(f,0,0,0); return *this; }
 template<> inline vec<__m128,float> &vec<__m128,float>::load(const float *pf) { ymm = _mm_loadu_ps(pf); return *this; }
@@ -591,7 +595,7 @@ inline vec<__m128,float> mask_mov(vec<__m128,float> const &src,vec<__m128,float>
 /**********************************************************************\
 * SSE 32-bit integer
 \**********************************************************************/
-template<> inline vec<__m128i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm_set1_epi32(d); }
+template<> template<> inline vec<__m128i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm_set1_epi32(d); }
 template<> inline vec<__m128i,std::int32_t> &vec<__m128i,std::int32_t>::zero() { ymm = _mm_setzero_si128(); return *this; }
 template<> inline vec<__m128i,std::int32_t> &vec<__m128i,std::int32_t>::load1(std::int32_t f) { ymm = _mm_setr_epi32(f,0,0,0); return *this; }
 template<> inline vec<__m128i,std::int32_t> &vec<__m128i,std::int32_t>::load(const std::int32_t *pf) { ymm = _mm_loadu_si128((__m128i *)pf); return *this; }
@@ -629,7 +633,7 @@ inline vec<__m128i,std::int32_t> mask_mov(vec<__m128i,std::int32_t> const &src,v
 * SSE double precision
 \**********************************************************************/
 
-template<> inline vec<__m128d,double>::vec(const double &d) { ymm = _mm_set1_pd(d); }
+template<> template<> inline vec<__m128d,double>::vec(const double &d) { ymm = _mm_set1_pd(d); }
 template<> inline vec<__m128d,double> &vec<__m128d,double>::zero() { ymm = _mm_setzero_pd(); return *this; }
 template<> inline vec<__m128d,double> &vec<__m128d,double>::load1(double f) { ymm = _mm_setr_pd(f,0); return *this; }
 template<> inline vec<__m128d,double> &vec<__m128d,double>::load(const double *pf) { ymm = _mm_loadu_pd(pf); return *this; }
@@ -675,12 +679,17 @@ inline vec<__m128d,double> mask_mov(vec<__m128d,double> const &src,vec<__m128d,d
 #endif
 }
 
-#else/*#elif defined(__SSE__) && defined(USE_SIMD)*/
+#endif
+#endif
+
+/**********************************************************************\
+* Always define the single element vectors
+\**********************************************************************/
+
 /**********************************************************************\
 * single precision
 \**********************************************************************/
 
-//template<> inline vec<float,float>::vec(const float &d) { ymm = d; }
 template<> inline vec<float,float> &vec<float,float>::zero() { ymm = 0; return *this; }
 template<> inline vec<float,float> &vec<float,float>::load1(float f) { ymm = f; return *this; }
 template<> inline vec<float,float> &vec<float,float>::load(const float *pf) { ymm = *pf; return *this; }
@@ -689,26 +698,11 @@ template<> inline const vec<float,float> vec<float,float>::sign_mask() { return 
 template<> inline vec<float,float> vec<float,float>::operator-() const { return -ymm; }
 inline vec<float,float> min(vec<float,float> const &a,vec<float,float> const &b) { return a<b?a:b; }
 inline vec<float,float> max(vec<float,float> const &a,vec<float,float> const &b) { return a>b?a:b; }
-//inline vec<float,float> operator*(vec<float,float> const &a,vec<float,float> const &b) { return a*b; }
-//inline vec<float,float> operator/(vec<float,float> const &a,vec<float,float> const &b) { return a/b; }
-//inline vec<float,float> operator+(vec<float,float> const &a,vec<float,float> const &b) { return a+b; }
-//inline vec<float,float> operator-(vec<float,float> const &a,vec<float,float> const &b) { return a-b; }
-
-//LET FLOAT DO THE JOB
-//inline mmask<bool> operator==(vec<float,float> const &a,vec<float,float> const &b) { return a==b; }
-//inline mmask<bool> operator!=(vec<float,float> const &a,vec<float,float> const &b) { return a!=b; }
-//inline mmask<bool> operator>(vec<float,float> const &a,vec<float,float> const &b) { return a>b; }
-//inline mmask<bool> operator<(vec<float,float> const &a,vec<float,float> const &b) { return a<b; }
-//inline mmask<bool> operator>=(vec<float,float> const &a,vec<float,float> const &b) { return a>=b; }
-//inline mmask<bool> operator<=(vec<float,float> const &a,vec<float,float> const &b) { return a<=b; }
-//inline vec<float,float> operator&(vec<float,float> const &a,vec<float,float> const &b) { return a&b; }
-//inline vec<float,float> operator|(vec<float,float> const &a,vec<float,float> const &b) { return a|b; }
-//inline vec<float,float> operator^(vec<float,float> const &a,vec<float,float> const &b) { return a^b; }
-//inline vec<float,float> operator~(vec<float,float> const &a) { return _mm_xor_ps(a,_mm_castsi128_ps(_mm_set1_epi32(0xffffffff))); }
 inline float hadd(vec<float,float> const &a) { return a; }
 inline vec<float,float> sqrt(vec<float,float> const &r2) { return sqrtf(r2); }
 inline vec<float,float> rsqrt(vec<float,float> const &r2) { return 1.0f / sqrtf(r2); }
 inline int testz(mmask<bool> const &a) { return a==0; }
+
 inline vec<float,float> maskz_mov(mmask<bool> const &p,vec<float,float> const &a) {
     return p ? a : vec<float,float>(0.0f);
 }
@@ -726,20 +720,30 @@ inline vec<float,float> mask_mov(vec<float,float> const &src,bool const &p,vec<f
 * double precision
 \**********************************************************************/
 
-//template<> inline vec<double,double>::vec(const double &d) { ymm = d; }
 template<> inline vec<double,double> &vec<double,double>::zero() { ymm = 0; return *this; }
 template<> inline vec<double,double> &vec<double,double>::load1(double f) { ymm = f; return *this; }
 template<> inline vec<double,double> &vec<double,double>::load(const double *pf) { ymm = *pf; return *this; }
 template<> inline const vec<double,double> &vec<double,double>::store(double *pf) const { *pf = ymm; return *this; }
-
+template<> inline const vec<double,double> vec<double,double>::sign_mask() { return 0x80000000; }
+template<> inline vec<double,double> vec<double,double>::operator-() const { return -ymm; }
 inline vec<double,double> min(vec<double,double> const &a,vec<double,double> const &b) { return a<b?a:b; }
 inline vec<double,double> max(vec<double,double> const &a,vec<double,double> const &b) { return a>b?a:b; }
-inline int movemask(mmask<bool> const &k) { return (int)(k); }
+inline vec<double,double> maskz_mov(mmask<bool> const &p,vec<double,double> const &a) {
+    return p ? a : vec<double,double>(0.0f);
+}
+inline vec<double,double> maskz_mov(bool const &p,vec<double,double> const &a) {
+    return p ? a : vec<double,double>(0.0f);
+}
+inline vec<double,double> mask_mov(vec<double,double> const &src,mmask<bool> const &p,vec<double,double> const &a) {
+    return p ? a : src;
+}
+inline vec<double,double> mask_mov(vec<double,double> const &src,bool const &p,vec<double,double> const &a) {
+    return p ? a : src;
+}
 
 /**********************************************************************\
 * 32-bit integer
 \**********************************************************************/
-//template<> inline vec<std::int32_t,std::int32_t>::vec(const std::int32_t &d) { ymm = d; }
 template<> inline vec<std::int32_t,std::int32_t> &vec<std::int32_t,std::int32_t>::zero() { ymm = 0; return *this; }
 template<> inline vec<std::int32_t,std::int32_t> &vec<std::int32_t,std::int32_t>::load1(std::int32_t f) { ymm = f; return *this; }
 template<> inline vec<std::int32_t,std::int32_t> &vec<std::int32_t,std::int32_t>::load(const std::int32_t *pf) { ymm = *pf; return *this; }
@@ -751,8 +755,15 @@ inline vec<std::int32_t,std::int32_t> mask_mov(vec<std::int32_t,std::int32_t> co
     return p ? a : src;
 }
 
-#endif/*#elif defined(__SSE__)*/
-#endif /*__AVX512F__*/
+/**********************************************************************\
+* boolean mask
+\**********************************************************************/
+
+inline int movemask(mmask<bool> const &k) { return (int)(k); }
+inline mmask<bool> operator~(mmask<bool> const &a) { return !a; }
+inline mmask<bool> operator|(mmask<bool> const &a, mmask<bool> const &b) { return a||b; }
+inline mmask<bool> operator&(mmask<bool> const &a, mmask<bool> const &b) { return a&&b; }
+inline mmask<bool> operator&(mmask<bool> const &a, int const &b) { return (int)a&b; }
 
 #if __GNUC__ > 4
     #pragma GCC diagnostic pop

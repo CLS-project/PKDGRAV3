@@ -26,11 +26,11 @@
 //! container is created. This class provides a way to access the
 //! individual fields
 template<typename DATA,typename FIELD>
-class splitStore : public dataFields<DATA,FIELD> {
+class splitStore : public datafields::Fields<DATA,FIELD> {
 public:
     using value_type = DATA;
-    using dataFields<DATA,FIELD>::Element;
-    using dataFields<DATA,FIELD>::ElementSize;
+    using datafields::Fields<DATA,FIELD>::Element;
+    using datafields::Fields<DATA,FIELD>::ElementSize;
     splitStore() = default;
 protected:
     std::vector<DATA *> tiles; //!< Array of "tiles"

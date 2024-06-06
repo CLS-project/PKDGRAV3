@@ -11,7 +11,7 @@ nGridPk = int(argv[2])
 L = 1 if len(argv)<4 else int(argv[3])
 
 # Load the file and setup the tree, then measure the power
-time = msr.load(name)
+time = msr.load(name,nGridPk=nGridPk)
 msr.domain_decompose()
 msr.build_tree()
 (K,PK,N,*rest) = msr.measure_pk(nGridPk,L=L)

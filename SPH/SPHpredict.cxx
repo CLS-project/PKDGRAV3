@@ -43,9 +43,9 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
     const auto &ap = p.acceleration();
     const auto &v = p.velocity();
     if (SPHoptions->doConsistentPrediction) {
-        vpred[0] = NewSph.vpredx;
-        vpred[1] = NewSph.vpredy;
-        vpred[2] = NewSph.vpredz;
+        vpred[0] = NewSph.vpred[0];
+        vpred[1] = NewSph.vpred[1];
+        vpred[2] = NewSph.vpred[2];
     }
     else {
         vpred[0] = v[0] + dtPredDrift * ap[0];
@@ -131,9 +131,9 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
         if (SPHoptions->doConsistentPrediction) {
             const auto &v = p.velocity();
             const auto &ap = p.acceleration();
-            NewSph.vpredx = v[0] + dtPredDrift * ap[0];
-            NewSph.vpredy = v[1] + dtPredDrift * ap[1];
-            NewSph.vpredz = v[2] + dtPredDrift * ap[2];
+            NewSph.vpred[0] = v[0] + dtPredDrift * ap[0];
+            NewSph.vpred[1] = v[1] + dtPredDrift * ap[1];
+            NewSph.vpred[2] = v[2] + dtPredDrift * ap[2];
         }
         if (SPHoptions->doShearStrengthModel) {
             auto &NewSphStr = p.newsphstr();

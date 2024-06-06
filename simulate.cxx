@@ -46,7 +46,7 @@ double MSR::LoadOrGenerateIC() {
     else {
         printf("No input file specified\n");
     }
-    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.get_bAddDelete()) CountSpecies();
     return dTime;
 }
 
@@ -87,6 +87,7 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
         if (parameters.get_nSteps() == 0) dDelta = 0.0;
         else dDelta = (tTo-dTime) / (nSteps - iStartStep);
     }
+    parameters.set_dynamic("delta",dDelta);
     return true;
 }
 
@@ -142,7 +143,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*dBoxSize)) - 1.0 );
     }
 
-    if (DoGas() && MeshlessHydro()) {
+    if (MeshlessHydro()) {
         ChemCompInit();
     }
 
@@ -154,7 +155,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         redshift = 0.0;
 
     CoolingInit(redshift);
-    CoolingUpdate(redshift, 1);
+    CoolingUpdate(redshift);
 #endif
 
 #ifdef GRACKLE
@@ -212,7 +213,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             GridDeleteFFT();
         }
     }
-    if (DoGas() && NewSPH()) {
+
+    const bool bDoStartOutput = parameters.get_bWriteIC() && !parameters.has_nGrid() && !NewSPH();
+    const bool bDoStartFof =  parameters.get_bFindGroups() && ( bDoStartOutput || parameters.get_bBHPlaceSeed() );
+    if (bDoStartFof) {
+        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
+    }
+
+    if (NewSPH()) {
         // Calculate Density
         SelAll(-1,1);
         SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
@@ -259,7 +267,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                 bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
         MemStatus();
     }
-    if (DoGas() && MeshlessHydro()) {
+    if (MeshlessHydro()) {
         InitSph(dTime, dDelta,bRestart);
     }
 #ifdef BLACKHOLES
@@ -267,11 +275,11 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
-    if (parameters.get_bFindGroups() && parameters.get_bBHPlaceSeed()) {
-        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
+#endif
+
+    if (bDoStartFof) {
         GroupStats();
     }
-#endif
 
     double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -283,18 +291,12 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                        E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
     }
 
-    if (parameters.get_bWriteIC() && !parameters.has_nGrid() && !NewSPH()) {
-#ifndef BLACKHOLES
-        if (parameters.get_bFindGroups()) {
-            NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
-            GroupStats();
-        }
-#endif
+    if (bDoStartOutput) {
         Output(iStartStep,dTime,dDelta,0);
     }
 
     // Make sure that the tree is usable before the start of the simulation
-    if (parameters.get_bFindGroups() || parameters.get_bWriteIC()) {
+    if (bDoStartFof || bDoStartOutput) {
         DomainDecomp();
         BuildTree(bEwald);
     }
@@ -312,7 +314,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             if (bKickOpen) {
                 BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
-                if (DoGas() && NewSPH()) {
+                if (NewSPH()) {
                     // Calculate Density
                     SelAll(-1,1);
                     SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
@@ -391,7 +393,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             bDoCheckpoint = 0;
         }
         if (bDoOutput) {
-            if (DoGas() && NewSPH() && parameters.get_bCentrifugal()) {
+            if (NewSPH() && parameters.get_bCentrifugal()) {
                 ResetCOM();
             }
             Output(iStep,dTime,parameters.get_dDelta(),0);
@@ -445,6 +447,7 @@ static void validate_path(const char *name,const std::string_view &path) {
 ** This routine validates the given parameters and makes any adjustments.
 */
 int MSR::ValidateParameters() {
+    int success = 1;
     try {
         validate_path("achOutPath",       parameters.get_achOutPath());
         validate_path("achCheckpointPath",parameters.get_achCheckpointPath());
@@ -468,26 +471,84 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (!parameters.has_bDoGas()) parameters.set_bDoGas(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH());
-    if (parameters.get_bDoGas() && !(parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) ) {
-        fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
+    if (parameters.has_dRedSync() && !parameters.has_nStepsSync()) {
+        fprintf(stderr, "ERROR: dRedSync is given but not nStepsSync. Please set nStepsSync or\n");
+        fprintf(stderr, "       unset dRedSync.\n");
         return 0;
     }
-    if ((parameters.get_bMeshlessHydro()||parameters.get_bNewSPH()) && !parameters.get_bDoGas()) {
-        fprintf(stderr,"ERROR: An hydro scheme is selected but bDoGas=0! Did you forget to add bDoGas=1?\n");
+
+    //**************************************************************************
+    // Verify the hydro model
+    //**************************************************************************
+    auto model = parameters.get_hydro_model();
+    switch (model) {
+    case HYDRO_MODEL::NONE:
+    case HYDRO_MODEL::SPH:
+    case HYDRO_MODEL::MFM:
+    case HYDRO_MODEL::MFV:
+        break;
+    default:
+        fprintf(stderr,"ERROR: Unknown hydro_model\n");
         return 0;
     }
-    if (parameters.get_bMeshlessHydro() && parameters.get_bNewSPH()) {
-        fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
-        return 0;
+
+    if (model == HYDRO_MODEL::MFM || model == HYDRO_MODEL::MFV) {
+        if (parameters.get_bNewKDK()) {
+            parameters.set_bNewKDK(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bNewKDK. "
+                    "Setting bNewKDK to false\n");
+        }
+        if (parameters.get_bDualTree()) {
+            parameters.set_bDualTree(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bDualTree. "
+                    "Setting bDualTree to false\n");
+        }
+        if (parameters.get_bMemIntegerPosition()) {
+            parameters.set_bMemIntegerPosition(false);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics does not support bMemIntegerPosition. "
+                    "Setting bMemIntegerPosition to false\n");
+        }
+        if (!parameters.get_bMemUnordered()) {
+            parameters.set_bMemUnordered(true);
+            fprintf(stderr,"WARNING: Meshless hydrodynamics requires bMemUnordered. "
+                    "Setting bMemUnordered to true\n");
+        }
+        if (model == HYDRO_MODEL::MFV && !parameters.get_bMemMass()) {
+            parameters.set_bMemMass(true);
+            fprintf(stderr,"WARNING: Meshless Finite Volume scheme requires bMemMass. "
+                    "Setting bMemMass to true\n");
+        }
+#ifdef COOLING
+        if (parameters.get_bComove()) {
+            if (!parameters.has_nStepsSync()) {
+                fprintf(stderr,"ERROR: Meshless hydrodynamics with cooling requires nStepsSync, "
+                        "please set it.\n");
+                return 0;
+            }
+            if (parameters.has_dRedSync()) {
+                fprintf(stderr,"WARNING: Meshless hydrodynamics with cooling requires dRedSync "
+                        "to be set to the redshift of Hydrogen reionization, as set in parameter "
+                        "fH_reion_z. Setting dRedSync to the value of fH_reion_z.\n");
+            }
+            parameters.set_dRedSync(parameters.get_fH_reion_z());
+        }
+#endif
     }
 
 #ifdef BLACKHOLES
-    if  (!ValidateBlackholeParam()) return 0;
+    if (!ValidateBlackholeParam()) return 0;
 #endif
 
 #ifdef STAR_FORMATION
-    if  (!ValidateStarFormationParam()) return 0;
+    if (!ValidateStarFormationParam()) return 0;
+#endif
+
+#ifdef STELLAR_EVOLUTION
+    if (parameters.get_bChemEnrich() && !parameters.get_bMemMass()) {
+        parameters.set_bMemMass(true);
+        fprintf(stderr,"WARNING: Chemical enrichment requires bMemMass. "
+                "Setting bMemMass to true\n");
+    }
 #endif
 
     if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {
@@ -511,7 +572,7 @@ int MSR::ValidateParameters() {
     }
 
 #ifndef NN_FLAG_IN_PARTICLE
-    if (parameters.get_bNewSPH() && parameters.get_bGasInterfaceCorrection() && parameters.get_dFastGasFraction() > 0.0f) {
+    if (NewSPH() && parameters.get_bGasInterfaceCorrection() && parameters.get_dFastGasFraction() > 0.0f) {
         fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
         return 0;
     }
@@ -525,7 +586,7 @@ int MSR::ValidateParameters() {
 
 #ifndef USE_HDF5
     if (parameters.get_bHDF5()) {
-        printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
+        printf("WARNING: HDF5 output was requested but it is not supported: using Tipsy format\n");
         parameters.set_bHDF5(false);
     }
 #endif
@@ -536,8 +597,8 @@ int MSR::ValidateParameters() {
         parameters.set_nBinsPk(std::min(parameters.has_nBinsPk() ? parameters.get_nBinsPk() : PST_MAX_K_BINS, nGridPk/2));
     }
     auto iPkOrder = parameters.get_iPkOrder();
-    if (iPkOrder<1 || iPkOrder>4) {
-        puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
+    if (iPkOrder<ASSIGNMENT_ORDER::NGP || iPkOrder>ASSIGNMENT_ORDER::PCS) {
+        puts("ERROR: iPkOrder must be 0 (NGP), 1 (CIC), 2 (TSC) or 3 (PCS)");
         return 0;
     }
     if ( parameters.get_nGrid() ) {
@@ -569,8 +630,8 @@ int MSR::ValidateParameters() {
                 puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
                 return 0;
             }
-            if ( !parameters.get_bDoGas() ) {
-                puts("ERROR: Can not generate gas if bDoGas=0");
+            if ( !DoGas() ) {
+                puts("ERROR: Can not generate gas if a hydrodynamic solver is not selected");
                 return 0;
             }
         }
@@ -652,12 +713,6 @@ int MSR::ValidateParameters() {
                 "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
     }
 
-    /*
-    ** Check if fast gas boundaries are needed.
-    */
-    if (parameters.get_bDoGas() && !NewSPH()) {
-        parameters.set_bMemNodeSphBounds(1);
-    }
     /*
     ** Check timestepping and gravity combinations.
     */
@@ -748,5 +803,5 @@ int MSR::ValidateParameters() {
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
     }
-    return 1;
+    return success;
 }

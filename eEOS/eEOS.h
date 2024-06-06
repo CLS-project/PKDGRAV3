@@ -5,24 +5,28 @@
  * General interface to the eEOS module
  * The density is in comoving coordinates.
  */
-inline static double eEOSEnergyFloor(double a_inv3, float fDens, float fBall,
-                                     double dConstGamma, struct eEOSparam eEOS);
-inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
-                                       double dConstGamma, struct eEOSparam eEOS);
+template <typename dtype=vec<double,double>, typename mtype=mmask<bool>>
+inline static dtype eEOSEnergyFloor(dtype a_inv3, dtype fDens, dtype fBall,
+                                    dtype dConstGamma, struct eEOSparam eEOS);
+template <typename dtype=vec<double,double>, typename mtype=mmask<bool>>
+inline static dtype eEOSPressureFloor(dtype a_inv3, dtype fDens, dtype fBall,
+                                      dtype dConstGamma, struct eEOSparam eEOS);
 
 /*
  * Simple constant temperature floor
  */
-inline static double constantEnergyFloor(double a_inv3, float fDens,
-        double dConstGamma, struct eEOSparam eEOS) {
-    if ( fDens*a_inv3 > eEOS.dFloorDen && fDens > eEOS.dFloorMinOD )
-        return eEOS.dFlooru;
-    else
-        return NOT_IN_EEOS;
+template <typename dtype, typename mtype>
+inline static dtype constantEnergyFloor(dtype a_inv3, dtype fDens,
+                                        dtype dConstGamma, struct eEOSparam eEOS) {
+    mtype mask1 = fDens*a_inv3 > eEOS.dFloorDen;
+    mtype mask2 = fDens > eEOS.dFloorMinOD;
+    mtype mask = mask1 && mask2;
+    return mask_mov( static_cast<dtype>(NOT_IN_EEOS), mask, eEOS.dFlooru);
 }
 
-inline static double constantPressureFloor(double a_inv3, float fDens,
-        double dConstGamma, struct eEOSparam eEOS) {
+template <typename dtype, typename mtype>
+inline static dtype constantPressureFloor(dtype a_inv3, dtype fDens,
+        dtype dConstGamma, struct eEOSparam eEOS) {
     return fDens * (dConstGamma - 1. ) *
            constantEnergyFloor(a_inv3, fDens, dConstGamma, eEOS);
 }
@@ -32,39 +36,44 @@ inline static double constantPressureFloor(double a_inv3, float fDens,
  * General polytropic eEOS floor.
  * It is composed of a polytrope of arbitrary index and a constant temperature floor
  */
-inline static double polytropicEnergyFloor(double a_inv3, float fDens, double dConstGamma,
+template <typename dtype, typename mtype>
+inline static dtype polytropicEnergyFloor(dtype a_inv3, dtype fDens, dtype dConstGamma,
         struct eEOSparam eEOS) {
-    if (fDens > eEOS.dPolyFloorMinOD)
-        return eEOS.dPolyFlooru * pow( fDens*a_inv3/eEOS.dPolyFloorDen, eEOS.dPolyFloorExponent );
-    else
+    mtype mask = fDens > eEOS.dPolyFloorMinOD;
+    if (movemask(mask)) {
+        dtype eeos = eEOS.dPolyFlooru *
+                     pow( fDens*a_inv3/static_cast<dtype>(eEOS.dPolyFloorDen),
+                          static_cast<dtype>(eEOS.dPolyFloorExponent) );
+        return mask_mov( NOT_IN_EEOS, mask, eeos);
+    }
+    else {
         return NOT_IN_EEOS;
+    }
 }
 
-inline static double polytropicPressureFloor(double a_inv3, float fDens, double dConstGamma,
+template <typename dtype, typename mtype>
+inline static dtype polytropicPressureFloor(dtype a_inv3, dtype fDens, dtype dConstGamma,
         struct eEOSparam eEOS) {
-    return fDens * (dConstGamma - 1. ) * polytropicEnergyFloor(a_inv3, fDens, dConstGamma, eEOS);
+    return fDens * (dConstGamma - 1. ) * polytropicEnergyFloor<dtype,mtype>(a_inv3, fDens, dConstGamma, eEOS);
 }
 
-inline static double eEOSEnergyFloor(double a_inv3, float fDens, float fBall,
-                                     double dConstGamma, struct eEOSparam eEOS) {
-    const double polyEnergy = polytropicEnergyFloor(a_inv3, fDens, dConstGamma, eEOS);
-    const double constantEnergy = constantEnergyFloor(a_inv3, fDens, dConstGamma, eEOS);
+template <typename dtype, typename mtype>
+inline static dtype eEOSEnergyFloor(dtype a_inv3, dtype fDens, dtype fBall,
+                                    dtype dConstGamma, struct eEOSparam eEOS) {
+    const dtype polyEnergy = polytropicEnergyFloor<dtype,mtype>(a_inv3, fDens, dConstGamma, eEOS);
+    const dtype constantEnergy = constantEnergyFloor<dtype,mtype>(a_inv3, fDens, dConstGamma, eEOS);
 
-    if (constantEnergy != NOT_IN_EEOS)
-        return (polyEnergy > constantEnergy) ? polyEnergy : constantEnergy;
-    else
-        return constantEnergy;
+    mtype mask = constantEnergy != NOT_IN_EEOS;
+    return mask_mov( constantEnergy, mask, max(polyEnergy, constantEnergy) );
 }
+template <typename dtype, typename mtype>
+inline static dtype eEOSPressureFloor(dtype a_inv3, dtype fDens, dtype fBall,
+                                      dtype dConstGamma, struct eEOSparam eEOS) {
+    const dtype polyPressure = polytropicPressureFloor(a_inv3, fDens, dConstGamma, eEOS);
+    const dtype constantPressure = constantPressureFloor(a_inv3, fDens, dConstGamma, eEOS);
 
-inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
-                                       double dConstGamma, struct eEOSparam eEOS) {
-    const double polyPressure = polytropicPressureFloor(a_inv3, fDens, dConstGamma, eEOS);
-    const double constantPressure = constantPressureFloor(a_inv3, fDens, dConstGamma, eEOS);
-
-    if (constantPressure != NOT_IN_EEOS)
-        return (polyPressure > constantPressure) ? polyPressure : constantPressure;
-    else
-        return constantPressure;
+    mtype mask = constantPressure != NOT_IN_EEOS;
+    return mask_mov( constantPressure, mask, max(polyPressure, constantPressure) );
 }
 #endif
 
@@ -76,16 +85,17 @@ inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
  * It is similar to polytropicPressureFloor with gamma=4/3, but it takes into
  *  account explicitly the smoothing length
  */
-inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
-                                       double dConstGamma, struct eEOSparam eEOS) {
+template <typename dtype, typename mtype>
+inline static dtype eEOSPressureFloor(dtype a_inv3, dtype fDens, dtype fBall,
+                                      dtype dConstGamma, struct eEOSparam eEOS) {
     return 1.2/dConstGamma * pow(eEOS.dNJeans,2./3.) * fDens * fDens * fBall * fBall;
 }
 
-inline static double eEOSEnergyFloor(double a_inv3, float fDens, float fBall,
-                                     double dConstGamma, struct eEOSparam eEOS) {
+template <typename dtype, typename mtype>
+inline static dtype eEOSEnergyFloor(dtype a_inv3, dtype fDens, dtype fBall,
+                                    dtype dConstGamma, struct eEOSparam eEOS) {
     return eEOSPressureFloor(a_inv3, fDens, fBall, eEOS) /
            (fDens * (dConstGamma - 1.));
 }
 #endif
 #endif
-

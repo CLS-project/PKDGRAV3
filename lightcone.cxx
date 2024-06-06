@@ -37,6 +37,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     int bCone=1;
     const int nLayerMax = ceil(mrLCP);
     double dxStart;
+    auto P = pkd->particles[p];
 
     /*
     ** dxStart measures the fraction of the light surface that *just* enters
@@ -56,10 +57,10 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     if (dxStart > 1) return; // the timestep is still too deep!
     if (dxStart < 0) dxStart = 0;
 
-    const auto &v = pkd->particles.velocity(p);
-    double r0[3],r1[3];
+    const auto &v = P.velocity();
     int j;
-    pkdGetPos1(pkd,p,r0);
+
+    auto r0 = P.position();
     for (j=0; j<3; ++j) {
         if (r0[j] < -0.5) r0[j] += 1.0;
         else if (r0[j] >= 0.5) r0[j] -= 1.0;
@@ -158,7 +159,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
         }
         dvec t0 = dlbt*dlbt*dLightSpeed*dLightSpeed;
         dvec t1 = (dlbt - dtApprox)*(dlbt - dtApprox)*dLightSpeed*dLightSpeed;
-        for (j=0; j<3; ++j) r1[j] = r0[j] + dt*v[j];
+        auto r1 = r0 + dt*v;
         for (int iOct=0; iOct<nBox; ++iOct) {
             dvec off0, off1, off2;
             off0.load(pkd->lcOffset0+iOct*dvec::width());

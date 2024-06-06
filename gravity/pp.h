@@ -387,8 +387,8 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
             result.Cinvzz = minusImOverRho * dz * PdWdz;
         }
 
-        // divv
-        result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        // physical divv as used in gasoline
+        result.divv = - Im / Irho * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz + H * d2 * PdWdx / dx);
 
         // timestep
         result.dtEst = aFac * EtaCourant * 0.5f * PfBall / ((1.0f + 0.6f * alpha) * Pc - 0.6f * beta * muij);

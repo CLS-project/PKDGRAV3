@@ -35,7 +35,7 @@ UNITS::UNITS(pkd_parameters &parameters,double h) {
         /* code density --> g per cc */
         dGmPerCcUnit = (dMsolUnit*MSOLG)/pow(dKpcUnit*KPCCM,3.0);
         /* code time --> seconds */
-        dSecUnit = sqrt(1/dGmPerCcUnit*GCGS);
+        dSecUnit = sqrt(1/(dGmPerCcUnit*GCGS));
         /* code speed --> km/s */
         dKmPerSecUnit = sqrt(GCGS*dMsolUnit*MSOLG/(dKpcUnit*KPCCM))/1e5;
         /* code comove density -->g per cc = units.dGmPerCcUnit(1+z)^3*/

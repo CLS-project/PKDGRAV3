@@ -109,23 +109,28 @@ void BallSmooth(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 void initDensity(void *vpkd, void *p) {
     auto pkd = static_cast<PKD>(vpkd);
-    pkdSetDensity(pkd,(PARTICLE *)p,0.0);
+    auto P = pkd->particles[reinterpret_cast<PARTICLE *>(p)];
+    P.set_density(0.0);
 }
 
 void combDensity(void *vpkd, void *p1,const void *p2) {
     auto pkd = static_cast<PKD>(vpkd);
-    pkdSetDensity(pkd,(PARTICLE *)p1,pkdDensity(pkd,(PARTICLE *)p1)+pkdDensity(pkd,(PARTICLE *)p2));
+    auto P1 = pkd->particles[reinterpret_cast<PARTICLE *>(p1)];
+    auto P2 = pkd->particles[reinterpret_cast<const PARTICLE *>(p2)];
+    P1.set_density(P1.density() + P2.density());
 }
 
 void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
+    auto P = pkd->particles[p];
     double ih2,r2,rs,fDensity,fMass;
     int i;
 
     ih2 = 1.0/BALL2(fBall);
     fDensity = 0.0;
     for (i=0; i<nSmooth; ++i) {
-        fMass = pkdMass(pkd,nnList[i].pPart);
+        auto Q = pkd->particles[nnList[i].pPart];
+        fMass = Q.mass();
         r2 = nnList[i].fDist2*ih2;
         rs = 1 - r2;
         if (rs < 0) rs = 0.0;
@@ -133,17 +138,19 @@ void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
     fDensity *= 1.875f*M_1_PI*sqrtf(ih2)*ih2; /* F1 Kernel (15/8) */
     if (smf->pfDensity) *smf->pfDensity = fDensity;
-    else pkdSetDensity(pkd,p,fDensity);
+    else P.set_density(fDensity);
 }
 
 void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
+    auto P = pkd->particles[p];
     double ih2,r2,rs,fDensity,fMass;
     int i;
     ih2 = 1.0f/BALL2(fBall);
     fDensity = 0.0;
     for (i=0; i<nSmooth; ++i) {
-        fMass = pkdMass(pkd,nnList[i].pPart);
+        auto Q = pkd->particles[nnList[i].pPart];
+        fMass = Q.mass();
         r2 = nnList[i].fDist2*ih2;
         if (r2 < 1.0) {
             double r = sqrt(r2);
@@ -158,18 +165,20 @@ void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         else rs = 0.0;
         fDensity += rs*fMass;
     }
-    pkdSetDensity(pkd,p,16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity);
+    P.set_density(16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity);
 }
 
 void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
+    auto P = pkd->particles[p];
     double ih2,r2,rs,fMass,fNorm, idrho, r2min;
     int i, j;
     ih2 = 1.0/BALL2(fBall);
     fNorm = 16.0f*M_1_PI*ih2*ih2*sqrtf(ih2);
     TinyVector<double,3> frho(0.0);
     for (i=0; i<nSmooth; ++i) {
-        fMass = pkdMass(pkd,nnList[i].pPart);
+        auto Q = pkd->particles[nnList[i].pPart];
+        fMass = Q.mass();
         r2 = nnList[i].fDist2*ih2;
         if (r2 < 1.0) {
             double r = sqrt(r2);
@@ -185,13 +194,13 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         }
         else rs = 0.0;
         rs *= fNorm*fMass;
-        rs *= (pkdDensity(pkd,nnList[i].pPart) - pkdDensity(pkd,p))/pkdDensity(pkd,nnList[i].pPart);
+        rs *= (Q.density() - P.density())/Q.density();
         frho -= nnList[i].dr*rs;
     }
     idrho = 1.0/sqrt(dot(frho,frho));
     for (j=0; j<3; ++j) frho[j] *= 0.5*idrho*fBall;
     r2min = HUGE_VALF;
-    if (nSmooth==0) pkdSetGroup(pkd, p, -1);
+    if (nSmooth==0) P.set_group(-1);
     for (i=0; i<nSmooth; ++i) {
         TinyVector<double,3> dr = nnList[i].dr - frho;
         r2 = dot(dr,dr);
@@ -206,12 +215,14 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     MDL mdl = pkd->mdl;
+    auto P = pkd->particles[p];
     int i, gid1, gid2;
     GHtmpGroupTable *g1, *g2, g;
-    gid1 = pkdGetGroup(pkd,p);
+    gid1 = P.group();
     g1 = &pkd->tmpHopGroups[gid1];
     for (i=0; i<nSmooth; ++i) {
-        gid2 = pkdGetGroup(pkd,nnList[i].pPart);
+        auto Q = pkd->particles[nnList[i].pPart];
+        gid2 = Q.group();
         if (nnList[i].iPid==pkd->Self() && gid1==gid2) continue;
         g.iPid = nnList[i].iPid;
         g.iIndex = gid2;
@@ -242,36 +253,36 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 void Density(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    double ih2,r2,rs,fDensity,fMass;
+    auto P = pkd->particles[p];
+    double ih2,r2,rs,fDensity;
     int i;
 
     ih2 = 4.0/BALL2(fBall);
     fDensity = 0.0;
     for (i=0; i<nSmooth; ++i) {
-        fMass = pkdMass(pkd,nnList[i].pPart);
+        auto Q = pkd->particles[nnList[i].pPart];
         r2 = nnList[i].fDist2*ih2;
         KERNEL(rs,r2);
-        fDensity += rs*fMass;
+        fDensity += rs*Q.mass();
     }
-    pkdSetDensity(pkd,p,M_1_PI*sqrt(ih2)*ih2*fDensity);
+    P.set_density(M_1_PI*sqrt(ih2)*ih2*fDensity);
 }
 
 void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    PARTICLE *q;
-    double fNorm,ih2,r2,rs,fMassQ,fMassP;
+    auto P = pkd->particles[p];
+    double fNorm,ih2,r2,rs,fMassP;
     int i;
-    fMassP = pkdMass(pkd,p);
+    fMassP = P.mass();
     ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
     for (i=0; i<nSmooth; ++i) {
         r2 = nnList[i].fDist2*ih2;
         KERNEL(rs,r2);
         rs *= fNorm;
-        q = nnList[i].pPart;
-        fMassQ = pkdMass(pkd,q);
-        pkdSetDensity(pkd,p,pkdDensity(pkd,p) + rs*fMassQ);
-        pkdSetDensity(pkd,q,pkdDensity(pkd,q) + rs*fMassP);
+        auto Q = pkd->particles[nnList[i].pPart];
+        P.set_density(P.density() + rs*Q.mass());
+        Q.set_density(Q.density() + rs*fMassP);
     }
 }
 

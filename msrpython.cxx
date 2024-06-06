@@ -68,164 +68,6 @@ static struct PyModuleDef msrModule = {
 };
 
 /******************************************************************************\
-*   Ephemeral OBJECT Instance
-\******************************************************************************/
-
-struct EPHEMERALINSTANCE {
-    PyObject_HEAD
-    class MSR *msr;
-    size_t nBytesPerNode;
-    size_t nBytesPerParticle;
-};
-
-/******************************************************************************\
-*   Ephemeral Object methods
-\******************************************************************************/
-static PyObject *
-ephemeral_enter(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    if (!PyArg_ParseTuple(args, "")) return NULL;
-    Py_INCREF(self);
-    return reinterpret_cast<PyObject *>(self);
-}
-
-static PyObject *
-ephemeral_exit(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    Py_RETURN_FALSE;
-}
-
-static PyObject *
-ppy_ephemeral_add_grid(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    MSR *msr = self->msr;
-    static char const *kwlist[]= {"grid","count",NULL};
-    int grid, count=1;
-    if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "i|i:add_grid", const_cast<char **>(kwlist),
-                &grid,&count) )
-        return NULL;
-    auto nBytes = msr->getLocalGridMemory(grid) * count;
-    self->nBytesPerNode += nBytes;
-    return Py_BuildValue("L",nBytes);
-}
-
-/******************************************************************************\
-*   Ephemeral object methods list
-\******************************************************************************/
-
-static PyMethodDef ephemeral_methods[] = {
-    {"__enter__",(PyCFunction)ephemeral_enter,METH_VARARGS,"__enter__"},
-    {"__exit__", (PyCFunction)ephemeral_exit, METH_VARARGS,"__exit__"},
-
-    {
-        "add_grid", (PyCFunction)ppy_ephemeral_add_grid, METH_VARARGS|METH_KEYWORDS,
-        "Add Ephemeral memory for one or more grids"
-    },
-    {NULL, NULL, 0, NULL}
-};
-/******************************************************************************\
-*   Ephemeral OBJECT Boilerplate code - Keeps track of home much Ephemeral
-\******************************************************************************/
-
-static void ephemeral_dealloc(EPHEMERALINSTANCE *self) {
-    Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static PyObject *ephemeral_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
-    auto self = reinterpret_cast<EPHEMERALINSTANCE *>(type->tp_alloc(type, 0));
-    if (self == NULL) {
-        return NULL;
-    }
-    // Make a copy of the MSR object
-    auto msr_module = PyState_FindModule(&msrModule); // We created this already
-    auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
-    self->msr = moduleState->msr;
-    return reinterpret_cast<PyObject *>(self);
-}
-
-static int ephemeral_init(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwds) {
-    MSR *msr = self->msr;
-    self->nBytesPerNode = 0;
-    self->nBytesPerParticle = 0;
-    static char const *kwlist[]= {"grid","count","per_particle",NULL};
-    int grid=0, count=1, per_particle=0;
-    if ( !PyArg_ParseTupleAndKeywords(
-                args, kwds, "|iii:ephemeral", const_cast<char **>(kwlist),
-                &grid, &count, &per_particle) )
-        return -1;
-    if (grid) self->nBytesPerNode += msr->getLocalGridMemory(grid) * count;
-    self->nBytesPerParticle = per_particle;
-    return 0;
-}
-
-static PyMemberDef ephemeral_members[] = {
-    {NULL} /* Sentinel */
-};
-
-static PyObject *ephemeral_get_bytes_per_node(EPHEMERALINSTANCE *self, void *) {
-    return PyLong_FromSize_t(self->nBytesPerNode);
-}
-
-static PyObject *ephemeral_get_bytes_per_particle(EPHEMERALINSTANCE *self, void *) {
-    return PyLong_FromSize_t(self->nBytesPerParticle);
-}
-
-// This warning should be fixed in newer Python versions
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wwrite-strings"
-static PyGetSetDef ephemeral_getseters[] = {
-    {
-        "bytes_per_node", (getter)ephemeral_get_bytes_per_node, NULL,
-        "Number of bytes of ephemeral needed for each node", NULL
-    },
-    {
-        "bytes_per_particle", (getter)ephemeral_get_bytes_per_particle, NULL,
-        "Number of bytes of ephemeral needed for each particle", NULL
-    },
-    {NULL} /* Sentinel */
-};
-#pragma GCC diagnostic pop
-
-static PyTypeObject ephemeralType = {
-    PyVarObject_HEAD_INIT(NULL,0)
-    MASTER_MODULE_NAME ".ephemeral", /*tp_name*/
-    sizeof(EPHEMERALINSTANCE), /*tp_basicsize */
-    0, /*tp_itemsize*/
-    (destructor)ephemeral_dealloc, /*tp_dealloc*/
-    0, /*tp_print*/
-    0, /*tp_getattr*/
-    0, /*tp_setattr*/
-    0, /*tp_compare*/
-    0, /*tp_repr*/
-    0, /*tp_as_number*/
-    0, /*tp_as_sequence*/
-    0, /*tp_as_mapping*/
-    0, /*tp_hash */
-    0, /*tp_call*/
-    0, /*tp_str*/
-    0, /*tp_getattro*/
-    0, /*tp_setattro*/
-    0, /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
-    "Ephemeral objects", /* tp_doc */
-    0, /* tp_traverse */
-    0, /* tp_clear */
-    0, /* tp_richcompare */
-    0, /* tp_weaklistoffset */
-    0, /* tp_iter */
-    0, /* tp_iternext */
-    ephemeral_methods, /* tp_methods */
-    ephemeral_members, /* tp_members */
-    ephemeral_getseters, /* tp_getset */
-    0, /* tp_base */
-    0, /* tp_dict */
-    0, /* tp_descr_get */
-    0, /* tp_descr_set */
-    0, /* tp_dictoffset */
-    (initproc)ephemeral_init, /* tp_init */
-    0, /* tp_alloc */
-    ephemeral_new, /* tp_new */
-};
-
-/******************************************************************************\
 *   MSR Object method
 \******************************************************************************/
 
@@ -246,31 +88,6 @@ ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int n = PyTuple_Size(args);
     if (n) return PyErr_Format(PyExc_ValueError,"setParameters() takes 0 positional arguments but %d %s given",n,n==1?"was":"were");
     if (!msr->setParameters(kwobj)) return PyErr_Format(PyExc_AttributeError,"invalid parameters specified");
-    Py_RETURN_NONE;
-}
-
-/********** Analysis Hooks **********/
-
-static PyObject *
-ppy_msr_ephemeral(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    MSR *msr = self->msr;
-    auto ephemeral = reinterpret_cast<EPHEMERALINSTANCE *>(PyObject_Call(reinterpret_cast<PyObject *>(&ephemeralType),args,kwobj));
-    if (ephemeral) ephemeral->msr = msr;
-    return reinterpret_cast<PyObject *>(ephemeral);
-}
-
-static PyObject *
-ppy_msr_add_analysis(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    flush_std_files();
-    MSR *msr = self->msr;
-    static char const *kwlist[]= {"callback","memory",NULL};
-    PyObject *callback, *memory;
-    if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "OO:add_analysis", const_cast<char **>(kwlist),
-                &callback, &memory) )
-        return NULL;
-    if (!PyCallable_Check(callback)) return PyErr_Format(PyExc_AttributeError,"callback must be callable");
-    msr->addAnalysis(callback,self,memory);
     Py_RETURN_NONE;
 }
 
@@ -323,10 +140,12 @@ static int run_script(MSRINSTANCE *self,const char *filename) {
         return errno;
     }
 
-    auto module = PyModule_New("restore");
-    PyModule_AddStringConstant(module, "__file__", "restore.py");
-    PyObject *localDict = PyModule_GetDict(module);
-    PyDict_SetItemString(localDict, "__builtins__", PyEval_GetBuiltins());
+    PyObject *main_module = PyImport_ImportModule("__main__");
+    auto localDict = PyModule_GetDict(main_module);
+    auto fileString = PyUnicode_FromString(filename);
+    PyDict_SetItemString(localDict, "__file__", fileString);
+    Py_DECREF(fileString);
+
     auto s = PyRun_FileEx(fp,filename,Py_file_input,localDict,localDict,1); // fp is closed on return
     Py_XDECREF(s);
     if (PyErr_Occurred()) {
@@ -1107,15 +926,6 @@ static PyMethodDef msr_methods[] = {
     },
 
     {
-        "add_analysis", (PyCFunction)ppy_msr_add_analysis, METH_VARARGS|METH_KEYWORDS,
-        "Add an analysis callback hook"
-    },
-    {
-        "ephemeral", (PyCFunction)ppy_msr_ephemeral, METH_VARARGS|METH_KEYWORDS,
-        "Return an Ephemeral class for memory management"
-    },
-
-    {
         "simulate", (PyCFunction)ppy_msr_simulate, METH_VARARGS|METH_KEYWORDS,
         "Start a regular simulation"
     },
@@ -1388,7 +1198,6 @@ static PyObject *initModuleMSR(void) {
         Py_INCREF(&msrType);
         PyModule_AddObject(msr_module, MASTER_TYPE_NAME, (PyObject *)&msrType);
     }
-    PyType_Ready(&ephemeralType);
     return msr_module;
 }
 
@@ -1396,30 +1205,17 @@ static PyObject *initModuleMSR(void) {
 *   Analysis callback
 \******************************************************************************/
 
-void MSR::addAnalysis(PyObject *callback,MSRINSTANCE *msr, PyObject *memory) {
-    analysis_callbacks.emplace_back(callback,msr,memory);
+void MSR::addAnalysis(PyObject *callback,uint64_t per_particle, uint64_t per_process) {
+    analysis_callbacks.emplace_back(callback,per_particle,per_process);
 }
 
 void MSR::runAnalysis(int iStep,double dTime) {
-    PyObject *call_args = PyTuple_New(1);
-    PyObject *kwargs = PyDict_New();
-    PyObject *step, *time, *a = NULL;
-
-    PyDict_SetItemString(kwargs, "step", step=PyLong_FromLong(iStep));
-    PyDict_SetItemString(kwargs, "time", time=PyFloat_FromDouble(dTime));
-    if (csm->val.bComove) PyDict_SetItemString(kwargs, "a", a=PyFloat_FromDouble(csmTime2Exp(csm,dTime)));
-
+    set_dynamic(iStep,dTime);
     for ( msr_analysis_callback &i : analysis_callbacks) {
-        PyTuple_SetItem(call_args,0,reinterpret_cast<PyObject *>(i.msr));
-        PyObject_Call(i.callback,call_args,kwargs);
+        auto v = parameters.call_dynamic(i.callback);
+        Py_XDECREF(v);
         if (PyErr_Occurred()) PyErr_Print();
     }
-    PyDict_Clear(kwargs);
-    Py_DECREF(step);
-    Py_DECREF(time);
-    Py_XDECREF(a);
-    Py_DECREF(kwargs);
-    Py_DECREF(call_args);
 }
 
 /******************************************************************************\
@@ -1429,6 +1225,7 @@ void MSR::runAnalysis(int iStep,double dTime) {
 extern "C" PyObject *PyInit_CSM(void);
 extern "C" PyObject *PyInit_accuracy(void);
 extern "C" PyObject *PyInit_cosmology(void);
+extern "C" PyObject *PyInit_ephemeral(void);
 
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
@@ -1438,6 +1235,7 @@ int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab("parse", PyInit_parse);
     PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
     PyImport_AppendInittab("accuracy", PyInit_accuracy);
+    PyImport_AppendInittab("ephemeral", PyInit_ephemeral);
 
     PKDGRAV_msr0 = this;
     PyStatus status;
@@ -1480,27 +1278,41 @@ int MSR::Python(int argc, char *argv[]) {
 
     // This module is used for checkpointing and restoring the state
     pDill = PyImport_ImportModule("dill");
-    if (pDill) {
-        pDill_load = PyObject_GetAttrString(pDill, "load");
-        if (!pDill_load || !PyCallable_Check(pDill_load)) {
-            PyErr_Print();
-            abort();
-        }
-        pDill_dump = PyObject_GetAttrString(pDill, "dump");
-        if (!pDill_dump || !PyCallable_Check(pDill_dump)) {
-            PyErr_Print();
-            abort();
-        }
+    if (!pDill) {
+        PyErr_Print();
+        abort();
+    }
+    pDill_load = PyObject_GetAttrString(pDill, "load");
+    if (!pDill_load || !PyCallable_Check(pDill_load)) {
+        PyErr_Print();
+        abort();
+    }
+    pDill_dump = PyObject_GetAttrString(pDill, "dump");
+    if (!pDill_dump || !PyCallable_Check(pDill_dump)) {
+        PyErr_Print();
+        abort();
+    }
+    // load_session/dump_session were "renamed" to load_module/dump_module in dill 0.3.6
+    // the old name is still available in 0.3.8, but it is deprecated
+    // we use the old name, and fallback to the new name if the old name is not available
+    // presumably, the old name will be removed in a future version
+    pDill_load_module = PyObject_GetAttrString(pDill, "load_session");
+    if (!pDill_load_module || !PyCallable_Check(pDill_load_module)) {
+        PyErr_Clear();
         pDill_load_module = PyObject_GetAttrString(pDill, "load_module");
-        if (!pDill_load_module || !PyCallable_Check(pDill_load_module)) {
-            PyErr_Print();
-            abort();
-        }
+    }
+    if (!pDill_load_module || !PyCallable_Check(pDill_load_module)) {
+        PyErr_Print();
+        abort();
+    }
+    pDill_dump_module = PyObject_GetAttrString(pDill, "dump_session");
+    if (!pDill_dump_module || !PyCallable_Check(pDill_dump_module)) {
+        PyErr_Clear();
         pDill_dump_module = PyObject_GetAttrString(pDill, "dump_module");
-        if (!pDill_dump_module || !PyCallable_Check(pDill_dump_module)) {
-            PyErr_Print();
-            abort();
-        }
+    }
+    if (!pDill_dump_module || !PyCallable_Check(pDill_dump_module)) {
+        PyErr_Print();
+        abort();
     }
 
     // Parse the command line
@@ -1545,6 +1357,7 @@ int MSR::Python(int argc, char *argv[]) {
             perror(filename);
             exit(errno);
         }
+        PyDict_SetItemString(locals, "__file__", script);
         auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
         Py_XDECREF(s);
         if (PyErr_Occurred()) {
@@ -1583,6 +1396,7 @@ int MSR::Python(int argc, char *argv[]) {
             exit(1);
         }
         bVDetails = parameters.get_bVDetails();
+        parameters.set_dynamic("msr",PyImport_ImportModule("PKDGRAV"));
     }
 
     return moduleState->bImported || imported ? 0 : -1;

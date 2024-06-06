@@ -70,7 +70,6 @@ typedef struct pstContext {
     uint64_t nLowerGroups;  /* count of number of groups in the lower sub-tree, used for making global group ids. */
 } *PST;
 
-
 #define PST_SERVICES        100
 #define PST_FILENAME_SIZE   512
 #define PST_MAX_FILES           16384
@@ -113,7 +112,6 @@ enum pst_service {
     PST_LIGHTCONE,
     PST_CALCEANDL,
     PST_DRIFT,
-    PST_RESETFLUXES,
     PST_COMPUTEPRIMVARS,
     PST_WAKEPARTICLES,
 #ifdef DEBUG_CACHED_FLUXES
@@ -135,8 +133,6 @@ enum pst_service {
     PST_BH_INIT,
     PST_BH_ACCRETION,
 #endif
-    PST_MOVEDELETED,
-    PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
     PST_KICK,
@@ -171,9 +167,10 @@ enum pst_service {
     PST_ORDWEIGHT,
     PST_SETWRITESTART,
     PST_ADDWRITESTART,
+    PST_COUNTSPECIES,
+    PST_REMOVEDELETED,
     PST_COLNPARTS,
     PST_NEWORDER,
-    PST_GETNPARTS,
     PST_SETNPARTS,
     PST_NEW_FOF,
     PST_FOF_PHASES,
@@ -261,6 +258,7 @@ struct inInitializePStore {
     blitz::TinyVector<double,3> fPeriod;
     uint64_t nMinEphemeral;
     uint64_t nMinTotalStore;
+    uint32_t nIntegerFactor;
     int nEphemeralBytes;
     int nTreeBitsLo;
     int nTreeBitsHi;
@@ -273,7 +271,6 @@ struct outInitializePStore {
     int nSizeNode;
 };
 int pstInitializePStore(PST,void *,int,void *,int);
-
 
 /* PST_READFILE */
 struct inReadFile {
@@ -519,7 +516,7 @@ struct outPlaceBHSeed {
 };
 int pstPlaceBHSeed(PST,void *,int,void *,int);
 int pstBHInit(PST,void *,int,void *,int);
-int pstRepositionBH(PST,void *,int,void *,int);
+int pstBHReposition(PST,void *,int,void *,int);
 struct inBHAccretion {
     double dScaleFactor;
 };
@@ -553,7 +550,6 @@ struct inGravity {
     SPHOptions SPHoptions;
 };
 
-
 typedef struct StatsCollector {
     double dSum;
     double dSum2;
@@ -561,7 +557,6 @@ typedef struct StatsCollector {
     int idMax;
     int n;
 } STAT;
-
 
 /*
 ** The outGravityReduct structure is at the beginning of the output message,
@@ -618,7 +613,6 @@ struct inDrift {
     int bDoGas;
 };
 int pstDrift(PST,void *,int,void *,int);
-int pstResetFluxes(PST,void *,int,void *,int);
 int pstEndTimestepIntegration(PST,void *,int,void *,int);
 int pstWakeParticles(PST,void *,int,void *,int);
 struct outFluxStats {
@@ -636,9 +630,6 @@ int pstROParticleCache(PST, void *, int, void *, int);
 /* PST_PARTICLECACHEFINISH */
 
 int pstParticleCacheFinish(PST, void *, int, void *, int);
-
-/* PST_CACHEBARRIER */
-int pstCacheBarrier(PST, void *, int, void *, int);
 
 /* PST_KICK */
 struct inKick {
@@ -739,18 +730,6 @@ struct inCorrectEnergy {
 };
 int pstCorrectEnergy(PST, void *,int,void *,int);
 
-/* PST_UPDATERUNG */
-struct inUpdateRung {
-    uint8_t uRungLo;  /* Minimum Rung to modify */
-    uint8_t uRungHi;  /* Maximum Rung to modify */
-    uint8_t uMinRung; /* Minimum it can be set to */
-    uint8_t uMaxRung; /* Maximum it can be set to */
-};
-struct outUpdateRung {
-    uint64_t nRungCount[MAX_RUNG];
-};
-int pstUpdateRung(PST,void *,int,void *,int);
-
 /* PST_SETWRITESTART */
 struct inSetWriteStart {
     uint64_t nWriteStart;
@@ -775,18 +754,6 @@ int pstColNParts(PST, void *, int, void *, int);
 
 /* PST_NEWORDER */
 int pstNewOrder(PST, void *, int, void *, int);
-
-/* PST_GETNPARTS */
-/* see pkd.h
- struct outGetNParts {
-    int n;
-    int nGas;
-    int nDark;
-    int nStar;
-    };
-*/
-int pstMoveDeletedParticles(PST,void *,int,void *,int );
-int pstGetNParts(PST, void *, int, void *, int);
 
 /* PST_SETNPARTS */
 struct inSetNParts {
@@ -820,17 +787,6 @@ struct inFofFinishUp {
 int pstFofFinishUp(PST,void *,int,void *,int);
 
 #ifdef MDL_FFTW
-/* PST_GETFFTMAXSIZES */
-struct inGetFFTMaxSizes {
-    int nx,ny,nz;
-};
-struct outGetFFTMaxSizes {
-    uint64_t nMaxLocal;
-    int nMaxZ;
-    int nMaxY;
-};
-int pstGetFFTMaxSizes(PST,void *,int,void *,int);
-
 /* PST_GENERATEIC */
 #define MAX_TF 4096
 struct inGenerateIC {
@@ -843,7 +799,7 @@ struct inGenerateIC {
     int bFixed;
     float fPhase;
     int nGrid;
-    int b2LPT;
+    int iLPT;
     int bICgas;
     int nBucket;
     double dInitialT;
@@ -1160,7 +1116,6 @@ struct outTotalMass {
     double dMass;
 };
 int pstTotalMass(PST pst,void *vin,int nIn,void *vout,int nOut);
-
 
 /* PST_GETMINDT */
 struct outGetMinDt {

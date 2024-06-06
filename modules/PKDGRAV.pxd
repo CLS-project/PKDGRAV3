@@ -11,6 +11,8 @@ import numpy as np
 cimport numpy as cnp
 cimport cosmo
 from cosmology cimport Cosmology
+from ephemeral cimport EphemeralMemory
+import ephemeral
 
 cdef extern from "blitz/array.h" namespace "blitz" nogil:
     cdef cppclass BLITZ1 "1":
@@ -108,11 +110,13 @@ cdef extern from "smooth/smoothfcn.h":
         SMOOTH_TYPE_HYDRO_FLUX_VEC "SMX_HYDRO_FLUX_VEC"
         SMOOTH_TYPE_SN_FEEDBACK "SMX_SN_FEEDBACK"
         SMOOTH_TYPE_BH_MERGER "SMX_BH_MERGER"
-        SMOOTH_TYPE_BH_DRIFT "SMX_BH_DRIFT"
+        SMOOTH_TYPE_BH_EVOLVE "SMX_BH_EVOLVE"
         SMOOTH_TYPE_BH_STEP "SMX_BH_STEP"
+        SMOOTH_TYPE_BH_GASPIN "SMX_BH_GASPIN"
         SMOOTH_TYPE_CHEM_ENRICHMENT "SMX_CHEM_ENRICHMENT"
 
 include "pkd_parameters.pxi"
+include "pkd_enumerations.pxi"
 
 cdef extern from "master.h":
     cdef cppclass MSR:
@@ -121,6 +125,10 @@ cdef extern from "master.h":
         uint64_t N
         # MSR() except +
         void testv(vector[PARTCLASS] &v)
+        void Restart(const char *filename,object kwargs)
+        void Restart(const char *filename, object kwargs,
+                 object species, object classes, object step, object steps,
+                 object time, object delta, object E, object U, object Utime)
         void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
                     size_t nDark, size_t nGas, size_t nStar, size_t nBH,
                     double dEcosmo,double dUOld, double dTimeOld,
@@ -139,7 +147,21 @@ cdef extern from "master.h":
                         double dTime,double dDelta,double dStep,double dTheta,
                         bool bKickClose,bool bKickOpen,bool bEwald,bool bGravStep,
                         int nPartRhoLoc,bool iTimeStepCrit)
+        EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
+        void addAnalysis(object callback,uint64_t per_particle, uint64_t per_process)
+        # std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
         void *MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins)
+        # std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
+        void *GridBinK(int nBins, int iGrid)
+        void GridCreateFFT(int nGrid)
+        void GridDeleteFFT()
+        void AssignMass(int iAssignment,int iGrid,float fDelta)
+        void DensityContrast(int nGrid,bool k)
+        void WindowCorrection(int iAssignment,int iGrid);
+        void Interlace(int iGridTarget,int iGridSource);
+        void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
+        double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
+        void OutputGrid(const char *filename, bool k, int iGrid, bool nParaWrite)
         void NewFof(double dTau,int nMinMembers)
         void GroupStats()
         void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth)
@@ -169,6 +191,18 @@ cdef extern from *:
                 std::move(std::get<3>(t))};
     }
 
+    struct GridBinKStruct {
+        std::vector<std::uint64_t> nPk;
+        std::vector<float>    fK;
+        std::vector<float>    fPk;
+    };
+
+    template<typename T>
+    inline GridBinKStruct UnpackGridBinK(T t) {
+        return {std::move(std::get<0>(t)), 
+                std::move(std::get<1>(t)), 
+                std::move(std::get<2>(t))};
+    }
     """
 
     ctypedef struct MeasurePkStruct:
@@ -178,6 +212,13 @@ cdef extern from *:
         vector[float]     fPkAll
 
     MeasurePkStruct UnpackMeasurePk(void *)
+
+    ctypedef struct GridBinKStruct:
+        vector[uint64_t]  nPk
+        vector[float]     fK
+        vector[float]     fPk
+
+    GridBinKStruct UnpackGridBinK(void *)
 
 
 cdef inline tuple MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins):
@@ -189,12 +230,20 @@ cdef inline tuple MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,in
         cnp.float32_t[:] fPkAll = <cnp.float32_t[:result.fPkAll.size()]>result.fPkAll.data()
     return np.array(nPk), np.array(fK), np.array(fPk), np.array(fPkAll)
 
+cdef inline tuple GridBinK(int nBins, iGrid):
+    cdef GridBinKStruct result = UnpackGridBinK(msr0.GridBinK(nBins,iGrid))
+    cdef:
+        cnp.uint64_t[:]  nPk    = <cnp.uint64_t[:result.nPk.size()]>result.nPk.data()
+        cnp.float32_t[:] fK     = <cnp.float32_t[:result.fK.size()]>result.fK.data()
+        cnp.float32_t[:] fPk    = <cnp.float32_t[:result.fPk.size()]>result.fPk.data()
+    return np.array(nPk), np.array(fK), np.array(fPk)
+
 cpdef restart(object arguments,object specified,list species,list classes,int n,str name,
     int step,int steps,double time,double delta,double E,double U,double Utime)
 # cpdef load(str filename)
 cpdef save(str filename,double time=*)
 cpdef domain_decompose(int rung=*)
-cpdef build_tree(bool ewald=*)
+# cpdef build_tree(bool ewald=*)
 cpdef reorder()
 #cpdef simulate()
 cpdef measure_pk(int grid,int bins=*,double a=*,bool interlace=*,int order=*,double L=*)

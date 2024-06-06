@@ -5,7 +5,7 @@ achOutName      = "example"
 # Initial Condition
 dBoxSize        = 2000          # Mpc/h
 nGrid           = 128           # Simulation has nGrid^3 particles
-b2LPT           = True          # second order IC
+iLPT            = 2             # LPT order for IC
 iSeed           = 314159265     # Random seed
 dRedFrom        = 49            # Starting redshift
 

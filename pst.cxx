@@ -60,6 +60,8 @@
     #include "blackhole/evolve.h"
     #include "blackhole/seed.h"
     #include "blackhole/init.h"
+    #include "blackhole/drift.h"
+    #include "blackhole/accretion.h"
 #endif
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -127,10 +129,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   0,sizeof(struct outCalcEandL));
     mdlAddService(mdl,PST_DRIFT,pst,(fcnService_t *)pstDrift,
                   sizeof(struct inDrift),0);
-    // IA: New PST functions
-    mdlAddService(mdl,PST_RESETFLUXES,pst,
-                  (fcnService_t *) pstResetFluxes,
-                  sizeof(struct inDrift),0);
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
                   (fcnService_t *) pstEndTimestepIntegration,
                   sizeof(struct inEndTimestep),0);
@@ -175,21 +173,16 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstBHInit,
                   sizeof(struct inPlaceBHSeed), 0);
     mdlAddService(mdl,PST_BH_REPOSITION,pst,
-                  (fcnService_t *) pstRepositionBH,
+                  (fcnService_t *) pstBHReposition,
                   0, 0);
     mdlAddService(mdl,PST_BH_ACCRETION,pst,
                   (fcnService_t *) pstBHAccretion,
                   sizeof(struct inBHAccretion), 0);
 #endif
-    mdlAddService(mdl,PST_MOVEDELETED,pst,
-                  (fcnService_t *)pstMoveDeletedParticles,
-                  0, sizeof(struct outGetNParts) );
     mdlAddService(mdl,PST_GETMINDT,pst,
                   (fcnService_t *) pstGetMinDt,
                   0, sizeof(struct outGetMinDt));
     //
-    mdlAddService(mdl,PST_CACHEBARRIER,pst,(fcnService_t *)pstCacheBarrier,
-                  0,0);
     mdlAddService(mdl,PST_ROPARTICLECACHE,pst,(fcnService_t *)pstROParticleCache,
                   0,0);
     mdlAddService(mdl,PST_PARTICLECACHEFINISH,pst,(fcnService_t *)pstParticleCacheFinish,
@@ -242,14 +235,10 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstStellarEvolutionInit,
                   sizeof(struct inStellarEvolutionInit),0);
 #endif
-    mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t *)pstUpdateRung,
-                  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
     mdlAddService(mdl,PST_COLNPARTS,pst,(fcnService_t *)pstColNParts,
                   0,nThreads*sizeof(struct outColNParts));
     mdlAddService(mdl,PST_NEWORDER,pst,(fcnService_t *)pstNewOrder,
                   nThreads*sizeof(uint64_t),0);
-    mdlAddService(mdl,PST_GETNPARTS,pst,(fcnService_t *)pstGetNParts,
-                  0,sizeof(struct outGetNParts));
     mdlAddService(mdl,PST_SETNPARTS,pst,(fcnService_t *)pstSetNParts,
                   sizeof(struct inSetNParts),0);
     mdlAddService(mdl,PST_NEW_FOF,pst,(fcnService_t *)pstNewFof,
@@ -261,8 +250,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_INITIALIZEPSTORE,pst,(fcnService_t *)pstInitializePStore,
                   sizeof(struct inInitializePStore),sizeof(struct outInitializePStore));
 #ifdef MDL_FFTW
-    mdlAddService(mdl,PST_GETFFTMAXSIZES,pst,(fcnService_t *)pstGetFFTMaxSizes,
-                  sizeof(struct inGetFFTMaxSizes),sizeof(struct outGetFFTMaxSizes));
     mdlAddService(mdl,PST_GENERATEIC,pst,(fcnService_t *)pstGenerateIC,
                   sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
     mdlAddService(mdl,PLT_GENERATEIC,pst,(fcnService_t *)pltGenerateIC,
@@ -379,7 +366,7 @@ static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
         in->nTreeBitsLo,in->nTreeBitsHi,
         in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,in->fPeriod,
         in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
-        in->mMemoryModel);
+        in->mMemoryModel,in->nIntegerFactor);
 }
 
 int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -1052,15 +1039,15 @@ int pstBHInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 
 }
-int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstBHReposition(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_REPOSITION,NULL,0);
-        pstRepositionBH(pst->pstLower,vin,nIn,vout,nOut);
+        pstBHReposition(pst->pstLower,vin,nIn,vout,nOut);
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
         LCL *plcl = pst->plcl;
-        pkdRepositionBH(plcl->pkd);
+        pkdBHReposition(plcl->pkd);
     }
     return 0;
 
@@ -1081,27 +1068,6 @@ int pstBHAccretion(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 }
 #endif
-
-int pstMoveDeletedParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto out = static_cast<struct outGetNParts *>(vout);
-    struct outGetNParts outUpper;
-
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEDELETED,vin,nIn);
-        pstMoveDeletedParticles(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-        out->n += outUpper.n;
-        out->nGas += outUpper.nGas;
-        out->nDark += outUpper.nDark;
-        out->nStar += outUpper.nStar;
-        out->nBH += outUpper.nBH;
-    }
-    else {
-        pkdMoveDeletedParticles(plcl->pkd, &out->n, &out->nGas, &out->nDark, &out->nStar, &out->nBH);
-    }
-    return sizeof(struct outGetNParts);
-}
 
 int pstSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inSmooth *>(vin);
@@ -1450,22 +1416,6 @@ int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 #endif
 
-int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inDrift *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESETFLUXES,in,nIn);
-        pstResetFluxes(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        pkdResetFluxes(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
-    }
-    return 0;
-}
-
 #ifdef DEBUG_CACHED_FLUXES
 int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto out = static_cast<struct outFluxStats *>(vout);
@@ -1624,19 +1574,6 @@ int pstChemCompInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         pkdChemCompInit(plcl->pkd, *in);
-    }
-    return 0;
-}
-
-int pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
-        pstCacheBarrier(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        mdlCacheBarrier(pst->mdl,CID_CELL);
     }
     return 0;
 }
@@ -1806,29 +1743,6 @@ int pstCorrectEnergy(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 
-int pstUpdateRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct outUpdateRung outTemp;
-    auto in = static_cast<struct inUpdateRung *>(vin);
-    auto out = static_cast<struct outUpdateRung *>(vout);
-    int i;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_UPDATERUNG,vin,nIn);
-        pstUpdateRung(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outTemp,NULL);
-        for (i=0; i<in->uMaxRung; ++i) {
-            out->nRungCount[i] += outTemp.nRungCount[i];
-        }
-    }
-    else {
-        pkdUpdateRung(plcl->pkd,in->uRungLo,in->uRungHi,
-                      in->uMinRung,in->uMaxRung,out->nRungCount);
-    }
-    return sizeof(*out);
-}
-
 int pstColNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto out = static_cast<struct outColNParts *>(vout);
@@ -1861,28 +1775,6 @@ int pstNewOrder(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pkdNewOrder(plcl->pkd, in[pst->idSelf]);
     }
     return  0;
-}
-
-int pstGetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto out = static_cast<struct outGetNParts *>(vout);
-
-    if (pst->nLeaves > 1) {
-        struct outGetNParts outtmp;
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETNPARTS,vin,nIn);
-        pstGetNParts(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,(void *) &outtmp,NULL);
-
-        out->n += outtmp.n;
-        out->nGas += outtmp.nGas;
-        out->nDark += outtmp.nDark;
-        out->nStar += outtmp.nStar;
-        out->nBH += outtmp.nBH;
-        if (outtmp.nMaxOrder > out->nMaxOrder) out->nMaxOrder = outtmp.nMaxOrder;
-    }
-    else {
-        pkdGetNParts(pst->plcl->pkd, out);
-    }
-    return sizeof(struct outGetNParts);
 }
 
 int pstSetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -1958,33 +1850,6 @@ int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return sizeof(uint64_t);
 }
-
-#ifdef MDL_FFTW
-int pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<struct inGetFFTMaxSizes *>(vin);
-    auto out = static_cast<struct outGetFFTMaxSizes *>(vout);
-    struct outGetFFTMaxSizes outUp;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inGetFFTMaxSizes));
-    mdlassert(pst->mdl,vout != NULL);
-    assert(mdlCore(pst->mdl)==0);
-
-    if (pstOffNode(pst)) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETFFTMAXSIZES,in,nIn);
-        pstGetFFTMaxSizes(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUp,NULL);
-        if (outUp.nMaxLocal > out->nMaxLocal) out->nMaxLocal = outUp.nMaxLocal;
-        if (outUp.nMaxZ > out->nMaxZ) out->nMaxZ = outUp.nMaxZ;
-        if (outUp.nMaxY > out->nMaxY) out->nMaxY = outUp.nMaxZ;
-    }
-    else {
-        assert(pstAmNode(pst));
-        out->nMaxLocal = mdlFFTlocalCount(pst->mdl,in->nx,in->ny,in->nz,
-                                          &out->nMaxZ,0,&out->nMaxY,0);
-    }
-    return sizeof(struct outGetFFTMaxSizes);
-}
-#endif
 
 int pstMemStatus(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

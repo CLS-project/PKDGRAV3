@@ -55,6 +55,7 @@
 #include <numeric>
 #include <functional>
 #include <fstream>
+#include <filesystem>
 #ifdef HAVE_SYS_PARAM_H
     #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
@@ -76,6 +77,9 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/hostname.h"
 #include "core/calcroot.h"
 #include "core/select.h"
+#include "core/fftsizes.h"
+#include "core/countspecies.h"
+#include "core/removedeleted.h"
 #include "io/restore.h"
 #include "initlightcone.h"
 
@@ -100,6 +104,7 @@ namespace rockstar {
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
+#include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -262,14 +267,6 @@ std::string MSR::BuildCpName(int iStep,const char *type) {
     else return BuildName(iStep,type);
 }
 
-size_t MSR::getLocalGridMemory(int nGrid) {
-    struct inGetFFTMaxSizes inFFTSizes;
-    struct outGetFFTMaxSizes outFFTSizes;
-    inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGrid;
-    pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
-    return outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-}
-
 void MSR::MakePath(std::string_view dir,std::string_view base,char *path) {
     /*
     ** Prepends "dir" to "base" and returns the result in "path". It is the
@@ -327,7 +324,9 @@ uint64_t MSR::getMemoryModel() {
 
     if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
-    if (parameters.get_bDoGas() && !NewSPH())  mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
+
+    if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_MFM | PKD_MODEL_ACCELERATION);
+    if (MeshlessFiniteVolume())                mMemoryModel |=  PKD_MODEL_MFV;
 
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
@@ -340,6 +339,10 @@ uint64_t MSR::getMemoryModel() {
     if (parameters.get_bMemBall())             mMemoryModel |= PKD_MODEL_BALL;
 
     return mMemoryModel;
+}
+
+EphemeralMemory MSR::EphemeralMemoryGrid(int nGrid,int nCount) {
+    return EphemeralMemory(mdl,nGrid,nCount);
 }
 
 std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {
@@ -355,77 +358,47 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.iWorkQueueSize  = parameters.get_iWorkQueueSize();
     ps.fPeriod = parameters.get_dPeriod();
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
+    ps.nIntegerFactor = parameters.get_nIntegerFactor();
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
            parameters.get_bMemIntegerPosition() ? " INTEGER_POSITION" : " DOUBLE_POSITION",
            SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
            SHOW(GROUPS),SHOW(MASS),SHOW(DENSITY),
-           SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),SHOW(NEW_SPH),
+           SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(MFM),SHOW(MFV),SHOW(NEW_SPH),
            SHOW(STAR),SHOW(PARTICLE_ID),SHOW(BH),SHOW(GLOBALGID),
            SHOW(NODE_MOMENT),SHOW(NODE_ACCEL),SHOW(NODE_VEL),SHOW(NODE_SPHBNDS),
            SHOW(NODE_BND),SHOW(NODE_VBND),SHOW(NODE_BOB));
 #undef SHOW
-    ps.nMinEphemeral = 0;
-    ps.nMinTotalStore = 0;
 
-    /* Various features require more or less ephemeral storage */
-    ps.nEphemeralBytes = nEphemeral;
-    if (parameters.get_bFindGroups()    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
-    if (parameters.get_bFindHopGroups() && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (parameters.get_iPkInterval()    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
-    if (parameters.get_bGravStep()      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (parameters.get_bDoGas()         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (parameters.get_bMemBall() && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (parameters.get_bDoDensity()     && ps.nEphemeralBytes < 12) ps.nEphemeralBytes = 12;
+    // Calculate the Ephemeris memory requirements
+    EphemeralMemory e(nEphemeral);
+    if (parameters.get_bFindGroups()    ) e |= EphemeralMemory(4);
+    if (parameters.get_bFindHopGroups() ) e |= EphemeralMemory(8);
+    if (parameters.get_iPkInterval()    ) e |= EphemeralMemory(4);
+    if (parameters.get_bGravStep()      ) e |= EphemeralMemory(8);
+    if (DoGas()                         ) e |= EphemeralMemory(8);
+    if (parameters.get_bMemBall()       ) e |= EphemeralMemory(8);
+    if (parameters.get_bDoDensity()     ) e |= EphemeralMemory(12);
 #ifdef BLACKHOLES
-    if (ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    e |= EphemeralMemory(8);
 #endif
-#ifdef MDL_FFTW
-    auto nGridPk = parameters.get_nGridPk();
-    if (nGridPk>0) {
-        struct inGetFFTMaxSizes inFFTSizes;
-        struct outGetFFTMaxSizes outFFTSizes;
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGridPk;
-        pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
-        /* The new MeasurePk requires two FFTs to eliminate aliasing */
-        ps.nMinEphemeral = (parameters.get_bPkInterlace()?2:1)*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
-    /*
-     * Add some ephemeral memory (if needed) for the linGrid.
-     * 3 grids are stored : forceX, forceY, forceZ
-     */
-    if (parameters.get_achLinSpecies().length()) {
-        struct inGetFFTMaxSizes inFFTSizes;
-        struct outGetFFTMaxSizes outFFTSizes;
+    // We need one grid to measure P(k); two if we are interlacing
+    e |= EphemeralMemory(mdl,parameters.get_nGridPk(),parameters.get_bPkInterlace() ? 2 : 1);
+    // Add some ephemeral memory (if needed) for the linGrid. 3 grids are stored : forceX, forceY, forceZ
+    e |= EphemeralMemory(mdl,parameters.get_nGridLin(),3);
 
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = parameters.get_nGridLin();
-        pstGetFFTMaxSizes(pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, sizeof(outFFTSizes));
-
-        if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
-            ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
-
-    int nGrid = parameters.get_nGrid();
-    if (nGrid>0) {
-        struct inGetFFTMaxSizes inFFTSizes;
-        struct outGetFFTMaxSizes outFFTSizes;
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGrid;
-        pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
-        ps.nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
-#endif
     // Check all registered Python analysis routines and account for their memory requirements
     for ( msr_analysis_callback &i : analysis_callbacks) {
-        auto attr_per_node = PyObject_GetAttrString(i.memory,"bytes_per_node");
-        auto attr_per_part = PyObject_GetAttrString(i.memory,"bytes_per_particle");
-        auto per_node = PyLong_AsSize_t(attr_per_node);
-        auto per_part = PyLong_AsSize_t(attr_per_part);
-        if (ps.nEphemeralBytes < per_part) ps.nEphemeralBytes = per_part;
-        if (ps.nMinEphemeral < per_node) ps.nMinEphemeral = per_node;
-        Py_DECREF(attr_per_node);
-        Py_DECREF(attr_per_part);
+        e |= EphemeralMemory(i.memory);
     }
+    ps.nEphemeralBytes = e.per_particle;
+    ps.nMinEphemeral = e.per_process;
+
+    // Calculate constraint for generating initial conditions
+    EphemeralMemory ic_memory(mdl, parameters.get_nGrid(), getGridInfoLPT(parameters.get_iLPT()).nGrids);
+    ps.nMinTotalStore = ic_memory.per_process;
+
     outInitializePStore pout;
     pstInitializePStore(pst,&ps,sizeof(ps),&pout,sizeof(pout));
     PKD pkd = pst->plcl->pkd;
@@ -515,6 +488,187 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
     mdl->RunService(PST_RESTORE,msg);
 }
 
+template<>
+PyObject *MSR::restore(PyObject *file,PyObject *replace) {
+    PyObject *args = PyTuple_Pack(1, file);
+    auto result = PyObject_CallObject(pDill_load, args);
+    Py_DECREF(args);
+    if (!result) { PyErr_Print(); abort(); }
+    // If we are replacing the parameter, throw away the old one
+    // and return the new one
+    if (replace != Py_None) {
+        Py_DECREF(result);
+        Py_INCREF(replace);
+        return replace;
+    }
+    return result;
+}
+
+// Specialization for int
+template<>
+int MSR::restore(PyObject *file,PyObject *replace) {
+    auto result = restore<PyObject *>(file,replace);
+    auto value = PyLong_AsLong(result);
+    Py_DECREF(result);
+    return value;
+}
+
+// Specialization for double
+template<>
+double MSR::restore(PyObject *file,PyObject *replace) {
+    auto result = restore<PyObject *>(file,replace);
+    auto value = PyFloat_AsDouble(result);
+    Py_DECREF(result);
+    return value;
+}
+
+void MSR::Restart(const char *filename,PyObject *kwargs,
+                  PyObject *species,PyObject *classes, PyObject *step, PyObject *steps,
+                  PyObject *time, PyObject *delta, PyObject *E, PyObject *U, PyObject *Utime) {
+    auto sec = MSR::Time();
+
+    std::string pkl_filename = filename;
+    pkl_filename += ".pkl";
+
+    bVDetails = parameters.get_bVDetails();
+    if (parameters.get_bVStart())
+        printf("Restoring from checkpoint\n");
+    TimerStart(TIMER_IO);
+
+    auto pFile = PyObject_CallFunction(PyDict_GetItemString(PyEval_GetBuiltins(), "open"), "ss", pkl_filename.c_str(), "rb");
+    if (!pFile) {
+        PyErr_Print();
+        abort();
+    }
+
+    // // Checkpoint the important variables
+    auto version = restore<int>(pFile);
+    if (version != 1) {
+        PyErr_SetString(PyExc_ValueError, "Invalid checkpoint file version");
+        PyErr_Print();
+        abort();
+    }
+
+    auto species_list = restore<PyObject *>(pFile,species);
+    fioSpeciesList nSpecies;
+    for (auto i = 0; i < FIO_SPECIES_LAST; ++i) {
+        nSpecies[i] = PyLong_AsUnsignedLongLong(PyList_GetItem(species_list, i));
+    }
+    this->nDark = nSpecies[FIO_SPECIES_DARK];
+    this->nGas  = nSpecies[FIO_SPECIES_SPH];
+    this->nStar = nSpecies[FIO_SPECIES_STAR];
+    this->nBH   = nSpecies[FIO_SPECIES_BH];
+    this->N     = nSpecies[FIO_SPECIES_ALL] = nDark + nGas + nStar + nBH;
+    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
+
+    auto classes_list = restore<PyObject *>(pFile);
+    static_assert(PKD_MAX_CLASSES<=256); // Hopefully nobody will be mean to us (we use the stack)
+    PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
+    auto nCheckpointClasses = PyList_Size(classes_list);
+    for (int i = 0; i < nCheckpointClasses; ++i) {
+        auto class_list = PyList_GetItem(classes_list, i); // Borrowed reference, no need to Py_DECREF
+        auto eSpeciesObj = PyList_GetItem(class_list, 0);
+        auto fMassObj = PyList_GetItem(class_list, 1);
+        auto fSoftObj = PyList_GetItem(class_list, 2);
+        auto iMatObj = PyList_GetItem(class_list, 3);
+        aCheckpointClasses[i].eSpecies = FIO_SPECIES(PyLong_AsLong(eSpeciesObj));
+        aCheckpointClasses[i].fMass = PyFloat_AsDouble(fMassObj);
+        aCheckpointClasses[i].fSoft = PyFloat_AsDouble(fSoftObj);
+        aCheckpointClasses[i].iMat = PyLong_AsLong(iMatObj);
+    }
+
+    auto iStep = restore<int>(pFile,step);
+    auto nSteps = restore<int>(pFile,steps);
+    auto dTime = restore<double>(pFile,time);
+    auto dDelta = restore<double>(pFile,delta);
+    this->dEcosmo = restore<double>(pFile,E);
+    this->dUOld = restore<double>(pFile,U);
+    this->dTimeOld = restore<double>(pFile,Utime);
+
+    auto arguments = restore<PyObject *>(pFile);
+    auto specified = restore<PyObject *>(pFile);
+    parameters.merge(pkd_parameters(arguments,specified));
+    parameters.update(kwargs,false);
+    ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
+
+    // Restore the interpreter state
+    PyObject *args = PyTuple_Pack(1, pFile);
+    PyObject *result = PyObject_CallObject(pDill_load_module, args);
+    Py_DECREF(args);
+    if (!result) { PyErr_Print(); abort(); }
+    Py_DECREF(result);
+
+    PyObject_CallMethod(pFile, "close", NULL);
+    Py_DECREF(pFile);
+
+    uint64_t mMemoryModel = 0;
+    mMemoryModel = getMemoryModel();
+    assert(nGas==0 || DoGas());
+    if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
+
+    Restore(filename,nSizeParticle);
+    pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
+    CalcBound();
+    CountRungs(NULL);
+
+    TimerStop(TIMER_IO);
+    auto dsec = TimerGet(TIMER_IO);
+    double dExp = csmTime2Exp(csm,dTime);
+    if (dsec > 0.0) {
+        double rate = N*nSizeParticle / dsec;
+        const char *units = "B";
+        if (rate > 10000) { rate /= 1024;   units = "KB"; }
+        if (rate > 10000) { rate /= 1024;   units = "MB"; }
+        if (rate > 10000) { rate /= 1024;   units = "GB"; }
+        msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs (%.2f %s/s)\n\n",dExp,dsec,rate,units);
+    }
+    else msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
+
+    /* We can indicate that the DD was already done at rung 0 */
+    iLastRungRT = 0;
+    iLastRungDD = 0;
+
+    InitCosmology(csm);
+
+    SetDerivedParameters(true);
+
+    if (parameters.has_dSoft()) SetSoft(Soft());
+
+    if (NewSPH()) {
+        /*
+        ** Initialize kernel target with either the mean mass or nSmooth
+        */
+        sec = MSR::Time();
+        printf("Initializing Kernel target ...\n");
+        {
+            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+            if (SPHoptions.useNumDen) {
+                parameters.set_fKernelTarget(parameters.get_nSmooth());
+            }
+            else {
+                double Mtot;
+                uint64_t Ntot;
+                CalcMtot(&Mtot, &Ntot);
+                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
+            }
+        }
+        dsec = MSR::Time() - sec;
+        printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+        SetSPHoptions();
+        InitializeEOS();
+    }
+    if (parameters.get_bAddDelete()) CountSpecies();
+    if (parameters.has_achOutTimes()) {
+        nSteps = ReadOuts(dTime);
+    }
+
+    if (bAnalysis) return; // Very cheeserific
+    Simulate(dTime,dDelta,iStep,nSteps,true);
+}
+
+// This is the old style restart, which is not used anymore
+// It is kept here for old checkpoint files, but will be removed soon
 void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
                   size_t nDark, size_t nGas, size_t nStar, size_t nBH,
                   double dEcosmo, double dUOld, double dTimeOld,
@@ -555,9 +709,9 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     nSpecies[FIO_SPECIES_BH]   = nBH;
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
-    if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
-    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
-    if (DoGas() && NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
+    assert(nGas==0 || DoGas());
+    if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     Restore(baseName,nSizeParticle);
@@ -611,7 +765,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         SetSPHoptions();
         InitializeEOS();
     }
-    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.get_bAddDelete()) CountSpecies();
     if (parameters.has_achOutTimes()) {
         nSteps = ReadOuts(dTime);
     }
@@ -620,40 +774,37 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     Simulate(dTime,dDelta,iStep,nSteps,true);
 }
 
-void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta) {
-    char *p, achOutName[PST_FILENAME_SIZE];
+void MSR::persist(PyObject *file,PyObject *obj) {
+    auto args = PyTuple_Pack(3, obj, file, Py_True);
+    auto result = PyObject_CallObject(pDill_dump, args);
+    Py_DECREF(args);
+    if (!result) { PyErr_Print(); abort(); }
+    Py_DECREF(result);
+}
+void MSR::persist(PyObject *file,int n) {
+    auto number = PyLong_FromLongLong(n);
+    persist(file,number);
+    Py_DECREF(number);
+}
+void MSR::persist(PyObject *file,double d) {
+    auto number = PyFloat_FromDouble(d);
+    persist(file,number);
+    Py_DECREF(number);
+}
+
+void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta) {
     fioSpeciesList nSpecies;
     int i;
     int nBytes;
 
+    // ******************************************************************
+    // Collect the information to checkpoint
+    // ******************************************************************
     static_assert(PKD_MAX_CLASSES<=256); // Hopefully nobody will be mean to us (we use the stack)
     PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
     nBytes = pstGetClasses(pst,NULL,0,aCheckpointClasses,PKD_MAX_CLASSES*sizeof(PARTCLASS));
     int nCheckpointClasses = nBytes / sizeof(PARTCLASS);
     assert(nCheckpointClasses*sizeof(PARTCLASS)==nBytes);
-
-    strcpy( achOutName, baseName );
-    p = strstr( achOutName, "&I" );
-    if ( p ) {
-        int n = p - achOutName;
-        strcpy( p, "par" );
-        strcat( p, baseName + n + 2 );
-    }
-    else {
-        p  = achOutName + strlen(achOutName);
-        strcpy(p++,".par");
-    }
-    // Now p should point to "par"
-
-    PyObject *main_module = PyImport_ImportModule("__main__");
-    auto globals = PyModule_GetDict(main_module);
-    print_imports(achOutName, globals);
-
-    FILE *fp = fopen(achOutName,"a");
-    if (fp==NULL) {
-        perror(achOutName);
-        abort();
-    }
 
     for (i=0; i<=FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = N;
@@ -691,28 +842,61 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     auto a = parameters.arguments();
     auto s = parameters.specified();
 
-    fprintf(fp,"arguments=");
-    PyObject_Print(a,fp,0);
-    Py_DECREF(a);
-    fprintf(fp,"\n%s","specified=");
-    PyObject_Print(s,fp,0);
-    Py_DECREF(s);
-    fprintf(fp,"\nspecies=");
-    PyObject_Print(species_list,fp,0);
-    fprintf(fp,"\nclasses=");
-    PyObject_Print(classes_list,fp,0);
+    // ******************************************************************
+    // Write the interpreter state and the checkpoint variables to a file
+    // ******************************************************************
+    // Write the interpreter and the checkpoint variables to a file
+    auto achOutName = baseName + ".pkl";
+    auto pFile = PyObject_CallFunction(PyDict_GetItemString(PyEval_GetBuiltins(), "open"), "ss", achOutName.c_str(), "wb");
+    if (!pFile) {
+        PyErr_Print();
+        abort();
+    }
 
-    fprintf(fp,"\nmsr.restart(arguments=arguments, specified=specified, species=species, classes=classes,\n"
-            "            n=%d,name='%s',step=%d,steps=%d,time=%.17g,delta=%.17g,\n"
-            "            E=%.17g,U=%.17g,Utime=%.17g)\n",
-            mdlThreads(mdl),baseName,iStep,nSteps,dTime,dDelta,dEcosmo,dUOld,dTimeOld);
+    // Checkpoint the important variables
+    persist(pFile,1);            // checkpoint version
+    persist(pFile,species_list); // 1: species
+    persist(pFile,classes_list); // 1: classes
+    persist(pFile,iStep);        // 1: step
+    persist(pFile,nSteps);       // 1: steps
+    persist(pFile,dTime);        // 1: time
+    persist(pFile,dDelta);       // 1: delta
+    persist(pFile,dEcosmo);      // 1: E
+    persist(pFile,dUOld);        // 1: U
+    persist(pFile,dTimeOld);     // 1: Utime
+    persist(pFile,a);            // 1: arguments
+    persist(pFile,s);            // 1: specified
 
-    fclose(fp);
+    // 1: Persist the interpreter state
+    PyObject *args = PyTuple_Pack(3, pFile, Py_None, Py_True);
+    PyObject *result = PyObject_CallObject(pDill_dump_module, args);
+    Py_DECREF(args);
+    if (!result) { PyErr_Print(); abort(); }
+    Py_DECREF(result);
+
+    PyObject_CallMethod(pFile, "close", NULL);
+    Py_DECREF(pFile);
 
     Py_DECREF(species_list);
     Py_DECREF(classes_list);
 
-    Py_DECREF(main_module);
+    // ******************************************************************
+    // Write the restart file
+    // ******************************************************************
+    std::ofstream restart_file(baseName);
+    if (!restart_file) {
+        perror(baseName.c_str());
+        abort();
+    }
+    restart_file << "import PKDGRAV as msr\n";
+    restart_file << "msr.restore(__file__)\n";
+    restart_file.close();
+    auto par_name = baseName + ".par";
+    // This is temporary. We support the old naming convention for now,
+    // but we will remove it soon
+    std::error_code ec; // We will ignore the error code (creating a symlink is not critical)
+    std::filesystem::remove(par_name,ec);
+    std::filesystem::create_symlink(baseName, par_name,ec);
 }
 
 void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
@@ -734,9 +918,9 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 
     TimerStart(TIMER_IO);
 
-    writeParameters(in.achOutFile,iStep,nSteps,dTime,dDelta);
-
     pstCheckpoint(pst,&in,sizeof(in),NULL,0);
+
+    writeParameters(filename,iStep,nSteps,dTime,dDelta);
 
     /* This is not necessary, but it means the bounds will be identical upon restore */
     CalcBound();
@@ -952,12 +1136,12 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
 
 double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
     if (csm->val.bComove && parameters.has_dRedTo()
-            && parameters.has_nSteps() && parameters.has_nSteps10()) {
+            && parameters.has_nSteps() && parameters.has_nStepsSync()) {
         double aTo,tTo;
-        const auto nSteps10 = parameters.get_nSteps10();
-        if (iStep < nSteps10) {
-            aTo = 1.0 / (10.0 + 1.0);
-            nSteps = nSteps10 - iStep;
+        const auto nStepsSync = parameters.get_nStepsSync();
+        if (iStep < nStepsSync) {
+            aTo = 1.0 / (parameters.get_dRedSync() + 1.0);
+            nSteps = nStepsSync - iStep;
         }
         else {
             aTo = 1.0/(parameters.get_dRedTo() + 1.0);
@@ -966,7 +1150,7 @@ double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
         assert(nSteps>0);
         tTo = csmExp2Time(csm,aTo);
         dDelta = (tTo-dTime) / nSteps;
-        if (iStep == nSteps10 && bVDetails)
+        if (iStep == nStepsSync && bVDetails)
             printf("dDelta changed to %g at z=10\n",dDelta);
     }
     else if ( dOutTimes.size()>1) {
@@ -1074,13 +1258,15 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
                 | (parameters.get_bDoubleVel()?FIO_FLAG_DOUBLE_VEL:0)
                 | (parameters.get_bMemParticleID()?FIO_FLAG_ID:0)
                 | (parameters.get_bMemMass()?0:FIO_FLAG_COMPRESS_MASS)
-                | (parameters.get_bMemSoft()?0:FIO_FLAG_COMPRESS_SOFT);
+                | (parameters.get_bMemSoft()?0:FIO_FLAG_COMPRESS_SOFT)
+                | (parameters.has_dSoft()?FIO_FLAG_GLOBAL_SOFT:0)
+                | (parameters.get_bMemUnordered()?FIO_FLAG_UNORDERED:0);
 
     if (!in.bHDF5 && strstr(in.achOutFile,"&I")==0) {
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,
-                             in.bStandard,parameters.get_bNewSPH() ? in.dTime : in.dExp,
+                             in.bStandard,NewSPH() ? in.dTime : in.dExp,
                              in.nGas, in.nDark, in.nStar);
         fioClose(fio);
     }
@@ -1762,7 +1948,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->gamma = parameters.get_dConstGamma();
     smf->dDelta = dDelta;
     smf->dEtaCourant = parameters.get_dEtaCourant();
-    smf->bMeshlessHydro = parameters.get_bMeshlessHydro();
+    smf->bMeshlessHydro = MeshlessHydro();
     smf->bIterativeSmoothingLength = parameters.get_bIterativeSmoothingLength();
     smf->bUpdateBall = bUpdateBall;
     smf->nBucket = parameters.get_nBucket();
@@ -2272,6 +2458,14 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     struct inDrift in;
     double dsec;
 
+#if defined(BLACKHOLES) and !defined(DEBUG_BH_NODRIFT)
+    TimerStart(TIMER_BHS);
+    BHGasPin(dTime,dDelta);
+    TimerStop(TIMER_BHS);
+#endif
+
+    TimerStart(TIMER_DRIFT);
+
     if (csm->val.bComove) {
         in.dDelta = csmComoveDriftFac(csm,dTime,dDelta);
         in.dDeltaVPred = csmComoveKickFac(csm,dTime,dDelta);
@@ -2284,22 +2478,17 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.bDoGas = DoGas();
     in.iRoot = iRoot;
-    TimerStart(TIMER_DRIFT);
 
     pstDrift(pst,&in,sizeof(in),NULL,0);
 
     TimerStop(TIMER_DRIFT);
     dsec = TimerGet(TIMER_DRIFT);
-
-#if defined(BLACKHOLES) and !defined(DEBUG_BH_ONLY)
-    TimerStart(TIMER_DRIFT);
-    BHDrift(dTime, dDelta);
-
-    TimerStop(TIMER_DRIFT);
-    double dsecBH = TimerGet(TIMER_DRIFT);
-    printf("Drift took %.5f (%.5f for BH) seconds \n", dsec, dsecBH);
-#else
     printf("Drift took %.5f seconds \n", dsec);
+
+#if defined(BLACKHOLES) and !defined(DEBUG_BH_NODRIFT)
+    TimerStart(TIMER_BHS);
+    BHReposition();
+    TimerStop(TIMER_BHS);
 #endif
 }
 
@@ -2621,8 +2810,8 @@ void MSR::DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta
  ** or the fixed rung that was specified in the parameters.
  */
 void MSR::UpdateRung(uint8_t uRung) {
-    struct inUpdateRung in;
-    struct outUpdateRung out;
+    ServiceUpdateRung::input in;
+    ServiceUpdateRung::output nRungCount;
     int iTempRung,iOutMaxRung;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
@@ -2633,29 +2822,29 @@ void MSR::UpdateRung(uint8_t uRung) {
     in.uMinRung = uRung;
     in.uMaxRung = MaxRung();
 
-    pstUpdateRung(pst, &in, sizeof(in), &out, sizeof(out));
+    mdl->RunService(PST_UPDATERUNG,sizeof(in),&in,&nRungCount);
 
     iTempRung =MaxRung()-1;
-    while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+    while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
     iOutMaxRung = iTempRung;
 
     const auto nTruncateRung = parameters.get_nTruncateRung();
-    while (out.nRungCount[iOutMaxRung] <= nTruncateRung && iOutMaxRung > uRung) {
+    while (nRungCount[iOutMaxRung] <= nTruncateRung && iOutMaxRung > uRung) {
         msrprintf("n_CurrMaxRung = %" PRIu64 "  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
-                  out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
+                  nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
         in.uMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
-        pstUpdateRung(pst, &in, sizeof(in), &out, sizeof(out));
+        mdl->RunService(PST_UPDATERUNG,sizeof(in),&in,&nRungCount);
 
         iTempRung =MaxRung()-1;
-        while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+        while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
         iOutMaxRung = iTempRung;
     }
 
     /*
     ** Now copy the rung distribution to the msr structure!
     */
-    for (iTempRung=0; iTempRung < MaxRung(); ++iTempRung) nRung[iTempRung] = out.nRungCount[iTempRung];
+    for (iTempRung=0; iTempRung < MaxRung(); ++iTempRung) nRung[iTempRung] = nRungCount[iTempRung];
 
     iCurrMaxRung = iOutMaxRung;
 
@@ -2663,8 +2852,8 @@ void MSR::UpdateRung(uint8_t uRung) {
         printf("Rung distribution:\n");
         printf("\n");
         for (iTempRung=0; iTempRung <= iCurrMaxRung; ++iTempRung) {
-            if (out.nRungCount[iTempRung] == 0) continue;
-            printf("   rung:%d %" PRIu64 "\n",iTempRung,out.nRungCount[iTempRung]);
+            if (nRungCount[iTempRung] == 0) continue;
+            printf("   rung:%d %" PRIu64 "\n",iTempRung,nRungCount[iTempRung]);
         }
         printf("\n");
     }
@@ -2771,7 +2960,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
         *pbDoOutput = 1  | (iStop<<1);
     }
 
-    return (iStep==parameters.get_nSteps10()) || *pbDoOutput || *pbDoCheckpoint;
+    return (iStep==parameters.get_nStepsSync()) || *pbDoOutput || *pbDoCheckpoint;
 }
 
 int MSR::NewTopStepKDK(
@@ -2832,7 +3021,6 @@ int MSR::NewTopStepKDK(
     dDeltaRung = dDelta/(uintmax_t(1) << *puRungMax);
     ActiveRung(uRung,1);
     if (DoGas() && MeshlessHydro()) {
-        ResetFluxes(dTime, dDelta);
         MeshlessFluxes(dTime, dDelta);
     }
     ZeroNewRung(uRung,MAX_RUNG,uRung);
@@ -2854,15 +3042,14 @@ int MSR::NewTopStepKDK(
     dTime += dDeltaRung;
     *pdStep += 1.0/(uintmax_t(1) << *puRungMax);
 #ifdef COOLING
-    int sync = (nRung[0]!=0 && uRung==0) || ( (nRung[uRung] > 0) && (nRung[uRung-1] == 0) );
     if (csm->val.bComove) {
         const float a = csmTime2Exp(csm,dTime);
         const float z = 1./a - 1.;
 
-        CoolingUpdate(z, sync);
+        CoolingUpdate(z);
     }
     else {
-        CoolingUpdate(0., sync);
+        CoolingUpdate(0.);
     }
 #endif
 #ifdef STAR_FORMATION
@@ -2879,7 +3066,7 @@ int MSR::NewTopStepKDK(
         DomainDecomp(uRung);
         uRoot2 = 0;
 
-        if (DoGas() && NewSPH()) {
+        if (NewSPH()) {
             SelAll(-1,1);
         }
 
@@ -2890,14 +3077,7 @@ int MSR::NewTopStepKDK(
             BHMerger(dTime);
         }
         if (parameters.get_bBHAccretion() && !bBHMerger) {
-            struct outGetNParts Nout;
-
-            Nout.n = 0;
-            Nout.nDark = 0;
-            Nout.nGas = 0;
-            Nout.nStar = 0;
-            Nout.nBH = 0;
-            pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+            RemoveDeleted();
         }
 #endif
 
@@ -2946,7 +3126,7 @@ int MSR::NewTopStepKDK(
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
-    if (DoGas() && NewSPH()) {
+    if (NewSPH()) {
         SelAll(-1,1);
         SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
         uint64_t nParticlesOnRung = 0;
@@ -3099,15 +3279,8 @@ void MSR::TopStepKDK(
 #ifdef BLACKHOLES
     if (!iKickRung && !iRung && parameters.get_bBHPlaceSeed()) {
         PlaceBHSeed(dTime, CurrMaxRung());
-
 #ifdef OPTIM_REORDER_IN_NODES
-        // This is kind of overkill. Ideally just reseting the CID_CELL
-        // cache would work.
-        //
-        // This is done to prevent a mismatch between the fetched and true
-        // cell data, as it may have been updated if a BH has been placed
-        // into that node
-        BuildTree(bEwald);
+        ReorderWithinNodes();
 #endif
     }
 #endif
@@ -3158,67 +3331,67 @@ void MSR::TopStepKDK(
     else if (CurrMaxRung() == iRung) {
         if (DoGas() && MeshlessHydro()) {
             ActiveRung(iKickRung,1);
-            ResetFluxes(dTime, dDeltaStep);
             MeshlessFluxes(dTime, dDeltaStep);
         }
+
         ZeroNewRung(iKickRung,MAX_RUNG,iKickRung); /* brute force */
         /* This Drifts everybody */
         msrprintf("%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
         Drift(dTime,dDeltaRung,ROOT);
         dTime += dDeltaRung;
         dStep += 1.0/(uintmax_t(1) << iRung);
+
 #ifdef COOLING
-        int sync = (nRung[0]!=0 && iRung==0) || ( (nRung[iKickRung] > 0) && (nRung[iKickRung-1] == 0) );
         if (csm->val.bComove) {
             const float a = csmTime2Exp(csm,dTime);
             const float z = 1./a - 1.;
 
-            CoolingUpdate(z, sync);
+            CoolingUpdate(z);
         }
         else {
-            CoolingUpdate(0., sync);
+            CoolingUpdate(0.);
         }
 #endif
 
         ActiveRung(iKickRung,1);
         DomainDecomp(iKickRung);
+        if (parameters.get_bAddDelete()) RemoveDeleted();
+        BuildTree(bEwald);
+
+#ifdef BLACKHOLES
+#ifndef DEBUG_BH_ONLY
+        auto bBHAccretion = parameters.get_bBHAccretion();
+        if (bBHAccretion || parameters.get_bBHFeedback()) {
+            BHEvolve(dTime, dDeltaStep);
+        }
+        if (bBHAccretion) {
+            BHAccretion(dTime);
+        }
+#endif
+        if (parameters.get_bBHMerger()) {
+            SelActives();
+            BHMerger(dTime);
+        }
+#endif
 
 #ifdef STAR_FORMATION
         StarForm(dTime, dDeltaStep, iKickRung);
 #endif
 
-#ifdef BLACKHOLES
-        auto bBHMerger = parameters.get_bBHMerger();
-        if (bBHMerger) {
-            SelActives();
-            BHMerger(dTime);
-        }
-        if (parameters.get_bBHAccretion() && !bBHMerger) {
-            // If there are mergers, this was already done in msrBHMerger, so
-            // there is no need to repeat this.
-            struct outGetNParts Nout;
-
-            Nout.n = 0;
-            Nout.nDark = 0;
-            Nout.nGas = 0;
-            Nout.nStar = 0;
-            Nout.nBH = 0;
-            pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-            N = Nout.n;
-            nDark = Nout.nDark;
-            nGas = Nout.nGas;
-            nStar = Nout.nStar;
-            nBH = Nout.nBH;
-        }
+#if defined(OPTIM_REORDER_IN_NODES) && (defined(STAR_FORMATION) || defined(BLACKHOLES))
+        ReorderWithinNodes();
 #endif
 
-        if (DoGravity() || DoGas()) {
-            ActiveRung(iKickRung,1);
-            if (DoGravity()) UpdateSoft(dTime);
-            msrprintf("%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
-            BuildTree(bEwald);
+        if (!iKickRung && parameters.get_bFindGroups()) {
+            NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
         }
+
+        if (DoGravity() || DoGas()) {
+            msrprintf("%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
+        }
+
         if (DoGravity()) {
+            UpdateSoft(dTime);
             SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
             SPHoptions.doGravity = 1;
             Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
@@ -3274,33 +3447,33 @@ void MSR::TopStepKDK(
 
     dTime += 0.5*dDeltaRung; /* Important to have correct time at step end for SF! */
 
-    if (!iKickRung && !iRung && parameters.get_bFindGroups()) {
-        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
-        GroupStats();
+    if (!iKickRung && !iRung) {
+        if (parameters.get_bFindGroups()) GroupStats();
+        if (parameters.get_bAddDelete()) RemoveDeleted();
         BuildTree(bEwald);
     }
 
 }
 
-void MSR::GetNParts() { /* JW: Not pretty -- may be better way via fio */
-    struct outGetNParts outget;
+void MSR::RemoveDeleted() {
+    ServiceRemoveDeleted::output out;
+    mdl->RunService(PST_REMOVEDELETED,&out);
+    N = blitz::sum(out.counts);
+    nGas = out.counts[FIO_SPECIES_SPH];
+    nDark = out.counts[FIO_SPECIES_DARK];
+    nStar = out.counts[FIO_SPECIES_STAR];
+    nBH = out.counts[FIO_SPECIES_BH];
+    nMaxOrder = out.nMaxOrder;
+}
 
-    pstGetNParts(pst,NULL,0,&outget,sizeof(outget));
-    assert(outget.nGas == nGas);
-    assert(outget.nDark == nDark);
-    assert(outget.nStar == nStar);
-    assert(outget.nBH == nBH);
-    nMaxOrder = outget.nMaxOrder;
-#if 0
-    if (outget.iMaxOrderGas > nMaxOrder) {
-        nMaxOrder = outget.iMaxOrderGas;
-        fprintf(stderr,"WARNING: Largest iOrder of gas > Largest iOrder of star\n");
-    }
-    if (outget.iMaxOrderDark > nMaxOrder) {
-        nMaxOrder = outget.iMaxOrderDark;
-        fprintf(stderr,"WARNING: Largest iOrder of dark > Largest iOrder of star\n");
-    }
-#endif
+void MSR::CountSpecies() {
+    ServiceCountSpecies::output out;
+    mdl->RunService(PST_COUNTSPECIES,&out);
+    assert(out.counts[FIO_SPECIES_SPH] == nGas);
+    assert(out.counts[FIO_SPECIES_DARK] == nDark);
+    assert(out.counts[FIO_SPECIES_STAR] == nStar);
+    assert(out.counts[FIO_SPECIES_BH] == nBH);
+    nMaxOrder = out.nMaxOrder;
 }
 
 void MSR::AddDelParticles() {
@@ -3654,8 +3827,8 @@ void MSR::GroupStats() {
 double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     struct inGenerateIC in;
     struct outGenerateIC out;
-    struct inGetFFTMaxSizes inFFTSizes;
-    struct outGetFFTMaxSizes outFFTSizes;
+    ServiceFftSizes::input inFFTSizes;
+    ServiceFftSizes::output outFFTSizes;
     fioSpeciesList nSpecies;
     double sec,dsec;
     double mean, rms;
@@ -3683,7 +3856,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.bFixed = parameters.get_bFixedAmpIC();
     in.fPhase = parameters.get_dFixedAmpPhasePI() * M_PI;
     in.nGrid = nGrid;
-    in.b2LPT = parameters.get_b2LPT();
+    in.iLPT = parameters.get_iLPT();
     in.bICgas = parameters.get_bICgas();
     in.nBucket = parameters.get_nBucket();
     in.dInitialT = parameters.get_dInitialT();
@@ -3785,7 +3958,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
 
     /* Figure out the minimum number of particles */
     inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = in.nGrid;
-    pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
+    mdl->RunService(PST_GETFFTMAXSIZES,sizeof(inFFTSizes),&inFFTSizes,&outFFTSizes);
     printf("Grid size %d x %d x %d, per node %d x %d x %d and %d x %d x %d\n",
            inFFTSizes.nx, inFFTSizes.ny, inFFTSizes.nz,
            inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,
@@ -3825,8 +3998,6 @@ double MSR::Read(std::string_view achInFile) {
     auto nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
     std::unique_ptr<char[]> buffer {new char[sizeof(inReadFile) + nBytes]};
     auto read = new (buffer.get()) inReadFile;
-
-    std::cout << parameters.get_achDataSubPath() << std::endl;
 
     /* Add Data Subpath for local and non-local names. */
     MSR::MakePath(parameters.get_achDataSubPath(),achInFile.data(),achFilename);
@@ -3882,10 +4053,10 @@ double MSR::Read(std::string_view achInFile) {
     if (parameters.get_bInFileLC()) read->dvFac = 1.0;
     else read->dvFac = getVfactor(dExpansion);
 
-    if (nGas && !parameters.has_bDoGas()) parameters.set_bDoGas(true);
-    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
-    if (DoGas() && NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
-    if (nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
+    if (nGas && !DoGas()) parameters.set_hydro_model(HYDRO_MODEL::SPH);
+    if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
+    if (nStar) mMemoryModel |= PKD_MODEL_STAR;
 
     read->nNodeStart = 0;
     read->nNodeEnd = N - 1;
@@ -3924,7 +4095,7 @@ double MSR::Read(std::string_view achInFile) {
 
     InitCosmology(csm);
 
-    if (DoGas() && NewSPH()) {
+    if (NewSPH()) {
         const auto bEwald = parameters.get_bEwald();
         /*
         ** Initialize kernel target with either the mean mass or nSmooth
@@ -4053,7 +4224,7 @@ void MSR::OutputPk(int iStep,double dTime) {
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
 
-    auto [nPk,fK,fPk,fPkAll] = MeasurePk(parameters.get_iPkOrder(),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk);
+    auto [nPk,fK,fPk,fPkAll] = MeasurePk(int(parameters.get_iPkOrder()),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk);
 
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( parameters.has_dBoxSize() && parameters.get_dBoxSize() > 0.0 ) kfact = parameters.get_dBoxSize();
@@ -4136,7 +4307,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
     // IA: If we allow for adding/deleting particles, we need to recount them to have the
     //  correct number of particles per specie
-    if (parameters.get_bAddDelete()) GetNParts();
+    if (parameters.get_bAddDelete()) CountSpecies();
 
     printf( "Writing output for step %d\n", iStep );
 

@@ -37,6 +37,9 @@
 #include "core/initcosmology.h"
 #include "core/calcroot.h"
 #include "core/select.h"
+#include "core/fftsizes.h"
+#include "core/countspecies.h"
+#include "core/removedeleted.h"
 
 #include "io/service.h"
 #include "io/restore.h"
@@ -66,6 +69,7 @@
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
+#include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 
 time_t timeGlobalSignalTime = 0;
@@ -111,6 +115,9 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSelBox>(pst));
     mdl->AddService(std::make_unique<ServiceSelSphere>(pst));
     mdl->AddService(std::make_unique<ServiceSelCylinder>(pst));
+    mdl->AddService(std::make_unique<ServiceFftSizes>(pst));
+    mdl->AddService(std::make_unique<ServiceCountSpecies>(pst));
+    mdl->AddService(std::make_unique<ServiceRemoveDeleted>(pst));
     mdl->AddService(std::make_unique<ServiceFileSizes>(pst));
     mdl->AddService(std::make_unique<ServiceRestore>(pst));
     mdl->AddService(std::make_unique<ServiceCalcBound>(pst));
@@ -123,6 +130,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSetSoft>(pst));
     mdl->AddService(std::make_unique<ServiceActiveRung>(pst));
     mdl->AddService(std::make_unique<ServiceCountRungs>(pst));
+    mdl->AddService(std::make_unique<ServiceUpdateRung>(pst));
     mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
     mdl->AddService(std::make_unique<ServiceGetOrdSplits>(pst));
 #ifdef HAVE_ROCKSTAR
