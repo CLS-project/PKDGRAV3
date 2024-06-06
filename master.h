@@ -82,7 +82,6 @@ protected:
     const PST pst;
     mdl::mdlClass *mdl;
     bool bVDetails;
-    bool bAnalysis = false;
     PyObject *parameter_overrides = nullptr;
 public:
     explicit MSR(MDL mdl,PST pst);
@@ -97,11 +96,6 @@ public:
     double LoadOrGenerateIC();
     void Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart=false);
     void Simulate(double dTime);
-    void setAnalysisMode(bool b=true) {bAnalysis=b;}
-    void setAnalysisMode(PyObject *over) {
-        bAnalysis=true;
-        parameter_overrides = over;
-    }
 private:
     int64_t parallel_count(bool bParallel,int64_t nParallel);
     void persist(PyObject *file,PyObject *obj);
@@ -118,14 +112,15 @@ protected:
 public:
     // I/O and IC Generation
     double GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm=nullptr);
-    void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
-                 size_t nDark, size_t nGas, size_t nStar, size_t nBH,
-                 double dEcosmo,double dUOld, double dTimeOld,
-                 std::vector<PARTCLASS> &aClasses,
-                 PyObject *arguments,PyObject *specified);
-    void Restart(const char *filename,PyObject *kwargs,
-                 PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
-                 PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
+    void Restart(
+        const char *filename,PyObject *kwargs,
+        PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
+        PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
+    std::tuple<double,double,int64_t,int64_t,int64_t,int64_t> // dTime,dDelta,iStep,nSteps,nSizeParticle,nSizeNode
+    ReadCheckpoint(
+        const char *filename,PyObject *kwargs,
+        PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
+        PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
@@ -242,8 +237,6 @@ public:
     struct CALC calc;
 
 public:
-    bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
-
     LCL lcl;
 
     blitz::TinyVector<double,3> fCenter;
@@ -583,13 +576,11 @@ public:
     uint64_t SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true);
 
 public:
-    void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &filename,bool bAppend=false);
-#ifdef HAVE_ROCKSTAR
-    void RsHaloLoadIds(const std::string &filename,bool bAppend=false);
-#endif
-    void RsLoadIds(const std::string &filename,bool bAppend=false);
-    void RsSaveIds(const std::string &filename);
+    void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string_view filename,bool bAppend=false);
+    void RsLoadIds(const std::string_view filename,bool bAppend=false);
+    void RsHaloLoadIds(const std::string_view filename,bool bAppend=false);
+    void RsSaveIds(const std::string_view filename);
     void RsReorderIds();
-    void RsExtract(const char *filename_template);
+    void RsExtract(std::string_view filename_template);
 };
 #endif
