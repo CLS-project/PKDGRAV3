@@ -29,7 +29,6 @@ pipelines:
   branches:
     develop:
       - parallel:
-        steps:
           - step:
               size: 2x
               runs-on:
