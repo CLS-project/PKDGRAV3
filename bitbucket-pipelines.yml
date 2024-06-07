@@ -61,7 +61,7 @@ pipelines:
                - ln -s /build/sph-data/* ./
                - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
 
-    iac-hydro:
+     iac-hydro:
        - step:
            size: 2x
            script:
