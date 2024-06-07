@@ -31,33 +31,35 @@ pipelines:
              - ln -s /build/b0-final* ./
              - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
   branches:
-     develop:
-       - step:
-           size: 2x
-           runs-on:
-             - 'self.hosted'
-             - 'gpu'
-           script:
-             - lscpu
-             - cmake -DUSE_GTEST=Yes -DEOSLIB_PATH=/build/EOSlib -DANEOSMATERIAL_PATH=/build/ANEOSmaterial .
-             - make -j 8
-             - ln -s /build/euclid_flagship_500.hdf5
-             - ln -s /build/b0-final* ./
-             - ln -s /build/sph-data/* ./
-             - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
-       - step:
-           size: 2x
-           runs-on:
-             - 'self.hosted'
-             - 'avx512'
-           script:
-             - lscpu
-             - cmake -DUSE_GTEST=Yes -DEOSLIB_PATH=/build/EOSlib -DANEOSMATERIAL_PATH=/build/ANEOSmaterial .
-             - make -j 8
-             - ln -s /build/euclid_flagship_500.hdf5
-             - ln -s /build/b0-final* ./
-             - ln -s /build/sph-data/* ./
-             - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
+    develop:
+      - parallel:
+        steps:
+          - step:
+             size: 2x
+             runs-on:
+               - 'self.hosted'
+               - 'gpu'
+             script:
+               - lscpu
+               - cmake -DUSE_GTEST=Yes -DEOSLIB_PATH=/build/EOSlib -DANEOSMATERIAL_PATH=/build/ANEOSmaterial .
+               - make -j 8
+               - ln -s /build/euclid_flagship_500.hdf5
+               - ln -s /build/b0-final* ./
+               - ln -s /build/sph-data/* ./
+               - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
+          - step:
+             size: 2x
+             runs-on:
+               - 'self.hosted'
+               - 'avx512'
+             script:
+               - lscpu
+               - cmake -DUSE_GTEST=Yes -DEOSLIB_PATH=/build/EOSlib -DANEOSMATERIAL_PATH=/build/ANEOSmaterial .
+               - make -j 8
+               - ln -s /build/euclid_flagship_500.hdf5
+               - ln -s /build/b0-final* ./
+               - ln -s /build/sph-data/* ./
+               - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
 
      iac-hydro:
        - step:
