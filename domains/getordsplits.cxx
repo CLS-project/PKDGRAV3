@@ -23,7 +23,6 @@ static_assert(std::is_void<ServiceGetOrdSplits::output>() || std::is_standard_la
 
 int ServiceGetOrdSplits::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     assert(nOut >= sizeof(output));
-    auto pkd = pst->plcl->pkd;
     auto out = static_cast<output *>(vout);
     *out = pst->iOrdSplit;
     return sizeof(output);

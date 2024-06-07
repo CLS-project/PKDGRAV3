@@ -857,8 +857,6 @@ void MSR::SetDerivedParameters(bool bRestart) {
 }
 
 void MSR::Initialize() {
-    char ach[256];
-
     lcl.pkd = NULL;
     nThreads = mdlThreads(mdl);
     lStart=time(0);
@@ -2515,7 +2513,7 @@ int MSR::ReadOuts(double dTime) {
     char achFile[PST_FILENAME_SIZE];
     FILE *fp;
     int ret;
-    double z,a,t,n,newt;
+    double z,a,t,newt;
     char achIn[80];
 
     /*

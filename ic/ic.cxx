@@ -633,17 +633,17 @@ void carryout2LPT(
     if (pkd->Self() == 0) printf("%*sBuilding potential\n", printIndent, "");
     float potentialFactor = growth.D2/pow(growth.D1, 2.);
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi2, LPT_TERM_OP::EQ,    -1., {{gridInfo.indexPhi1, 0, 0}, {gridInfo.indexPhi1, 1, 1}});
+    gridInfo.indexPhi2, LPT_TERM_OP::EQ,    -1., {{gridInfo.indexPhi1, {0, 0}}, {gridInfo.indexPhi1, {1, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi2, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, 1, 1}, {gridInfo.indexPhi1, 2, 2}});
+    gridInfo.indexPhi2, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, {1, 1}}, {gridInfo.indexPhi1, {2, 2}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi2, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, 2, 2}, {gridInfo.indexPhi1, 0, 0}});
+    gridInfo.indexPhi2, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, {2, 2}}, {gridInfo.indexPhi1, {0, 0}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 0, 1}, {gridInfo.indexPhi1, 0, 1}});
+    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, {0, 1}}, {gridInfo.indexPhi1, {0, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 1, 2}, {gridInfo.indexPhi1, 1, 2}});
+    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, {1, 2}}, {gridInfo.indexPhi1, {1, 2}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 2, 0}, {gridInfo.indexPhi1, 2, 0}});
+    gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, {2, 0}}, {gridInfo.indexPhi1, {2, 0}}});
     FFTLaplacianInverse(pkd, fft, Phi2_R, Phi2_K, kFundamental, fftFactor*potentialFactor);
     /* Construct displacement field from potential,
     ** displace positions and boost velocities.
@@ -693,15 +693,15 @@ void carryout3aLPT(
     if (pkd->Self() == 0) printf("%*sBuilding potential (a)\n", printIndent, "");
     float potentialFactor = growth.D3a/pow(growth.D1, 3.);
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::EQ,     1., {{gridInfo.indexPhi1, 2, 0}, {gridInfo.indexPhi1, 2, 0}, {gridInfo.indexPhi1, 1, 1}});
+    gridInfo.indexPhi3, LPT_TERM_OP::EQ,     1., {{gridInfo.indexPhi1, {2, 0}}, {gridInfo.indexPhi1, {2, 0}}, {gridInfo.indexPhi1, {1, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, 1, 1}, {gridInfo.indexPhi1, 2, 2}, {gridInfo.indexPhi1, 0, 0}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, {1, 1}}, {gridInfo.indexPhi1, {2, 2}}, {gridInfo.indexPhi1, {0, 0}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 0, 0}, {gridInfo.indexPhi1, 1, 2}, {gridInfo.indexPhi1, 1, 2}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, {0, 0}}, {gridInfo.indexPhi1, {1, 2}}, {gridInfo.indexPhi1, {1, 2}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 2., {{gridInfo.indexPhi1, 1, 2}, {gridInfo.indexPhi1, 2, 0}, {gridInfo.indexPhi1, 0, 1}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 2., {{gridInfo.indexPhi1, {1, 2}}, {gridInfo.indexPhi1, {2, 0}}, {gridInfo.indexPhi1, {0, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, 0, 1}, {gridInfo.indexPhi1, 0, 1}, {gridInfo.indexPhi1, 2, 2}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi1, {0, 1}}, {gridInfo.indexPhi1, {0, 1}}, {gridInfo.indexPhi1, {2, 2}}});
     FFTLaplacianInverse(pkd, fft, Phi3a_R, Phi3a_K, kFundamental, fftFactor*potentialFactor);
     /* Construct displacement field from potential,
     ** displace positions and boost velocities.
@@ -755,23 +755,23 @@ void carryout3bLPT(
     if (pkd->Self() == 0) printf("%*sBuilding potential (b)\n", printIndent, "");
     float potentialFactor = growth.D3b/(growth.D1*growth.D2);
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::EQ,    -0.5, {{gridInfo.indexPhi1, 2, 2}, {gridInfo.indexPhi2, 0, 0}});
+    gridInfo.indexPhi3, LPT_TERM_OP::EQ,    -0.5, {{gridInfo.indexPhi1, {2, 2}}, {gridInfo.indexPhi2, {0, 0}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, 0, 0}, {gridInfo.indexPhi1, 1, 1}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, {0, 0}}, {gridInfo.indexPhi1, {1, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi1, 1, 1}, {gridInfo.indexPhi2, 2, 2}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi1, {1, 1}}, {gridInfo.indexPhi2, {2, 2}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, 2, 2}, {gridInfo.indexPhi1, 0, 0}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, {2, 2}}, {gridInfo.indexPhi1, {0, 0}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi1, 0, 0}, {gridInfo.indexPhi2, 1, 1}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi1, {0, 0}}, {gridInfo.indexPhi2, {1, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, 1, 1}, {gridInfo.indexPhi1, 2, 2}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 0.5, {{gridInfo.indexPhi2, {1, 1}}, {gridInfo.indexPhi1, {2, 2}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, 2, 0}, {gridInfo.indexPhi1, 2, 0}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, {2, 0}}, {gridInfo.indexPhi1, {2, 0}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, 0, 1}, {gridInfo.indexPhi1, 0, 1}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, {0, 1}}, {gridInfo.indexPhi1, {0, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, 1, 2}, {gridInfo.indexPhi1, 1, 2}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1,   {{gridInfo.indexPhi2, {1, 2}}, {gridInfo.indexPhi1, {1, 2}}});
     FFTLaplacianInverse(pkd, fft, Phi3b_R, Phi3b_K, kFundamental, fftFactor*potentialFactor);
     /* Construct displacement field from potential,
     ** displace positions and boost velocities.
@@ -825,17 +825,17 @@ void carryout3cLPT(
     if (pkd->Self() == 0) printf("%*sBuilding potential (c, %c%c)\n", printIndent, "", 'x' + j, 'x' + k);
     float potentialFactor = growth.D3c/(growth.D1*growth.D2);
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::EQ,     1., {{gridInfo.indexPhi2, j, j}, {gridInfo.indexPhi1, j, k}});
+    gridInfo.indexPhi3, LPT_TERM_OP::EQ,     1., {{gridInfo.indexPhi2, {j, j}}, {gridInfo.indexPhi1, {j, k}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, j, k}, {gridInfo.indexPhi2, k, k}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, {j, k}}, {gridInfo.indexPhi2, {k, k}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, i, j}, {gridInfo.indexPhi2, i, k}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, {i, j}}, {gridInfo.indexPhi2, {i, k}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, j, j}, {gridInfo.indexPhi2, j, k}});
+    gridInfo.indexPhi3, LPT_TERM_OP::MIN_EQ, 1., {{gridInfo.indexPhi1, {j, j}}, {gridInfo.indexPhi2, {j, k}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi2, j, k}, {gridInfo.indexPhi1, k, k}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi2, {j, k}}, {gridInfo.indexPhi1, {k, k}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental,
-    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi2, i, j}, {gridInfo.indexPhi1, i, k}});
+    gridInfo.indexPhi3, LPT_TERM_OP::PLS_EQ, 1., {{gridInfo.indexPhi2, {i, j}}, {gridInfo.indexPhi1, {i, k}}});
     FFTLaplacianInverse(pkd, fft, A3c_i_R, A3c_i_K, kFundamental, fftFactor*potentialFactor);
     /* Construct displacement field from potential,
     ** displace positions and boost velocities.
@@ -1033,13 +1033,11 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pkd->particles.clearClasses();
         double inGrid = 1.0 / in->nGrid;
         float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
-        int nBucket;
         if (in->bICgas) {
             fGasMass = in->fMass*in->dBaryonFraction;
             fDarkMass = in->fMass*(1.0 - in->dBaryonFraction);
             fGasSoft = in->fSoft * pow(in->dBaryonFraction, 1./3.);
             fDarkSoft = in->fSoft * pow(1.0 - in->dBaryonFraction, 1./3.);
-            nBucket = in->nBucket;
         }
         else {
             fDarkMass = in->fMass;

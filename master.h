@@ -367,7 +367,6 @@ protected:
         return model == HYDRO_MODEL::MFV;
     }
     int MeshlessHydro()   const {
-        auto model = parameters.get_hydro_model();
         return MeshlessFiniteMass() || MeshlessFiniteVolume();
     }
     int DoGravity()       const {
