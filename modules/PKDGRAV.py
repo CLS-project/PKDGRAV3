@@ -262,7 +262,7 @@ def window_correction(grid_index=0,order=3):
     :param integer grid_index: which grid number to use
     :param integer order: mass assignment order, 0=NGP, 1=CIC, 2=TSC, 3=PCS
     """
-    msr0.WindowCorrection(grid_index,order) 
+    msr0.WindowCorrection(order,grid_index) 
 
 def add_linear_signal(seed,L,a,fixed=False,phase=0.0,grid_index=0):
     """
