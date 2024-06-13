@@ -228,15 +228,16 @@ def grid_write(filename,k=False,grid_index=0):
     """
     msr0.OutputGrid(filename.encode('UTF-8'), k, grid_index, 1)
 
-def assign_mass(order=3,grid_index=0,delta=0.0):
+def assign_mass(order=3,grid_index=0,delta=0.0,fold=1):
     """
     Assign mass to the grid
 
     :param integer order: mass assignment order, 0=NGP, 1=CIC, 2=TSC, 3=PCS
     :param integer grid_index: which grid number to use
     :param number delta: grid shift (normally 0.0 or 0.5)
+    :param number fold: number of times to fold
     """
-    msr0.AssignMass(order,grid_index,delta)
+    msr0.AssignMass(order,grid_index,delta,fold)
 
 def density_contrast(grid_index=0,k=True):
     """

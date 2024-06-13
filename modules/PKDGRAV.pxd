@@ -156,7 +156,7 @@ cdef extern from "master.h":
         void *GridBinK(int nBins, int iGrid)
         void GridCreateFFT(int nGrid)
         void GridDeleteFFT()
-        void AssignMass(int iAssignment,int iGrid,float fDelta)
+        void AssignMass(int iAssignment,int iGrid,float fDelta,int fold)
         void DensityContrast(int nGrid,bool k)
         void WindowCorrection(int iAssignment,int iGrid);
         void Interlace(int iGridTarget,int iGridSource);

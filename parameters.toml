@@ -137,6 +137,16 @@ Specifies the number of P(k) bins (in log space) when measuring the power spectr
 The default is half of the grid size (`nGridPk`).
 '''
 
+["Analysis"."Power Spectrum Measurement".nFoldPk]
+flag="fpk"
+default=[1]
+help="Number of times to fold the power spectrum (list)"
+docs='''
+Normally the power spectrum measurement is done on a fixed size grid. This parameter
+allows the measurement to be done multiple times by folding the particles allowing
+high k values to be reached with a smaller grid.
+'''
+
 ["Analysis"."Power Spectrum Measurement".bPkInterlace]
 flag="pkinterlace"
 default=true

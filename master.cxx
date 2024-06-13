@@ -4112,31 +4112,39 @@ void MSR::OutputPk(int iStep,double dTime) {
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
 
-    auto [nPk,fK,fPk,fPkAll] = MeasurePk(int(parameters.get_iPkOrder()),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk);
-
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( parameters.has_dBoxSize() && parameters.get_dBoxSize() > 0.0 ) kfact = parameters.get_dBoxSize();
     else kfact = 1.0;
     vfact = kfact * kfact * kfact;
     kfact = 1.0 / kfact;
 
-    filename = BuildName(iStep,".pk");
-    std::ofstream fs(filename);
-    if (fs.fail()) {
-        std::cerr << "Could not create P(k) file: " << filename << std::endl;
-        perror(filename.c_str());
-        Exit(errno);
+    std::vector<std::int64_t> nFoldPk;
+    if (parameters.has_nFoldPk()) nFoldPk = std::move(parameters.get_nFoldPk());
+    else nFoldPk.push_back(1);
+
+    for (auto fold : nFoldPk) {
+        auto [nPk,fK,fPk,fPkAll] = MeasurePk(int(parameters.get_iPkOrder()),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk,fold);
+
+        filename = BuildName(iStep,".pk");
+        if (nFoldPk.size() > 1) filename = fmt::format("{name}.{fold}","name"_a=filename,"fold"_a=fold);
+        std::ofstream fs(filename);
+        if (fs.fail()) {
+            std::cerr << "Could not create P(k) file: " << filename << std::endl;
+            perror(filename.c_str());
+            Exit(errno);
+        }
+        fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = parameters.get_achPkSpecies());
+        fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
+        for (i=0; i<nBinsPk; ++i) {
+            if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
+                                             "k"_a   = kfact * fK[i] * 2.0 * M_PI * fold,
+                                             "pk"_a  = vfact * fPk[i],
+                                             "nk"_a  = nPk[i],
+                                             "all"_a = vfact * fPkAll[i]);
+        }
+        fs.close();
     }
-    fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = parameters.get_achPkSpecies());
-    fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
-    for (i=0; i<nBinsPk; ++i) {
-        if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
-                                         "k"_a   = kfact * fK[i] * 2.0 * M_PI,
-                                         "pk"_a  = vfact * fPk[i],
-                                         "nk"_a  = nPk[i],
-                                         "all"_a = vfact * fPkAll[i]);
-    }
-    fs.close();
+
     /* Output the k-grid if requested */
     z = 1/a - 1;
     auto iDeltakInterval = parameters.get_iDeltakInterval();
@@ -4839,7 +4847,7 @@ void MSR::GridDeleteFFT() {
 
 /* Important: call msrGridCreateFFT() before, and msrGridDeleteFFT() after */
 std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins) {
+MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins, int fold) {
     std::vector<uint64_t> nPk;
     std::vector<float> fK, fPk, fPkAll;
     double dsec;
@@ -4852,10 +4860,10 @@ MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins) {
     TimerStart(TIMER_NONE);
     printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
-    AssignMass(iAssignment,0,0.0);
+    AssignMass(iAssignment,0,0.0,fold);
     DensityContrast(0);
     if (bInterlace) {
-        AssignMass(iAssignment,1,0.5);
+        AssignMass(iAssignment,1,0.5,fold);
         DensityContrast(1);
         Interlace(0,1); // We no longer need grid 1
     }

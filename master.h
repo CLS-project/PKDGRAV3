@@ -165,8 +165,8 @@ public:
     void HopWrite(const char *fname);
     EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
-    void AssignMass(int iAssignment=3,int iGrid=0,float fDelta=0.0f);
+            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,int fold=1);
+    void AssignMass(int iAssignment=3,int iGrid=0,float fDelta=0.0f,int fold=1);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
