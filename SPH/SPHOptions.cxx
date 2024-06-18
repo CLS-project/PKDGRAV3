@@ -79,7 +79,6 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     SPHoptions.doUConversion = 0;
     SPHoptions.doSetDensityFlags = 0;
     SPHoptions.dofBallFactor = 1;
-    SPHoptions.useNumDen = 1;
     SPHoptions.useIsentropic = parameters.get_bGasIsentropic();
     SPHoptions.useBuiltinIdeal = parameters.get_bGasBuiltinIdeal();
     SPHoptions.useDensityFlags = 0;
@@ -128,7 +127,6 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doUConversion = 0;
     target->doSetDensityFlags = 0;
     target->dofBallFactor = 1;
-    target->useNumDen = source->useNumDen;
     target->useIsentropic = source->useIsentropic;
     target->useBuiltinIdeal = source->useBuiltinIdeal;
     target->useDensityFlags = 0;

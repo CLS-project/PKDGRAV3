@@ -169,13 +169,7 @@ void pkdParticleWorkDone(workParticle *wp) {
             float maxkerneldeviation = 0.0f;
             // calculate maximum kernel mass deviation
             for (int i=0; i<wp->nP; i++) {
-                float kerneldeviation = 0.0f;
-                if (wp->SPHoptions->useNumDen) {
-                    kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
-                }
-                else {
-                    kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
-                }
+                float kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
                 if (wp->pInfoIn[i].isTooLarge) {
                     kerneldeviation = 0.0f;
                 }
@@ -192,15 +186,8 @@ void pkdParticleWorkDone(workParticle *wp) {
                 for (int i=0; i<wp->nP; i++) {
                     float prefac = 4.0f/3.0f*M_PI;
                     float fBall = wp->pInfoIn[i].fBall;
-                    float fx, dfdx;
-                    if (wp->SPHoptions->useNumDen) {
-                        fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
-                        dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].nden + prefac * fBall * fBall * fBall * wp->pInfoOut[i].dndendfball;
-                    }
-                    else {
-                        fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
-                        dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
-                    }
+                    float fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
+                    float dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].nden + prefac * fBall * fBall * fBall * wp->pInfoOut[i].dndendfball;
                     float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
                     if (fabsf(newfBall) >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
                         wp->pInfoIn[i].fBall = wp->SPHoptions->ballSizeLimit;
@@ -224,7 +211,6 @@ void pkdParticleWorkDone(workParticle *wp) {
             for ( int i=0; i<wp->nP; i++ ) {
                 // save the new fBall for each particle
                 wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
-                // wp->pInfoOut[i].fBall = wp->pInfoOut[i].nSmooth;
             }
         }
 

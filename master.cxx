@@ -637,24 +637,9 @@ void MSR::Restart(const char *filename,PyObject *kwargs,
 
     if (NewSPH()) {
         /*
-        ** Initialize kernel target with either the mean mass or nSmooth
+        ** Initialize kernel target with nSmooth
         */
-        sec = MSR::Time();
-        printf("Initializing Kernel target ...\n");
-        {
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
-            if (SPHoptions.useNumDen) {
-                parameters.set_fKernelTarget(parameters.get_nSmooth());
-            }
-            else {
-                double Mtot;
-                uint64_t Ntot;
-                CalcMtot(&Mtot, &Ntot);
-                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
-            }
-        }
-        dsec = MSR::Time() - sec;
-        printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+        parameters.set_fKernelTarget(parameters.get_nSmooth());
         SetSPHoptions();
         InitializeEOS();
     }
@@ -744,24 +729,9 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
     if (DoGas() && NewSPH()) {
         /*
-        ** Initialize kernel target with either the mean mass or nSmooth
+        ** Initialize kernel target with nSmooth
         */
-        sec = MSR::Time();
-        printf("Initializing Kernel target ...\n");
-        {
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
-            if (SPHoptions.useNumDen) {
-                parameters.set_fKernelTarget(parameters.get_nSmooth());
-            }
-            else {
-                double Mtot;
-                uint64_t Ntot;
-                CalcMtot(&Mtot, &Ntot);
-                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
-            }
-        }
-        dsec = MSR::Time() - sec;
-        printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+        parameters.set_fKernelTarget(parameters.get_nSmooth());
         SetSPHoptions();
         InitializeEOS();
     }
@@ -4098,26 +4068,9 @@ double MSR::Read(std::string_view achInFile) {
     if (NewSPH()) {
         const auto bEwald = parameters.get_bEwald();
         /*
-        ** Initialize kernel target with either the mean mass or nSmooth
+        ** Initialize kernel target with nSmooth
         */
-        TimerStart(TIMER_NONE);
-        printf("Initializing Kernel target ...\n");
-        {
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
-            if (SPHoptions.useNumDen) {
-                parameters.set_fKernelTarget(parameters.get_nSmooth());
-            }
-            else {
-                double Mtot;
-                uint64_t Ntot;
-                CalcMtot(&Mtot, &Ntot);
-                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
-            }
-        }
-        TimerStop(TIMER_NONE);
-        dsec = TimerGet(TIMER_NONE);
-        printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
-
+        parameters.set_fKernelTarget(parameters.get_nSmooth());
         SetSPHoptions();
         InitializeEOS();
 
