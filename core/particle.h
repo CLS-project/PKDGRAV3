@@ -470,9 +470,10 @@ public:
         if (bNoParticleOrder) return ParticleClasses[0].iMat;
         else return ParticleClasses[p->iClass].iMat;
     }
-    std::set<int> getMaterials() const {
+    std::set<int> getMaterials(bool onlySPH) const {
         std::set<int> materials;
         for (auto p : ParticleClasses) {
+            if (onlySPH && p.eSpecies != FIO_SPECIES_SPH) continue;
             materials.insert(p.iMat);
         }
         return materials;

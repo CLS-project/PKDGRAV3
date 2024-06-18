@@ -2947,7 +2947,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
 ** Initialize the EOS tables
 */
 void pkdInitializeEOS(PKD pkd) {
-    auto materials = pkd->particles.getMaterials();
+    auto materials = pkd->particles.getMaterials(true);
     for (auto iMat : materials) {
         if (iMat == 0 && pkd->SPHoptions.useBuiltinIdeal) {
             // Nothing to do
