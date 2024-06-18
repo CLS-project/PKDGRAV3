@@ -169,6 +169,7 @@ void pkdParticleWorkDone(workParticle *wp) {
             float maxkerneldeviation = 0.0f;
             // calculate maximum kernel mass deviation
             for (int i=0; i<wp->nP; i++) {
+                if (!pkdIsGas(pkd, wp->pPart[i])) continue;
                 float kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
                 if (wp->pInfoIn[i].isTooLarge) {
                     kerneldeviation = 0.0f;
@@ -184,6 +185,7 @@ void pkdParticleWorkDone(workParticle *wp) {
             if (maxkerneldeviation/wp->SPHoptions->fKernelTarget > 1e-4f) {
                 // do another loop
                 for (int i=0; i<wp->nP; i++) {
+                    if (!pkdIsGas(pkd, wp->pPart[i])) continue;
                     float prefac = 4.0f/3.0f*M_PI;
                     float fBall = wp->pInfoIn[i].fBall;
                     float fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
@@ -210,7 +212,7 @@ void pkdParticleWorkDone(workParticle *wp) {
             }
             for ( int i=0; i<wp->nP; i++ ) {
                 // save the new fBall for each particle
-                wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
+                if (pkdIsGas(pkd, wp->pPart[i])) wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
             }
         }
 
@@ -230,7 +232,7 @@ void pkdParticleWorkDone(workParticle *wp) {
             p = pkd->particles[wp->pPart[i]];
             // pkd->CopyParticle(p,wp->pPart[i]);
 
-            if (p.have_newsph()) {
+            if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                 auto &NewSph = p.newsph();
                 if (wp->SPHoptions->doDensity) {
                     p.set_density(wp->pInfoOut[i].rho);
@@ -353,19 +355,19 @@ void pkdParticleWorkDone(workParticle *wp) {
                         if (wp->SPHoptions->doGravity) {
                             dT = std::min(dT, fEta*asqrtf(p.soft()*imaga));
                         }
-                        else if (p.have_newsph()) {
+                        else if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                             dT = std::min(dT, fEta*asqrtf(0.5f * p.ball() * imaga));
                         }
                     }
                 }
 
                 // Courant criterium
-                if (p.have_newsph()) {
+                if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                     dT = std::min(dT, wp->pInfoOut[i].dtEst);
                 }
 
                 // Timestep criterion on the internal energy
-                if (wp->SPHoptions->EtauDot > 0.0f && p.have_newsph()) {
+                if (wp->SPHoptions->EtauDot > 0.0f && p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                     auto &NewSph = p.newsph();
                     if (fabsf(NewSph.u) > 0.0f && fabsf(NewSph.uDot) > 0.0f) {
                         dT = std::min(dT, wp->SPHoptions->EtauDot * fabsf(NewSph.u/NewSph.uDot));
@@ -373,7 +375,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                 }
 
                 // Timestep criterion on the deviatoric stress
-                if (wp->SPHoptions->EtaSdot > 0.0f && p.have_newsph()) {
+                if (wp->SPHoptions->EtaSdot > 0.0f && p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                     auto &NewSphStr = p.newsphstr();
                     if (fabsf(NewSphStr.Sxx) > 0.0f && fabsf(NewSphStr.SDotxx) > 0.0f) {
                         dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Sxx) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotxx));
@@ -399,7 +401,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 
                 // Limit rung such that it only differs by a maximum of nRungCorrection from those it is interacting with
                 // See doi:10.1088/0004-637X/697/2/L99 for an explanation
-                if (p.have_newsph()) {
+                if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                     uNewRung = std::max(std::max((int)uNewRung, (int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection), 0);
                 }
 
@@ -431,7 +433,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         v[0] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[0];
                         v[1] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[1];
                         v[2] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[2];
-                        if (wp->SPHoptions->doSPHForces) {
+                        if (wp->SPHoptions->doSPHForces && pkdIsGas(pkd, wp->pPart[i])) {
                             auto &NewSph = p.newsph();
                             if (wp->SPHoptions->useIsentropic) {
                                 NewSph.u = SPHEOSIsentropic(pkd,NewSph.oldRho,NewSph.u,p.density(),p.imaterial(),wp->SPHoptions);
@@ -474,7 +476,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         v[0] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[0];
                         v[1] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[1];
                         v[2] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[2];
-                        if (wp->SPHoptions->doSPHForces) {
+                        if (wp->SPHoptions->doSPHForces && pkdIsGas(pkd, wp->pPart[i])) {
                             auto &NewSph = p.newsph();
                             NewSph.u += wp->kick->dtOpen[p.rung()] * NewSph.uDot;
                             if (wp->SPHoptions->doShearStrengthModel) {
