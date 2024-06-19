@@ -2208,6 +2208,9 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 // }
                 r0 = p.position();
                 p.set_position(rfinal = r0 + dDelta*v);
+                assert(isfinite(rfinal[0]));
+                assert(isfinite(rfinal[1]));
+                assert(isfinite(rfinal[2]));
                 dMin = min(dMin,rfinal);
                 dMax = max(dMax,rfinal);
             }
