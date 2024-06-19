@@ -38,6 +38,7 @@ inline int copyBLKs(denCorrInteract *out, ilpTile &in) {
         memcpy(&out[i].T,       &in[i].T,       sizeof(out[i].T));
         memcpy(&out[i].P,       &in[i].P,       sizeof(out[i].P));
         memcpy(&out[i].expImb2, &in[i].expImb2, sizeof(out[i].expImb2));
+        memcpy(&out[i].isGas,   &in[i].isGas,   sizeof(out[i].isGas));
     }
     return nBlk;
 }
@@ -117,6 +118,7 @@ public:
                 partHost[j].dy    = pInfoIn[j].r[1];
                 partHost[j].dz    = pInfoIn[j].r[2];
                 partHost[j].fBall = pInfoIn[j].fBall;
+                partHost[j].isGas = pInfoIn[j].isGas;
             }
             nP = align_nP(nP);
             partHost += nP;

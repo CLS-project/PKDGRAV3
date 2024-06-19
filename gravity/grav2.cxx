@@ -839,7 +839,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].iMat = p.imaterial();
             SPHpredictOnTheFly(pkd, p, kick, wp->SPHoptions->nPredictRung, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, &wp->pInfoIn[nP].Sxx, &wp->pInfoIn[nP].Syy, &wp->pInfoIn[nP].Sxy, &wp->pInfoIn[nP].Sxz, &wp->pInfoIn[nP].Syz, SPHoptions);
             wp->pInfoIn[nP].rho = pkdIsGas(pkd, &p) ? p.density() : 1.0f;
-            wp->pInfoIn[nP].species = p.species();
+            wp->pInfoIn[nP].isGas = pkdIsGas(pkd, &p) ? 1.0f : 0.0f;
 
             wp->pInfoOut[nP].rho = 0.0f;
             wp->pInfoOut[nP].drhodfball = 0.0f;

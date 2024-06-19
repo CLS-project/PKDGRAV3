@@ -29,7 +29,7 @@
     ((float,dx))((float,dy))((float,dz))((float,m))((float,fourh2))\
     ((float,vx))((float,vy))((float,vz))((float,fBall))((float,Omega))\
     ((float,rho))((float,P))((float,c))((int32_t,species))((float,uRung))((float,iMat))\
-    ((float,T))((float,expImb2))\
+    ((float,T))((float,expImb2))((float,isGas))\
     ((float,Sxx))((float,Syy))((float,Sxy))((float,Sxz))((float,Syz))
 
 ILIST_DECLARE(PP,ILP_FIELDS_SEQ)
@@ -44,7 +44,7 @@ public:
     void append(float dx,float dy,float dz,float m,float fourh2,
                 float vx,float vy,float vz,float fBall,float Omega,
                 float rho,float P,float c,int32_t species,float uRung,float iMat,
-                float T, float expImb2,
+                float T, float expImb2, float isGas,
                 float Sxx, float Syy, float Sxy, float Sxz, float Syz) {
         BlockPP<ILP_PART_PER_BLK> *b;
         int i;
@@ -54,10 +54,10 @@ public:
     void append(double x,double y,double z,float m,float fourh2,
                 float vx,float vy,float vz,float fBall,float Omega,
                 float rho,float P,float c,int32_t species, int uRung, int iMat,
-                float T, float expImb2,
+                float T, float expImb2, float isGas,
                 float Sxx, float Syy, float Sxy, float Sxz, float Syz) {
         append((float)(getReference(0)-x),(float)(getReference(1)-y),(float)(getReference(2)-z),
-               m,fourh2,vx,vy,vz,fBall,Omega,rho,P,c,species,(float)uRung,(float)iMat,T,expImb2,Sxx,Syy,Sxy,Sxz,Syz);
+               m,fourh2,vx,vy,vz,fBall,Omega,rho,P,c,species,(float)uRung,(float)iMat,T,expImb2,isGas,Sxx,Syy,Sxy,Sxz,Syz);
     }
 };
 #endif

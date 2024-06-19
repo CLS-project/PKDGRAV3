@@ -116,8 +116,8 @@ typedef struct {
     float rho; /* fDensity above is used for different stuff, calculated with different kernel etc */
     float P;
     float cs;
-    int32_t species;
     float iMat;
+    float isGas;
     int isTooLarge;
     float Sxx, Syy, Sxy, Sxz, Syz;
     /*    float v[3];*/
