@@ -89,7 +89,9 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultDensity<fvec>,BLOCK> {
         result_type result;
         result.zero();
         for (auto i=0; i<n; ++i) {
-            result += EvalDensity<fvec,fmask>(fx,fy,fz,fBall,iMat,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.iMat.v[i],SPHoptions->kernelType,SPHoptions->doInterfaceCorrection);
+            result += EvalDensity<fvec,fmask>(fx,fy,fz,fBall,iMat,1.0f,
+                                              blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.iMat.v[i],1.0f,
+                                              SPHoptions->kernelType,SPHoptions->doInterfaceCorrection);
         }
         return result;
     }
@@ -131,7 +133,9 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultDensityCorrection<fvec>,B
         result_type result;
         result.zero();
         for (auto i=0; i<n; ++i) {
-            result += EvalDensityCorrection<fvec,fmask>(fx,fy,fz,fBall,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.T.v[i],blk.P.v[i],blk.expImb2.v[i],SPHoptions->kernelType);
+            result += EvalDensityCorrection<fvec,fmask>(fx,fy,fz,fBall,1.0f,
+                      blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.T.v[i],blk.P.v[i],blk.expImb2.v[i],1.0f,
+                      SPHoptions->kernelType);
         }
         return result;
     }
@@ -185,10 +189,11 @@ template<typename BLOCK, bool doShearStrengthModel> struct ilist::EvalBlock<Resu
         result.zero();
         for (auto i=0; i<n; ++i) {
             result += EvalSPHForces<fvec,fmask,doShearStrengthModel>(
-                          fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,
+                          fx,fy,fz,fBall,Omega,
+                          vx,vy,vz,rho,P,c,1.0f,
                           Sxx, Syy, Sxy, Sxz, Syz,
                           blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.fBall.v[i],blk.Omega.v[i],
-                          blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],
+                          blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],1.0f,
                           blk.Sxx.v[i], blk.Syy.v[i], blk.Sxy.v[i], blk.Sxz.v[i], blk.Syz.v[i],
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
                           SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);

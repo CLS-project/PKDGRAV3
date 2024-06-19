@@ -103,10 +103,15 @@ struct ResultDensity {
 };
 template<class F,class M>
 PP_CUDA_BOTH ResultDensity<F> EvalDensity(
-    F Pdx, F Pdy, F Pdz, F fBall, F PiMat,     // Particle
-    F Idx, F Idy, F Idz, F Im, F IiMat,  // Interaction(s)
+    F Pdx, F Pdy, F Pdz, F fBall, F PiMat, F PisGas,    // Particle
+    F Idx, F Idy, F Idz, F Im, F IiMat, F IisGas, // Interaction(s)
     int kernelType, bool doInterfaceCorrection) {
     ResultDensity<F> result;
+    F isGasInteraction = PisGas * IisGas;
+    if (testz(isGasInteraction == 1.0f)) {
+        result.zero(); // No work to do
+        return result;
+    }
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -130,15 +135,15 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
         DSPHKERNEL_DFBALL(r, ifBall, w, dwdr, C, dWdfball, kernelType);
 
         // return the density
-        result.nden = C * w;
+        result.nden = C * w * isGasInteraction;
         result.rho = Im * result.nden;
 
         // return the density derivative
-        result.dndendfball = dWdfball;
+        result.dndendfball = dWdfball * isGasInteraction;
         result.drhodfball = Im * result.dndendfball;
 
         // return the number of particles used
-        result.nSmooth = maskz_mov(r_lt_one,F(1.0f));
+        result.nSmooth = maskz_mov(r_lt_one,F(1.0f)) * isGasInteraction;
 
         // Calculate the imbalance values
         if (doInterfaceCorrection) {
@@ -175,10 +180,15 @@ struct ResultDensityCorrection {
 };
 template<class F,class M>
 PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
-    F Pdx, F Pdy, F Pdz, F fBall,     // Particle
-    F Idx, F Idy, F Idz, F T, F P, F expImb2,  // Interaction(s)
+    F Pdx, F Pdy, F Pdz, F fBall, F PisGas,    // Particle
+    F Idx, F Idy, F Idz, F T, F P, F expImb2, F IisGas,  // Interaction(s)
     int kernelType) {
     ResultDensityCorrection<F> result;
+    F isGasInteraction = PisGas * IisGas;
+    if (testz(isGasInteraction == 1.0f)) {
+        result.zero(); // No work to do
+        return result;
+    }
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -199,7 +209,7 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
         SPHKERNEL_INIT(r, ifBall, C, t1, mask1, kernelType);
         SPHKERNEL(r, w, t1, t2, t3, r_lt_one, mask1, kernelType);
 
-        result.corr = expImb2 * C * w;
+        result.corr = expImb2 * C * w * isGasInteraction;
         result.corrT = T * result.corr;
         result.corrP = P * result.corr;
     }
@@ -256,14 +266,19 @@ struct ResultSPHForces {
 template<class F,class M, bool doShearStrengthModel>
 PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
-    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc,
+    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, F PisGas,
     F PSxx, F PSyy, F PSxy, F PSxz, F PSyz,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
-    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung,
+    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung, F IisGas,
     F ISxx, F ISyy, F ISxy, F ISxz, F ISyz,
     int kernelType, float epsilon, float alpha, float beta,
     float EtaCourant,float a,float H,bool useIsentropic) {
     ResultSPHForces<F,doShearStrengthModel> result;
+    F isGasInteraction = PisGas * IisGas;
+    if (testz(isGasInteraction == 1.0f)) {
+        result.zero(); // No work to do
+        return result;
+    }
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -305,10 +320,10 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
         // Kernel derivatives
         SPHKERNEL_INIT(Pr, PifBall, PC, t1, mask1, kernelType);
         DSPHKERNEL_DR(Pr, Pdwdr, t1, t2, t3, Pr_lt_one, mask1, kernelType);
-        PdWdr = PC * Pdwdr;
+        PdWdr = PC * Pdwdr * isGasInteraction;
         SPHKERNEL_INIT(Ir, IifBall, IC, t1, mask1, kernelType);
         DSPHKERNEL_DR(Ir, Idwdr, t1, t2, t3, Ir_lt_one, mask1, kernelType);
-        IdWdr = IC * Idwdr;
+        IdWdr = IC * Idwdr * isGasInteraction;
 
         // Kernel gradients, separate at the moment, as i am not sure if we need them separately
         // at some point. If we don't, can save some operations, by combining earlier.
@@ -392,7 +407,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
 
         // timestep
         result.dtEst = aFac * EtaCourant * 0.5f * PfBall / ((1.0f + 0.6f * alpha) * Pc - 0.6f * beta * muij);
-        mask1 = Pr_lt_one | Ir_lt_one;
+        mask1 = (Pr_lt_one | Ir_lt_one) & (isGasInteraction == 1.0f);
         result.dtEst = mask_mov(1e14f,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);
 
