@@ -2930,6 +2930,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
     int doUConversion = SPHoptions->doUConversion;
     if (SPHoptions->doUConversion) {
         for (auto &p : pkd->particles) {
+            if (!pkdIsGas(pkd, &p)) continue;
             auto &NewSph = p.newsph();
             NewSph.u = SPHEOSUofRhoT(pkd,p.density(),NewSph.u,p.imaterial(),SPHoptions);
             NewSph.oldRho = p.density();

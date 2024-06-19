@@ -57,7 +57,7 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
             vpred[2] *= exp(kick->dtOpen[p.rung()] * SPHoptions->VelocityDamper);
         }
     }
-    if (SPHoptions->doSPHForces || SPHoptions->doDensityCorrection) {
+    if ((SPHoptions->doSPHForces || SPHoptions->doDensityCorrection) && pkdIsGas(pkd, &p)) {
         if (SPHoptions->doOnTheFlyPrediction) {
             float uPred = 0.0f;
             if (SPHoptions->useIsentropic && !(p.imaterial() == 0 && SPHoptions->useBuiltinIdeal)) {
@@ -102,6 +102,16 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
             if (Spredyz) *Spredyz = 0.0f;
         }
     }
+    else {
+        *P = 0.0f;
+        *cs = 0.0f;
+        if (T) *T = 0.0f;
+        if (Spredxx) *Spredxx = 0.0f;
+        if (Spredyy) *Spredyy = 0.0f;
+        if (Spredxy) *Spredxy = 0.0f;
+        if (Spredxz) *Spredxz = 0.0f;
+        if (Spredyz) *Spredyz = 0.0f;
+    }
 }
 
 void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, SPHOptions *SPHoptions) {
@@ -110,9 +120,19 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
     if (SPHoptions->doUConversion && SPHoptions->doInterfaceCorrection) {
         NewSph.T = NewSph.u;
         NewSph.P = SPHEOSPofRhoT(pkd, p.density(), NewSph.u, p.imaterial(), SPHoptions);
+        return;
     }
-    else {
-        float dtPredDrift = getDtPredDrift(kick,0,uRungLo,p.rung());
+
+    float dtPredDrift = getDtPredDrift(kick,0,uRungLo,p.rung());
+    if (SPHoptions->doConsistentPrediction) {
+        const auto &v = p.velocity();
+        const auto &ap = p.acceleration();
+        NewSph.vpred[0] = v[0] + dtPredDrift * ap[0];
+        NewSph.vpred[1] = v[1] + dtPredDrift * ap[1];
+        NewSph.vpred[2] = v[2] + dtPredDrift * ap[2];
+    }
+
+    if (pkdIsGas(pkd, &p)) {
         float uPred = 0.0f;
         if (SPHoptions->useIsentropic && !(p.imaterial() == 0 && SPHoptions->useBuiltinIdeal)) {
             // undo kick
@@ -128,13 +148,7 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
             uPred = NewSph.u + dtPredDrift * NewSph.uDot;
         }
         NewSph.P = SPHEOSPCTofRhoU(pkd,p.density(),uPred,&NewSph.cs,&NewSph.T,p.imaterial(),SPHoptions);
-        if (SPHoptions->doConsistentPrediction) {
-            const auto &v = p.velocity();
-            const auto &ap = p.acceleration();
-            NewSph.vpred[0] = v[0] + dtPredDrift * ap[0];
-            NewSph.vpred[1] = v[1] + dtPredDrift * ap[1];
-            NewSph.vpred[2] = v[2] + dtPredDrift * ap[2];
-        }
+
         if (SPHoptions->doShearStrengthModel) {
             auto &NewSphStr = p.newsphstr();
             NewSphStr.Spredxx = NewSphStr.Sxx + dtPredDrift * NewSphStr.SDotxx;

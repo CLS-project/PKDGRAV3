@@ -833,12 +833,12 @@ int pkdGravInteract(PKD pkd,
 
         if (p.have_newsph()) {
             const auto &NewSph = p.newsph();
-            wp->pInfoIn[nP].fBall = p.ball();
+            wp->pInfoIn[nP].fBall = pkdIsGas(pkd, &p) ? p.ball() : 1.0f;
             wp->pInfoIn[nP].isTooLarge = 0;
-            wp->pInfoIn[nP].Omega = NewSph.Omega;
+            wp->pInfoIn[nP].Omega = pkdIsGas(pkd, &p) ? NewSph.Omega : 1.0f;
             wp->pInfoIn[nP].iMat = p.imaterial();
             SPHpredictOnTheFly(pkd, p, kick, wp->SPHoptions->nPredictRung, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, &wp->pInfoIn[nP].Sxx, &wp->pInfoIn[nP].Syy, &wp->pInfoIn[nP].Sxy, &wp->pInfoIn[nP].Sxz, &wp->pInfoIn[nP].Syz, SPHoptions);
-            wp->pInfoIn[nP].rho = p.density();
+            wp->pInfoIn[nP].rho = pkdIsGas(pkd, &p) ? p.density() : 1.0f;
             wp->pInfoIn[nP].species = p.species();
 
             wp->pInfoOut[nP].rho = 0.0f;
