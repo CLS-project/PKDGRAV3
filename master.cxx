@@ -4079,12 +4079,13 @@ double MSR::Read(std::string_view achInFile) {
         ** Initialize fBall
         */
         TimerStart(TIMER_NONE);
-        printf("Initializing fBall ...\n");
+        int fBallInitnSmooth = int(double(N)/double(nGas) * 2 * parameters.get_nSmooth());
+        printf("Initializing fBall (Smooth with %d neighbors) ...\n", fBallInitnSmooth);
         Reorder();
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(bEwald);
-        Smooth(dTime,0.0f,SMX_BALL,0, int(double(N)/double(nGas) * 2 * parameters.get_nSmooth()));
+        Smooth(dTime,0.0f,SMX_BALL,0, fBallInitnSmooth);
         Reorder();
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
