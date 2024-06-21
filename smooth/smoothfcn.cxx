@@ -104,7 +104,12 @@ void initBall(void *vpkd, void *pIn) {
 void BallSmooth(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     auto p = pkd->particles[pIn];
-    p.set_ball(fBall);
+    if (pkdIsGas(pkd, &p)) {
+        p.set_ball(fBall);
+    }
+    else {
+        p.set_ball(0.0f);
+    }
 }
 
 void initDensity(void *vpkd, void *p) {
