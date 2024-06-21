@@ -4084,7 +4084,7 @@ double MSR::Read(std::string_view achInFile) {
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(bEwald);
-        Smooth(dTime,0.0f,SMX_BALL,0,2 * parameters.get_nSmooth());
+        Smooth(dTime,0.0f,SMX_BALL,0, int(double(N)/double(nGas) * 2 * parameters.get_nSmooth()));
         Reorder();
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
