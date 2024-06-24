@@ -885,6 +885,10 @@ void MSR::Initialize() {
 
 }
 
+void MSR::IgnoreSIGBUS() {
+    mdl->RunService(PST_IGNORE_SIGBUS);
+}
+
 int MSR::GetLock() {
     /*
     ** Attempts to lock run directory to prevent overwriting. If an old lock

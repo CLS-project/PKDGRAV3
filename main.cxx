@@ -40,6 +40,7 @@
 #include "core/fftsizes.h"
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
+#include "core/ignoresigbus.h"
 
 #include "io/service.h"
 #include "io/restore.h"
@@ -116,6 +117,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSelSphere>(pst));
     mdl->AddService(std::make_unique<ServiceSelCylinder>(pst));
     mdl->AddService(std::make_unique<ServiceFftSizes>(pst));
+    mdl->AddService(std::make_unique<ServiceIgnoreSIGBUS>(pst));
     mdl->AddService(std::make_unique<ServiceCountSpecies>(pst));
     mdl->AddService(std::make_unique<ServiceRemoveDeleted>(pst));
     mdl->AddService(std::make_unique<ServiceFileSizes>(pst));
@@ -200,6 +202,7 @@ int master(MDL mdl,void *vpst) {
             return 1;
         }
 
+        if (msr.parameters.get_bIgnoreSIGBUS()) msr.IgnoreSIGBUS();
         msr.Hostname(); // List all host names
 
         auto dTime = msr.LoadOrGenerateIC();

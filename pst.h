@@ -244,6 +244,7 @@ enum pst_service {
     PST_RS_LOAD_IDS,
     PST_RS_SAVE_IDS,
     PST_RS_EXTRACT,
+    PST_IGNORE_SIGBUS,
 };
 
 void pstAddServices(PST,MDL);

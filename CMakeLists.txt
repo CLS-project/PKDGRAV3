@@ -208,6 +208,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/updaterung.cxx gravity/zeronewrung.cxx
 	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
+	core/ignoresigbus.cxx
 	eEOS/eEOS.cxx
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx
 )

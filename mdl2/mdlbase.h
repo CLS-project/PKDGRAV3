@@ -137,6 +137,9 @@ protected:
 
 class mdlBASE : protected mdlbt {
 public:
+#ifdef USE_BT
+    using mdlbt::ignore_SIGBUS;
+#endif
     struct {
         int32_t nThreads; /* Global number of threads (total) */
         int32_t idSelf;   /* Global index of this thread */

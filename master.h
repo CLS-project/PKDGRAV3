@@ -93,6 +93,7 @@ public:
     void Hostname();
     void MemStatus();
     int GetLock();
+    void IgnoreSIGBUS();
     double LoadOrGenerateIC();
     void Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart=false);
     void Simulate(double dTime);

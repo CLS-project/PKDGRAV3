@@ -91,7 +91,6 @@ std::ostream &operator<<(std::ostream &s, DebugInfo const &di) {
     return s;
 }
 
-
 #endif
 
 static std::mutex backtrace_mutex;
@@ -118,10 +117,34 @@ void mdlbt::register_backtrace() {
 //    signal(SIGFPE, signal_handler);
 }
 
+void mdlbt::ignore_SIGBUS() {
+    struct sigaction sa;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO;
+    sa.sa_sigaction = signal_sigbus;
+    if (sigaction(SIGBUS,  &sa, NULL) == -1) abort();
+}
+
 void mdlbt::terminate_handler() {
     std::unique_lock<std::mutex> lck(backtrace_mutex);
     show_backtrace();
     std::_Exit(EXIT_FAILURE);
+}
+
+void mdlbt::signal_sigbus(int signo, siginfo_t *si, void *unused) {
+    std::unique_lock<std::mutex> lck(backtrace_mutex);
+    fflush(stdout);
+    fflush(stderr);
+    fsync(fileno(stdout));
+    fsync(fileno(stderr));
+    char nodeName[200];
+
+    if (gethostname(nodeName, sizeof(nodeName)))
+        nodeName[0] = 0;
+    else
+        nodeName[sizeof(nodeName) - 1] = 0;
+
+    std::cerr << "SIGNAL " << signo << "." << si->si_code << " at " << si->si_addr << " on " << nodeName << '\n';
 }
 
 void mdlbt::signal_handler(int signo, siginfo_t *si, void *unused) {
@@ -156,4 +179,3 @@ void mdlbt::show_backtrace() {
 #endif
     std::cerr.flush();
 }
-
