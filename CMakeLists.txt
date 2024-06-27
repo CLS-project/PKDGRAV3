@@ -208,6 +208,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/updaterung.cxx gravity/zeronewrung.cxx
 	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
+	core/ignoresigbus.cxx
 	eEOS/eEOS.cxx
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx
 )
@@ -494,7 +495,7 @@ if (FIXED_NSMOOTH_STRICT)
       message("-- Mantaining a strictly constant number of neighbours. Recommended for simulations with high density contrast (e.g., cosmological simulations)")
       target_compile_options(${PROJECT_NAME} PRIVATE -DFIXED_NSMOOTH_STRICT)
    endif(FIXED_NSMOOTH_RELAXED)
-else(FIXED_SMOOTH_STRICT)
+else(FIXED_NSMOOTH_STRICT)
    if (FIXED_NSMOOTH_RELAXED)
       message("-- Mainting an approximately constant number of neighbours. This is not done with the density, thus a high dNeighborsStd must be given (~ a few)")
       target_compile_options(${PROJECT_NAME} PRIVATE -DFIXED_NSMOOTH_RELAXED)

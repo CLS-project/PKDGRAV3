@@ -600,9 +600,6 @@ int pkdContext::AddLocal(int n) {
 }
 
 pkdContext::~pkdContext() {
-    PARTICLE *p;
-    char **ppCList;
-    uint32_t pi;
     int ism;
 
     /*

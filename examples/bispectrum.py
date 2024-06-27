@@ -22,7 +22,7 @@ class Bispectrum:
         self.bispec(msr,step,time,**kwargs)
 
     def ephemeral(self,msr,**kwargs):
-        return msr.grid_ephemeral(self.grid,count=3+self.nThetaBins)
+        return msr.grid_ephemeral(self.grid,count=3+2*self.nRadialBins)
 
     def powerspec(self,msr,step,time,**kwargs):
         out_dir = 'powerspec'
@@ -52,6 +52,11 @@ class Bispectrum:
         out_dir = 'bispec'
         self.create_folder(out_dir) 
 
+        grid = lambda i: 3 + 2*i    # Grid index for the bispectrum
+        norm = lambda i: 4 + 2*i    # Grid index for the normalization
+
+        print('Computing bispectrum...')
+        print(' ... mass assignment')
         msr.grid_create(self.grid)
         msr.assign_mass(grid_index=0,order=self.order)
         # msr.grid_write(grid_index=0,filename="test.grid")
@@ -71,33 +76,22 @@ class Bispectrum:
         kbin_centr = np.sort([(kbin_edges[i]+kbin_edges[i+1])/2 for i in range(len(kbin_edges)-1)])
         
         nThetaBins = self.nThetaBins
-        # theta = np.linspace(0, np.pi, nThetaBins)
         theta_edges = np.linspace(0, np.pi, nThetaBins+1)
 
-        count = 0
+        # k1 and k2 are the radial bins. Precompute each bin and the normalization.
+        print(' ... precomputing radial bins')
+        for i in range(len(kbin_edges) - 1):
+            print(f'      ... bin {i} k = {kbin_centr[i]*k_factor:.3f} h/Mpc')
+            msr.bispectrum_select(   kbin_edges[i],kbin_edges[i+1],target_grid_index=grid(i),source_grid_index=0)
+            msr.bispectrum_normalize(kbin_edges[i],kbin_edges[i+1],target_grid_index=norm(i))
+
+        k3_work = {}
         for p,k1 in enumerate(kbin_centr):
             for q,k2 in enumerate(kbin_centr[p:]):
-                count += 1
-                print(f'{count}/{int(len(kbin_centr)*(len(kbin_centr)+1)/2)}')
-                # k3_centr = self.cosine_rule(k1, k2, np.pi-theta)
-                # dk3 = np.gradient(kbin_centr)[0]
-                # k3_dict = {i: (int(k-dk3/2),int(k+dk3/2)) for i,k in enumerate(k3_centr)}
-                k3_edges = np.round(self.cosine_rule(k1, k2, np.pi-theta_edges))
+                k3_edges = np.unique(np.round(self.cosine_rule(k1, k2, np.pi-theta_edges)))
                 k3_centr = k3_edges[1:]/2+k3_edges[:-1]/2
                 k3_dict = {i: (k3_edges[i],k3_edges[i+1]) for i,k in enumerate(k3_centr)}
-
-                msr.bispectrum_normalize(kbin_edges[p],kbin_edges[p+1],target_grid_index=1)
-                msr.bispectrum_normalize(kbin_edges[q],kbin_edges[q+1],target_grid_index=2)
-                msr.bispectrum_select(   kbin_edges[p],kbin_edges[p+1],target_grid_index=1,source_grid_index=0)
-                msr.bispectrum_select(   kbin_edges[q],kbin_edges[q+1],target_grid_index=2,source_grid_index=0)
-                msr.bispectrum_normalize(kbin_edges[p],kbin_edges[p+1],target_grid_index=4)
-                msr.bispectrum_normalize(kbin_edges[q],kbin_edges[q+1],target_grid_index=5)
-                
-                Bk12 = []
-                out_file = out_dir+'/{0:}.{1:05d}.nGrid{2:}.k1_{3:.2f}_k2_{4:.2f}.bispec'.format(self.achOutName,step,ngrid,k1*k_factor,k2*k_factor)
                 for r,k3 in enumerate(k3_centr):
-                    # print(f'k1, k2, k3 = {k1*k_factor:.3f}, {k2*k_factor:.3f}, {k3*k_factor:.3f} h/Mpc')
-                    print(f'k1, k2, k3 = {k1:}, {k2}, {k3:}')
                     kmin=k3_dict[r][0]
                     kmax=k3_dict[r][1]
                     if kmax-kmin<=1:
@@ -105,19 +99,37 @@ class Bispectrum:
                         kmax += 1
                     if kmin<0: kmin = 0 
                     if kmax>ngrid: kmax = ngrid
-                    msr.bispectrum_normalize(kmin,kmax,target_grid_index=3)
-                    normalization = msr.bispectrum_calculate(4,5,3)
-                    msr.bispectrum_select(kmin,kmax,target_grid_index=3,source_grid_index=0)
-                    result = msr.bispectrum_calculate(1,2,3)
-                    print('result, normalization =', result, normalization)
-                    out = result/normalization
-                    print('result/normalization =', out)
-                    out = out*L**6
-                    print('result/normalization*(V^2) =', out)
-                    Bk12.append([k1*k_factor,k2*k_factor,k2*k_factor,out])
-                
-                np.savetxt(out_file, Bk12)
+                    key =(kmin,kmax)
+                    node=[p,q,k3]
+                    if key in k3_work:
+                        k3_work[key].append(node)
+                    else:
+                        k3_work[key] = [node]
 
+        print(' ... computing bispectrum')
+        Bk12 = []
+        for key in sorted(k3_work):
+            kmin, kmax = key
+            print(f'     ... k3min, k3max = {kmin}, {kmax}')
+            msr.bispectrum_normalize(kmin,kmax,target_grid_index=1)
+            msr.bispectrum_select(kmin,kmax,target_grid_index=2,source_grid_index=0)
+            nodes = k3_work[key]
+            for node in nodes:
+                p, q, k3 = node
+                k1 = kbin_centr[p]
+                k2 = kbin_centr[q]
+                print(f'         ... k1, k2, k3 = {k1}, {k2}, {k3}')
+                normalization = msr.bispectrum_calculate(norm(p),norm(q),1)
+                result = msr.bispectrum_calculate(grid(p),grid(q),2)
+                print('             result, normalization =', result, normalization)
+                out = result/normalization
+                print('             result/normalization =', out)
+                out = out*L**6
+                print('             result/normalization*(V^2) =', out)
+                Bk12.append([k1*k_factor,k2*k_factor,k3*k_factor,out])
+        out_file = out_dir+'/{0:}.{1:05d}.nGrid{2:}.bispec'.format(self.achOutName,step,ngrid)
+        np.savetxt(out_file, Bk12)
+ 
         msr.grid_delete()
         print('...done')
 
@@ -130,12 +142,6 @@ class Bispectrum:
             os.makedirs(grid_dir)
             print(f"Directory '{grid_dir}' created.")
 
-# Here we add our analysis hook by contructing an instance of the object. We could have also just
-# passed a function, but an object instance can be useful if we need state information like grid.
-# We also need to specify how much memory we need by passing an object created with ephemeral().
-# Without parameters this object indicates that we need no additional memory.
-# Here we are saying that we need 50 grids of nGrid^3 plus one extra for the source.
-_nGridBispectrum = 512 #64
 _nRadialBins     = 16  #10
 _nThetaBins      = 16
 
@@ -186,4 +192,4 @@ nReplicas       = classic_replicas_switch()     # 1 if theta > 0.52 otherwise 2
 bMemUnordered   = True          # iOrder replaced by potential and group id
 bNewKDK         = True          # No accelerations in the particle, dual tree possible
 
-add_analysis(Bispectrum(grid=_nGridBispectrum,nRadialBins=_nRadialBins,nThetaBins=_nThetaBins,achOutName=achOutName,dBoxSize=dBoxSize))
+add_analysis(Bispectrum(grid=nGrid,nRadialBins=_nRadialBins,nThetaBins=_nThetaBins,achOutName=achOutName,dBoxSize=dBoxSize))

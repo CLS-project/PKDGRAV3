@@ -82,11 +82,13 @@ default=false
 help="enable power spectrum output for linear species"
 
 ["Gravity, Domains, Trees".bDualTree]
+private=true
 flag="2tree"
 default=false
 help="enable second tree for active rungs"
 
 ["Gravity, Domains, Trees".dFracDualTree]
+private=true
 flag="fndt"
 default=0.05
 help="Fraction of Active Particles for to use a dual tree"
@@ -135,6 +137,16 @@ help="Number of log bins for P(k)"
 docs='''
 Specifies the number of P(k) bins (in log space) when measuring the power spectrum.
 The default is half of the grid size (`nGridPk`).
+'''
+
+["Analysis"."Power Spectrum Measurement".nFoldPk]
+flag="fpk"
+default=[1]
+help="Number of times to fold the power spectrum (list)"
+docs='''
+Normally the power spectrum measurement is done on a fixed size grid. This parameter
+allows the measurement to be done multiple times by folding the particles allowing
+high k values to be reached with a smaller grid.
 '''
 
 ["Analysis"."Power Spectrum Measurement".bPkInterlace]
@@ -437,11 +449,6 @@ help="Maximum Wallclock time (in minutes) to run"
 flag="signal"
 default=0
 help="Time (in seconds) that USR1 is sent before termination"
-
-["I/O Parameters".bRestart]
-flag="restart"
-default=false
-help="restart from checkpoint"
 
 ["I/O Parameters".lstOrbits]
 flag="orbit"
@@ -956,7 +963,9 @@ with periodical boxes, and will save 12 bytes of memory per particle.
 
 ["Memory Model and Control".nIntegerFactor]
 flag="ifactor"
+private=true
 default=0x80000000
+omitted=':math:`2^{31}`'
 help="Factor to use for integerized coordinates"
 docs='''
 This is the factor used to convert between integer and double precision coordinates.
@@ -1807,4 +1816,15 @@ If compiled with GPU support, the code will try to use a GPU to
 accelerate some phases of the calculation. If no GPU is present,
 the CPU alone will be used. The use of the GPU can be disabled
 by setting this to False.
+'''
+
+["Debugging/Testing/Diagnostics".bIgnoreSIGBUS]
+flag="sigbus"
+private=true
+default=false
+help="ignore SIGBUS"
+docs='''
+At least one system experiences spurious SIGBUS singals during runtime that are
+not restricted to just PKDGRAV3. The workaround is to trap SIGBUS and continue.
+Obviously this is not ideal, but desperate times call for desperate measures.
 '''

@@ -14,16 +14,16 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "getordsplits.h"
+#include "ignoresigbus.h"
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceGetOrdSplits::input>()  || std::is_standard_layout<ServiceGetOrdSplits::input>());
-static_assert(std::is_void<ServiceGetOrdSplits::output>() || std::is_standard_layout<ServiceGetOrdSplits::output>());
+static_assert(std::is_void<ServiceIgnoreSIGBUS::input>()  || std::is_trivial<ServiceIgnoreSIGBUS::input>());
+static_assert(std::is_void<ServiceIgnoreSIGBUS::output>() || std::is_trivial<ServiceIgnoreSIGBUS::output>());
 
-int ServiceGetOrdSplits::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    assert(nOut >= sizeof(output));
-    auto out = static_cast<output *>(vout);
-    *out = pst->iOrdSplit;
-    return sizeof(output);
+int ServiceIgnoreSIGBUS::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    static_assert(std::is_void<input>());
+    static_assert(std::is_void<output>());
+    pst->mdl->ignore_SIGBUS();
+    return 0;
 }

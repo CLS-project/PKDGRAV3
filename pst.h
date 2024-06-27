@@ -244,6 +244,7 @@ enum pst_service {
     PST_RS_LOAD_IDS,
     PST_RS_SAVE_IDS,
     PST_RS_EXTRACT,
+    PST_IGNORE_SIGBUS,
 };
 
 void pstAddServices(PST,MDL);
@@ -1042,6 +1043,7 @@ struct inAssignMass {
     int iAssignment;
     int iGrid;
     float fDelta;
+    int fold;
 };
 int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_DENSITY_CONTRAST */

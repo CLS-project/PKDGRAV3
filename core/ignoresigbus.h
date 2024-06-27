@@ -14,16 +14,14 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "getordsplits.h"
+#include "TraversePST.h"
 
-// Make sure that the communication structure is "trivial" so that it
-// can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceGetOrdSplits::input>()  || std::is_standard_layout<ServiceGetOrdSplits::input>());
-static_assert(std::is_void<ServiceGetOrdSplits::output>() || std::is_standard_layout<ServiceGetOrdSplits::output>());
-
-int ServiceGetOrdSplits::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    assert(nOut >= sizeof(output));
-    auto out = static_cast<output *>(vout);
-    *out = pst->iOrdSplit;
-    return sizeof(output);
-}
+class ServiceIgnoreSIGBUS : public TraversePST {
+public:
+    typedef void input;
+    typedef void output;
+    explicit ServiceIgnoreSIGBUS(PST pst)
+        : TraversePST(pst,PST_IGNORE_SIGBUS,0,"IgnoreSIGBUS") {}
+protected:
+    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+};
