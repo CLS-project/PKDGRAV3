@@ -71,9 +71,10 @@ int MSR::Python(int argc, char *argv[]) {
     config.parse_argv = 0;
     status = PyConfig_SetBytesArgv(&config, argc, argv);
     // I don't like this, but it works for pyenv. See:
-    //   https://bugs.python.org/issue22213
+    //   https://github.com/python/cpython/issues/66409
     //   https://www.python.org/dev/peps/pep-0432/
-    auto PYENV_VIRTUAL_ENV = getenv("PYENV_VIRTUAL_ENV");
+    auto PYENV_VIRTUAL_ENV = getenv("VIRTUAL_ENV");
+    if (!PYENV_VIRTUAL_ENV) PYENV_VIRTUAL_ENV = getenv("PYENV_VIRTUAL_ENV");
     if (PYENV_VIRTUAL_ENV) {
         std::string exec = PYENV_VIRTUAL_ENV;
         exec += "/bin/python";
