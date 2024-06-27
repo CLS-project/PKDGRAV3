@@ -52,7 +52,7 @@
 static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, blitz::TinyVector<float,3> fOffset) {
     auto c = (id == pkd->Self()) ? pkd->tree[iChild] :
              pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,iCache,iChild,id))];
-    auto nc = (c->is_remote()|c->is_top_tree()) ? 1000000000 : c->count();
+    auto nc = (c->is_remote()||c->is_top_tree()) ? 1000000000 : c->count();
     auto cOpen = c->bMax() * pkd->fiCritTheta;
     auto c_r = c->position();
     auto cbnd = c->bound();
@@ -721,7 +721,6 @@ int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double 
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
     return nActive;
 }
-
 
 /*
 ** Returns total number of active particles for which gravity was calculated.

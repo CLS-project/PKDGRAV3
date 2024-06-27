@@ -86,12 +86,12 @@ public:
     ServiceBuffer &operator=(const ServiceBuffer &) = delete;
 
     // Move constructor
-    ServiceBuffer(ServiceBuffer&& other) noexcept
+    ServiceBuffer(ServiceBuffer &&other) noexcept
         : offsets(std::move(other.offsets)), buffer(std::move(other.buffer))
     {}
 
     // Move assignment
-    ServiceBuffer &operator=(ServiceBuffer&& other) noexcept {
+    ServiceBuffer &operator=(ServiceBuffer &&other) noexcept {
         if (&other != this) {
             offsets = std::move(other.offsets);
             buffer = std::move(other.buffer);
@@ -137,6 +137,9 @@ protected:
 
 class mdlBASE : protected mdlbt {
 public:
+#ifdef USE_BT
+    using mdlbt::ignore_SIGBUS;
+#endif
     struct {
         int32_t nThreads; /* Global number of threads (total) */
         int32_t idSelf;   /* Global index of this thread */

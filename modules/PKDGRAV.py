@@ -60,22 +60,6 @@ def restore(filename,species=None,classes=None,step=None,steps=None,time=None,de
     """
     msr0.Restart(filename.encode('UTF-8'),kwargs,species,classes,step,steps,time,delta,E,U,Utime)
 
-def restart(arguments,specified,species,classes,n,name,step,steps,time,delta,E,U,Utime):
-    ndark = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_DARK])
-    nsph  = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_SPH])
-    nstar = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_STAR])
-    nbh   = cython.declare(cython.size_t,species[FIO_SPECIES.FIO_SPECIES_BH])
-    aClasses = new_partclass_vector()
-    for r in classes:
-        spec = cython.declare(cython.int,  r[0])
-        mass = cython.declare(cython.float,r[1])
-        soft = cython.declare(cython.float,r[2])
-        imat = cython.declare(cython.int,  r[3])
-        aClasses.push_back(PARTCLASS(FIO_SPECIES(spec),mass,soft,imat))
-    msr0.Restart(n,name.encode('UTF-8'),
-        step,steps,time,delta,ndark,nsph,nstar,nbh,
-        E,U,Utime,aClasses,arguments,specified)
-
 def generate_ic(cosmology : Cosmology,*,grid : int,seed : int,z : float,L : float,
                 order : int = None, fixed_amplitude : bool = False, phase_pi : float = 0, **kwargs) -> float:
     """
@@ -120,6 +104,16 @@ def save(filename,time=1.0):
     :param number time: simulation time
     """
     return msr0.Write(filename.encode('UTF-8'),time,False)
+
+def load_checkpoint(filename,species=None,classes=None,step=None,steps=None,time=None,delta=None,E=None,U=None,Utime=None,**kwargs):
+    """
+    Read particles from a checkpoint file.
+
+    :param str filename: the name of the file
+    :return: time
+    :rtype: number
+    """
+    return read_checkpoint(filename,kwargs,species,classes,step,steps,time,delta,E,U,Utime)
 
 def domain_decompose(rung=0):
     """
@@ -234,15 +228,16 @@ def grid_write(filename,k=False,grid_index=0):
     """
     msr0.OutputGrid(filename.encode('UTF-8'), k, grid_index, 1)
 
-def assign_mass(order=3,grid_index=0,delta=0.0):
+def assign_mass(order=3,grid_index=0,delta=0.0,fold=1):
     """
     Assign mass to the grid
 
     :param integer order: mass assignment order, 0=NGP, 1=CIC, 2=TSC, 3=PCS
     :param integer grid_index: which grid number to use
     :param number delta: grid shift (normally 0.0 or 0.5)
+    :param number fold: number of times to fold
     """
-    msr0.AssignMass(order,grid_index,delta)
+    msr0.AssignMass(order,grid_index,delta,fold)
 
 def density_contrast(grid_index=0,k=True):
     """
@@ -268,7 +263,21 @@ def window_correction(grid_index=0,order=3):
     :param integer grid_index: which grid number to use
     :param integer order: mass assignment order, 0=NGP, 1=CIC, 2=TSC, 3=PCS
     """
-    msr0.WindowCorrection(grid_index,order) 
+    msr0.WindowCorrection(order,grid_index) 
+
+def add_linear_signal(seed,L,a,fixed=False,phase=0.0,grid_index=0):
+    """
+    Add a linear signal to the grid
+
+    :param integer seed: random seed
+    :param number L: length unit of the box
+    :param number a: expansion factor
+    :param Boolean fixed: use fixed amplitude for the power spectrum
+    :param number phase: phase of the initial conditions (in units of :math:`\\pi` radians, normally 0 or 1)
+    :param integer grid_index: which grid number to use (default 0)
+    """
+    msr0.AddLinearSignal(grid_index,seed,L,a,fixed,phase)
+
 
 def bispectrum_select(k_min,k_max,target_grid_index=0,source_grid_index=1):
     """
@@ -311,7 +320,7 @@ def fof(tau,minmembers=10):
     msr0.NewFof(tau,minmembers)
     msr0.GroupStats()
 
-def smooth(type,n=32,time=1.0,delta=0.0,symmetric=False):
+def smooth(type,n=32,time=1.0,delta=0.0,symmetric=False,resmooth=False):
     """
     Smooths the density field with a given kernel
 
@@ -342,7 +351,10 @@ def smooth(type,n=32,time=1.0,delta=0.0,symmetric=False):
     * SMOOTH_TYPE_BH_STEP
     * SMOOTH_TYPE_CHEM_ENRICHMENT
     """
-    msr0.Smooth(time,delta,type,symmetric,n)
+    if resmooth:
+        msr0.ReSmooth(time,delta,type,symmetric)
+    else:
+        msr0.Smooth(time,delta,type,symmetric,n)
 
 def get_array(field,time=1.0,marked=False):
     """
@@ -484,3 +496,58 @@ def mark_cylinder(point1,point2,radius,set_if_true=1,clear_if_false=1):
     return msr0.SelCylinder(TinyVector[double,BLITZ3](point1[0],point1[1],point1[2]),
                      TinyVector[double,BLITZ3](point2[0],point2[1],point2[2]),
                      radius,set_if_true,clear_if_false)
+
+def mark_species(*,species,species_mask,set_if_true=1,clear_if_false=1):
+    """
+    Mark particles of a given species
+
+    :param integer species: species number
+    :param integer species_mask: species mask (one or more species)
+    :param integer set_if_true: mark the particle if it is inside
+    :param integer clear_if_flase: unmark the particle if it is outside
+    :return: number of particles marked
+    :rtype: integer
+    """
+    if species_mask is None:
+        species_mask = 1 << species
+    return msr0.SelSpecies(species_mask,set_if_true,clear_if_false)
+
+def rs_load_ids(filename,append=False):
+    """
+    Load particle IDs from a file
+
+    :param str filename: the name of the file
+    :param Boolean bAppend: append to the existing IDs
+    """
+    msr0.RsLoadIds(filename.encode('UTF-8'),append)
+
+def rs_halo_load_ids(filename,append=False):
+    """
+    Load halo IDs from a file
+
+    :param str filename: the name of the file
+    :param Boolean bAppend: append to the existing IDs
+    """
+    msr0.RsHaloLoadIds(filename.encode('UTF-8'),append)
+
+def rs_save_ids(filename):
+    """
+    Save particle IDs to a file
+
+    :param str filename: the name of the file
+    """
+    msr0.RsSaveIds(filename.encode('UTF-8'))
+
+def rs_reorder_ids():
+    """
+    Reorder the IDs
+    """
+    msr0.RsReorderIds()
+
+def rs_extract(filename):
+    """
+    Extract particles to a file
+
+    :param str filename_template: the name of the file
+    """
+    msr0.RsExtract(filename.encode('UTF-8'))

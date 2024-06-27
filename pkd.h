@@ -823,7 +823,7 @@ void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions *SPHoptions, int bGPU);
 void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPHoptions);
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta, int fold);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
 float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
 void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,

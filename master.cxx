@@ -522,18 +522,12 @@ double MSR::restore(PyObject *file,PyObject *replace) {
     return value;
 }
 
-void MSR::Restart(const char *filename,PyObject *kwargs,
-                  PyObject *species,PyObject *classes, PyObject *step, PyObject *steps,
-                  PyObject *time, PyObject *delta, PyObject *E, PyObject *U, PyObject *Utime) {
-    auto sec = MSR::Time();
-
+std::tuple<double,double,int64_t,int64_t,int64_t,int64_t> // dTime,dDelta,iStep,nSteps,nSizeParticle,nSizeNode
+MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
+                    PyObject *species,PyObject *classes, PyObject *step, PyObject *steps,
+                    PyObject *time, PyObject *delta, PyObject *E, PyObject *U, PyObject *Utime) {
     std::string pkl_filename = filename;
     pkl_filename += ".pkl";
-
-    bVDetails = parameters.get_bVDetails();
-    if (parameters.get_bVStart())
-        printf("Restoring from checkpoint\n");
-    TimerStart(TIMER_IO);
 
     auto pFile = PyObject_CallFunction(PyDict_GetItemString(PyEval_GetBuiltins(), "open"), "ss", pkl_filename.c_str(), "rb");
     if (!pFile) {
@@ -541,7 +535,6 @@ void MSR::Restart(const char *filename,PyObject *kwargs,
         abort();
     }
 
-    // // Checkpoint the important variables
     auto version = restore<int>(pFile);
     if (version != 1) {
         PyErr_SetString(PyExc_ValueError, "Invalid checkpoint file version");
@@ -589,6 +582,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs,
     auto specified = restore<PyObject *>(pFile);
     parameters.merge(pkd_parameters(arguments,specified));
     parameters.update(kwargs,false);
+
     ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
     // Restore the interpreter state
@@ -605,25 +599,13 @@ void MSR::Restart(const char *filename,PyObject *kwargs,
     mMemoryModel = getMemoryModel();
     assert(nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     Restore(filename,nSizeParticle);
     pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
     CalcBound();
     CountRungs(NULL);
-
-    TimerStop(TIMER_IO);
-    auto dsec = TimerGet(TIMER_IO);
-    double dExp = csmTime2Exp(csm,dTime);
-    if (dsec > 0.0) {
-        double rate = N*nSizeParticle / dsec;
-        const char *units = "B";
-        if (rate > 10000) { rate /= 1024;   units = "KB"; }
-        if (rate > 10000) { rate /= 1024;   units = "MB"; }
-        if (rate > 10000) { rate /= 1024;   units = "GB"; }
-        msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs (%.2f %s/s)\n\n",dExp,dsec,rate,units);
-    }
-    else msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
 
     /* We can indicate that the DD was already done at rung 0 */
     iLastRungRT = 0;
@@ -647,62 +629,18 @@ void MSR::Restart(const char *filename,PyObject *kwargs,
     if (parameters.has_achOutTimes()) {
         nSteps = ReadOuts(dTime);
     }
-
-    if (bAnalysis) return; // Very cheeserific
-    Simulate(dTime,dDelta,iStep,nSteps,true);
+    return {dTime,dDelta,iStep,nSteps,nSizeParticle,nSizeNode};
 }
 
-// This is the old style restart, which is not used anymore
-// It is kept here for old checkpoint files, but will be removed soon
-void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
-                  size_t nDark, size_t nGas, size_t nStar, size_t nBH,
-                  double dEcosmo, double dUOld, double dTimeOld,
-                  std::vector<PARTCLASS> &aClasses,PyObject *arguments,PyObject *specified) {
-    auto sec = MSR::Time();
-
-    parameters.merge(pkd_parameters(arguments,specified));
-
-    this->nDark = nDark;
-    this->nGas  = nGas;
-    this->nStar = nStar;
-    this->nBH   = nBH;
-    this->N     = nDark + nGas + nStar + nBH;
-    this->dEcosmo = dEcosmo;
-    this->dUOld   = dUOld;
-    this->dTimeOld= dTimeOld;
-
-    if (parameter_overrides) {
-        if (!parameters.update(parameter_overrides)) Exit(1);
-        parameter_overrides = nullptr; // This is not owned by us
-    }
-
-    ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
-
+void MSR::Restart(const char *filename,PyObject *kwargs,
+                  PyObject *species,PyObject *classes, PyObject *step, PyObject *steps,
+                  PyObject *time, PyObject *delta, PyObject *E, PyObject *U, PyObject *Utime) {
     bVDetails = parameters.get_bVDetails();
     if (parameters.get_bVStart())
         printf("Restoring from checkpoint\n");
     TimerStart(TIMER_IO);
 
-    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
-
-    fioSpeciesList nSpecies;
-    for ( auto i=0; i<=FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
-    nSpecies[FIO_SPECIES_ALL]  = N;
-    nSpecies[FIO_SPECIES_SPH]  = nGas;
-    nSpecies[FIO_SPECIES_DARK] = nDark;
-    nSpecies[FIO_SPECIES_STAR] = nStar;
-    nSpecies[FIO_SPECIES_BH]   = nBH;
-    uint64_t mMemoryModel = 0;
-    mMemoryModel = getMemoryModel();
-    assert(nGas==0 || DoGas());
-    if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
-    if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
-    auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
-
-    Restore(baseName,nSizeParticle);
-    pstSetClasses(pst,aClasses.data(),aClasses.size()*sizeof(PARTCLASS),NULL,0);
-    CalcBound();
-    CountRungs(NULL);
+    auto [dTime,dDelta,iStep,nSteps,nSizeParticle,nSizeNode] = ReadCheckpoint(filename,kwargs,species,classes,step,steps,time,delta,E,U,Utime);
 
     TimerStop(TIMER_IO);
     auto dsec = TimerGet(TIMER_IO);
@@ -717,30 +655,6 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     }
     else msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
 
-    /* We can indicate that the DD was already done at rung 0 */
-    iLastRungRT = 0;
-    iLastRungDD = 0;
-
-    InitCosmology(csm);
-
-    SetDerivedParameters(true);
-
-    if (parameters.has_dSoft()) SetSoft(Soft());
-
-    if (DoGas() && NewSPH()) {
-        /*
-        ** Initialize kernel target with nSmooth
-        */
-        parameters.set_fKernelTarget(parameters.get_nSmooth());
-        SetSPHoptions();
-        InitializeEOS();
-    }
-    if (parameters.get_bAddDelete()) CountSpecies();
-    if (parameters.has_achOutTimes()) {
-        nSteps = ReadOuts(dTime);
-    }
-
-    if (bAnalysis) return; // Very cheeserific
     Simulate(dTime,dDelta,iStep,nSteps,true);
 }
 
@@ -931,8 +845,6 @@ void MSR::SetDerivedParameters(bool bRestart) {
 }
 
 void MSR::Initialize() {
-    char ach[256];
-
     lcl.pkd = NULL;
     nThreads = mdlThreads(mdl);
     lStart=time(0);
@@ -959,6 +871,10 @@ void MSR::Initialize() {
         mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
     }
 
+}
+
+void MSR::IgnoreSIGBUS() {
+    mdl->RunService(PST_IGNORE_SIGBUS);
 }
 
 int MSR::GetLock() {
@@ -2589,7 +2505,7 @@ int MSR::ReadOuts(double dTime) {
     char achFile[PST_FILENAME_SIZE];
     FILE *fp;
     int ret;
-    double z,a,t,n,newt;
+    double z,a,t,newt;
     char achIn[80];
 
     /*
@@ -3965,6 +3881,7 @@ double MSR::Read(std::string_view achInFile) {
 
     /* Add Data Subpath for local and non-local names. */
     MSR::MakePath(parameters.get_achDataSubPath(),achInFile.data(),achFilename);
+    printf("Reading from %s\n", achInFile.data());
     fio = fioOpen(achFilename,csm->val.dOmega0,csm->val.dOmegab);
     if (fio==NULL) {
         fprintf(stderr,"ERROR: unable to open input file\n");
@@ -4167,31 +4084,39 @@ void MSR::OutputPk(int iStep,double dTime) {
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
 
-    auto [nPk,fK,fPk,fPkAll] = MeasurePk(int(parameters.get_iPkOrder()),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk);
-
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( parameters.has_dBoxSize() && parameters.get_dBoxSize() > 0.0 ) kfact = parameters.get_dBoxSize();
     else kfact = 1.0;
     vfact = kfact * kfact * kfact;
     kfact = 1.0 / kfact;
 
-    filename = BuildName(iStep,".pk");
-    std::ofstream fs(filename);
-    if (fs.fail()) {
-        std::cerr << "Could not create P(k) file: " << filename << std::endl;
-        perror(filename.c_str());
-        Exit(errno);
+    std::vector<std::int64_t> nFoldPk;
+    if (parameters.has_nFoldPk()) nFoldPk = std::move(parameters.get_nFoldPk());
+    else nFoldPk.push_back(1);
+
+    for (auto fold : nFoldPk) {
+        auto [nPk,fK,fPk,fPkAll] = MeasurePk(int(parameters.get_iPkOrder()),parameters.get_bPkInterlace(),nGridPk,a,nBinsPk,fold);
+
+        filename = BuildName(iStep,".pk");
+        if (nFoldPk.size() > 1) filename = fmt::format("{name}.{fold}","name"_a=filename,"fold"_a=fold);
+        std::ofstream fs(filename);
+        if (fs.fail()) {
+            std::cerr << "Could not create P(k) file: " << filename << std::endl;
+            perror(filename.c_str());
+            Exit(errno);
+        }
+        fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = parameters.get_achPkSpecies());
+        fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
+        for (i=0; i<nBinsPk; ++i) {
+            if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
+                                             "k"_a   = kfact * fK[i] * 2.0 * M_PI * fold,
+                                             "pk"_a  = vfact * fPk[i],
+                                             "nk"_a  = nPk[i],
+                                             "all"_a = vfact * fPkAll[i]);
+        }
+        fs.close();
     }
-    fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = parameters.get_achPkSpecies());
-    fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
-    for (i=0; i<nBinsPk; ++i) {
-        if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
-                                         "k"_a   = kfact * fK[i] * 2.0 * M_PI,
-                                         "pk"_a  = vfact * fPk[i],
-                                         "nk"_a  = nPk[i],
-                                         "all"_a = vfact * fPkAll[i]);
-    }
-    fs.close();
+
     /* Output the k-grid if requested */
     z = 1/a - 1;
     auto iDeltakInterval = parameters.get_iDeltakInterval();
@@ -4894,7 +4819,7 @@ void MSR::GridDeleteFFT() {
 
 /* Important: call msrGridCreateFFT() before, and msrGridDeleteFFT() after */
 std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins) {
+MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins, int fold) {
     std::vector<uint64_t> nPk;
     std::vector<float> fK, fPk, fPkAll;
     double dsec;
@@ -4907,10 +4832,10 @@ MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins) {
     TimerStart(TIMER_NONE);
     printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
-    AssignMass(iAssignment,0,0.0);
+    AssignMass(iAssignment,0,0.0,fold);
     DensityContrast(0);
     if (bInterlace) {
-        AssignMass(iAssignment,1,0.5);
+        AssignMass(iAssignment,1,0.5,fold);
         DensityContrast(1);
         Interlace(0,1); // We no longer need grid 1
     }
@@ -5067,14 +4992,14 @@ void MSR::OutputOrbits(int iStep,double dTime) {
     }
 }
 
+void MSR::RsHaloLoadIds(const std::string_view filename_template,bool bAppend) {
 #ifdef HAVE_ROCKSTAR
-void MSR::RsHaloLoadIds(const std::string &filename_template,bool bAppend) {
     std::vector<uint64_t> counts;
 
     TimerStart(TIMER_NONE);
     printf("Scanning Rockstar halo binary files...\n");
     ServiceRsHaloCount::input hdr;
-    strncpy(hdr.filename,filename_template.c_str(),sizeof(hdr.filename));
+    strncpy(hdr.filename,filename_template.data(),sizeof(hdr.filename));
     hdr.nSimultaneous = hdr.nTotalActive = parallel_read_count();
     hdr.iReaderWriter = 0;
     hdr.nElementSize = 1;
@@ -5089,7 +5014,7 @@ void MSR::RsHaloLoadIds(const std::string &filename_template,bool bAppend) {
     delete [] out;
 
     if (counts.size()==0) {
-        perror(filename_template.c_str());
+        perror(filename_template.data());
         abort();
     }
     TimerStop(TIMER_NONE);
@@ -5100,10 +5025,10 @@ void MSR::RsHaloLoadIds(const std::string &filename_template,bool bAppend) {
            int(counts.size()), dsec);
     RsLoadIds(PST_RS_HALO_LOAD_IDS,counts,filename_template,bAppend);
     TimerStop(TIMER_IO);
-}
 #endif
+}
 
-void MSR::RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &filename_template,bool bAppend) {
+void MSR::RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string_view filename_template,bool bAppend) {
     using mdl::ServiceBuffer;
     ServiceBuffer msg {
         ServiceBuffer::Field<ServiceInput::input>(),
@@ -5119,7 +5044,7 @@ void MSR::RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &fil
     std::copy(counts.begin(),counts.end(),elements);
     hdr->iBeg = 0;
     hdr->iEnd = hdr->nElements;
-    strncpy(hdr->io.filename,filename_template.c_str(),sizeof(hdr->io.filename));
+    strncpy(hdr->io.filename,filename_template.data(),sizeof(hdr->io.filename));
     hdr->io.nSimultaneous = parallel_read_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
@@ -5131,7 +5056,7 @@ void MSR::RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &fil
     printf("... finished reading particles IDs, Wallclock: %f secs.\n",dsec);
 }
 
-void MSR::RsLoadIds(const std::string &filename_template,bool bAppend) {
+void MSR::RsLoadIds(const std::string_view filename_template,bool bAppend) {
     std::vector<uint64_t> counts;
     TimerStart(TIMER_NONE);
     printf("Scanning Particle ID binary files...\n");
@@ -5144,9 +5069,9 @@ void MSR::RsLoadIds(const std::string &filename_template,bool bAppend) {
     RsLoadIds(PST_RS_LOAD_IDS,counts,filename_template,bAppend);
 }
 
-void MSR::RsSaveIds(const std::string &filename_template) {
+void MSR::RsSaveIds(const std::string_view filename_template) {
     ServiceRsSaveIds::input hdr;
-    strncpy(hdr.io.filename,filename_template.c_str(),sizeof(hdr.io.filename));
+    strncpy(hdr.io.filename,filename_template.data(),sizeof(hdr.io.filename));
     hdr.io.nSimultaneous = parallel_write_count();
     hdr.io.nSegment = hdr.io.iThread = 0; // setup later
     hdr.io.iReaderWriter = 0;
@@ -5174,7 +5099,7 @@ void MSR::RsReorderIds() {
     printf("... finished reordering particles IDs, Wallclock: %f secs.\n",dsec);
 }
 
-void MSR::RsExtract(const char *filename_template) {
+void MSR::RsExtract(std::string_view filename_template) {
     printf("Extracting matching particles\n");
     using mdl::ServiceBuffer;
     ServiceBuffer msg {
@@ -5182,7 +5107,7 @@ void MSR::RsExtract(const char *filename_template) {
         ServiceBuffer::Field<ServiceRsExtract::input>(mdl->Threads()+1)
     };
     auto hdr = static_cast<ServiceRsExtract::header *>(msg.data(0));
-    strncpy(hdr->io.filename,filename_template,sizeof(hdr->io.filename));
+    strncpy(hdr->io.filename,filename_template.data(),sizeof(hdr->io.filename));
     hdr->io.nSimultaneous = parallel_write_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;

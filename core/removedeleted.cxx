@@ -23,7 +23,6 @@ static_assert(std::is_void<ServiceRemoveDeleted::output>() || std::is_standard_l
 
 int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     static_assert(std::is_void<input>());
-    auto &out = * static_cast<output *>(vout);
     auto pkd = pst->plcl->pkd;
     // Move the deleted particles to the end of the array
     auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return !p.is_deleted();});

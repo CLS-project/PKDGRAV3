@@ -59,8 +59,9 @@ static void assign_mass(mass_array_t &masses, const F r[3], F mass,int iAssignme
     }
 }
 
-static void flush_masses(PKD pkd,int nGrid,const mass_array_t &masses, const shape_t &lower) {
-    auto wrap = [&nGrid](int i) { if (i>=nGrid) i-=nGrid; else if (i<0) i+=nGrid; return i; };
+static void flush_masses(PKD pkd,int nGrid,const mass_array_t &masses, const shape_t &lower,int fold) {
+    auto big_grid = nGrid * fold;
+    auto wrap = [nGrid,big_grid](int i) { if (i>=big_grid) i-=big_grid; else if (i<0) i+=big_grid; return i % nGrid; };
     for (auto i=masses.begin(); i!=masses.end(); ++i) {
         if ( *i > 0.0f) {
             shape_t loc = i.position() + lower;
@@ -83,7 +84,7 @@ static void combPk(void *vpkd, void *g1, const void *g2) {
     *r1 += *r2;
 }
 
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta) {
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta, int fold) {
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
     const std::size_t maxSize = 100000; // We would like this to remain in L2 cache
@@ -91,7 +92,9 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     data.reserve(maxSize); // Reserve maximum number
     shape_t index;
     position_t fPeriod(pkd->fPeriod), ifPeriod = 1.0 / fPeriod;
-
+    auto grid_point = [ifPeriod,nGrid,fold,fDelta](auto r) {
+        return (r * ifPeriod + 0.5) * nGrid * fold + fDelta;
+    };
     assert(iAssignment>=0 && iAssignment<=3);
 
     mdlGridCoord first, last;
@@ -108,8 +111,8 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
         auto kdn = pkd->tree[stack.back()];
         stack.pop_back(); // Go to the next node in the tree
         auto bnd = kdn->bound();
-        shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid + fDelta)) - pad;
-        shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid + fDelta)) + pad;
+        shape_t ilower = shape_t(blitz::floor(grid_point(bnd.lower()))) - pad;
+        shape_t iupper = shape_t(blitz::floor(grid_point(bnd.upper()))) + pad;
         shape_t ishape = iupper - ilower + 1;
         float3_t flower = ilower;
         std::size_t size = blitz::product(ishape);
@@ -123,7 +126,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
             else {
                 for ( auto &p : *kdn) { // All particles in this tree cell
                     float3_t r(p.position());
-                    r = (r * ifPeriod + 0.5) * nGrid + fDelta;
+                    r = grid_point(r);
                     ilower = shape_t(r) - pad;
                     iupper = shape_t(r) + pad;
                     ishape = iupper - ilower + 1;
@@ -134,7 +137,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
                     mass_array_t masses(data.data(),ishape,blitz::neverDeleteData,RegularArray());
                     masses = 0.0f;
                     assign_mass(masses, r.data(), p.mass(), iAssignment);
-                    flush_masses(pkd,nGrid,masses,ilower);
+                    flush_masses(pkd,nGrid,masses,ilower,fold);
                 }
             }
         }
@@ -145,10 +148,10 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
             //masses.dumpStructureInformation(std::cout);
             for ( auto &p : *kdn ) { // All particles in this tree cell
                 float3_t r(p.position());
-                r = (r * ifPeriod + 0.5) * nGrid + fDelta - flower; // Scale and shift to fit in subcube
+                r = grid_point(r) - flower; // Scale and shift to fit in subcube
                 assign_mass(masses, r.data(), p.mass(), iAssignment);
             }
-            flush_masses(pkd,nGrid,masses,ilower);
+            flush_masses(pkd,nGrid,masses,ilower,fold);
         }
     }
     mdlFinishCache(pkd->mdl,CID_PK);
@@ -164,12 +167,12 @@ int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
-        pkdAssignMass(plcl->pkd,ROOT,in->iAssignment,in->iGrid,in->fDelta);
+        pkdAssignMass(plcl->pkd,ROOT,in->iAssignment,in->iGrid,in->fDelta,in->fold);
     }
     return 0;
 }
 
-void MSR::AssignMass(int iAssignment,int iGrid,float fDelta) {
+void MSR::AssignMass(int iAssignment,int iGrid,float fDelta,int fold) {
     static const char *schemes[] = {
         "Nearest Grid Point (NGP)", "Cloud in Cell (CIC)",
         "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)"
@@ -180,6 +183,7 @@ void MSR::AssignMass(int iAssignment,int iGrid,float fDelta) {
     mass.iAssignment = iAssignment;
     mass.iGrid = iGrid;
     mass.fDelta = fDelta;
+    mass.fold = fold;
     auto sec = MSR::Time();
     pstAssignMass(pst, &mass, sizeof(mass), NULL, 0);
     printf("Mass assignment complete, Wallclock: %f secs\n",MSR::Time() - sec);
@@ -192,6 +196,7 @@ void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
 
     GridInfo G(pkd->mdl,fft);
     AssignmentWindow W(nGrid,iAssignment);
+    assert(iGrid == 0);
 
     complex_array_t K1;
     auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
