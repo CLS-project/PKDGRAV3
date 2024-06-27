@@ -861,12 +861,6 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
     restart_file << "import PKDGRAV as msr\n";
     restart_file << "msr.restore(__file__)\n";
     restart_file.close();
-    auto par_name = baseName + ".par";
-    // This is temporary. We support the old naming convention for now,
-    // but we will remove it soon
-    std::error_code ec; // We will ignore the error code (creating a symlink is not critical)
-    std::filesystem::remove(par_name,ec);
-    std::filesystem::create_symlink(baseName, par_name,ec);
 }
 
 void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
@@ -4126,12 +4120,7 @@ double MSR::Read(std::string_view achInFile) {
         dsec = TimerGet(TIMER_NONE);
         printf("Converting u complete, Wallclock: %f secs.\n", dsec);
         if (parameters.get_bWriteIC() || (parameters.get_nSteps() == 0)) {
-            printf("Writing updated IC ...\n");
-            TimerStart(TIMER_NONE);
-            Write(BuildIoName(0).c_str(),0.0,0);
-            TimerStop(TIMER_NONE);
-            dsec = TimerGet(TIMER_NONE);
-            printf("Finished writing updated IC, Wallclock: %f secs.\n", dsec);
+            Output(iStartStep, dTime, 0.0, 0);
         }
         if (parameters.get_nSteps() == 0) exit(0);
     }
@@ -4273,7 +4262,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
     }
 
-    if (DoDensity() && !NewSPH()) {
+    if (DoDensity()) {
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(0);
@@ -4305,7 +4294,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".pot").c_str(),OUT_POT_ARRAY);
     }
 
-    if (DoDensity() && !NewSPH()) {
+    if (DoDensity()) {
         Reorder();
         OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
     }
