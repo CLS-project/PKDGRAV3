@@ -32,11 +32,12 @@ inline int copyBLKs(denInteract *out, ilpTile &in) {
     auto nIlp = in.count();
     int i, nBlk = (nIlp+n-1) / n;
     for (i=0; i<nBlk; ++i) {
-        memcpy(&out[i].dx,   &in[i].dx,   sizeof(out[i].dx));
-        memcpy(&out[i].dy,   &in[i].dy,   sizeof(out[i].dy));
-        memcpy(&out[i].dz,   &in[i].dz,   sizeof(out[i].dz));
-        memcpy(&out[i].m,    &in[i].m,    sizeof(out[i].m));
-        memcpy(&out[i].iMat, &in[i].iMat, sizeof(out[i].iMat));
+        memcpy(&out[i].dx,    &in[i].dx,    sizeof(out[i].dx));
+        memcpy(&out[i].dy,    &in[i].dy,    sizeof(out[i].dy));
+        memcpy(&out[i].dz,    &in[i].dz,    sizeof(out[i].dz));
+        memcpy(&out[i].m,     &in[i].m,     sizeof(out[i].m));
+        memcpy(&out[i].iMat,  &in[i].iMat,  sizeof(out[i].iMat));
+        memcpy(&out[i].isGas, &in[i].isGas, sizeof(out[i].isGas));
     }
     return nBlk;
 }
@@ -117,6 +118,7 @@ public:
                 partHost[j].dz    = pInfoIn[j].r[2];
                 partHost[j].fBall = pInfoIn[j].fBall;
                 partHost[j].iMat  = pInfoIn[j].iMat;
+                partHost[j].isGas = pInfoIn[j].isGas;
             }
             nP = align_nP(nP);
             partHost += nP;

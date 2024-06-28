@@ -59,24 +59,25 @@ __device__ __forceinline__ auto evalInteraction(const gpu::ppInput pp,const gpu:
 
 template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::denInput pp,const gpu::denBlk<WIDTH> *__restrict__ blk,int i) {
-    return EvalDensity<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.iMat,
-                                   blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->iMat[i],
+    return EvalDensity<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.iMat, pp.isGas,
+                                   blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->iMat[i], blk->isGas[i],
                                    SPHoptions.kernelType, SPHoptions.doInterfaceCorrection);
 }
 
 template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::denCorrInput pp,const gpu::denCorrBlk<WIDTH> *__restrict__ blk,int i) {
-    return EvalDensityCorrection<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall,
-            blk->dx[i], blk->dy[i], blk->dz[i], blk->T[i], blk->P[i], blk->expImb2[i],
+    return EvalDensityCorrection<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.isGas,
+            blk->dx[i], blk->dy[i], blk->dz[i], blk->T[i], blk->P[i], blk->expImb2[i], blk->isGas[i],
             SPHoptions.kernelType);
 }
 
 template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::sphForceInput pp,const gpu::sphForceBlk<WIDTH> *__restrict__ blk,int i) {
-    return EvalSPHForces<float,bool,doShearStrengthModel>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.Omega, pp.vx, pp.vy, pp.vz, pp.rho, pp.P, pp.c,
+    return EvalSPHForces<float,bool,doShearStrengthModel>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.Omega,
+            pp.vx, pp.vy, pp.vz, pp.rho, pp.P, pp.c, pp.isGas,
             pp.Sxx, pp.Syy, pp.Sxy, pp.Sxz, pp.Syz,
-            blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->fBall[i], blk->Omega[i], blk->vx[i],
-            blk->vy[i], blk->vz[i], blk->rho[i], blk->P[i], blk->c[i], blk->rung[i],
+            blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->fBall[i], blk->Omega[i],
+            blk->vx[i], blk->vy[i], blk->vz[i], blk->rho[i], blk->P[i], blk->c[i], blk->rung[i], blk->isGas[i],
             blk->Sxx[i], blk->Syy[i], blk->Sxy[i], blk->Sxz[i], blk->Syz[i],
             SPHoptions.kernelType, SPHoptions.epsilon, SPHoptions.alpha, SPHoptions.beta,
             SPHoptions.EtaCourant, SPHoptions.a, SPHoptions.H, SPHoptions.useIsentropic);

@@ -2205,6 +2205,9 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 // }
                 r0 = p.position();
                 p.set_position(rfinal = r0 + dDelta*v);
+                assert(isfinite(rfinal[0]));
+                assert(isfinite(rfinal[1]));
+                assert(isfinite(rfinal[2]));
                 dMin = min(dMin,rfinal);
                 dMax = max(dMax,rfinal);
             }
@@ -2927,6 +2930,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
     int doUConversion = SPHoptions->doUConversion;
     if (SPHoptions->doUConversion) {
         for (auto &p : pkd->particles) {
+            if (!pkdIsGas(pkd, &p)) continue;
             auto &NewSph = p.newsph();
             NewSph.u = SPHEOSUofRhoT(pkd,p.density(),NewSph.u,p.imaterial(),SPHoptions);
             NewSph.oldRho = p.density();
@@ -2944,7 +2948,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
 ** Initialize the EOS tables
 */
 void pkdInitializeEOS(PKD pkd) {
-    auto materials = pkd->particles.getMaterials();
+    auto materials = pkd->particles.getMaterials(true);
     for (auto iMat : materials) {
         if (iMat == 0 && pkd->SPHoptions.useBuiltinIdeal) {
             // Nothing to do

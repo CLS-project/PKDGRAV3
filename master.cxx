@@ -619,24 +619,9 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
 
     if (NewSPH()) {
         /*
-        ** Initialize kernel target with either the mean mass or nSmooth
+        ** Initialize kernel target with nSmooth
         */
-        auto sec = MSR::Time();
-        printf("Initializing Kernel target ...\n");
-        {
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
-            if (SPHoptions.useNumDen) {
-                parameters.set_fKernelTarget(parameters.get_nSmooth());
-            }
-            else {
-                double Mtot;
-                uint64_t Ntot;
-                CalcMtot(&Mtot, &Ntot);
-                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
-            }
-        }
-        auto dsec = MSR::Time() - sec;
-        printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+        parameters.set_fKernelTarget(parameters.get_nSmooth());
         SetSPHoptions();
         InitializeEOS();
     }
@@ -3994,26 +3979,9 @@ double MSR::Read(std::string_view achInFile) {
     if (NewSPH()) {
         const auto bEwald = parameters.get_bEwald();
         /*
-        ** Initialize kernel target with either the mean mass or nSmooth
+        ** Initialize kernel target with nSmooth
         */
-        TimerStart(TIMER_NONE);
-        printf("Initializing Kernel target ...\n");
-        {
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
-            if (SPHoptions.useNumDen) {
-                parameters.set_fKernelTarget(parameters.get_nSmooth());
-            }
-            else {
-                double Mtot;
-                uint64_t Ntot;
-                CalcMtot(&Mtot, &Ntot);
-                parameters.set_fKernelTarget(Mtot/Ntot*parameters.get_nSmooth());
-            }
-        }
-        TimerStop(TIMER_NONE);
-        dsec = TimerGet(TIMER_NONE);
-        printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
-
+        parameters.set_fKernelTarget(parameters.get_nSmooth());
         SetSPHoptions();
         InitializeEOS();
 
@@ -4022,12 +3990,13 @@ double MSR::Read(std::string_view achInFile) {
         ** Initialize fBall
         */
         TimerStart(TIMER_NONE);
-        printf("Initializing fBall ...\n");
+        int fBallInitnSmooth = int(double(N)/double(nGas) * 2 * parameters.get_nSmooth());
+        printf("Initializing fBall (Smooth with %d neighbors) ...\n", fBallInitnSmooth);
         Reorder();
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(bEwald);
-        Smooth(dTime,0.0f,SMX_BALL,0,2 * parameters.get_nSmooth());
+        Smooth(dTime,0.0f,SMX_BALL,0, fBallInitnSmooth);
         Reorder();
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
@@ -4068,12 +4037,7 @@ double MSR::Read(std::string_view achInFile) {
         dsec = TimerGet(TIMER_NONE);
         printf("Converting u complete, Wallclock: %f secs.\n", dsec);
         if (parameters.get_bWriteIC() || (parameters.get_nSteps() == 0)) {
-            printf("Writing updated IC ...\n");
-            TimerStart(TIMER_NONE);
-            Write(BuildIoName(0).c_str(),0.0,0);
-            TimerStop(TIMER_NONE);
-            dsec = TimerGet(TIMER_NONE);
-            printf("Finished writing updated IC, Wallclock: %f secs.\n", dsec);
+            Output(iStartStep, dTime, 0.0, 0);
         }
         if (parameters.get_nSteps() == 0) exit(0);
     }
@@ -4223,7 +4187,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
     }
 
-    if (DoDensity() && !NewSPH()) {
+    if (DoDensity()) {
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(0);
@@ -4255,7 +4219,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".pot").c_str(),OUT_POT_ARRAY);
     }
 
-    if (DoDensity() && !NewSPH()) {
+    if (DoDensity()) {
         Reorder();
         OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
     }
