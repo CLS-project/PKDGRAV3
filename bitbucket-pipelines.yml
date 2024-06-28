@@ -36,9 +36,8 @@ pipelines:
                 - gpu
               script:
                 - lscpu
-                - >-
-                  cmake -DUSE_GTEST=Yes -DEOSLIB_PATH=/build/EOSlib
-                  -DANEOSMATERIAL_PATH=/build/ANEOSmaterial .
+                - git submodule update --recursive --init
+                - cmake -DUSE_GTEST=Yes .
                 - make -j 8
                 - ln -s /build/euclid_flagship_500.hdf5
                 - ln -s /build/b0-final* ./
@@ -53,9 +52,8 @@ pipelines:
                 - avx512
               script:
                 - lscpu
-                - >-
-                  cmake -DUSE_GTEST=Yes -DEOSLIB_PATH=/build/EOSlib
-                  -DANEOSMATERIAL_PATH=/build/ANEOSmaterial .
+                - git submodule update --recursive --init
+                - cmake -DUSE_GTEST=Yes .
                 - make -j 8
                 - ln -s /build/euclid_flagship_500.hdf5
                 - ln -s /build/b0-final* ./
