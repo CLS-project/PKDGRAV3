@@ -72,7 +72,7 @@ struct CALC {
     double dSFThresholdDen;
     double dSFThresholdOD;
     double dSFnormalizationKS;
-#endif 
+#endif
 #ifdef FEEDBACK
     double dSNFBEffnH0;
     double dSNFBDu;
@@ -119,6 +119,7 @@ typedef struct {
     int32_t species;
     float iMat;
     int isTooLarge;
+    float Sxx, Syy, Sxy, Sxz, Syz;
     /*    float v[3];*/
     /*    float fMass;*/
     /*    float fSoft;*/
@@ -134,6 +135,13 @@ typedef struct {
     float uDot, divv, dtEst, maxRung;
     float imbalanceX, imbalanceY, imbalanceZ;
     float corrT, corrP, corr;
+    float dvxdx, dvxdy, dvxdz;
+    float dvydx, dvydy, dvydz;
+    float dvzdx, dvzdy, dvzdz;
+    float Cinvxx, Cinvxy, Cinvxz;
+    float Cinvyx, Cinvyy, Cinvyz;
+    float Cinvzx, Cinvzy, Cinvzz;
+    float strainJ2Dot;
 } PINFOOUT;
 
 #if defined(USE_SIMD)

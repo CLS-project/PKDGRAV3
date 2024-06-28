@@ -1123,6 +1123,16 @@ flag="etau"
 default=-1.0
 help="Timestepping criterion for internal energy (negative = deactivated)"
 
+["Gas".dEtaSdot]
+flag="etaS"
+default=-1.0
+help="Timestepping criterion for deviatoric stress (negative = deactivated)"
+
+["Gas".dTimeStepSmin]
+flag="timeStepSmin"
+default=0.0
+help="Minimum S value used in the timestepping criterion for deviatoric stress"
+
 ["Gas".dCFLacc]
 flag="etaAcc"
 default=0.01
@@ -1202,6 +1212,16 @@ flag="VelocityDamper"
 default=0.0
 help="Velocity Damper"
 
+["Gas".dVelocityDamperEnd]
+flag="VelocityDamperEnd"
+default=0.0
+help="Velocity Damper Endnd value"
+
+["Gas".dVelocityDamperEndTime]
+flag="VelocityDamperEndTime"
+default=0.0
+help="Velocity Damper End Time"
+
 ["Gas".dBallSizeLimit]
 flag="ballSizeLimit"
 default=10.0
@@ -1256,6 +1276,16 @@ help="Maximum omega for centrifugal ramp"
 flag="GasDoExtensiveILPTest"
 default=false
 help="Extensively test the ILP for completeness. Very costly."
+
+["Gas".bShearStrengthModel]
+flag="ShearStrengthModel"
+default=false
+help="Enable the shear strength model in NewSPH."
+
+["Gas".bMeshlessHydro]
+flag="meshless"
+default=false
+help="Use the new implementation of the hydrodynamics"
 
 ["Gas".bGlobalDt]
 flag="globaldt"

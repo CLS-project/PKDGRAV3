@@ -324,8 +324,10 @@ uint64_t MSR::getMemoryModel() {
 
     if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
+
     if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_MFM | PKD_MODEL_ACCELERATION);
     if (MeshlessFiniteVolume())                mMemoryModel |=  PKD_MODEL_MFV;
+
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
@@ -597,6 +599,7 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
     mMemoryModel = getMemoryModel();
     assert(nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     Restore(filename,nSizeParticle);
@@ -2813,7 +2816,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
     if (!iStop && iWallRunTime > 0) {
         if (iWallRunTime*60 - (time(0)-lStart) < ((int) (lSec*1.5)) ) {
             printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
-            printf("    iWallRunTime(sec): %lld   Time running: %ld   Last step: %ld\n",
+            printf("    iWallRunTime(sec): %ld   Time running: %ld   Last step: %ld\n",
                    iWallRunTime*60,time(0)-lStart,lSec);
             iStop = 1;
         }
@@ -2824,7 +2827,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
     if (!iStop && timeGlobalSignalTime>0) { /* USR1 received */
         if ( (time(0)+(lSec*1.5)) > timeGlobalSignalTime+iSignalSeconds) {
             printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
-            printf("    iSignalSeconds: %lld   Time running: %ld   Last step: %ld\n",
+            printf("    iSignalSeconds: %ld   Time running: %ld   Last step: %ld\n",
                    iSignalSeconds,time(0)-lStart,lSec);
             iStop = 1;
         }
@@ -3948,6 +3951,7 @@ double MSR::Read(std::string_view achInFile) {
 
     if (nGas && !DoGas()) parameters.set_hydro_model(HYDRO_MODEL::SPH);
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
+    if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     if (nStar) mMemoryModel |= PKD_MODEL_STAR;
 
     read->nNodeStart = 0;
@@ -4408,7 +4412,7 @@ void MSR::CalcMtot(double *M, uint64_t *N) {
 
 void MSR::SetSPHoptions() {
     struct inSetSPHoptions in;
-    in.SPHoptions = initializeSPHOptions(parameters,csm,1.0);
+    in.SPHoptions = initializeSPHOptions(parameters,csm,0.0);
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
 }
 

@@ -45,6 +45,11 @@ inline int copyBLKs(sphForceInteract *out, ilpTile &in) {
         memcpy(&out[i].P,     &in[i].P,     sizeof(out[i].P));
         memcpy(&out[i].c,     &in[i].c,     sizeof(out[i].c));
         memcpy(&out[i].rung,  &in[i].uRung, sizeof(out[i].rung));
+        memcpy(&out[i].Sxx,   &in[i].Sxx,   sizeof(out[i].Sxx));
+        memcpy(&out[i].Syy,   &in[i].Syy,   sizeof(out[i].Syy));
+        memcpy(&out[i].Sxy,   &in[i].Sxy,   sizeof(out[i].Sxy));
+        memcpy(&out[i].Sxz,   &in[i].Sxz,   sizeof(out[i].Sxz));
+        memcpy(&out[i].Syz,   &in[i].Syz,   sizeof(out[i].Syz));
     }
     return nBlk;
 }
@@ -131,6 +136,11 @@ public:
                 partHost[j].rho   = pInfoIn[j].rho;
                 partHost[j].P     = pInfoIn[j].P;
                 partHost[j].c     = pInfoIn[j].cs;
+                partHost[j].Sxx   = pInfoIn[j].Sxx;
+                partHost[j].Syy   = pInfoIn[j].Syy;
+                partHost[j].Sxy   = pInfoIn[j].Sxy;
+                partHost[j].Sxz   = pInfoIn[j].Sxz;
+                partHost[j].Syz   = pInfoIn[j].Syz;
             }
             nP = align_nP(nP);
             partHost += nP;

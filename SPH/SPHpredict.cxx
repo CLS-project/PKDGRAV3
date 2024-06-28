@@ -37,7 +37,7 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
     }
 }
 
-void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, float *T, SPHOptions *SPHoptions) {
+void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, float *T, float *Spredxx, float *Spredyy, float *Spredxy, float *Spredxz, float *Spredyz, SPHOptions *SPHoptions) {
     auto &NewSph = p.newsph();
     float dtPredDrift = getDtPredDrift(kick,p.marked(),uRungLo,p.rung());
     const auto &ap = p.acceleration();
@@ -86,15 +86,30 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
             *cs = NewSph.cs;
             if (T) *T = NewSph.T;
         }
+        if (SPHoptions->doShearStrengthModel) {
+            auto &NewSphStr = p.newsphstr();
+            if (Spredxx) *Spredxx = NewSphStr.Spredxx;
+            if (Spredyy) *Spredyy = NewSphStr.Spredyy;
+            if (Spredxy) *Spredxy = NewSphStr.Spredxy;
+            if (Spredxz) *Spredxz = NewSphStr.Spredxz;
+            if (Spredyz) *Spredyz = NewSphStr.Spredyz;
+        }
+        else {
+            if (Spredxx) *Spredxx = 0.0f;
+            if (Spredyy) *Spredyy = 0.0f;
+            if (Spredxy) *Spredxy = 0.0f;
+            if (Spredxz) *Spredxz = 0.0f;
+            if (Spredyz) *Spredyz = 0.0f;
+        }
     }
 }
 
-void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *P, float *cs, float *T, SPHOptions *SPHoptions) {
+void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, SPHOptions *SPHoptions) {
     // CAREFUL!! When this is called, p.marked() does not mean "has been kicked", but it is a fastgas marker
     auto &NewSph = p.newsph();
     if (SPHoptions->doUConversion && SPHoptions->doInterfaceCorrection) {
-        *T = NewSph.u;
-        *P = SPHEOSPofRhoT(pkd, p.density(), NewSph.u, p.imaterial(), SPHoptions);
+        NewSph.T = NewSph.u;
+        NewSph.P = SPHEOSPofRhoT(pkd, p.density(), NewSph.u, p.imaterial(), SPHoptions);
     }
     else {
         float dtPredDrift = getDtPredDrift(kick,0,uRungLo,p.rung());
@@ -112,13 +127,22 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
         else {
             uPred = NewSph.u + dtPredDrift * NewSph.uDot;
         }
-        *P = SPHEOSPCTofRhoU(pkd,p.density(),uPred,cs,T,p.imaterial(),SPHoptions);
+        NewSph.P = SPHEOSPCTofRhoU(pkd,p.density(),uPred,&NewSph.cs,&NewSph.T,p.imaterial(),SPHoptions);
         if (SPHoptions->doConsistentPrediction) {
             const auto &v = p.velocity();
             const auto &ap = p.acceleration();
             NewSph.vpred[0] = v[0] + dtPredDrift * ap[0];
             NewSph.vpred[1] = v[1] + dtPredDrift * ap[1];
             NewSph.vpred[2] = v[2] + dtPredDrift * ap[2];
+        }
+        if (SPHoptions->doShearStrengthModel) {
+            auto &NewSphStr = p.newsphstr();
+            NewSphStr.Spredxx = NewSphStr.Sxx + dtPredDrift * NewSphStr.SDotxx;
+            NewSphStr.Spredyy = NewSphStr.Syy + dtPredDrift * NewSphStr.SDotyy;
+            NewSphStr.Spredxy = NewSphStr.Sxy + dtPredDrift * NewSphStr.SDotxy;
+            NewSphStr.Spredxz = NewSphStr.Sxz + dtPredDrift * NewSphStr.SDotxz;
+            NewSphStr.Spredyz = NewSphStr.Syz + dtPredDrift * NewSphStr.SDotyz;
+            SPHEOSApplyStrengthLimiter(pkd, p.density(), uPred, p.imaterial(), &NewSphStr.Spredxx, &NewSphStr.Spredyy, &NewSphStr.Spredxy, &NewSphStr.Spredxz, &NewSphStr.Spredyz, SPHoptions);
         }
     }
 }

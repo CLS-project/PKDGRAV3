@@ -381,6 +381,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     }
 
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
+    if ( mMemoryModel & PKD_MODEL_STRENGTH ) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr,"strength");
     if ( mMemoryModel & PKD_MODEL_STAR ) {
         auto star = particles.overlay(PKD_FIELD::oSph); // Overlay the star field on the sph field
         star.add<meshless::STAR>(PKD_FIELD::oStar,"star");
@@ -731,6 +732,14 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         if (p.have_newsph()) {
             auto &NewSph = p.newsph();
             NewSph.u = NewSph.uDot = NewSph.divv = NewSph.Omega = 0.0;
+        }
+
+        if (p.have_newsphstr()) {
+            auto &NewSphStr = p.newsphstr();
+            NewSphStr.Sxx = NewSphStr.Syy = NewSphStr.Sxy = NewSphStr.Sxz = NewSphStr.Syz = 0.0f;
+            NewSphStr.SDotxx = NewSphStr.SDotyy = NewSphStr.SDotxy = NewSphStr.SDotxz = NewSphStr.SDotyz = 0.0f;
+            NewSphStr.Spredxx = NewSphStr.Spredyy = NewSphStr.Spredxy = NewSphStr.Spredxz = NewSphStr.Spredyz = 0.0f;
+            NewSphStr.strainJ2 = 0.0f;
         }
 
         /* Initialize Star fields if present */
@@ -2926,8 +2935,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
     if (doUConversion) SPHoptions->doUConversion = 0;
     for (auto &p : pkd->particles) {
         if (SPHoptions->useDensityFlags && p.rung() < SPHoptions->nPredictRung && !p.marked()) continue;
-        auto &NewSph = p.newsph();
-        SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, &NewSph.P, &NewSph.cs, &NewSph.T, SPHoptions);
+        SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, SPHoptions);
     }
     if (doUConversion) SPHoptions->doUConversion = 1;
 }
@@ -2949,15 +2957,21 @@ void pkdInitializeEOS(PKD pkd) {
                     param.dConstGamma = pkd->SPHoptions.gamma;
                     param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
                     pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, &param);
-                    if (pkd->SPHoptions.useIsentropic) {
-                        EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
-                    }
                 }
                 else {
                     pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, NULL);
-                    if (pkd->SPHoptions.useIsentropic) {
-                        EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
+                }
+                if (pkd->SPHoptions.useIsentropic) {
+                    EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
+                }
+                if (pkd->SPHoptions.doShearStrengthModel && (EOSYieldModel(pkd->materials[iMat]) < 0)) {
+                    if (EOSYieldModel(pkd->materials[iMat]) == -1) {
+                        printf("Yield strength was requested but material %d has no or faulty parameters.",iMat);
                     }
+                    else if (EOSYieldModel(pkd->materials[iMat]) == -2) {
+                        printf("Yield strength was requested but for material %d this is not implemented yet.",iMat);
+                    }
+                    assert(0);
                 }
             }
 #else

@@ -50,38 +50,40 @@ inline __device__ float mask_mov(float src, bool p, float a) { return p ? a : sr
 __constant__ SPHOptionsGPU SPHoptions;
 
 /// Evaluate a single P-P interaction
-template<bool bGravStep>
+template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::ppInput pp,const gpu::Blk<WIDTH,ilpTile> *__restrict__ blk,int i) {
     return EvalPP<float,bool>(pp.dx, pp.dy, pp.dz, pp.fSoft2,
                               blk->dx[i], blk->dy[i], blk->dz[i], blk->fourh2[i], blk->m[i],
                               pp.ax, pp.ay, pp.az, pp.dImaga);
 }
 
-template<bool bGravStep>
+template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::denInput pp,const gpu::denBlk<WIDTH> *__restrict__ blk,int i) {
     return EvalDensity<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.iMat,
                                    blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->iMat[i],
                                    SPHoptions.kernelType, SPHoptions.doInterfaceCorrection);
 }
 
-template<bool bGravStep>
+template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::denCorrInput pp,const gpu::denCorrBlk<WIDTH> *__restrict__ blk,int i) {
     return EvalDensityCorrection<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall,
             blk->dx[i], blk->dy[i], blk->dz[i], blk->T[i], blk->P[i], blk->expImb2[i],
             SPHoptions.kernelType);
 }
 
-template<bool bGravStep>
+template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::sphForceInput pp,const gpu::sphForceBlk<WIDTH> *__restrict__ blk,int i) {
-    return EvalSPHForces<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.Omega, pp.vx, pp.vy, pp.vz, pp.rho, pp.P, pp.c,
-                                     blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->fBall[i], blk->Omega[i], blk->vx[i],
-                                     blk->vy[i], blk->vz[i], blk->rho[i], blk->P[i], blk->c[i], blk->rung[i],
-                                     SPHoptions.kernelType, SPHoptions.epsilon, SPHoptions.alpha, SPHoptions.beta,
-                                     SPHoptions.EtaCourant, SPHoptions.a, SPHoptions.H, SPHoptions.useIsentropic);
+    return EvalSPHForces<float,bool,doShearStrengthModel>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.Omega, pp.vx, pp.vy, pp.vz, pp.rho, pp.P, pp.c,
+            pp.Sxx, pp.Syy, pp.Sxy, pp.Sxz, pp.Syz,
+            blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->fBall[i], blk->Omega[i], blk->vx[i],
+            blk->vy[i], blk->vz[i], blk->rho[i], blk->P[i], blk->c[i], blk->rung[i],
+            blk->Sxx[i], blk->Syy[i], blk->Sxy[i], blk->Sxz[i], blk->Syz[i],
+            SPHoptions.kernelType, SPHoptions.epsilon, SPHoptions.alpha, SPHoptions.beta,
+            SPHoptions.EtaCourant, SPHoptions.a, SPHoptions.H, SPHoptions.useIsentropic);
 }
 
 /// Evaluate a single P-C interaction
-template<bool bGravStep>
+template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::ppInput pp,const gpu::Blk<WIDTH,ilcTile> *__restrict__ blk,int i) {
     return EvalPC<float,bool,bGravStep>(pp.dx, pp.dy, pp.dz, pp.fSoft2,
                                         blk->dx[i],blk->dy[i],blk->dz[i],blk->m[i],blk->u[i],
@@ -96,7 +98,7 @@ __device__ __forceinline__ auto evalInteraction(const gpu::ppInput pp,const gpu:
 }
 
 // Reduction of a P-P or P-C interaction
-template <bool bGravStep,class RESULT>
+template <bool bGravStep, bool doShearStrengthModel,class RESULT>
 __device__ __forceinline__ void reduceInteraction(gpu::ppResult &out, RESULT result) {
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ax,&out.ax);
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ay,&out.ay);
@@ -109,7 +111,7 @@ __device__ __forceinline__ void reduceInteraction(gpu::ppResult &out, RESULT res
 }
 
 // Reduction of a density interaction
-template <bool bGravStep,class RESULT>
+template <bool bGravStep, bool doShearStrengthModel,class RESULT>
 __device__ __forceinline__ void reduceInteraction(gpu::denResult &out, RESULT result) {
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.rho,&out.rho);
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.drhodfball,&out.drhodfball);
@@ -122,7 +124,7 @@ __device__ __forceinline__ void reduceInteraction(gpu::denResult &out, RESULT re
 }
 
 // Reduction of a density correction interaction
-template <bool bGravStep,class RESULT>
+template <bool bGravStep, bool doShearStrengthModel,class RESULT>
 __device__ __forceinline__ void reduceInteraction(gpu::denCorrResult &out, RESULT result) {
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.corrT,&out.corrT);
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.corrP,&out.corrP);
@@ -130,7 +132,7 @@ __device__ __forceinline__ void reduceInteraction(gpu::denCorrResult &out, RESUL
 }
 
 // Reduction of an SPH force interaction
-template <bool bGravStep,class RESULT>
+template <bool bGravStep, bool doShearStrengthModel,class RESULT>
 __device__ __forceinline__ void reduceInteraction(gpu::sphForceResult &out, RESULT result) {
     if ((threadIdx.x == 0) && (out.dtEst == 0.0f)) atomicCAS((int *)&out.dtEst, __float_as_int(0.0f), __float_as_int(1e14f));
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.uDot,&out.uDot);
@@ -140,10 +142,30 @@ __device__ __forceinline__ void reduceInteraction(gpu::sphForceResult &out, RESU
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.divv,&out.divv);
     warpReduceAndStoreAtomicMin<float,32>(threadIdx.x,result.dtEst,&out.dtEst);
     warpReduceAndStoreAtomicMax<float,32>(threadIdx.x,result.maxRung,&out.maxRung);
+    if (doShearStrengthModel) {
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvxdx,&out.dvxdx);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvxdy,&out.dvxdy);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvxdz,&out.dvxdz);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvydx,&out.dvydx);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvydy,&out.dvydy);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvydz,&out.dvydz);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvzdx,&out.dvzdx);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvzdy,&out.dvzdy);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dvzdz,&out.dvzdz);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvxx,&out.Cinvxx);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvxy,&out.Cinvxy);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvxz,&out.Cinvxz);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvyx,&out.Cinvyx);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvyy,&out.Cinvyy);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvyz,&out.Cinvyz);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvzx,&out.Cinvzx);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvzy,&out.Cinvzy);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.Cinvzz,&out.Cinvzz);
+    }
 }
 
 /// CUDA Kernel to evaluate a block of P-P or P-C interactions
-template <bool bGravStep,class INPUT,class BLK,class OUTPUT>
+template <bool bGravStep, bool doShearStrengthModel,class INPUT,class BLK,class OUTPUT>
 __global__ void cudaInteract(
     const gpu::ppWorkUnit *__restrict__ work,
     const INPUT *__restrict__ pPart, // e.g., gpu::ppInput
@@ -162,13 +184,13 @@ __global__ void cudaInteract(
     cooperative_groups::memcpy_async(block, sblk, gblk, sizeof(*gblk));
     cooperative_groups::wait(block); // Joins all threads, waits for all copies to complete
 
-    decltype(evalInteraction<bGravStep>(pPart[0],sblk,0)) result;
+    decltype(evalInteraction<bGravStep,doShearStrengthModel>(pPart[0],sblk,0)) result;
     result.zero();
     for (auto iP=threadIdx.y; iP<work->nP; iP += blockDim.y) {
         if (threadIdx.x < work->nI) {
-            result = evalInteraction<bGravStep>(pPart[iP],sblk,threadIdx.x);
+            result = evalInteraction<bGravStep,doShearStrengthModel>(pPart[iP],sblk,threadIdx.x);
         }
-        reduceInteraction<bGravStep>(out[iP],result);
+        reduceInteraction<bGravStep,doShearStrengthModel>(out[iP],result);
     }
 }
 
@@ -193,12 +215,12 @@ void MessagePPPC<TILE,N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCu
     dim3 dimBlock( N, 8, 1 );
     dim3 dimGrid( this->nGrid, 1,1);
     if (bGravStep) {
-        cudaInteract<true>
+        cudaInteract<true,false>
         <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
         (wuCuda,partCuda,blkCuda,pCudaOutput );
     }
     else {
-        cudaInteract<false>
+        cudaInteract<false,false>
         <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
         (wuCuda,partCuda,blkCuda,pCudaOutput );
     }
@@ -246,7 +268,7 @@ void MessageDen<N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufO
 
     dim3 dimBlock( N, 8, 1 );
     dim3 dimGrid( this->nGrid, 1,1);
-    cudaInteract<false>
+    cudaInteract<false,false>
     <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
     (wuCuda,partCuda,blkCuda,pCudaOutput );
 
@@ -296,7 +318,7 @@ void MessageDenCorr<N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCuda
 
     dim3 dimBlock( N, 8, 1 );
     dim3 dimGrid( this->nGrid, 1,1);
-    cudaInteract<false>
+    cudaInteract<false,false>
     <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
     (wuCuda,partCuda,blkCuda,pCudaOutput );
 
@@ -340,9 +362,16 @@ void MessageSPHForce<N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCud
 
     dim3 dimBlock( N, 8, 1 );
     dim3 dimGrid( this->nGrid, 1,1);
-    cudaInteract<false>
-    <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
-    (wuCuda,partCuda,blkCuda,pCudaOutput );
+    if (this->work.front().wp->SPHoptions->doShearStrengthModel) {
+        cudaInteract<false,true>
+        <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
+        (wuCuda,partCuda,blkCuda,pCudaOutput );
+    }
+    else {
+        cudaInteract<false,false>
+        <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
+        (wuCuda,partCuda,blkCuda,pCudaOutput );
+    }
 
     CUDA_CHECK(cudaMemcpyAsync,(this->pHostBufOut, pCudaBufOut, this->resultsBufferCount, cudaMemcpyDeviceToHost, stream) );
 }
@@ -362,6 +391,26 @@ void MessageSPHForce<N>::finish() {
             pInfoOut[ip].divv   += pR[ip].divv;
             pInfoOut[ip].dtEst   = std::min(pInfoOut[ip].dtEst,pR[ip].dtEst);
             pInfoOut[ip].maxRung = std::max(pInfoOut[ip].maxRung,pR[ip].maxRung);
+            if (w.wp->SPHoptions->doShearStrengthModel) {
+                pInfoOut[ip].dvxdx   += pR[ip].dvxdx;
+                pInfoOut[ip].dvxdy   += pR[ip].dvxdy;
+                pInfoOut[ip].dvxdz   += pR[ip].dvxdz;
+                pInfoOut[ip].dvydx   += pR[ip].dvydx;
+                pInfoOut[ip].dvydy   += pR[ip].dvydy;
+                pInfoOut[ip].dvydz   += pR[ip].dvydz;
+                pInfoOut[ip].dvzdx   += pR[ip].dvzdx;
+                pInfoOut[ip].dvzdy   += pR[ip].dvzdy;
+                pInfoOut[ip].dvzdz   += pR[ip].dvzdz;
+                pInfoOut[ip].Cinvxx  += pR[ip].Cinvxx;
+                pInfoOut[ip].Cinvxy  += pR[ip].Cinvxy;
+                pInfoOut[ip].Cinvxz  += pR[ip].Cinvxz;
+                pInfoOut[ip].Cinvyx  += pR[ip].Cinvyx;
+                pInfoOut[ip].Cinvyy  += pR[ip].Cinvyy;
+                pInfoOut[ip].Cinvyz  += pR[ip].Cinvyz;
+                pInfoOut[ip].Cinvzx  += pR[ip].Cinvzx;
+                pInfoOut[ip].Cinvzy  += pR[ip].Cinvzy;
+                pInfoOut[ip].Cinvzz  += pR[ip].Cinvzz;
+            }
         }
         pR += this->align_nP(nP);
         pkdParticleWorkDone(w.wp);

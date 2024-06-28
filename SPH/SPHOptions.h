@@ -104,6 +104,8 @@ typedef struct {
     float beta;
     float EtaCourant;
     float EtauDot;
+    float EtaSdot;
+    float timeStepSmin;
     float a;
     float H;
     float gamma;
@@ -140,6 +142,7 @@ typedef struct {
     uint64_t kernelType : 3;
     uint64_t doCentrifugal : 1;
     uint64_t doExtensiveILPTest : 1;
+    uint64_t doShearStrengthModel : 1;
 } SPHOptions;
 
 typedef struct {

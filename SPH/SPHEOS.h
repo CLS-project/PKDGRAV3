@@ -30,6 +30,8 @@ float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoption
 float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions);
 float SPHEOSRhoofPT(PKD pkd, float P, float T, int iMat, SPHOptions *SPHoptions);
 float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHOptions *SPHoptions);
+float SPHEOSGammaofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions);
+void SPHEOSApplyStrengthLimiter(PKD pkd, float rho, float u, int iMat, float *Sxx, float *Syy, float *Sxy, float *Sxz, float *Syz, SPHOptions *SPHoptions);
 static inline float SPHEOSconvertEntropicFunctiontoInternalEnergy(float rho, float u, int iMat, SPHOptions *SPHoptions) {
     return u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
 };

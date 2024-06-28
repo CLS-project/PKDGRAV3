@@ -209,11 +209,20 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
     return result;
 }
 
-template<class F=float>
+template<class F,bool doShearStrengthModel>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
-    PP_CUDA_BOTH void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=1e14f; }
-    PP_CUDA_BOTH ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
+    F dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, dvzdx, dvzdy, dvzdz;
+    F Cinvxx, Cinvxy, Cinvxz, Cinvyx, Cinvyy, Cinvyz, Cinvzx, Cinvzy, Cinvzz;
+    PP_CUDA_BOTH void zero() {
+        uDot=ax=ay=az=divv=maxRung=0.0f;
+        dtEst=1e14f;
+        if (doShearStrengthModel) {
+            dvxdx=dvxdy=dvxdz=dvydx=dvydy=dvydz=dvzdx=dvzdy=dvzdz=0.0f;
+            Cinvxx=Cinvxy=Cinvxz=Cinvyx=Cinvyy=Cinvyz=Cinvzx=Cinvzy=Cinvzz=0.0f;
+        }
+    }
+    PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> operator+=(const ResultSPHForces<F,doShearStrengthModel> rhs) {
         uDot += rhs.uDot;
         ax += rhs.ax;
         ay += rhs.ay;
@@ -221,18 +230,40 @@ struct ResultSPHForces {
         divv += rhs.divv;
         dtEst = min(dtEst,rhs.dtEst); // CAREFUL! We use "min" here
         maxRung = max(maxRung,rhs.maxRung);
+        if (doShearStrengthModel) {
+            dvxdx += rhs.dvxdx;
+            dvxdy += rhs.dvxdy;
+            dvxdz += rhs.dvxdz;
+            dvydx += rhs.dvydx;
+            dvydy += rhs.dvydy;
+            dvydz += rhs.dvydz;
+            dvzdx += rhs.dvzdx;
+            dvzdy += rhs.dvzdy;
+            dvzdz += rhs.dvzdz;
+            Cinvxx += rhs.Cinvxx;
+            Cinvxy += rhs.Cinvxy;
+            Cinvxz += rhs.Cinvxz;
+            Cinvyx += rhs.Cinvyx;
+            Cinvyy += rhs.Cinvyy;
+            Cinvyz += rhs.Cinvyz;
+            Cinvzx += rhs.Cinvzx;
+            Cinvzy += rhs.Cinvzy;
+            Cinvzz += rhs.Cinvzz;
+        }
         return *this;
     }
 };
-template<class F,class M>
-PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
+template<class F,class M, bool doShearStrengthModel>
+PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
     F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc,
+    F PSxx, F PSyy, F PSxy, F PSxz, F PSyz,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
     F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung,
+    F ISxx, F ISyy, F ISxy, F ISxz, F ISyz,
     int kernelType, float epsilon, float alpha, float beta,
     float EtaCourant,float a,float H,bool useIsentropic) {
-    ResultSPHForces<F> result;
+    ResultSPHForces<F,doShearStrengthModel> result;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -246,7 +277,8 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
     F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, hij, dvdotdx, muij, Piij;
-    F PPoverRho2, IPoverRho2, dtC, dtMu;
+    F POneOverRho2, IOneOverRho2, minusImOverRho;
+
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
 
@@ -280,25 +312,26 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
 
         // Kernel gradients, separate at the moment, as i am not sure if we need them separately
         // at some point. If we don't, can save some operations, by combining earlier.
-        t1 = PdWdr * PifBall / d;
+        t1 = PdWdr * PifBall / (d * POmega);
         mask1 = Pr > 0.0f;
         t1 = maskz_mov(mask1,t1);
         PdWdx = t1 * dx;
         PdWdy = t1 * dy;
         PdWdz = t1 * dz;
-        t1 = IdWdr * IifBall / d;
+        t1 = IdWdr * IifBall / (d * IOmega);
         mask1 = Ir > 0.0f;
         t1 = maskz_mov(mask1,t1);
         IdWdx = t1 * dx;
         IdWdy = t1 * dy;
         IdWdz = t1 * dz;
-        dWdx = 0.5f * (PdWdx + IdWdx);
-        dWdy = 0.5f * (PdWdy + IdWdy);
-        dWdz = 0.5f * (PdWdz + IdWdz);
+        // The symmetrized kernel does for now not use the Omega correction, so we multiply it out again
+        dWdx = 0.5f * (PdWdx * POmega + IdWdx * IOmega);
+        dWdy = 0.5f * (PdWdy * POmega + IdWdy * IOmega);
+        dWdz = 0.5f * (PdWdz * POmega + IdWdz * IOmega);
 
-        // PoverRho2
-        PPoverRho2 = PP / (POmega * Prho * Prho);
-        IPoverRho2 = IP / (IOmega * Irho * Irho);
+        // OneOverRho2
+        POneOverRho2 = 1.0f / (Prho * Prho);
+        IOneOverRho2 = 1.0f / (Irho * Irho);
 
         // Artificial viscosity
         cij = 0.5f * (Pc + Ic);
@@ -315,21 +348,50 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
             result.uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
         else {
-            result.uDot = Im * (PPoverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz) + 0.5f * Piij * (dvx * dWdx + dvy * dWdy + dvz * dWdz));
+            result.uDot = Im * (PP * POneOverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz) + 0.5f * Piij * (dvx * dWdx + dvy * dWdy + dvz * dWdz));
         }
 
         // acceleration
-        result.ax = - Im * (PPoverRho2 * PdWdx + IPoverRho2 * IdWdx + Piij * dWdx) * aFac;
-        result.ay = - Im * (PPoverRho2 * PdWdy + IPoverRho2 * IdWdy + Piij * dWdy) * aFac;
-        result.az = - Im * (PPoverRho2 * PdWdz + IPoverRho2 * IdWdz + Piij * dWdz) * aFac;
+        result.ax = - Im * (PP * POneOverRho2 * PdWdx + IP * IOneOverRho2 * IdWdx + Piij * dWdx) * aFac;
+        result.ay = - Im * (PP * POneOverRho2 * PdWdy + IP * IOneOverRho2 * IdWdy + Piij * dWdy) * aFac;
+        result.az = - Im * (PP * POneOverRho2 * PdWdz + IP * IOneOverRho2 * IdWdz + Piij * dWdz) * aFac;
+
+        // No transformation back into cosmology units, as strength makes no sense in cosmology. This saves multiplications.
+        if (doShearStrengthModel) {
+            result.ax += Im * (POneOverRho2 * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + IOneOverRho2 * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz));
+            result.ay += Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
+            result.az += Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
+
+            result.uDot -= Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
+
+            minusImOverRho = - Im / Irho;
+
+            result.dvxdx = minusImOverRho * dvx * PdWdx;
+            result.dvxdy = minusImOverRho * dvx * PdWdy;
+            result.dvxdz = minusImOverRho * dvx * PdWdz;
+            result.dvydx = minusImOverRho * dvy * PdWdx;
+            result.dvydy = minusImOverRho * dvy * PdWdy;
+            result.dvydz = minusImOverRho * dvy * PdWdz;
+            result.dvzdx = minusImOverRho * dvz * PdWdx;
+            result.dvzdy = minusImOverRho * dvz * PdWdy;
+            result.dvzdz = minusImOverRho * dvz * PdWdz;
+
+            result.Cinvxx = minusImOverRho * dx * PdWdx;
+            result.Cinvxy = minusImOverRho * dx * PdWdy;
+            result.Cinvxz = minusImOverRho * dx * PdWdz;
+            result.Cinvyx = minusImOverRho * dy * PdWdx;
+            result.Cinvyy = minusImOverRho * dy * PdWdy;
+            result.Cinvyz = minusImOverRho * dy * PdWdz;
+            result.Cinvzx = minusImOverRho * dz * PdWdx;
+            result.Cinvzy = minusImOverRho * dz * PdWdy;
+            result.Cinvzz = minusImOverRho * dz * PdWdz;
+        }
 
         // physical divv as used in gasoline
         result.divv = - Im / Irho * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz + H * d2 * PdWdx / dx);
 
         // timestep
-        dtC = 1.0f + 0.6f * alpha;
-        dtMu = 0.6f * beta;
-        result.dtEst = aFac * EtaCourant * 0.5f * PfBall / (dtC * Pc - dtMu * muij);
+        result.dtEst = aFac * EtaCourant * 0.5f * PfBall / ((1.0f + 0.6f * alpha) * Pc - 0.6f * beta * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
         result.dtEst = mask_mov(1e14f,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);

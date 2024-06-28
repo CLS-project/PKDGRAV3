@@ -59,6 +59,7 @@ template <int n> struct sphForceBlk {
     fvector<n> m, fBall, Omega;
     fvector<n> vx, vy, vz;
     fvector<n> rho, P, c, rung;
+    fvector<n> Sxx, Syy, Sxy, Sxz, Syz;
 };
 
 typedef ppBlk<32> ppInteract;
@@ -128,16 +129,20 @@ struct alignas(64) sphForceInput {
     float fBall, Omega;
     float vx, vy, vz;
     float rho, P, c;
+    float Sxx, Syy, Sxy, Sxz, Syz;
 };
 static_assert(sizeof(sphForceInput)==64,"Check size of sphForceInput");
+static_assert(sizeof(sphForceInput)/sizeof(float)<=32,"sphForceInput cannot exceed 32 floats");
 
-struct alignas(32) sphForceResult {
+struct alignas(128) sphForceResult {
     float uDot;
     float ax, ay, az;
     float divv;
     float dtEst;
     float maxRung;
+    float dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, dvzdx, dvzdy, dvzdz;
+    float Cinvxx, Cinvxy, Cinvxz, Cinvyx, Cinvyy, Cinvyz, Cinvzx, Cinvzy, Cinvzz;
 };
-static_assert(sizeof(sphForceResult)==32,"Check size of sphForceResult");
+static_assert(sizeof(sphForceResult)==128,"Check size of sphForceResult");
 }
 #endif

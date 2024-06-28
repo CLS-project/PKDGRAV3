@@ -114,3 +114,44 @@ float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHO
     }
     return u2;
 }
+
+float SPHEOSGammaofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions) {
+    float Gamma = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        // Builtin ideal gas does not have a shear modulus and will have zero yield strength.
+        Gamma = 0.0f;
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        Gamma = (float)EOSGammaofRhoT(pkd->materials[iMat], rho, T);
+#endif
+    }
+    return Gamma;
+}
+
+void SPHEOSApplyStrengthLimiter(PKD pkd, float rho, float u, int iMat, float *Sxx, float *Syy, float *Sxy, float *Sxz, float *Syz, SPHOptions *SPHoptions) {
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        *Sxx = 0.0f;
+        *Syy = 0.0f;
+        *Sxy = 0.0f;
+        *Sxz = 0.0f;
+        *Syz = 0.0f;
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        int yieldStrengthModel = EOSYieldModel(pkd->materials[iMat]);
+        if (yieldStrengthModel > 0) {
+            double J2 = (*Sxx) * (*Sxx) + (*Sxx) * (*Syy) + (*Sxy) * (*Sxy) + (*Sxz) * (*Sxz) + (*Syy) * (*Syy) + (*Syz) * (*Syz);
+            if (fabs(J2) > 0.0) {
+                double Y = EOSYieldStrength(pkd->materials[iMat], rho, u);
+                double f = std::min(Y / sqrt(J2), 1.0);
+                *Sxx *= f;
+                *Syy *= f;
+                *Sxy *= f;
+                *Sxz *= f;
+                *Syz *= f;
+            }
+        }
+#endif
+    }
+}

@@ -120,6 +120,13 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_NODE_BOB     (1<<30) /* Ball of Balls, or Box of Balls */
 
 #define PKD_MODEL_NEW_SPH      (1ULL<<32) /* New Sph Fields */
+/* P and c if not doing onthefly prediction */
+/* oldRho if doing ISPH */
+/* expImb2 if doing interface correction */
+/* T if doing interface correction and not onthefly prediction*/
+/* vpred if doing consistent prediction */
+#define PKD_MODEL_STRENGTH     (1ULL<<38) /* New Sph Fields */
+/* Spred if doing consistent prediction */
 
 #define MAX_RUNG     63
 

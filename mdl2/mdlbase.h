@@ -86,12 +86,12 @@ public:
     ServiceBuffer &operator=(const ServiceBuffer &) = delete;
 
     // Move constructor
-    ServiceBuffer(ServiceBuffer&& other) noexcept
+    ServiceBuffer(ServiceBuffer &&other) noexcept
         : offsets(std::move(other.offsets)), buffer(std::move(other.buffer))
     {}
 
     // Move assignment
-    ServiceBuffer &operator=(ServiceBuffer&& other) noexcept {
+    ServiceBuffer &operator=(ServiceBuffer &&other) noexcept {
         if (&other != this) {
             offsets = std::move(other.offsets);
             buffer = std::move(other.buffer);
