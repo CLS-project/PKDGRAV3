@@ -1,0 +1,6 @@
+[submodule "EOSlib"]
+	path = EOSlib
+	url = https://github.com/Halbarath/EOSlib.git
+[submodule "ANEOSmaterial"]
+	path = ANEOSmaterial
+	url = https://github.com/Halbarath/ANEOSmaterial.git
