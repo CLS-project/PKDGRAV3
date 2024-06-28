@@ -84,7 +84,7 @@ static inline float rsqrtf(float v) {
 
 static void reQueueDensity( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU);
 
-void calcSDot(PINFOIN pInfoIn, PINFOOUT pInfoOut, float Gamma, float *SDotxx, float *SDotyy, float *SDotxy, float *SDotxz, float *SDotyz, float *strainJ2Dot) {
+static void calcSDot(PINFOIN pInfoIn, PINFOOUT pInfoOut, float Gamma, float *SDotxx, float *SDotyy, float *SDotxy, float *SDotxz, float *SDotyz, float *strainJ2Dot) {
     // This is all done in double precision
     double Cxx, Cxy, Cxz, Cyx, Cyy, Cyz, Czx, Czy, Czz;
 
