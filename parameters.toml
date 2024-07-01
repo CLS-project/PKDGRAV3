@@ -1097,6 +1097,13 @@ Possible values are:
 flag="s"
 default=64
 help="number of particles to smooth over"
+docs='''
+The number of particles to smooth over.
+
+If hydro_model is not HYDRO_MODEL.SPH, this is the exact number of particles to smooth over.
+
+In the case of HYDRO_MODEL.SPH this is the target value of particles to smooth over, while the actual number can be smaller or larger depending on the local particle density. The kernel size of each particle is set such that  :math:`\frac{4}{3}\pi R_{kernel}^3(h)\rho =` nSmooth.
+'''
 
 #["Gas".bGasAdiabatic]
 #flag="GasAdiabatic"
@@ -1107,6 +1114,9 @@ help="number of particles to smooth over"
 flag="GasIsentropic"
 default=true
 help="Gas is evolved isentropically"
+docs='''
+This uses the equation of state to force isentropic evolution of the gas in the absence of shocks. Only for HYDRO_MODEL.SPH, ignored otherwise.
+'''
 
 #["Gas".bGasIsothermal]
 #flag="GasIsothermal"
@@ -1122,16 +1132,25 @@ help="Courant criterion"
 flag="etau"
 default=-1.0
 help="Timestepping criterion for internal energy (negative = deactivated)"
+docs='''
+Timestepping criterion for internal energy. If active, time step is limited to :math:`dT <= dEtauDot\left|\frac{u}{\dot{u}}\right|`. If dEtauDot is negative, this is disabled.
+'''
 
 ["Gas".dEtaSdot]
 flag="etaS"
 default=-1.0
 help="Timestepping criterion for deviatoric stress (negative = deactivated)"
+docs='''
+Timestepping criterion for deviatoric stress. If active, time step is limited to :math:`dT <= dEtaSdot\left|\frac{S_{xx}}{\dot{S}_{xx}}\right|`. If dEtaSdot is negative, this is disabled.
+'''
 
 ["Gas".dTimeStepSmin]
 flag="timeStepSmin"
 default=0.0
 help="Minimum S value used in the timestepping criterion for deviatoric stress"
+docs='''
+Minimum S value used in the timestepping criterion for deviatoric stress. Modifies the above formula to :math:`dT <= dEtaSdot\frac{\left|S_{xx}+dTimeStepSmin\right|}{\left|\dot{S}_{xx}\right|}`.
+'''
 
 ["Gas".dCFLacc]
 flag="etaAcc"
@@ -1176,8 +1195,11 @@ help="Minimum h as a fraction of Softening"
 
 ["Gas".dFastGasFraction]
 flag="FastGasFraction"
-default=0.5
+default=0.01
 help="Fraction for FastGas"
+docs='''
+Fraction of active particles below which FastGas is active for HYDRO_MODEL.SPH. In FastGas, instead of calculating density for all particles, density is only calculated for potential neighbors of active particles (or potential neighbors of potential neighbors of active particles if bGasInterfaceCorrection is active).
+'''
 
 ["Gas".dMsolUnit]
 flag="msu"
@@ -1206,11 +1228,25 @@ help="Add Delete Particles"
 flag="VelocityDamper"
 default=0.0
 help="Velocity Damper"
+docs='''
+Velocity damper that is applied before each opening kick:
+
+:math:`v\rightarrow v\cdot exp(-2/\Delta t \cdot \Delta t(rung)\cdot VelocityDamper)`
+
+This means the value of dVelocityDamper is the number of e-foldings the velocity experiences per full step, i.e. the time given by the global time step size dDelta.
+'''
 
 ["Gas".dVelocityDamperEnd]
 flag="VelocityDamperEnd"
 default=0.0
-help="Velocity Damper Endnd value"
+help="Velocity Damper End value"
+docs='''
+Velocity damper end value. A constant velocity damper is not always helpful. Together with dVelocityDamperEndTime, this allows to apply the velocity damper in a ramp. The value used in the formula of dVelocityDamper is modified in each substep to use the value:
+
+:math:`VelocityDamper = 10.0^{\log10(dVDE/dVD)/dVDET\cdot dTime + \log10(dVD)}`
+
+After dVelocityDamperEndTime, the value is then set to zero to allow for undamped relaxation at the end.
+'''
 
 ["Gas".dVelocityDamperEndTime]
 flag="VelocityDamperEndTime"
@@ -1221,36 +1257,61 @@ help="Velocity Damper End Time"
 flag="ballSizeLimit"
 default=10.0
 help="Ball size limit"
+docs='''
+Ball size limit. For HYDRO_MODEL.SPH, the kernel size is not allowed to grow to arbitrarily large values. It is limited to this value, resulting in an effective minimum density that depends on the particle mass and the ball size limit, as well as the kernel type.
+'''
 
 ["Gas".iKernelType]
 flag="KernelType"
 default=0
-help="Kernel type, 0: M4, 1: Wendland C2, 2: Wendland C4, 3: Wendland C6"
+help="Kernel type, 0: M3, 1: Wendland C2, 2: Wendland C4, 3: Wendland C6"
+docs='''
+For HYDRO_MODEL.SPH, the kernel type can be chosen between these values:
+ - 0: M3 cubic spline kernel. Recommended nSmooth = 32 - 64.
+ - 1: Wendland C2 kernel. Recommended nSmooth = 100.
+ - 2: Wendland C4 kernel. Recommended nSmooth = 200.
+ - 3: Wendland C6 kernel. Recommended nSmooth = 400.
+'''
 
 ["Gas".bGasBuiltinIdeal]
 flag="GasBuiltinIdeal"
 default=false
 help="Use builtin ideal gas"
+docs='''
+For HYDRO_MODEL.SPH, this uses the builtin ideal gas formulation instead of the one provided by EOSlib.
+'''
 
 ["Gas".bGasOnTheFlyPrediction]
 flag="GasOnTheFlyPrediction"
 default=false
 help="Do on the fly prediction"
-
-["Gas".bGasInterfaceCorrection]
-flag="GasInterfaceCorrection"
-default=false
-help="Do interface correction"
+docs='''
+For HYDRO_MODEL.SPH, the gas values are predicted on the fly. This means enormous amounts of calls to the equation of state. This is only sensible if using bGasBuiltinIdeal. It has a whole host of problems, so it is not recomended to be used. It is incompatible with bGasConsistentPrediction.
+'''
 
 ["Gas".bGasConsistentPrediction]
 flag="GasConsistentPrediction"
 default=false
 help="Use consistent prediction"
+docs='''
+For HYDRO_MODEL.SPH, the velocities are predicted before the force evaluation starts. Also, gas values are not updated after the closing kick. This massively improves conservation of linear and angular momenta. If using HYDRO_MODEL.SPH, this is the recomended prediction method. Incompatible with bGasOnTheFlyPrediction.
+'''
+
+["Gas".bGasInterfaceCorrection]
+flag="GasInterfaceCorrection"
+default=false
+help="Do interface correction"
+docs='''
+Enables interface correction for HYDRO_MODEL.SPH. This uses an additional pass to correct densities at interfaces (material and vacuum).
+'''
 
 ["Gas".bCentrifugal]
 flag="Centrifugal"
 default=false
 help="Apply centrifugal force"
+docs='''
+This enables the centrifugal force. It allows for the application of a centrifucal force around the z-axis. The centrifucal force starts at dCentrifT0 with a value of 0.0 and ramps up linearly to the value dCentrifOmega0 at time dCentrifT1, after which this value is held constant until the end of the simulation.
+'''
 
 ["Gas".dCentrifT0]
 flag="CentrifT0"
@@ -1269,13 +1330,14 @@ help="Maximum omega for centrifugal ramp"
 
 ["Gas".bGasDoExtensiveILPTest]
 flag="GasDoExtensiveILPTest"
+private=true
 default=false
 help="Extensively test the ILP for completeness. Very costly."
 
 ["Gas".bShearStrengthModel]
 flag="ShearStrengthModel"
 default=false
-help="Enable the shear strength model in NewSPH."
+help="Enables the shear strength model for HYDRO_MODEL.SPH."
 
 ["Gas".bMeshlessHydro]
 flag="meshless"
