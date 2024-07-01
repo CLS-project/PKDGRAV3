@@ -1202,11 +1202,6 @@ flag="adddel"
 default=false
 help="Add Delete Particles"
 
-["Gas".fKernelTarget]
-flag="fKernelTarget"
-default=0.0
-help="Kernel target, either number- or massdensity"
-
 ["Gas".dVelocityDamper]
 flag="VelocityDamper"
 default=0.0

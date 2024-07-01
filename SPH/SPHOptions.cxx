@@ -29,7 +29,7 @@
 SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTime) {
     UNITS units(parameters,csm->val.h);
     SPHOptions SPHoptions;
-    SPHoptions.fKernelTarget = parameters.get_fKernelTarget();
+    SPHoptions.fKernelTarget = parameters.get_nSmooth();
     SPHoptions.epsilon = 0.01f;
     SPHoptions.alpha = parameters.get_dConstAlpha();
     SPHoptions.beta = parameters.get_dConstBeta();
