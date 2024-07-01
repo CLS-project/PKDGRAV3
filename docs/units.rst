@@ -245,3 +245,24 @@ It should be noted that kpc/Gyr is very nearly km/s. This should be obvious beca
       = \frac{\pi^{-1}\times 9.69394202136\times 10^{16}\frac{km}{kpc}}{3.15581184\times 10^{16}\frac{\text{s}}{\text{Gyr}}}
       = 0.97777615965~\text{km}/\text{s}
 
+------------------
+Units calculator
+------------------
+
+The file /tools/calculate_units.py provides a tool that allows to calculate the values for dKpcUnit and dMsolUnit that go into the parameter file. It provides three different modes, where any two of the three values mass unit, length unit and velocity unit can be provided.
+
+Some sample sets of units relevant for planetary scale simulations are::
+
+    Length unit: 1 Earth radius, Velocity unit: 1 km/s
+    dKpcUnit = 2.064688206889847e-13
+    dMsolUnit = 4.8006351375833994e-08
+    
+    Length unit: 1 Astronomical unit, Velocity unit: 1 km/s
+    dKpcUnit = 4.848101587970315e-09
+    dMsolUnit = 0.0011272388129170855
+    
+    Length unit: 1 Astronomical unit, Mass unit: 1 Jupiter mass
+    dKpcUnit = 4.848101587970315e-09
+    dMsolUnit = 0.0009548380607523638
+
+
