@@ -621,7 +621,6 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
         /*
         ** Initialize kernel target with nSmooth
         */
-        parameters.set_fKernelTarget(parameters.get_nSmooth());
         SetSPHoptions();
         InitializeEOS();
     }
@@ -3981,7 +3980,6 @@ double MSR::Read(std::string_view achInFile) {
         /*
         ** Initialize kernel target with nSmooth
         */
-        parameters.set_fKernelTarget(parameters.get_nSmooth());
         SetSPHoptions();
         InitializeEOS();
 
