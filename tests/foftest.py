@@ -16,8 +16,7 @@ class TestFof(unittest.TestCase):
         name = 'b0-final.std'
         dTau = 0.0004098
         nMinMembers = 10
-        msr.set_parameters(bFindGroups = True,bMemGlobalGid = True)
-        time = msr.load(name)
+        time = msr.load(name,bFindGroups = True,bMemGlobalGid = True,nMemEphemeral=8)
         msr.domain_decompose()
         msr.build_tree()
         msr.fof(dTau,nMinMembers)
