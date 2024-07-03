@@ -67,7 +67,7 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
         printf("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
         return false;
     }
-    else if (parameters.has_dDelta()) {
+    if (parameters.has_dDelta()) {
         auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
         auto tTo = csmExp2Time(csm,aTo);
         if (tTo < dTime) {
