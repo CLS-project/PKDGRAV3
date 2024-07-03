@@ -62,30 +62,32 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
             printf("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
         }
     }
-    else if (!parameters.has_dRedTo()) {}
-    else if (parameters.has_dDelta() && parameters.has_nSteps()) {
-        printf("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
-        return false;
-    }
-    if (parameters.has_dDelta()) {
-        auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
-        auto tTo = csmExp2Time(csm,aTo);
-        if (tTo < dTime) {
-            printf("Badly specified final redshift, check -zto parameter.\n");
+    else {
+        if (!parameters.has_dRedTo()) {}
+        else if (parameters.has_dDelta() && parameters.has_nSteps()) {
+            printf("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
             return false;
         }
-        nSteps = (int)ceil((tTo-dTime)/parameters.get_dDelta());
-        dDelta = (tTo-dTime)/(nSteps - iStartStep);
-    }
-    else if (parameters.has_nSteps()) {
-        auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
-        auto tTo = csmExp2Time(csm,aTo);
-        if (tTo < dTime) {
-            printf("Badly specified final redshift, check -zto parameter.\n");
-            return false;
+        if (parameters.has_dDelta()) {
+            auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
+            auto tTo = csmExp2Time(csm,aTo);
+            if (tTo < dTime) {
+                printf("Badly specified final redshift, check -zto parameter.\n");
+                return false;
+            }
+            nSteps = (int)ceil((tTo-dTime)/parameters.get_dDelta());
+            dDelta = (tTo-dTime)/(nSteps - iStartStep);
         }
-        if (parameters.get_nSteps() == 0) dDelta = 0.0;
-        else dDelta = (tTo-dTime) / (nSteps - iStartStep);
+        else if (parameters.has_nSteps()) {
+            auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
+            auto tTo = csmExp2Time(csm,aTo);
+            if (tTo < dTime) {
+                printf("Badly specified final redshift, check -zto parameter.\n");
+                return false;
+            }
+            if (parameters.get_nSteps() == 0) dDelta = 0.0;
+            else dDelta = (tTo-dTime) / (nSteps - iStartStep);
+        }
     }
     parameters.set_dynamic("delta",dDelta);
     return true;
