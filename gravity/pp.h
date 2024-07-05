@@ -289,7 +289,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
 
     F d, Pr, Ir;
     F t1, t2, t3;
-    F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
+    F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr, scaledPdWdr;
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, hij, dvdotdx, muij, Piij;
     F POneOverRho2, IOneOverRho2, minusImOverRho;
@@ -330,6 +330,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
         t1 = PdWdr * PifBall / (d * POmega);
         mask1 = Pr > 0.0f;
         t1 = maskz_mov(mask1,t1);
+        scaledPdWdr = t1;
         PdWdx = t1 * dx;
         PdWdy = t1 * dy;
         PdWdz = t1 * dz;
@@ -403,7 +404,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
         }
 
         // physical divv as used in gasoline
-        result.divv = - Im / Irho * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz + H * d2 * PdWdx / dx);
+        result.divv = - Im / Irho * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz + H * d2 * scaledPdWdr);
 
         // timestep
         result.dtEst = aFac * EtaCourant * 0.5f * PfBall / ((1.0f + 0.6f * alpha) * Pc - 0.6f * beta * muij);
