@@ -21,7 +21,13 @@ def main():
     print("6: Velocity unit and Time unit")
     print("")
     print("Choice: ",end="")
-    choice = int(input())
+    inputvalue = 0
+    try:
+        inputvalue = input()
+        choice = int(inputvalue)
+    except:
+        print("Input {} is not a valid choice! Exiting".format(inputvalue))
+        return
     if (choice < 1 or choice > 6):
         print("Invalid choice! Exiting!")
         return
@@ -60,14 +66,14 @@ def main():
     massUnitString = "Units for mass: g, kg, ME (Earth), MJ (Jupiter), MS (Sun)"
     lengthUnitString = "Units for length: cm, m, RE (Earth), AU, ly, pc, kpc, Mpc"
     velocityUnitString = "Units for velocity: cmps, mps, kmps"
-    timeUnitString = "Units for time: s, min, h, d, y, Gy"
+    timeUnitString = "Units for time: s, min, h, d, y, ky, My, Gy"
 
     print()
     print("Enter the values as [value] * [unit] pairs.")
     print("[value] can be any valid python or numpy (np.xxx) expression, for example 1.0 / 62.5 or np.sqrt(8*np.pi) or 1.7256e16")
     print("A list of the possible units is provided before each prompt.")
     print("Units are actually just multipliers to the base units in cgs.")
-    print("g for mass, cm for length, cmps for velocity and s for time correspond the 1.0.")
+    print("g for mass, cm for length, cmps for velocity and s for time correspond to 1.0.")
     print()
 
     if choice == 1:
