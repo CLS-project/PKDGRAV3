@@ -1305,6 +1305,14 @@ docs='''
 Enables interface correction for HYDRO_MODEL.SPH. This uses an additional pass to correct densities at interfaces (material and vacuum).
 '''
 
+["Gas".dGasInterfaceCorrectionPrefactorScaling]
+flag="GasInterfaceCorrectionPrefactorScaling"
+default=1.0
+help="Scale the Interface Correction Prefactor"
+docs='''
+Scale factor applied to the Interface Correction Prefactor
+'''
+
 ["Gas".bCentrifugal]
 flag="Centrifugal"
 default=false
