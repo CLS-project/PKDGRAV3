@@ -296,6 +296,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                 wp->pInfoOut[i].a[1] += acc[1];
                 wp->pInfoOut[i].a[2] += acc[2];
 #endif
+                wp->pInfoOut[i].a[0] *= p.accFac();
+                wp->pInfoOut[i].a[1] *= p.accFac();
+                wp->pInfoOut[i].a[2] *= p.accFac();
                 if (pkd->particles.present(PKD_FIELD::oAcceleration)) {
                     p.acceleration() = wp->pInfoOut[i].a;
                 }
