@@ -249,7 +249,7 @@ It should be noted that kpc/Gyr is very nearly km/s. This should be obvious beca
 Units calculator
 ------------------
 
-The file /tools/calculate_units.py provides a tool that allows to calculate the values for dKpcUnit and dMsolUnit that go into the parameter file. It provides three different modes, where any two of the three values mass unit, length unit and velocity unit can be provided.
+The file /tools/calculate_units.py provides a tool that allows to calculate the values for dKpcUnit and dMsolUnit that go into the parameter file. It provides six different modes, where any two of the four values mass unit, length unit, velocity unit and time unit can be provided.
 
 Some sample sets of units relevant for planetary scale simulations are::
 

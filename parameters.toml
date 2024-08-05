@@ -1149,7 +1149,7 @@ flag="timeStepSmin"
 default=0.0
 help="Minimum S value used in the timestepping criterion for deviatoric stress"
 docs='''
-Minimum S value used in the timestepping criterion for deviatoric stress. Modifies the above formula to :math:`dT <= dEtaSdot\frac{\left|S_{xx}+dTimeStepSmin\right|}{\left|\dot{S}_{xx}\right|}`.
+Minimum S value used in the timestepping criterion for deviatoric stress. Modifies the above formula to :math:`dT <= dEtaSdot\frac{\left|S_{xx}\right|+dTimeStepSmin}{\left|\dot{S}_{xx}\right|}`.
 '''
 
 ["Gas".dCFLacc]

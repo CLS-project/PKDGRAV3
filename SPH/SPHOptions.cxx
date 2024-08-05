@@ -25,8 +25,10 @@
 #include "pkd_parameters.h"
 #include <stdio.h>
 #include "basetype.h"
+#include "cosmo.h"
 
-SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTime) {
+SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double dTime) {
+    auto csm = static_cast<CSM>(vcsm);
     UNITS units(parameters,csm->val.h);
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = parameters.get_nSmooth();
