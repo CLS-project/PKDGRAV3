@@ -156,8 +156,6 @@ int MSR::Python(int argc, char *argv[]) {
     Py_DECREF(result);
     PyObject *script = PyObject_GetAttrString(arguments,"script");
 
-    bVDetails = parameters.get_bVDetails();
-
     // If a script was specified then we run it.
     if (script != Py_None) {
         char *filename;
@@ -213,7 +211,6 @@ int MSR::Python(int argc, char *argv[]) {
             PyErr_Print();
             exit(1);
         }
-        bVDetails = parameters.get_bVDetails();
         parameters.set_dynamic("msr",PyImport_ImportModule("PKDGRAV"));
     }
 

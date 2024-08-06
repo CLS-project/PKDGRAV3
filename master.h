@@ -24,6 +24,9 @@
 #include <vector>
 #include <string_view>
 #include <Python.h>
+#include "fmt/format.h"  // This will be part of c++20
+#include "fmt/ostream.h"
+#include <fmt/color.h>
 
 #include "pst.h"
 #include "mdl.h"
@@ -81,12 +84,37 @@ class MSR {
 protected:
     const PST pst;
     mdl::mdlClass *mdl;
-    bool bVDetails;
     PyObject *parameter_overrides = nullptr;
 public:
     explicit MSR(MDL mdl,PST pst);
     ~MSR();
 public:
+    template<typename... Args>
+    void print(Args&&... args) const {
+        FMT_TRY {
+            fmt::print(std::forward<Args>(args)...);
+        }
+        FMT_CATCH(fmt::format_error &f) {
+            fmt::print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold,"ERROR in formatting string: {}\n",f.what());
+            mdl->show_backtrace(5,2);
+        }
+    }
+    template<typename... Args>
+    void print_error(const char *format, Args&&... args) const {
+        print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
+    }
+    template<typename... Args>
+    void print_warning(const char *format, Args&&... args) const {
+        if (parameters.get_bVWarnings()) {
+            print(stderr,fg(fmt::color::yellow) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
+        }
+    }
+    template<typename... Args>
+    void print_detail(const char *format, Args&&... args) const {
+        if (parameters.get_bVDetails()) {
+            print(format, std::forward<Args>(args)...);
+        }
+    }
     int Python(int argc, char *argv[]);
     int ValidateParameters();
     void SetDerivedParameters(bool bRestart=false);
@@ -109,6 +137,7 @@ protected:
     int64_t parallel_write_count();
     void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
     void Restore(const std::string &filename,int nSizeParticle);
+    void PrintStat(const STAT &ps,char const *pszPrefix,int p);
 
 public:
     // I/O and IC Generation
@@ -395,7 +424,6 @@ protected:
     std::string BuildCpName(int iStep,const char *type="");
 
     int ReadOuts(double dTime);
-    void msrprintf(const char *Format, ... ) const;
     void Exit(int status);
     uint64_t getMemoryModel();
     std::pair<int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
