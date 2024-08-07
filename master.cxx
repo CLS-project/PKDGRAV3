@@ -455,7 +455,7 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
     stat_files(counts,filename_template,nSizeParticle);
     TimerStop(TIMER_NONE);
     auto dsec = TimerGet(TIMER_NONE);
-    print("... identified %" PRIu64 " particles in %d files, Wallclock: %f secs.\n",
+    print("... identified {} particles in {} files, Wallclock: {:.5f} secs.\n",
           std::accumulate(counts.begin(),counts.end(),uint64_t(0)),
           int(counts.size()), dsec);
 
