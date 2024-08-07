@@ -727,6 +727,14 @@ if(NOT CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
   file(CREATE_LINK ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json SYMBOLIC)
 endif()
 
+if(APPLE)
+  add_custom_command(
+    TARGET ${PROJECT_NAME}
+    POST_BUILD
+    COMMAND dsymutil $<TARGET_FILE:${PROJECT_NAME}>
+  )
+endif()
+
 #target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 #target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 #target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
