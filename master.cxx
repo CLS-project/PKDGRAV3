@@ -526,7 +526,7 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
     }
 
     auto version = restore<int>(pFile);
-    if (version != 1) {
+    if (version < 1 || version > 2) {
         PyErr_SetString(PyExc_ValueError, "Invalid checkpoint file version");
         PyErr_Print();
         abort();
@@ -572,6 +572,18 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
     auto specified = restore<PyObject *>(pFile);
     parameters.merge(pkd_parameters(arguments,specified));
     parameters.update(kwargs,false);
+
+    if (version>=2) {
+        auto analysis_list = restore<PyObject *>(pFile);
+        analysis_callbacks.clear();
+        for (auto i = 0; i < PyList_Size(analysis_list); ++i) {
+            auto item = PyList_GetItem(analysis_list, i);
+            auto callback = PyList_GetItem(item, 0);
+            auto per_particle = PyLong_AsLong(PyList_GetItem(item, 1));
+            auto per_process = PyLong_AsLong(PyList_GetItem(item, 2));
+            analysis_callbacks.emplace_back(callback,per_particle,per_process);
+        }
+    }
 
     ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
@@ -710,6 +722,24 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
         // Add the inner list to the outer list
         PyList_SetItem(classes_list, i, class_list); // This also steals a reference
     }
+
+    auto analysis_list = PyList_New(0);
+    for ( auto &cb : analysis_callbacks ) {
+        auto list = PyList_New(3); // Each inner list has 3 elements
+        // Convert structure members to Python objects and add them to the class_list
+        PyObject *callback = cb.callback;
+        PyObject *per_particle = PyLong_FromLong(cb.memory.per_particle);
+        PyObject *per_process = PyLong_FromLong(cb.memory.per_process);
+
+        // Note: PyList_SetItem steals a reference to the item
+        PyList_SetItem(list, 0, callback);
+        PyList_SetItem(list, 1, per_particle);
+        PyList_SetItem(list, 2, per_process);
+
+        // Add the inner list to the outer list
+        PyList_Append(analysis_list, list); // This also steals a reference
+    }
+
     auto a = parameters.arguments();
     auto s = parameters.specified();
 
@@ -725,7 +755,7 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
     }
 
     // Checkpoint the important variables
-    persist(pFile,1);            // checkpoint version
+    persist(pFile,2);            // checkpoint version
     persist(pFile,species_list); // 1: species
     persist(pFile,classes_list); // 1: classes
     persist(pFile,iStep);        // 1: step
@@ -737,6 +767,7 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
     persist(pFile,dTimeOld);     // 1: Utime
     persist(pFile,a);            // 1: arguments
     persist(pFile,s);            // 1: specified
+    persist(pFile,analysis_list);// 2: analysis callbacks
 
     // 1: Persist the interpreter state
     PyObject *args = PyTuple_Pack(3, pFile, Py_None, Py_True);
