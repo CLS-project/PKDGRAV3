@@ -17,10 +17,12 @@
 #include "pkd_config.h"
 #include <string>
 #include <cmath>
+#include <fstream>
 #include "master.h"
 #include "units.h"
 #include "fmt/format.h"
 #include "SPH/SPHOptions.h"
+using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 /******************************************************************************\
 *   Simulation Mode: normal method of populating the simulation data
@@ -59,20 +61,20 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
     nSteps = parameters.get_nSteps();
     if (!csm->val.bComove) {
         if (parameters.has_dRedTo()) {
-            printf("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
+            print_warning("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
         }
     }
     else {
         if (!parameters.has_dRedTo()) {}
         else if (parameters.has_dDelta() && parameters.has_nSteps()) {
-            printf("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
+            print_error("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
             return false;
         }
         if (parameters.has_dDelta()) {
             auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
             auto tTo = csmExp2Time(csm,aTo);
             if (tTo < dTime) {
-                printf("Badly specified final redshift, check -zto parameter.\n");
+                print_error("Badly specified final redshift, check -zto parameter.\n");
                 return false;
             }
             nSteps = (int)ceil((tTo-dTime)/parameters.get_dDelta());
@@ -82,7 +84,7 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
             auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
             auto tTo = csmExp2Time(csm,aTo);
             if (tTo < dTime) {
-                printf("Badly specified final redshift, check -zto parameter.\n");
+                print_error("Badly specified final redshift, check -zto parameter.\n");
                 return false;
             }
             if (parameters.get_nSteps() == 0) dDelta = 0.0;
@@ -109,7 +111,7 @@ void MSR::Simulate(double dTime) {
     return Simulate(dTime,dDelta,iStartStep,nSteps);
 }
 void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart) {
-    FILE *fpLog = NULL;
+    std::ofstream log;
     const auto bEwald = parameters.get_bEwald();
     const auto bGravStep = parameters.get_bGravStep();
     const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
@@ -126,9 +128,11 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     */
     if (LogInterval()) {
         std::string filename = std::string(OutName()) + ".log";
-        fpLog = fopen(filename.c_str(),"a");
-        assert(fpLog != NULL);
-        setbuf(fpLog,(char *) NULL); /* no buffering */
+        log.open(filename,std::ios::app);
+        if (!log.is_open()) {
+            print_error("Failed to open log file: {}\n",filename);
+            abort();
+        }
         // fprintf(fpLog,"# ");
         // for (auto i=0;i<argc;++i) fprintf(fpLog,"%s ",argv[i]);
         // fprintf(fpLog,"\n");
@@ -139,10 +143,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
 
     if (parameters.get_bLightCone() && Comove()) {
         auto dBoxSize = parameters.get_dBoxSize();
-        printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
-               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*dBoxSize)) - 1.0,
-               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(2*dBoxSize)) - 1.0,
-               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*dBoxSize)) - 1.0 );
+        print("One, Two, Three replica depth is z={:.10g}, {:.10g}, {:.10g}\n",
+              1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*dBoxSize)) - 1.0,
+              1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(2*dBoxSize)) - 1.0,
+              1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*dBoxSize)) - 1.0 );
     }
 
     if (MeshlessHydro()) {
@@ -287,10 +291,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
     iSec = time(0) - iSec;
     if (LogInterval()) {
-        (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-                       "%.16e %.16e %.16e %.16e %i\n",dTime,
-                       1.0/csmTime2Exp(csm,dTime)-1.0,
-                       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
+        fmt::print(log,"{time:.10e} {z:.10e} {E:.10e} {T:.10e} {U:.10e} {Eth:.10e} {L0:.10e} {L1:.10e} {L2:.10e} {F0:.10e} {F1:.10e} {F2:.10e} {W:.10e} {elapsed:d}\n",
+                   "time"_a=dTime,
+                   "z"_a=1.0/csmTime2Exp(csm,dTime)-1.0,
+                   "E"_a=E,"T"_a=T,"U"_a=U,"Eth"_a=Eth,
+                   "L0"_a=L[0],"L1"_a=L[1],"L2"_a=L[2],
+                   "F0"_a=F[0],"F1"_a=F[1],"F2"_a=F[2],
+                   "W"_a=W,"elapsed"_a=iSec);
+        log.rdbuf()->pubsync();
     }
 
     if (bDoStartOutput) {
@@ -381,10 +389,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         */
         if (LogInterval() && iStep%LogInterval() == 0) {
             CalcEandL(MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
-            (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
-                           "%.16e %.16e %.16e %.16e %.16e %li\n",dTime,
-                           1.0/csmTime2Exp(csm,dTime)-1.0,
-                           E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec);
+            fmt::print(log,"{time:.10e} {z:.10e} {E:.10e} {T:.10e} {U:.10e} {Eth:.10e} {L0:.10e} {L1:.10e} {L2:.10e} {F0:.10e} {F1:.10e} {F2:.10e} {W:.10e} {elapsed:d}\n",
+                       "time"_a=dTime,
+                       "z"_a=1.0/csmTime2Exp(csm,dTime)-1.0,
+                       "E"_a=E,"T"_a=T,"U"_a=U,"Eth"_a=Eth,
+                       "L0"_a=L[0],"L1"_a=L[1],"L2"_a=L[2],
+                       "F0"_a=F[0],"F1"_a=F[1],"F2"_a=F[2],
+                       "W"_a=W,"elapsed"_a=lSec);
+            log.rdbuf()->pubsync();
         }
         if (!parameters.get_bNewKDK()) {
             CheckForOutput(iStep,nSteps,dTime,&bDoCheckpoint,&bDoOutput);
@@ -405,8 +417,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         }
         TimerDump(iStep);
     }
-    if (LogInterval()) (void) fclose(fpLog);
-
 }
 
 /******************************************************************************\
@@ -587,7 +597,7 @@ int MSR::ValidateParameters() {
 
 #ifndef USE_HDF5
     if (parameters.get_bHDF5()) {
-        printf("WARNING: HDF5 output was requested but it is not supported: using Tipsy format\n");
+        print_warning("WARNING: HDF5 output was requested but it is not supported: using Tipsy format\n");
         parameters.set_bHDF5(false);
     }
 #endif
@@ -673,7 +683,7 @@ int MSR::ValidateParameters() {
     auto bPhysicalSoft = parameters.get_bPhysicalSoft();
     const auto dMaxPhysicalSoft = parameters.get_dMaxPhysicalSoft();
     if (bPhysicalSoft && !parameters.get_bComove()) {
-        printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
+        print_warning("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
         parameters.set_bPhysicalSoft(bPhysicalSoft = false);
     }
     if (bPhysicalSoft && dMaxPhysicalSoft>0) {
