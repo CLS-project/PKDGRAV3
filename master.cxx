@@ -781,6 +781,7 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
 
     Py_DECREF(species_list);
     Py_DECREF(classes_list);
+    Py_DECREF(analysis_list);
 
     // ******************************************************************
     // Write the restart file
