@@ -91,15 +91,17 @@ protected:
             else throw std::domain_error(name);
         }
         else if constexpr (is_std_vector<T>::value) {
+            T result;
             if (PyList_Check(v)) {
                 Py_ssize_t size = PyList_Size(v);
-                T result(size);
+                result.resize(size);
                 for (Py_ssize_t i = 0; i < size; ++i) {
                     PyObject *item = PyList_GetItem(v, i);
                     result[i] = get<typename T::value_type>(name, item);
                 }
-                return result;
             }
+            else if (v != Py_None) result.push_back(get<typename T::value_type>(name,v));
+            return std::move(result);
         }
         else if constexpr (std::is_same<T, bool>::value) {
             return PyObject_IsTrue(v)>0;
