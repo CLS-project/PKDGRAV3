@@ -110,6 +110,10 @@ public:
         }
     }
     template<typename... Args>
+    void print_notice(const char *format, Args&&... args) const {
+        print(fg(fmt::color::green) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
+    }
+    template<typename... Args>
     void print_detail(const char *format, Args&&... args) const {
         if (parameters.get_bVDetails()) {
             print(format, std::forward<Args>(args)...);
@@ -123,7 +127,7 @@ public:
     int GetLock();
     void IgnoreSIGBUS();
     double LoadOrGenerateIC();
-    void Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart=false);
+    void Simulate(double dTime,int iStartStep,bool bRestart=false);
     void Simulate(double dTime);
 private:
     int64_t parallel_count(bool bParallel,int64_t nParallel);
@@ -321,10 +325,10 @@ public:
     double dUOld;
     double dTimeOld;
     /*
-    ** Redshift output points.
+    ** Delta to use for each set of steps
     */
-    std::vector<double> dOutTimes;
-    int iOut;
+    std::vector<double> dDelta_list;
+    std::vector<uint64_t> iStep_list;
     // int nMaxOuts;
     // int nOuts;
     // double *pdOutTime;
@@ -362,7 +366,12 @@ protected:
 
     double getTime(double dExpansion); // Return simulation time
     double getVfactor(double dTime);
-    bool getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps);
+    bool getDeltaSteps(double dTime,int iStartStep);
+
+    auto NoSteps() const {
+        auto nSteps = parameters.get_nSteps();
+        return nSteps.size() == 1 && nSteps[0] == 0;
+    }
 
     auto OutName() const {
         return parameters.get_achOutName();
@@ -436,7 +445,7 @@ protected:
     uint64_t CalcWriteStart();
     void SwitchTheta(double);
     double getTheta(double dTime);
-    double SwitchDelta(double dTime,double dDelta,int iStep,int nSteps);
+    double SwitchDelta(double dTime,int iStep);
     void InitCosmology(CSM csm);
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);

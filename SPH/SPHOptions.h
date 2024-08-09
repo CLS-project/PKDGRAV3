@@ -158,7 +158,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double dTime);
+SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double dTime, double dDelta);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target);
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType);

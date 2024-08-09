@@ -2,9 +2,9 @@
 Quick Start
 ===========
 
-------------
+-------------
 cosmology.par
-------------
+-------------
 
 You can find the file `cosmology.par` in the `examples` directory and it is as follows.
 

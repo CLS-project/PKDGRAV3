@@ -627,9 +627,6 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
         InitializeEOS();
     }
     if (parameters.get_bAddDelete()) CountSpecies();
-    if (parameters.has_achOutTimes()) {
-        nSteps = ReadOuts(dTime);
-    }
     return {dTime,dDelta,iStep,nSteps,nSizeParticle,nSizeNode};
 }
 
@@ -654,7 +651,7 @@ void MSR::Restart(const char *filename,PyObject *kwargs,
     }
     else print_detail("Checkpoint Restart Complete @ a={a:g}, Wallclock: {seconds:.5} secs\n\n","a"_a=dExp,"seconds"_a=dsec);
 
-    Simulate(dTime,dDelta,iStep,nSteps,true);
+    Simulate(dTime,iStep,true);
 }
 
 void MSR::persist(PyObject *file,PyObject *obj) {
@@ -869,9 +866,6 @@ void MSR::Initialize() {
     lStart=time(0);
     fCenter = 0; // Center is at (0,0,0)
     /* Storage for output times*/
-    dOutTimes.reserve(100); // Reasonable number
-    dOutTimes.push_back(INFINITY); // Sentinal node
-    iOut = 0;
 
     iCurrMaxRung = 0;
     iRungDD = 0;
@@ -1032,31 +1026,12 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
     pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
 }
 
-double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
-    if (csm->val.bComove && parameters.has_dRedTo()
-            && parameters.has_nSteps() && parameters.has_nStepsSync()) {
-        double aTo,tTo;
-        const auto nStepsSync = parameters.get_nStepsSync();
-        if (iStep < nStepsSync) {
-            aTo = 1.0 / (parameters.get_dRedSync() + 1.0);
-            nSteps = nStepsSync - iStep;
-        }
-        else {
-            aTo = 1.0/(parameters.get_dRedTo() + 1.0);
-            nSteps = nSteps - iStep;
-        }
-        assert(nSteps>0);
-        tTo = csmExp2Time(csm,aTo);
-        dDelta = (tTo-dTime) / nSteps;
-        if (iStep == nStepsSync)
-            print_detail("dDelta changed to {delta:g} at z=10\n","delta"_a=dDelta);
+double MSR::SwitchDelta(double dTime,int iStep) {
+    while (iStep_list.size() && iStep_list.front() <= iStep) {
+        iStep_list.erase(iStep_list.begin());
+        dDelta_list.erase(dDelta_list.begin());
     }
-    else if ( dOutTimes.size()>1) {
-        dDelta = dOutTimes[iStep+1]-dOutTimes[iStep];
-        print("Changing dDelta to {delta:g}\n", "delta"_a=dDelta);
-    }
-
-    return dDelta;
+    return dDelta_list.front();
 }
 
 double MSR::getTime(double dExpansion) {
@@ -2088,7 +2063,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      double dTime, double dDelta, double dStep, double dTheta,
                      int bKickClose,int bKickOpen,int bEwald,int bGravStep,
                      int nPartRhoLoc,int iTimeStepCrit) {
-    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
     SPHoptions.doGravity = parameters.get_bDoGravity();
     SPHoptions.nPredictRung = uRungLo;
     return Gravity(uRungLo,uRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,
@@ -2499,62 +2474,6 @@ int cmpTime(const void *v1,const void *v2) {
     else return (1);
 }
 
-int MSR::ReadOuts(double dTime) {
-    char achFile[PST_FILENAME_SIZE];
-    FILE *fp;
-    int ret;
-    double z,a,t,newt;
-    char achIn[80];
-
-    /*
-    ** Add Data Subpath for local and non-local names.
-    */
-    MakePath(parameters.get_achDataSubPath(),parameters.get_achOutTimes(),achFile);
-
-    dOutTimes.clear();
-    dOutTimes.push_back(INFINITY); // Sentinal node
-
-    // I do not like how this is done, the file should be provided by a parameter
-    fp = fopen(achFile,"r");
-    if (!fp) {
-        print_error("The output times file: {} is not present!\n", achFile);
-        abort();
-    }
-    while (1) {
-        if (!fgets(achIn,80,fp)) goto NoMoreOuts;
-        switch (achIn[0]) {
-        case 'z':
-            ret = sscanf(&achIn[1],"%lf",&z);
-            if (ret != 1) goto NoMoreOuts;
-            a = 1.0/(z+1.0);
-            newt = csmExp2Time(csm,a);
-            break;
-        case 'a':
-            ret = sscanf(&achIn[1],"%lf",&a);
-            if (ret != 1) goto NoMoreOuts;
-            newt = csmExp2Time(csm,a);
-            break;
-        case 't':
-            ret = sscanf(&achIn[1],"%lf",&t);
-            if (ret != 1) goto NoMoreOuts;
-            newt = t;
-            break;
-        default:
-            ret = sscanf(achIn,"%lf",&z);
-            if (ret != 1) goto NoMoreOuts;
-            a = 1.0/(z+1.0);
-            newt = csmExp2Time(csm,a);
-        }
-        dOutTimes.push_back(newt);
-    }
-NoMoreOuts:
-    fclose(fp);
-    dOutTimes.push_back(dTime);
-    std::sort(dOutTimes.begin(),dOutTimes.end(),std::less<double>());
-    assert( dTime < dOutTimes.back() );
-    return dOutTimes.size()-2;
-}
-
 void MSR::InitCosmology(CSM csm) {
     ServiceInitLightcone::input in;
     if (parameters.has_h()) csm->val.h = parameters.get_h();
@@ -2838,7 +2757,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
         *pbDoOutput = 1  | (iStop<<1);
     }
 
-    return (iStep==parameters.get_nStepsSync()) || *pbDoOutput || *pbDoCheckpoint;
+    return *pbDoOutput || *pbDoCheckpoint;
 }
 
 int MSR::NewTopStepKDK(
@@ -3006,7 +2925,7 @@ int MSR::NewTopStepKDK(
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     if (NewSPH()) {
         SelAll(-1,1);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
         uint64_t nParticlesOnRung = 0;
         for (int i = MaxRung(); i>=uRung; i--) {
             nParticlesOnRung += nRung[i];
@@ -3090,7 +3009,7 @@ int MSR::NewTopStepKDK(
                              1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
     }
     else { /*if (parameters.get_bDoGravity())*/
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         SPHoptions.nPredictRung = uRung;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
@@ -3269,7 +3188,7 @@ void MSR::TopStepKDK(
 
         if (DoGravity()) {
             UpdateSoft(dTime);
-            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+            SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDeltaStep);
             SPHoptions.doGravity = 1;
             Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
                     bEwald,bGravStep,nPartRhoLoc,parameters.get_iTimeStepCrit(),
@@ -4002,7 +3921,7 @@ double MSR::Read(std::string_view achInFile) {
         auto dTheta = set_dynamic(iStartStep,dTime);
 
         // Calculate Density
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,/*dDelta*/0.0);
         SPHoptions.doDensity = 1;
         SPHoptions.doUConversion = 1;
         const auto bGravStep = parameters.get_bGravStep();
@@ -4023,10 +3942,10 @@ double MSR::Read(std::string_view achInFile) {
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
         print("Converting u complete, Wallclock: {:.5f} secs.\n", dsec);
-        if (parameters.get_bWriteIC() || (parameters.get_nSteps() == 0)) {
+        if (parameters.get_bWriteIC() || (NoSteps())) {
             Output(iStartStep, dTime, 0.0, 0);
         }
-        if (parameters.get_nSteps() == 0) exit(0);
+        if (NoSteps()) exit(0);
     }
 
     return dTime;
@@ -4168,7 +4087,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
     Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
 
-    if (DoGas() && !parameters.get_nSteps()) {  /* Diagnostic Gas */
+    if (DoGas() && NoSteps()) {  /* Diagnostic Gas */
         Reorder();
         OutArray(BuildName(iStep,".c").c_str(),OUT_C_ARRAY);
         OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
@@ -4363,7 +4282,7 @@ void MSR::CalcMtot(double *M, uint64_t *N) {
 
 void MSR::SetSPHoptions() {
     struct inSetSPHoptions in;
-    in.SPHoptions = initializeSPHOptions(parameters,csm,0.0);
+    in.SPHoptions = initializeSPHOptions(parameters,csm,0.0,0.0);
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
 }
 

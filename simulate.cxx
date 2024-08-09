@@ -21,6 +21,7 @@
 #include "master.h"
 #include "units.h"
 #include "fmt/format.h"
+#include <fmt/ranges.h>
 #include "SPH/SPHOptions.h"
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
@@ -56,42 +57,84 @@ double MSR::LoadOrGenerateIC() {
 *   Calculate dDelta and nSteps from: iStartStep, nSteps, dRedTo, dDelta
 \******************************************************************************/
 
-bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) {
-    dDelta = parameters.get_dDelta();
-    nSteps = parameters.get_nSteps();
-    if (!csm->val.bComove) {
-        if (parameters.has_dRedTo()) {
-            print_warning("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
-        }
+bool MSR::getDeltaSteps(double dTime,int iStartStep) {
+    dDelta_list.clear();    // Step with the dDelta
+    iStep_list.clear();     // to this step number
+
+    auto nSteps = parameters.get_nSteps();
+    auto dDelta = parameters.get_dDelta();
+    auto dRedTo = parameters.get_dRedTo();
+
+    // nSteps gives the number of steps for each interval. Convert this to the
+    // ending step number for each interval.
+    if (nSteps.size()) {
+        decltype(nSteps)::value_type sum = 0;
+        for (auto nStep : nSteps) iStep_list.push_back(sum += nStep);
     }
-    else {
-        if (!parameters.has_dRedTo()) {}
-        else if (parameters.has_dDelta() && parameters.has_nSteps()) {
-            print_error("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
+
+    // If dDelta is used, then we just need to copy the values from the parameters
+    if (dDelta.size()) {
+        if (dDelta.size() != iStep_list.size()) {
+            print_error("ERROR: dDelta must have the same number of elements as nSteps\n");
+            print_error("dDelta: {}\n", dDelta);
+            print_error("nSteps: {}\n", nSteps);
             return false;
         }
-        if (parameters.has_dDelta()) {
-            auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
-            auto tTo = csmExp2Time(csm,aTo);
-            if (tTo < dTime) {
-                print_error("Badly specified final redshift, check -zto parameter.\n");
-                return false;
-            }
-            nSteps = (int)ceil((tTo-dTime)/parameters.get_dDelta());
-            dDelta = (tTo-dTime)/(nSteps - iStartStep);
+        dDelta_list = dDelta;
+    }
+
+    // Non-cosmolicical simulations. nSteps and dDelta should have been set above.
+    if (!csm->val.bComove) {
+        if (dRedTo.size()) {
+            print_warning("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
         }
-        else if (parameters.has_nSteps()) {
-            auto aTo = 1.0/(parameters.get_dRedTo() + 1.0);
-            auto tTo = csmExp2Time(csm,aTo);
-            if (tTo < dTime) {
-                print_error("Badly specified final redshift, check -zto parameter.\n");
-                return false;
-            }
-            if (parameters.get_nSteps() == 0) dDelta = 0.0;
-            else dDelta = (tTo-dTime) / (nSteps - iStartStep);
+        if (nSteps.size() == 0 || dDelta.size() == 0) {
+            print_error("ERROR: nSteps and dDelta must be specified for non-cosmological simulations.\n");
+            return false;
         }
     }
-    parameters.set_dynamic("delta",dDelta);
+    // Cosmological simulations
+    else {
+        if (dRedTo.size() > 0) {
+            if (dDelta.size() > 0) {
+                print_error("ERROR: dRedTo and dDelta can not be given at the same time for cosmological simulations.\n");
+                return false;
+            }
+            if (dRedTo.size() != iStep_list.size()) {
+                print_error("ERROR: dRedTo must have the same number of elements as nSteps\n");
+                print_error("dRedTo: {}\n", dRedTo);
+                print_error("nSteps: {}\n", nSteps);
+                return false;
+            }
+            // Catchup. dTime corresponds to the current step (iStartStep)
+            while (iStep_list.size() && iStep_list.front() <= iStartStep) {
+                dRedTo.erase(dRedTo.begin());
+                iStep_list.erase(iStep_list.begin());
+            }
+
+            auto tFrom = dTime;
+            auto sFrom = iStartStep;
+            for (auto i = 0; i<dRedTo.size(); ++i) {
+                auto z = dRedTo[i];
+                auto sTo = iStep_list[i];
+                auto tTo = csmExp2Time(csm,1.0/(z + 1.0));
+                dDelta_list.push_back((tTo-tFrom)/(sTo - sFrom));
+                tFrom = tTo;
+                sFrom = sTo;
+            }
+        }
+    }
+    assert(dDelta_list.size() == iStep_list.size());
+    while (iStep_list.size()>0 && iStartStep >= iStep_list.front()) {
+        dDelta_list.erase(dDelta_list.begin());
+        iStep_list.erase(iStep_list.begin());
+    }
+    parameters.set_dynamic("delta",dDelta_list.front());
+    print_notice (" Step From     Step To  Delta-T\n");
+    for (auto i=0, j=iStartStep; i<dDelta_list.size(); j=iStep_list[i],++i) {
+        print_notice("{:10d}  {:10d}  {:.8g}\n",j,iStep_list[i],dDelta_list[i]);
+
+    }
     return true;
 }
 
@@ -99,18 +142,10 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
 *   Simulation Mode: normal operation mode for pkdgrav
 \******************************************************************************/
 void MSR::Simulate(double dTime) {
-    double dDelta;
-    int nSteps;
     const auto iStartStep = parameters.get_iStartStep();
-    if (parameters.has_achOutTimes()) {
-        nSteps = ReadOuts(dTime);
-    }
-    else {
-        getDeltaSteps(dTime,iStartStep, /* OUTPUT -> */ dDelta,nSteps);
-    }
-    return Simulate(dTime,dDelta,iStartStep,nSteps);
+    if (getDeltaSteps(dTime,iStartStep)) Simulate(dTime,iStartStep);
 }
-void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart) {
+void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     std::ofstream log;
     const auto bEwald = parameters.get_bEwald();
     const auto bGravStep = parameters.get_bGravStep();
@@ -201,7 +236,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     uint8_t uRungMax;
     int iSec = time(0);
 
-    dDelta = SwitchDelta(dTime,dDelta,iStartStep,parameters.get_nSteps());
+    double dDelta = SwitchDelta(dTime,iStartStep);
     if (parameters.get_bNewKDK()) {
         LightConeOpen(iStartStep + 1);
         bKickOpen = 1;
@@ -229,7 +264,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     if (NewSPH()) {
         // Calculate Density
         SelAll(-1,1);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
         SPHoptions.doGravity = 0;
         SPHoptions.doDensity = 1;
         SPHoptions.doSPHForces = 0;
@@ -258,7 +293,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
         MemStatus();
     }
     else if (DoGravity()) {
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
                            bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -267,7 +302,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     if (DoGravity() && bGravStep) {
         assert(parameters.get_bNewKDK() == false);    /* for now! */
         BuildTree(bEwald);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
                 bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -313,9 +348,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
 
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
+    auto nSteps = iStep_list.back();
     for (auto iStep=iStartStep+1; iStep<=nSteps&&!iStop; ++iStep) {
-        auto dTheta = set_dynamic(iStep-1,dTime);
-        dDelta = SwitchDelta(dTime,dDelta,iStep-1,parameters.get_nSteps());
+        dTheta = set_dynamic(iStep,dTime);
+        dDelta = SwitchDelta(dTime,iStep-1);
         lPrior = time(0);
         TimerRestart();
         if (parameters.get_bNewKDK()) {
@@ -327,7 +363,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                 if (NewSPH()) {
                     // Calculate Density
                     SelAll(-1,1);
-                    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+                    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
                     SPHoptions.doGravity = 0;
                     SPHoptions.doDensity = 1;
                     SPHoptions.doSPHForces = 0;
@@ -354,7 +390,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 }
                 else {
-                    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime);
+                    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
                     SPHoptions.doGravity = parameters.get_bDoGravity();
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
@@ -410,7 +446,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
             if (NewSPH() && parameters.get_bCentrifugal()) {
                 ResetCOM();
             }
-            Output(iStep,dTime,parameters.get_dDelta(),0);
+            Output(iStep,dTime,dDelta,0);
             bDoOutput = 0;
             DomainDecomp();
             BuildTree(bEwald);
@@ -473,22 +509,6 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (parameters.has_achOutTimes() && parameters.has_nSteps() ) {
-        print_error("ERROR: achOutTimes and nSteps can not given at the same time.\n");
-        return 0;
-    }
-    if (parameters.has_achOutTimes() && parameters.has_dRedTo() ) {
-        print_error("ERROR: achOutTimes and dRedTo can not be given at the same time.\n"
-                    "       Add your final redshift (dRedTo) to the end of achOutTimes file.\n");
-        return 0;
-    }
-
-    if (parameters.has_dRedSync() && !parameters.has_nStepsSync()) {
-        print_error("ERROR: dRedSync is given but not nStepsSync. Please set nStepsSync or\n"
-                    "       unset dRedSync.\n");
-        return 0;
-    }
-
     //**************************************************************************
     // Verify the hydro model
     //**************************************************************************
@@ -531,17 +551,17 @@ int MSR::ValidateParameters() {
         }
 #ifdef COOLING
         if (parameters.get_bComove()) {
-            if (!parameters.has_nStepsSync()) {
-                print_error("ERROR: Meshless hydrodynamics with cooling requires nStepsSync, "
-                            "please set it.\n");
+            auto fH_reion_z = parameters.get_fH_reion_z();
+            auto dRedTo = parameters.get_dRedTo();
+            if (!std::any_of(dRedTo.begin(), dRedTo.end(), [fH_reion_z](double z) {
+            return std::fabs(z - fH_reion_z) < 1e-10;
+            })) {
+                print_error("ERROR: Meshless hydrodynamics with cooling requires an element of dRedTo "
+                            "to be set to the redshift of Hydrogen reionization, as set in parameter "
+                            "fH_reion_z. Include the value of fH_reion_z in dRedTo, and choose a "
+                            "value for the corresponding element of nSteps\n");
                 return 0;
             }
-            if (parameters.has_dRedSync()) {
-                print_warning("WARNING: Meshless hydrodynamics with cooling requires dRedSync "
-                              "to be set to the redshift of Hydrogen reionization, as set in parameter "
-                              "fH_reion_z. Setting dRedSync to the value of fH_reion_z.\n");
-            }
-            parameters.set_dRedSync(parameters.get_fH_reion_z());
         }
 #endif
     }
@@ -672,7 +692,7 @@ int MSR::ValidateParameters() {
     }
 
     /* Make sure that the old behaviour is obeyed. */
-    if ( parameters.has_nSteps() && parameters.get_nSteps() == 0 ) {
+    if ( NoSteps() ) {
         if ( !parameters.has_bDoAccOutput() ) parameters.set_bDoAccOutput(true);
         if ( !parameters.has_bDoPotOutput() ) parameters.set_bDoPotOutput(true);
     }
