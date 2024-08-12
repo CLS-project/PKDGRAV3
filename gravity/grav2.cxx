@@ -245,7 +245,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     }
                     if (wp->SPHoptions->doInterfaceCorrection) {
                         float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (0.5f * wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
-                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->SPHoptions->fKernelTarget,wp->SPHoptions->kernelType) * wp->SPHoptions->InterfaceCorrectionPrefactorScaling;
+                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->SPHoptions->fKernelTarget,wp->SPHoptions->kernelType);
                         NewSph.expImb2 = expf(-imbalance*imbalance);
                     }
                     if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {

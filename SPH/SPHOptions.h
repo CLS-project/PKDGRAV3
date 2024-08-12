@@ -123,7 +123,6 @@ typedef struct {
     float CentrifugalT0;
     float CentrifugalT1;
     float CentrifugalOmega0;
-    float InterfaceCorrectionPrefactorScaling;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doDensityCorrection : 1;
