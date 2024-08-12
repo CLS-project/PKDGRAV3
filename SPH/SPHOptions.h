@@ -142,6 +142,7 @@ typedef struct {
     uint64_t doCentrifugal : 1;
     uint64_t doExtensiveILPTest : 1;
     uint64_t doShearStrengthModel : 1;
+    uint64_t evolveDensity : 1;
 } SPHOptions;
 
 typedef struct {

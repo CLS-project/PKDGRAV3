@@ -612,6 +612,7 @@ struct inDrift {
     double dDeltaUPred;
     int iRoot;
     int bDoGas;
+    int bGasEvolveDensity;
 };
 int pstDrift(PST,void *,int,void *,int);
 int pstEndTimestepIntegration(PST,void *,int,void *,int);

@@ -1379,7 +1379,7 @@ int pstDrift(PST pst,void *vin,int nIn,void *vout,int nOut) {
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
-        pkdDrift(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->bDoGas);
+        pkdDrift(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->bDoGas,in->bGasEvolveDensity);
     }
     return 0;
 }

@@ -235,7 +235,9 @@ void pkdParticleWorkDone(workParticle *wp) {
             if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                 auto &NewSph = p.newsph();
                 if (wp->SPHoptions->doDensity) {
-                    p.set_density(wp->pInfoOut[i].rho);
+                    if (!wp->SPHoptions->evolveDensity) {
+                        p.set_density(wp->pInfoOut[i].rho);
+                    }
                     p.set_ball(wp->pInfoOut[i].fBall);
                     if (wp->pInfoIn[i].fBall < wp->SPHoptions->ballSizeLimit) {
                         NewSph.Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;

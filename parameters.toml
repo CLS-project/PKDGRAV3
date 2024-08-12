@@ -1305,6 +1305,14 @@ docs='''
 Enables interface correction for HYDRO_MODEL.SPH. This uses an additional pass to correct densities at interfaces (material and vacuum).
 '''
 
+["Gas".bGasEvolveDensity]
+flag="GasEvolveDensity"
+default=false
+help="Evolve density with div v instead of smooth"
+docs='''
+Evolves the density with :math:`\frac{D\rho}{D t} = -\rho \nabla\cdot \vec{v}` instead of using a smooth to calculate the density. This is not compatible with bGasInterfaceCorrection or bDoDensity. If bGasEvolveDensity is active together with either one of them, the program halts.
+'''
+
 ["Gas".bCentrifugal]
 flag="Centrifugal"
 default=false

@@ -94,6 +94,7 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     SPHoptions.CentrifugalOmega0 = parameters.get_dCentrifOmega0();
     SPHoptions.doExtensiveILPTest = parameters.get_bGasDoExtensiveILPTest();
     SPHoptions.doShearStrengthModel = parameters.get_bShearStrengthModel();
+    SPHoptions.evolveDensity = parameters.get_bGasEvolveDensity();
     return SPHoptions;
 }
 
@@ -142,6 +143,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->CentrifugalOmega0 = source->CentrifugalOmega0;
     target->doExtensiveILPTest = source->doExtensiveILPTest;
     target->doShearStrengthModel = source->doShearStrengthModel;
+    target->evolveDensity = source->evolveDensity;
 }
 
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {

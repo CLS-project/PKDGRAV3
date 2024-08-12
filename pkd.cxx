@@ -2136,7 +2136,7 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas) {
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas,int bGasEvolveDensity) {
     int i;
     TinyVector<double,3> rfinal,r0,dr;
     int pLower, pUpper;
@@ -2198,11 +2198,13 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
             for (i=pLower; i<=pUpper; ++i) {
                 auto p = pkd->particles[i];
                 const auto &v = p.velocity();
-                // if (p.is_gas()) {
-                // auto &NewSph = p.newsph();
-                // float dfBalldt = 1.0f / 3.0f * p.ball() * p.density() * NewSph.divv;
-                // p.set_ball(p.ball() + dDelta * dfBalldt);
-                // }
+                if (bGasEvolveDensity && p.is_gas()) {
+                    auto &NewSph = p.newsph();
+                    // float dfBalldt = 1.0f / 3.0f * p.ball() * p.density() * NewSph.divv;
+                    // p.set_ball(p.ball() + dDelta * dfBalldt);
+                    p.set_density(p.density() - dDelta * p.density() * NewSph.divv);
+                }
+
                 r0 = p.position();
                 p.set_position(rfinal = r0 + dDelta*v);
                 assert(isfinite(rfinal[0]));

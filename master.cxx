@@ -2357,6 +2357,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.bDoGas = DoGas();
     in.iRoot = iRoot;
+    in.bGasEvolveDensity = parameters.get_bGasEvolveDensity();
 
     pstDrift(pst,&in,sizeof(in),NULL,0);
 
