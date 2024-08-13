@@ -154,15 +154,15 @@ void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out
 
 template<typename BLOCK, bool doShearStrengthModel> struct ilist::EvalBlock<ResultSPHForces<fvec,doShearStrengthModel>,BLOCK> {
     typedef ResultSPHForces<fvec,doShearStrengthModel> result_type;
-    const fvec fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,isGas;
+    const fvec fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,iMat,isGas;
     const fvec Sxx, Syy, Sxy, Sxz, Syz;
     const SPHOptions *const SPHoptions;
     EvalBlock() = default;
     EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,fvec Omega,fvec vx,fvec vy,fvec vz,
-              fvec rho,fvec P,fvec c,fvec isGas,
+              fvec rho,fvec P,fvec c,fvec iMat,fvec isGas,
               fvec Sxx, fvec Syy, fvec Sxy, fvec Sxz, fvec Syz, SPHOptions *SPHoptions)
         : fx(fx),fy(fy),fz(fz),fBall(fBall),Omega(Omega),vx(vx),vy(vy),vz(vz),
-          rho(rho),P(P),c(c),isGas(isGas),
+          rho(rho),P(P),c(c),iMat(iMat),isGas(isGas),
           Sxx(Sxx),Syy(Syy),Sxy(Sxy),Sxz(Sxz),Syz(Syz), SPHoptions(SPHoptions) {}
 
     result_type operator()(int n,BLOCK &blk) {
@@ -179,6 +179,7 @@ template<typename BLOCK, bool doShearStrengthModel> struct ilist::EvalBlock<Resu
             blk.P.s[n] = 0.0f;
             blk.c.s[n] = 0.0f;
             blk.uRung.s[n] = 0.0f;
+            blk.iMat.s[n] = 0.0f;
             blk.isGas.s[n] = 0.0f;
             blk.Sxx.s[n] = 0.0f;
             blk.Syy.s[n] = 0.0f;
@@ -193,10 +194,10 @@ template<typename BLOCK, bool doShearStrengthModel> struct ilist::EvalBlock<Resu
         for (auto i=0; i<n; ++i) {
             result += EvalSPHForces<fvec,fmask,doShearStrengthModel>(
                           fx,fy,fz,fBall,Omega,
-                          vx,vy,vz,rho,P,c,isGas,
+                          vx,vy,vz,rho,P,c,iMat,isGas,
                           Sxx, Syy, Sxy, Sxz, Syz,
                           blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.fBall.v[i],blk.Omega.v[i],
-                          blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],blk.isGas.v[i],
+                          blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],blk.iMat.v[i],blk.isGas.v[i],
                           blk.Sxx.v[i], blk.Syy.v[i], blk.Sxy.v[i], blk.Sxz.v[i], blk.Syz.v[i],
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
                           SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
@@ -246,7 +247,7 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
     if (SPHoptions->doShearStrengthModel) {
         ilist::EvalBlock<ResultSPHForces<fvec,true>,BlockPP<ILC_PART_PER_BLK>> eval(
                     Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
-                    Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,Part.isGas,
+                    Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,Part.iMat,Part.isGas,
                     Part.Sxx, Part.Syy, Part.Sxy, Part.Sxz, Part.Syz,
                     SPHoptions);
         auto result = EvalTile(tile,eval);
@@ -255,7 +256,7 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
     else {
         ilist::EvalBlock<ResultSPHForces<fvec,false>,BlockPP<ILC_PART_PER_BLK>> eval(
                     Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
-                    Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,Part.isGas,
+                    Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,Part.iMat,Part.isGas,
                     Part.Sxx, Part.Syy, Part.Sxy, Part.Sxz, Part.Syz,
                     SPHoptions);
         auto result = EvalTile(tile,eval);
