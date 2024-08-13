@@ -467,27 +467,24 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F dvy = Pvy - Ivy;
     F dvz = Pvz - Ivz;
 
-    F d, Pr, Ir, Pdwdr, Idwdr, PdWdr, IdWdr, dWdr;
+    F d, r, dwdr, dWdr;
     F t1, t2, t3;
-    F PifBall, IifBall, PC, IC;
+    F fBall, ifBall, C;
     F dWdx, dWdy, dWdz;
     F cij, rhoij, hij, dvdotdx, muij, Piij;
     F POneOverRho2, IOneOverRho2, minusImOverRho;
 
     F vFac, aFac;
-    M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
+    M r_lt_one, mask1, dvdotdx_st_zero;
 
-
-    PifBall = 1.0f / PfBall;
-    IifBall = 1.0f / IfBall;
+    fBall = 0.5f * (PfBall + IfBall);
+    ifBall = 1.0f / fBall;
     d = sqrt(d2);
-    Pr = d * PifBall;
-    Ir = d * IifBall;
+    r = d * ifBall;
 
-    Pr_lt_one = Pr < 1.0f;
-    Ir_lt_one = Ir < 1.0f;
+    r_lt_one = r < 1.0f;
 
-    if (!testz(Pr_lt_one) || !testz(Ir_lt_one)) {
+    if (!testz(r_lt_one)) {
         // There is some work to do
 
         // First convert velocities
@@ -498,22 +495,13 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
         dvz = vFac * dvz;
 
         // Kernel derivatives
-        SPHKERNEL_INIT(Pr, PifBall, PC, t1, mask1, kernelType);
-        DSPHKERNEL_DR(Pr, Pdwdr, t1, t2, t3, Pr_lt_one, mask1, kernelType);
-        PdWdr = PC * Pdwdr * isGasInteraction;
-        SPHKERNEL_INIT(Ir, IifBall, IC, t1, mask1, kernelType);
-        DSPHKERNEL_DR(Ir, Idwdr, t1, t2, t3, Ir_lt_one, mask1, kernelType);
-        IdWdr = IC * Idwdr * isGasInteraction;
+        SPHKERNEL_INIT(r, ifBall, C, t1, mask1, kernelType);
+        DSPHKERNEL_DR(r, dwdr, t1, t2, t3, r_lt_one, mask1, kernelType);
+        dWdr = C * dwdr * isGasInteraction;
 
-        t1 = PdWdr * PifBall / d;
-        mask1 = Pr > 0.0f;
-        t1 = maskz_mov(mask1,t1);
-        dWdr = t1;
-        t1 = IdWdr * IifBall / d;
-        mask1 = Ir > 0.0f;
-        t1 = maskz_mov(mask1,t1);
-        dWdr += t1;
-        dWdr *= 0.5f;
+        t1 = dWdr * ifBall / d;
+        mask1 = r > 0.0f;
+        dWdr = maskz_mov(mask1,t1);
         dWdx = dWdr * dx;
         dWdy = dWdr * dy;
         dWdz = dWdr * dz;
@@ -537,7 +525,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
             result.uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
         else {
-            result.uDot = Im * (0.5f * (PP * POneOverRho2 + IP * IOneOverRho2) * (dvx * dWdx + dvy * dWdy + dvz * dWdz) + 0.5f * Piij * (dvx * dWdx + dvy * dWdy + dvz * dWdz));
+            result.uDot = 0.5f * Im * (PP * POneOverRho2 + IP * IOneOverRho2 + Piij) * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
 
         // acceleration
@@ -551,8 +539,8 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
             result.ay += Im * (POneOverRho2 * (PSxy * dWdx + PSyy * dWdy + PSyz * dWdz) + IOneOverRho2 * (ISxy * dWdx + ISyy * dWdy + ISyz * dWdz));
             result.az += Im * (POneOverRho2 * (PSxz * dWdx + PSyz * dWdy - (PSxx + PSyy) * dWdz) + IOneOverRho2 * (ISxz * dWdx + ISyz * dWdy - (ISxx + ISyy) * dWdz));
 
-            result.uDot -= Im * POneOverRho2 * (dvx * (PSxx * dWdx + PSxy * dWdy + PSxz * dWdz) + dvy * (PSxy * dWdx + PSyy * dWdy + PSyz * dWdz) + dvz * (PSxz * dWdx + PSyz * dWdy - (PSxx + PSyy) * dWdz));
-            result.uDot -= Im * IOneOverRho2 * (dvx * (ISxx * dWdx + ISxy * dWdy + ISxz * dWdz) + dvy * (ISxy * dWdx + ISyy * dWdy + ISyz * dWdz) + dvz * (ISxz * dWdx + ISyz * dWdy - (ISxx + ISyy) * dWdz));
+            result.uDot -= 0.5f * Im * POneOverRho2 * (dvx * (PSxx * dWdx + PSxy * dWdy + PSxz * dWdz) + dvy * (PSxy * dWdx + PSyy * dWdy + PSyz * dWdz) + dvz * (PSxz * dWdx + PSyz * dWdy - (PSxx + PSyy) * dWdz));
+            result.uDot -= 0.5f * Im * IOneOverRho2 * (dvx * (ISxx * dWdx + ISxy * dWdy + ISxz * dWdz) + dvy * (ISxy * dWdx + ISyy * dWdy + ISyz * dWdz) + dvz * (ISxz * dWdx + ISyz * dWdy - (ISxx + ISyy) * dWdz));
 
             minusImOverRho = - Im / Irho;
 
@@ -582,7 +570,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
 
         // timestep
         result.dtEst = aFac * EtaCourant * 0.5f * PfBall / ((1.0f + 0.6f * alpha) * Pc - 0.6f * beta * muij);
-        mask1 = (Pr_lt_one | Ir_lt_one) & (isGasInteraction == 1.0f);
+        mask1 = (r_lt_one) & (isGasInteraction == 1.0f);
         result.dtEst = mask_mov(1e14f,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);
     }
