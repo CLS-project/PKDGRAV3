@@ -374,13 +374,16 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
 
         // No transformation back into cosmology units, as strength makes no sense in cosmology. This saves multiplications.
         if (doShearStrengthModel) {
-            result.ax += Im * (POneOverRho2 * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + IOneOverRho2 * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz));
-            result.ay += Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
-            result.az += Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
+            M mask2 = PiMat == IiMat;
+            F plus_one = 1.0f;
+            F kappa = maskz_mov(mask2,plus_one);
+            result.ax += kappa * Im * (POneOverRho2 * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + IOneOverRho2 * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz));
+            result.ay += kappa * Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
+            result.az += kappa * Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
 
-            result.uDot -= Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
+            result.uDot -= kappa * Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
 
-            minusImOverRho = - Im / Irho;
+            minusImOverRho = - kappa * Im / Irho;
 
             result.dvxdx = minusImOverRho * dvx * PdWdx;
             result.dvxdy = minusImOverRho * dvx * PdWdy;
