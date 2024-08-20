@@ -3997,7 +3997,7 @@ void MSR::OutputPk(int iStep,double dTime) {
     kfact = 1.0 / kfact;
 
     std::vector<std::int64_t> nFoldPk;
-    if (parameters.has_nFoldPk()) nFoldPk = std::move(parameters.get_nFoldPk());
+    if (parameters.has_nFoldPk()) nFoldPk = parameters.get_nFoldPk();
     else nFoldPk.push_back(1);
 
     for (auto fold : nFoldPk) {
