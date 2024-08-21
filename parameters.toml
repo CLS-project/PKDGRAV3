@@ -330,11 +330,6 @@ flag="dsp"
 default=""
 help="sub-path for data"
 
-["I/O Parameters".achOutTimes]
-flag="ot"
-default=""
-help="input file containing the sequence of output redshift|time|a"
-
 ["I/O Parameters".bInFileLC]
 flag="lcin"
 default=false
@@ -464,31 +459,39 @@ help="List of particle IDs of particle to write to orbit file"
 flag="nstart"
 default=0
 help="initial step numbering"
+docs='''
+Simulations always start at step zero and steps increment by one as the simulation progresses.
+This parameter is intended to restart from an output which is not recommended. Instead you
+should use the checkpoint/restore mechanism.
+'''
 
 ["Time Stepping".nSteps]
 flag="n"
-default=0
+default=[0]
 help="number of timesteps"
-
-["Time Stepping".nStepsSync]
-flag="nsync"
-default=0
-help="number of timesteps to redshift dRedSync"
-
-["Time Stepping".dRedSync]
-flag="zsync"
-default=10.0
-help="specifies a redshift prior to dRedTo where it is useful to have particles synchonized"
+docs='''
+This parameter specifies the number of steps in the simulation. It can also be a list in which
+case dRedTo or dDelta must be a list of the same length.
+'''
 
 ["Time Stepping".dRedTo]
 flag="zto"
-default=0.0
+default=[0.0]
 help="specifies final redshift for the simulation"
+docs='''
+This specifies the ending redshift for comsological simulations.
+It has no meaning for non-cosmological simulations. It can also be
+a list of redshifts in which case nSteps must be a list of the same length.
+'''
 
 ["Time Stepping".dDelta]
 flag="dt"
-default=0.0
+default=[0.0]
 help="time step"
+docs='''
+This specifies the time step :math:`\Delta t` for each step in the simulation.
+This can be a list of values in which case nSteps must be a list of the same length.
+'''
 
 ["Time Stepping".dEta]
 flag="eta"

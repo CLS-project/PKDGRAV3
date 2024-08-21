@@ -158,20 +158,21 @@ void mdlbt::signal_handler(int signo, siginfo_t *si, void *unused) {
     //std::_Exit(EXIT_FAILURE);
 }
 
-void mdlbt::show_backtrace() {
+void mdlbt::show_backtrace(int max_frames,int skip_frames) {
 #ifdef USE_BT
     void *stack[512];
     int stack_size = ::backtrace(stack, sizeof stack / sizeof *stack);
+    if (stack_size > max_frames) stack_size = max_frames;
 
-    std::cerr << "Stacktrace of " << stack_size << " frames:\n";
+    std::cerr << "Stacktrace of " << stack_size-skip_frames << " frames:\n";
 #ifdef USE_ELFUTILS
     DebugInfoSession dis;
-    for (int i = 0; i < stack_size; ++i) {
+    for (int i = skip_frames; i < stack_size; ++i) {
         std::cerr << i << ": " << DebugInfo(dis, stack[i]) << '\n';
     }
 #else
     auto functions = backtrace_symbols(stack, stack_size);
-    for (int i=0; i < stack_size; i++) {
+    for (int i=skip_frames; i < stack_size; i++) {
         std::cerr << i << ":" << functions[i] << '\n';
     }
     free(functions);

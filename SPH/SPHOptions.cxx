@@ -25,8 +25,10 @@
 #include "pkd_parameters.h"
 #include <stdio.h>
 #include "basetype.h"
+#include "cosmo.h"
 
-SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTime) {
+SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double dTime, double dDelta) {
+    auto csm = static_cast<CSM>(vcsm);
     UNITS units(parameters,csm->val.h);
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = parameters.get_nSmooth();
@@ -41,7 +43,6 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     SPHoptions.TuFac = units.dGasConst/(SPHoptions.gamma - 1)/parameters.get_dMeanMolWeight();
     SPHoptions.FastGasFraction = parameters.get_dFastGasFraction();
     SPHoptions.VelocityDamper = 0.0f;
-    auto dDelta = parameters.get_dDelta();
     auto dVelocityDamper = parameters.get_dVelocityDamper();
     auto dVelocityDamperEnd = parameters.get_dVelocityDamperEnd();
     auto dVelocityDamperEndTime = parameters.get_dVelocityDamperEndTime();

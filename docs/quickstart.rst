@@ -2,13 +2,13 @@
 Quick Start
 ===========
 
-------------
-cosmology.py
-------------
+-------------
+cosmology.par
+-------------
 
-You can find the file `cosmology.py` in the `examples` directory and it is as follows.
+You can find the file `cosmology.par` in the `examples` directory and it is as follows.
 
-.. index:: single: cosmology.py
+.. index:: single: cosmology.par
 .. literalinclude:: ../examples/cosmology.par
 
 To run a simulation you simply provide pkdgrav3 with a file with the appropriate parameter set.

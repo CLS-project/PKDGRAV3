@@ -154,9 +154,8 @@ int MSR::Python(int argc, char *argv[]) {
     auto specified = PyTuple_GetItem(result,1);         // Borrowed: If it was explicitely specified
     parameters = pkd_parameters(arguments,specified);   // This will take ownership
     Py_DECREF(result);
+    parameters.set_dynamic("msr",PyImport_ImportModule("PKDGRAV"));
     PyObject *script = PyObject_GetAttrString(arguments,"script");
-
-    bVDetails = parameters.get_bVDetails();
 
     // If a script was specified then we run it.
     if (script != Py_None) {
@@ -213,8 +212,6 @@ int MSR::Python(int argc, char *argv[]) {
             PyErr_Print();
             exit(1);
         }
-        bVDetails = parameters.get_bVDetails();
-        parameters.set_dynamic("msr",PyImport_ImportModule("PKDGRAV"));
     }
 
     return imported ? 0 : -1;

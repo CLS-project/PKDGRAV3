@@ -30,7 +30,6 @@
 class pkd_parameters;
 
 #include <assert.h>
-#include "cosmo.h"
 
 struct SPHBallOfBalls {
     blitz::TinyVector<float,3> fBoBCenter;
@@ -160,7 +159,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTime);
+SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double dTime, double dDelta);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target);
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType);
