@@ -588,11 +588,11 @@ int MSR::ValidateParameters() {
     }
     if (parameters.get_bGasEvolveDensity()) {
         if (parameters.get_bGasInterfaceCorrection()) {
-            fprintf(stderr,"ERROR: bGasEvolveDensity is not compatible with bGasInterfaceCorrection, exiting.");
+            print_error("ERROR: bGasEvolveDensity is not compatible with bGasInterfaceCorrection, exiting.\n");
             return 0;
         }
         if (parameters.get_bDoDensity()) {
-            fprintf(stderr,"ERROR: bGasEvolveDensity is not compatible with bDoDensity, exiting.");
+            print_error("ERROR: bGasEvolveDensity is not compatible with bDoDensity, exiting.\n");
             return 0;
         }
     }
