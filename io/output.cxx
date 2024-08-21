@@ -175,7 +175,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
         ++iPartner;
         int rID = mdlReqService(pkd->mdl,iPartner,PST_OUTPUT_SEND,&send,sizeof(send));
         mdlRecv(pkd->mdl,iPartner,unpack,&info);
-        mdlGetReply(pkd->mdl,rID,NULL,NULL);
+        pkd->mdl->GetReply(rID);
     }
     io_close(&info);
     io_free(&info);
@@ -201,7 +201,7 @@ int pstOutput(PST pst,void *vin,int nIn,void *vout,int nOut) {
             in->nProcessor = nLower;
             in->iProcessor = iProcessor;
             pstOutput(pst->pstLower,in,nIn,NULL,0);
-            mdlGetReply(pst->mdl,rID,NULL,NULL);
+            pst->mdl->GetReply(rID);
         }
         /* We are the node that will be the writer for all of the pst children */
         else if (nProcessor==1) {

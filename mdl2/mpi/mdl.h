@@ -315,7 +315,14 @@ public:
     void FlushCache(int cid);
     void FinishCache(int cid);
     int ReqService(int id,int sid,void *vin=nullptr,int nInBytes=0);
-    int GetReply(int rID,void *vout=nullptr);
+    template<typename T> int ReqService(int id,int sid,T &in) {
+        return ReqService(id,sid,&in,sizeof(in));
+    }
+    int GetReply(int rID,int nMaxBytes=0,void *vout=nullptr);
+    template<typename T, typename std::enable_if<!std::is_pointer<T>::value, int>::type = 0>
+    int GetReply(int rID,T &out) {
+        return GetReply(rID,sizeof(out),&out);
+    }
     void Send(int id,mdlPack pack, void *ctx);
     void Recv(int id,mdlPack unpack, void *ctx);
     int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes);
@@ -539,7 +546,6 @@ void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
 void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
 void mdlAddService(MDL,int,void *,fcnService_t *fcnService,int,int);
 int  mdlReqService(MDL, int, int, void *, int);
-void mdlGetReply(MDL,int,void *,int *);
 
 static inline int mdlGridCoordCompare(const mdlGridCoord *a,const mdlGridCoord *b) {
     return a->x==b->x && a->y==b->y && a->z==b->z;

@@ -88,6 +88,7 @@ struct inSetAdd {
 };
 
 int serviceSetAdd(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
     auto in = reinterpret_cast<struct inSetAdd *>(vin);
     assert(nIn == sizeof(struct inSetAdd));
     auto ctxNew = ctx->split(in->idUpper);
@@ -95,7 +96,7 @@ int serviceSetAdd(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
         auto rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),worker::SET_ADD,in,nIn);
         in->idUpper = ctx->getUpper();
         serviceSetAdd(ctxNew,in,nIn,NULL,0);
-        mdlGetReply(ctx->getMDL(),rID,NULL,NULL);
+        mdl->GetReply(rID);
     }
     return 0;
 }
@@ -110,12 +111,13 @@ typedef std::array<uint64_t,4> KEY;
 typedef mdl::hash::HASH<KEY> HASH;
 
 int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
         int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+        nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
     }
     else {
@@ -183,7 +185,6 @@ TEST_F(HashTest, HashTestKeys) {
     EXPECT_EQ(nBAD,0);
 }
 
-
 } // namespace hash
 
 class CacheTest : public ::testing::Test {};
@@ -191,12 +192,13 @@ class CacheTest : public ::testing::Test {};
 namespace ro {
 constexpr int SERVICE = worker::TEST_RO;
 int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
         int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+        nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
     }
     else {
@@ -247,12 +249,13 @@ static void combFlush(void *vctx, void *g1, const void *g2) {
 constexpr int SERVICE = worker::TEST_FLUSH;
 
 int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
         int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+        nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
     }
     else {
@@ -291,12 +294,13 @@ namespace after_read {
 constexpr int SERVICE = worker::TEST_FLUSH_AFTER_READ;
 
 int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
         int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+        nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
     }
     else {
@@ -358,12 +362,13 @@ typedef std::array<uint64_t,4> KEY;
 typedef mdl::hash::HASH<KEY> HASH;
 
 int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
         int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+        nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
     }
     else {
@@ -446,12 +451,13 @@ typedef std::array<uint64_t,4> KEY;
 typedef mdl::hash::HASH<KEY> HASH;
 
 int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
         int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+        nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
     }
     else {
@@ -521,7 +527,6 @@ TEST_F(AdvancedCache, Flush) {
 }
 } // namespace flush
 
-
 } // namespace advanced
 } // namespace test
 
@@ -553,7 +558,6 @@ void worker_done(MDL mdl, void *vctx) {
 }
 
 }  // namespace
-
 
 /*
 ** This is invoked for the "master" process after the worker has been setup.

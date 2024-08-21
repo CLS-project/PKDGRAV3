@@ -72,7 +72,6 @@ template<> MPI_Datatype mpi_type(uint32_t v) { return MPI_UINT32_T; }
 template<> MPI_Datatype mpi_type(int64_t v) { return MPI_INT64_T; }
 template<> MPI_Datatype mpi_type(uint64_t v) { return MPI_UINT64_T; }
 
-
 #ifdef USE_ITT
     #include "ittnotify.h"
 #endif
@@ -105,8 +104,6 @@ typedef struct srvHeader {
     int32_t nInBytes;
     int32_t nOutBytes;
 } SRVHEAD;
-
-
 
 /*****************************************************************************\
 * State retrieval
@@ -1183,7 +1180,6 @@ void CACHE::combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const vo
 
 }
 
-
 /*****************************************************************************\
 * The following are used to end or synchronize a cache
 \*****************************************************************************/
@@ -1538,7 +1534,6 @@ void mpiClass::MessageSwapGlobal(mdlMessageSwapGlobal *message) {
     message->sendBack();
 }
 
-
 //! Swap elements of a memory buffer between local threads.
 //! @param buffer A pointer to the start of the memory block
 //! @param count The total number of elements that count fit in the memory block
@@ -1885,7 +1880,7 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void *(*fcnWorke
     return mdl.Launch(fcnMaster,fcnWorkerInit,fcnWorkerDone);
 }
 int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
-    int i,j,n,bDiag,bDedicated,thread_support,rc,flag,*piTagUB;
+    int i,j,n,bDiag,bDedicated,thread_support,rc,flag, *piTagUB;
     bool bThreads = false;
     char *p, ach[256];
     int exit_code = 0;
@@ -2545,7 +2540,7 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
     size_t nInBytes,nOutBufBytes;
     int nInMax,nOutMax,nBytes;
     char *pszBuf = CAST(char *,vBuf);
-    char *pszIn,*pszOut;
+    char *pszIn, *pszOut;
     struct swapInit {
         size_t nOutBytes;
         size_t nBufBytes;
@@ -2655,12 +2650,9 @@ int mdlClass::ReqService(int id,int sid,void *vin,int nInBytes) {
     return request.header.replyTag;
 }
 
-extern "C" void mdlGetReply(MDL mdl,int rID,void *vout,int *pnOutBytes) {
-    auto nOutBytes = static_cast<mdlClass *>(mdl)->GetReply(rID,vout);
-    if (pnOutBytes) *pnOutBytes = nOutBytes;
-}
-int mdlClass::GetReply(int rID,void *vout) {
-    mdlMessageReceiveReply receive(vout,nMaxSrvBytes,rID,Core());
+int mdlClass::GetReply(int rID,int nMaxBytes,void *vout) {
+    assert(nMaxBytes<=nMaxSrvBytes && nMaxBytes>=0);
+    mdlMessageReceiveReply receive(vout,nMaxBytes,rID,Core());
     enqueueAndWait(receive);
     return receive.getCount();
 }
@@ -2869,7 +2861,6 @@ double mdlNumAccess(MDL cmdl,int cid) {
     auto c = mdl->cache[cid].get();
     return (c->nAccess);
 }
-
 
 double mdlMissRatio(MDL cmdl,int cid) {
     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
@@ -3142,7 +3133,6 @@ int mdlProc(void *mdl)    {  return static_cast<mdlClass *>(mdl)->Proc(); }
 int mdlProcs(void *mdl)   {  return static_cast<mdlClass *>(mdl)->Procs(); }
 int mdlGetArgc(void *mdl) {  return static_cast<mdlClass *>(mdl)->argc; }
 char **mdlGetArgv(void *mdl) {  return static_cast<mdlClass *>(mdl)->argv; }
-
 
 void mdlTimeReset(MDL mdl)             {        static_cast<mdlClass *>(mdl)->TimeReset(); }
 double mdlTimeComputing(MDL mdl)       { return static_cast<mdlClass *>(mdl)->TimeComputing(); }

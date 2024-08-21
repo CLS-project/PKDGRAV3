@@ -127,7 +127,7 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
         rID = mdlReqService(pst->mdl,pst->idUpper,PST_STARFORM,in,nIn);
         pstStarForm(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&fsStats,NULL);
+        pst->mdl->GetReply(rID,fsStats);
         out->nFormed += fsStats.nFormed;
         out->nDeleted += fsStats.nDeleted;
         out->dMassFormed += fsStats.dMassFormed;

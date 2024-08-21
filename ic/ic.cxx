@@ -1356,7 +1356,7 @@ int pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstNotCore(pst)) {
         int rID = mdl->ReqService(pst->idUpper,PLT_GENERATEIC,vin,nIn);
         pltGenerateIC(pst->pstLower,vin,nIn,vout,nOut);
-        mdl->GetReply(rID,&outUp);
+        mdl->GetReply(rID,outUp);
         out->N += outUp.N;
         out->noiseMean += outUp.noiseMean;
         out->noiseCSQ += outUp.noiseCSQ;
@@ -1434,7 +1434,7 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else if (pstNotCore(pst)) {
         int rID = mdl->ReqService(pst->idUpper,PST_GENERATEIC,in,nIn);
         pstGenerateIC(pst->pstLower,in,nIn,vout,nOut);
-        mdl->GetReply(rID,&outUp);
+        mdl->GetReply(rID,outUp);
         out->N += outUp.N;
         out->noiseMean += outUp.noiseMean;
         out->noiseCSQ += outUp.noiseCSQ;
