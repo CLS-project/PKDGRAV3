@@ -215,8 +215,7 @@ Start the environment and load the necessary modules (you need to repeat this ea
     loading the views prgenv-gnu:spack prgenv-gnu:modules
     $ module load gcc cray-mpich python hdf5 fftw cmake cuda
 
-
-Create the Python virtual environment and install the required modules::
+Create the Python virtual environment and install the required modules as usual::
 
     $ cd /path/to/pkdgrav3
     $ python3 -m venv .venv
@@ -256,6 +255,7 @@ putting the following in your $HOME/.bashrc::
         spack load gsl hwloc boost
         source $HOME/code/pkdgrav3/.venv/bin/activate
     fi
+    alias pkdenv='uenv start --view=spack,modules prgenv-gnu/24.7:v3'
 
 ---------------
 Python Packages
