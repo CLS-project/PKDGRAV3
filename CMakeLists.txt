@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 cmake_policy(VERSION 3.14...3.22)
+if(POLICY CMP0144)
+    cmake_policy(SET CMP0144 NEW)
+endif()
 include(CheckLanguage)
 include(CheckFunctionExists)
 include(CheckCXXCompilerFlag)

@@ -187,6 +187,75 @@ options are not properly passed to the GNU compiler when using nvcc. You may nee
 version of the toolkit which you can check with ``module available cudatoolkit``. For example, you might
 substitute ``cudatoolkit/11.2.0_3.39-2.1__gf93aa1c`` for ``cudatoolkit`` above.
 
+Tödi / ALPS
+-----------
+
+If you want "make" to use all available cores for faster compilation, add this to $HOME/.bashrc::
+
+    test -f /usr/bin/nproc && export MAKEFLAGS="-j $(nproc)"
+
+You need to tell the CUDA compiler which architecture to use. The easiest way is to add this to $HOME/.bashrc::
+
+    export CUDAARCHS=90
+
+Now you need to setup a user environment. The system is still being deployed as of when this was written,
+so keep an eye open for changes. First create a user environment and pull the image::
+
+    $ uenv repo create
+    The repository $SCRATCH/.uenv-images has been created.
+    $ uenv image pull prgenv-gnu/24.7:v3
+    downloading image 464292168a66fe7e7bf6ed28b0a1ab9f16fb4e24abb7ea7eca6fdf9aeafa177c 3.8GB
+      [≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡] 100% 3859/3859 MB
+    updating local reference prgenv-gnu/24.7:v3
+    uenv prgenv-gnu/24.7:v3 downloaded
+
+Start the environment and load the necessary modules (you need to repeat this each time you want to compile)::
+
+    $ uenv start --view=spack,modules prgenv-gnu/24.7:v3
+    loading the views prgenv-gnu:spack prgenv-gnu:modules
+    $ module load gcc cray-mpich python hdf5 fftw cmake cuda
+
+
+Create the Python virtual environment and install the required modules::
+
+    $ cd /path/to/pkdgrav3
+    $ python3 -m venv .venv
+    $ source .venv/bin/activate
+    $ python -m pip install --upgrade pip
+    $ python -m pip install -r requirements.txt
+
+You will also need to install GSL, hwloc and Boost. The easiest way is to use spack.
+Setup spack by following the instructions here (follow the "git clone" tip):
+
+https://eth-cscs.github.io/alps-uenv/uenv-compilation-spack/
+
+You need to enable spack each time you activate the module::
+
+    $ source $SCRATCH/spack/share/spack/setup-env.sh
+
+You can install the packages with::
+
+    $ spack install gsl hwloc boost
+
+Make them available by loading them::
+
+    $ spack load gsl hwloc boost
+
+Configure and compile pkdgrav3 in the usual way::
+
+    $ cmake -S . -B build
+    $ cmake --build build
+
+In the future when you use this uenv, you will need to load the necessary modules
+and activate the python virtual environment. You can do this automatically by
+putting the following in your $HOME/.bashrc::
+
+    if test -n "$UENV_MOUNT_LIST" ; then
+        module load gcc cray-mpich python hdf5 fftw cmake cuda
+        source $SCRATCH/spack/share/spack/setup-env.sh
+        spack load gsl hwloc boost
+        source $HOME/code/pkdgrav3/.venv/bin/activate
+    fi
 
 ---------------
 Python Packages

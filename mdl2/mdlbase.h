@@ -23,7 +23,25 @@
     #include "mdl_config.h"
 #endif
 #ifdef INSTRUMENT
-    #include "cycle.h"
+#include "cycle.h"
+
+/* Last effort to find a clock */
+#if defined(HAVE_CLOCK_GETTIME) && !defined(HAVE_TICK_COUNTER)
+typedef struct timespec ticks;
+
+static inline ticks getticks(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t;
+}
+
+static inline double elapsed(ticks t1, ticks t0) {
+    return ((double)t1.tv_sec - (double)t0.tv_sec) * 1.0E9 +
+           ((double)t1.tv_nsec - (double)t0.tv_nsec);
+}
+#define HAVE_TICK_COUNTER
+#endif
+
 #endif
 #include <stdio.h>
 #include <stdlib.h>
