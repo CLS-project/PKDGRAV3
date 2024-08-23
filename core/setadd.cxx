@@ -57,6 +57,6 @@ void ServiceSetAdd::SetAdd(PST pst,input *in) {
         pst->pstLower = pstNew;
         pstNew->iLvl = pst->iLvl + 1;
         SetAdd(pst->pstLower,in);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
 }

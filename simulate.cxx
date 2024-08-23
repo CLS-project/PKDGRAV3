@@ -142,10 +142,10 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep) {
 *   Simulation Mode: normal operation mode for pkdgrav
 \******************************************************************************/
 void MSR::Simulate(double dTime) {
-    const auto iStartStep = parameters.get_iStartStep();
-    if (getDeltaSteps(dTime,iStartStep)) Simulate(dTime,iStartStep);
+    Simulate(dTime,parameters.get_iStartStep());
 }
 void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
+    if (!getDeltaSteps(dTime,iStartStep)) return;
     std::ofstream log;
     const auto bEwald = parameters.get_bEwald();
     const auto bGravStep = parameters.get_bGravStep();

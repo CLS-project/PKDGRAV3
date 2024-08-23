@@ -45,7 +45,7 @@ int pstDensityContrast(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstNotCore(pst)) {
         int rID = mdlReqService(pst->mdl, pst->idUpper, PST_DENSITY_CONTRAST, vin, nIn);
         pstDensityContrast(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdDensityContrast(plcl->pkd,in->dTotalMass,in->iGrid,in->k);

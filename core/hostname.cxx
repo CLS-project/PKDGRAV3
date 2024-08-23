@@ -24,10 +24,11 @@ static_assert(std::is_void<ServiceHostname::output>() || std::is_trivial<Service
 int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     static_assert(std::is_void<input>());
     auto out = static_cast<output *>(vout);
-    auto outUp = out + pst->idUpper-pst->idSelf;
+    auto iUpper = pst->idUpper - pst->idSelf;
+    auto outUp = out + iUpper;
     auto rID = mdlReqService(pst->mdl,pst->idUpper,getServiceID(),vin,nIn);
-    Traverse(pst->pstLower,vin,nIn,out,nOut);
-    mdlGetReply(pst->mdl,rID,outUp,NULL);
+    auto nLower = Traverse(pst->pstLower,vin,nIn,out,nOut);
+    pst->mdl->GetReply(rID,nOut-nLower,outUp);
     return pst->nLeaves*sizeof(output);
 }
 

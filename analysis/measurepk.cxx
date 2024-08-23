@@ -97,7 +97,7 @@ int pstAddLinearSignal(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstNotCore(pst)) {
         int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ADD_LINEAR_SIGNAL, vin, nIn);
         pstAddLinearSignal(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdAddLinearSignal(plcl->pkd,in->iGrid,in->iSeed,in->bFixed,in->fPhase,in->Lbox,in->a);
@@ -177,7 +177,7 @@ int pstGridBinK(PST pst,void *vin,int nIn,void *vout,int nOut) {
         auto outUpper = new struct outGridBinK;
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRID_BIN_K,vin,nIn);
         pstGridBinK(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,outUpper,&nOut);
+        nOut = pst->mdl->GetReply(rID,sizeof(*outUpper),outUpper);
         assert(nOut==sizeof(struct outGridBinK));
 
         for (i=0; i<in->nBins; i++) {

@@ -101,7 +101,7 @@ protected:
                 }
             }
             else if (v != Py_None) result.push_back(get<typename T::value_type>(name,v));
-            return std::move(result);
+            return result;
         }
         else if constexpr (std::is_same<T, bool>::value) {
             return PyObject_IsTrue(v)>0;

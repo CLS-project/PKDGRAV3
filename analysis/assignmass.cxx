@@ -164,7 +164,7 @@ int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstNotCore(pst)) {
         int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ASSIGN_MASS, vin, nIn);
         pstAssignMass(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdAssignMass(plcl->pkd,ROOT,in->iAssignment,in->iGrid,in->fDelta,in->fold);
@@ -218,7 +218,7 @@ int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstNotCore(pst)) {
         int rID = mdlReqService(pst->mdl, pst->idUpper, PST_WINDOW_CORRECTION, vin, nIn);
         pstWindowCorrection(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdWindowCorrection(plcl->pkd,in->iAssignment,in->iGrid);

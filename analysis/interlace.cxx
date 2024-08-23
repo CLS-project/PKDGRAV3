@@ -52,7 +52,7 @@ int pstInterlace(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstNotCore(pst)) {
         int rID = mdlReqService(pst->mdl, pst->idUpper, PST_INTERLACE, vin, nIn);
         pstInterlace(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdInterlace(plcl->pkd,in->iGridTarget,in->iGridSource);

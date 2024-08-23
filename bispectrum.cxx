@@ -76,7 +76,7 @@ int pstBispectrumSelect(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstNotCore(pst)) {
         int rID = mdlReqService(pst->mdl, pst->idUpper, PST_BISPECTRUM_SELECT, vin, nIn);
         pstBispectrumSelect(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         if (in->iGridSource<0) pkdBispectrumNormalize(plcl->pkd,in->iGridTarget,in->kmin,in->kmax);
@@ -115,10 +115,9 @@ int pstBispectrumCalculate(PST pst,void *vin,int nIn,void *vout,int nOut) {
     assert (nOut==sizeof(double) );
     if (pstNotCore(pst)) {
         double outUpper;
-        int nOutUpper;
         int rID = mdlReqService(pst->mdl, pst->idUpper, PST_BISPECTRUM_CALCULATE, vin, nIn);
         pstBispectrumCalculate(pst->pstLower, vin, nIn, vout, nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOutUpper);
+        pst->mdl->GetReply(rID,outUpper);
         *out += outUpper;
     }
     else {
