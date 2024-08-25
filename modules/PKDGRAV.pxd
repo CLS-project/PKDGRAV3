@@ -142,6 +142,7 @@ cdef extern from "master.h":
         void Reorder()
         void Hostname()
         double LoadOrGenerateIC()
+        int ValidateParameters()
         void Simulate(double dTime,int iStartStep)
         void Simulate(double dTime)
         uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,

@@ -158,6 +158,7 @@ def simulate(**kwargs):
     if PKDGRAV has been imported. Calling this function proceeds normally.
     """
     set_parameters(**kwargs)
+    msr0.ValidateParameters()
     msr0.Hostname()
     dTime = msr0.LoadOrGenerateIC()
     if dTime >= 0:
