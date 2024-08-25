@@ -162,7 +162,7 @@ int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inAssignMass *in = reinterpret_cast<struct inAssignMass *>(vin);
     assert (nIn==sizeof(struct inAssignMass) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ASSIGN_MASS, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_ASSIGN_MASS, vin, nIn);
         pstAssignMass(pst->pstLower, vin, nIn, NULL, 0);
         pst->mdl->GetReply(rID);
     }
@@ -216,7 +216,7 @@ int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = reinterpret_cast<struct inWindowCorrection *>(vin);
     assert (nIn==sizeof(struct inWindowCorrection) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_WINDOW_CORRECTION, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_WINDOW_CORRECTION, vin, nIn);
         pstWindowCorrection(pst->pstLower, vin, nIn, NULL, 0);
         pst->mdl->GetReply(rID);
     }

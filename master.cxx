@@ -970,7 +970,7 @@ void MSR::SwapClasses(int id) {
 
     std::unique_ptr<PARTCLASS[]> pClass {new PARTCLASS[PKD_MAX_CLASSES]};
     n = plcl->pkd->particles.getClasses( PKD_MAX_CLASSES, pClass.get() );
-    rID = mdlReqService(pst0->mdl,id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
+    rID = pst0->mdl->ReqService(id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
     n = pst0->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(PARTCLASS),pClass.get());
     n = n / sizeof(PARTCLASS);
     plcl->pkd->particles.setClasses( n, pClass.get(), 0 );
@@ -1015,7 +1015,6 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
         SwapClasses(id);
         inswap.idSwap = 0;
         rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
-        //rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
         pkdSwapAll(plcl->pkd, id);
         pst0->mdl->GetReply(rID);
     }
@@ -1065,7 +1064,7 @@ void MSR::RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,boo
     assert (iIndex==pkd->Local());
     for (auto i=1; i<nThreads; ++i) {
         in.iTo = 0;
-        auto rID = mdlReqService(pkd->mdl,i,PST_SENDARRAY,&in,sizeof(in));
+        auto rID = pkd->mdl->ReqService(i,PST_SENDARRAY,&in,sizeof(in));
         vBuffer = pkdRecvArray(pkd,i,vBuffer,iUnitSize);
         pkd->mdl->GetReply(rID);
     }
@@ -1758,7 +1757,6 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
                  */
                 inswap.idSwap = 0;
                 rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
-                //rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
                 pkdSwapAll(plcl->pkd, id);
                 pst0->mdl->GetReply(rID);
                 /*
@@ -1770,7 +1768,6 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
                  */
                 inswap.idSwap = 0;
                 rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
-                //rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
                 pkdSwapAll(plcl->pkd,id);
                 pst0->mdl->GetReply(rID);
             }

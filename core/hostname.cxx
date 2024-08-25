@@ -26,7 +26,7 @@ int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto out = static_cast<output *>(vout);
     auto iUpper = pst->idUpper - pst->idSelf;
     auto outUp = out + iUpper;
-    auto rID = mdlReqService(pst->mdl,pst->idUpper,getServiceID(),vin,nIn);
+    auto rID = pst->mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
     auto nLower = Traverse(pst->pstLower,vin,nIn,out,nOut);
     pst->mdl->GetReply(rID,nOut-nLower,outUp);
     return pst->nLeaves*sizeof(output);

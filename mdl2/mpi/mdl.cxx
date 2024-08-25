@@ -2643,7 +2643,6 @@ void mdlAddService(MDL cmdl,int sid,void *p1,
     mdl->AddService(sid, p1, fcnService, nInBytes, nOutBytes);
 }
 
-extern "C" int mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) { return static_cast<mdlClass *>(mdl)->ReqService(id,sid,vin,nInBytes); }
 int mdlClass::ReqService(int id,int sid,void *vin,int nInBytes) {
     mdlMessageSendRequest request(Self(), sid, id, vin, nInBytes);
     enqueueAndWait(request);

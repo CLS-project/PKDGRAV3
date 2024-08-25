@@ -74,7 +74,7 @@ int pstBispectrumSelect(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inBispectrumSelect *in = reinterpret_cast<struct inBispectrumSelect *>(vin);
     assert (nIn==sizeof(struct inBispectrumSelect) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_BISPECTRUM_SELECT, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_BISPECTRUM_SELECT, vin, nIn);
         pstBispectrumSelect(pst->pstLower, vin, nIn, NULL, 0);
         pst->mdl->GetReply(rID);
     }
@@ -115,7 +115,7 @@ int pstBispectrumCalculate(PST pst,void *vin,int nIn,void *vout,int nOut) {
     assert (nOut==sizeof(double) );
     if (pstNotCore(pst)) {
         double outUpper;
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_BISPECTRUM_CALCULATE, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_BISPECTRUM_CALCULATE, vin, nIn);
         pstBispectrumCalculate(pst->pstLower, vin, nIn, vout, nOut);
         pst->mdl->GetReply(rID,outUpper);
         *out += outUpper;

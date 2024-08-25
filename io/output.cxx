@@ -173,7 +173,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
         send.eOutputType = eOutputType;
         send.iGrid = iGrid;
         ++iPartner;
-        int rID = mdlReqService(pkd->mdl,iPartner,PST_OUTPUT_SEND,&send,sizeof(send));
+        int rID = pkd->mdl->ReqService(iPartner,PST_OUTPUT_SEND,&send,sizeof(send));
         mdlRecv(pkd->mdl,iPartner,unpack,&info);
         pkd->mdl->GetReply(rID);
     }
@@ -197,7 +197,7 @@ int pstOutput(PST pst,void *vin,int nIn,void *vout,int nOut) {
             nUpper = nProcessor - nLower;
             in->nProcessor = nUpper;
             in->iProcessor = iProcessor + nLower;
-            int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
+            int rID = pst->mdl->ReqService(pst->idUpper,PST_OUTPUT,in,nIn);
             in->nProcessor = nLower;
             in->iProcessor = iProcessor;
             pstOutput(pst->pstLower,in,nIn,NULL,0);

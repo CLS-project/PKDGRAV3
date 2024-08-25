@@ -223,7 +223,7 @@ int pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inSetLinGrid *in = reinterpret_cast<struct inSetLinGrid *>(vin);
     assert (nIn==sizeof(struct inSetLinGrid) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_SETLINGRID, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_SETLINGRID, vin, nIn);
         pstSetLinGrid(pst->pstLower, vin, nIn, NULL, 0);
         pst->mdl->GetReply(rID);
     }
@@ -353,7 +353,7 @@ int pstLinearKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
     assert( nIn==sizeof(struct inLinearKick) );
 
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LINEARKICK,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_LINEARKICK,vin,nIn);
         pstLinearKick(pst->pstLower,vin,nIn,NULL,0);
         pst->mdl->GetReply(rID);
     }
@@ -444,7 +444,7 @@ int pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     assert( nIn==sizeof(struct inMeasureLinPk) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASURELINPK,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_MEASURELINPK,vin,nIn);
         pstMeasureLinPk(pst->pstLower,vin,nIn,vout,nOut);
         outUpper = reinterpret_cast<struct outMeasureLinPk *>(malloc(sizeof(struct outMeasureLinPk)));
         assert(outUpper != NULL);
