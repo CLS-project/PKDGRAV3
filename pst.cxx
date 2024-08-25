@@ -2332,7 +2332,7 @@ int pstGetParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GET_PARTICLES,vin,nIn);
         auto nOutLower = pstGetParticles(pst->pstLower,vin,nIn,vout,nOut);
         auto nOutUpper = pst->mdl->GetReply(rID,nOut-nOutLower,out + (nOutLower / sizeof(struct outGetParticles)));
-        nOut += nOutUpper;
+        nOut = nOutLower + nOutUpper;
     }
     else {
         int nParticles = nIn / sizeof(uint64_t);
