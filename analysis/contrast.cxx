@@ -43,7 +43,7 @@ int pstDensityContrast(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inDensityContrast *in = reinterpret_cast<struct inDensityContrast *>(vin);
     assert (nIn==sizeof(struct inDensityContrast) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_DENSITY_CONTRAST, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_DENSITY_CONTRAST, vin, nIn);
         pstDensityContrast(pst->pstLower, vin, nIn, NULL, 0);
         pst->mdl->GetReply(rID);
     }

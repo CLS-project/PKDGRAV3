@@ -95,7 +95,7 @@ int pstAddLinearSignal(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = reinterpret_cast<struct inAddLinearSignal *>(vin);
     assert (nIn==sizeof(*in) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ADD_LINEAR_SIGNAL, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_ADD_LINEAR_SIGNAL, vin, nIn);
         pstAddLinearSignal(pst->pstLower, vin, nIn, NULL, 0);
         pst->mdl->GetReply(rID);
     }
@@ -175,7 +175,7 @@ int pstGridBinK(PST pst,void *vin,int nIn,void *vout,int nOut) {
     assert( nOut==sizeof(struct outGridBinK) );
     if (pstNotCore(pst)) {
         auto outUpper = new struct outGridBinK;
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRID_BIN_K,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_GRID_BIN_K,vin,nIn);
         pstGridBinK(pst->pstLower,vin,nIn,vout,nOut);
         nOut = pst->mdl->GetReply(rID,sizeof(*outUpper),outUpper);
         assert(nOut==sizeof(struct outGridBinK));

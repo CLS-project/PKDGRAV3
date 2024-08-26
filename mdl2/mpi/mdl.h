@@ -314,8 +314,12 @@ public:
 
     void FlushCache(int cid);
     void FinishCache(int cid);
-    int ReqService(int id,int sid,void *vin=nullptr,int nInBytes=0);
-    template<typename T> int ReqService(int id,int sid,T &in) {
+    int ReqService(int id,int sid,void *vin,int nInBytes);
+    int ReqService(int id,int sid) {
+        return ReqService(id,sid,nullptr,0);
+    }
+    template<typename T>
+    int ReqService(int id,int sid,T &in) {
         return ReqService(id,sid,&in,sizeof(in));
     }
     int GetReply(int rID,int nMaxBytes=0,void *vout=nullptr);
@@ -545,7 +549,6 @@ int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
 void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
 void mdlAddService(MDL,int,void *,fcnService_t *fcnService,int,int);
-int  mdlReqService(MDL, int, int, void *, int);
 
 static inline int mdlGridCoordCompare(const mdlGridCoord *a,const mdlGridCoord *b) {
     return a->x==b->x && a->y==b->y && a->z==b->z;

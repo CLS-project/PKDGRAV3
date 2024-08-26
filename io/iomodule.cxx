@@ -328,13 +328,8 @@ void io_read(asyncFileInfo *info, void *buf, size_t count,size_t offset) {
         perror("Seek error");
         abort();
     }
-    while (count) {
-        auto iSize = std::min(count,info->nBufferSize);
-        if (read(info->fd,p,iSize) != iSize) { perror("read"); abort(); }
-        info->iFilePosition += iSize;
-        count -= iSize;
-        p += iSize;
-    }
+    if (read(info->fd,p,count) != count) { perror("read"); abort(); }
+    info->iFilePosition += count;
 }
 
 void io_close(asyncFileInfo *info) {

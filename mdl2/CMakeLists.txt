@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.12)
 cmake_policy(VERSION 3.12...3.22)
+if(POLICY CMP0167) # Find Boost in the new way
+    cmake_policy(SET CMP0167 NEW)
+endif()
 include(CheckLanguage)
 include(FindPkgConfig)
 

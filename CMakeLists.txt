@@ -3,6 +3,9 @@ cmake_policy(VERSION 3.14...3.22)
 if(POLICY CMP0144)
     cmake_policy(SET CMP0144 NEW)
 endif()
+if(POLICY CMP0167) # Find Boost in the new way
+    cmake_policy(SET CMP0167 NEW)
+endif()
 include(CheckLanguage)
 include(CheckFunctionExists)
 include(CheckCXXCompilerFlag)
@@ -14,7 +17,7 @@ if (APPLE)
   link_directories(/usr/local/lib)
 endif(APPLE)
 
-project(pkdgrav3 VERSION 3.2)
+project(pkdgrav3 VERSION 3.3)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})

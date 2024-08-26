@@ -93,7 +93,7 @@ int serviceSetAdd(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     assert(nIn == sizeof(struct inSetAdd));
     auto ctxNew = ctx->split(in->idUpper);
     if (ctxNew) {
-        auto rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),worker::SET_ADD,in,nIn);
+        auto rID = mdl->ReqService(ctx->getUpper(),worker::SET_ADD,in,nIn);
         in->idUpper = ctx->getUpper();
         serviceSetAdd(ctxNew,in,nIn,NULL,0);
         mdl->GetReply(rID);
@@ -115,7 +115,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        int rID = mdl->ReqService(ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
         nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
@@ -196,7 +196,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        int rID = mdl->ReqService(ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
         nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
@@ -253,7 +253,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        int rID = mdl->ReqService(ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
         nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
@@ -298,7 +298,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        int rID = mdl->ReqService(ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
         nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
@@ -366,7 +366,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        int rID = mdl->ReqService(ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
         nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
@@ -455,7 +455,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        int rID = mdl->ReqService(ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
         nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;

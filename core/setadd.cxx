@@ -50,7 +50,7 @@ void ServiceSetAdd::SetAdd(PST pst,input *in) {
 
         in->idLower = idMiddle;
         pst->idUpper = in->idLower;
-        rID = mdlReqService(pst->mdl,pst->idUpper,getServiceID(),in,sizeof(input));
+        rID = pst->mdl->ReqService(pst->idUpper,getServiceID(),in,sizeof(input));
         in->idLower = mdlSelf(pst->mdl);
         in->idUpper = idMiddle;
         pstInitialize(&pstNew,pst->mdl,pst->plcl);
