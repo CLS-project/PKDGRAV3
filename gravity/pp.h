@@ -266,10 +266,10 @@ struct ResultSPHForces {
 template<class F,class M, bool doShearStrengthModel>
 PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
-    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, F PisGas,
+    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, F PiMat, F PisGas,
     F PSxx, F PSyy, F PSxy, F PSxz, F PSyz,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
-    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung, F IisGas,
+    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung, F IiMat, F IisGas,
     F ISxx, F ISyy, F ISxy, F ISxz, F ISyz,
     int kernelType, float epsilon, float alpha, float beta,
     float EtaCourant,float a,float H,bool useIsentropic) {
@@ -293,6 +293,8 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, hij, dvdotdx, muij, Piij;
     F POneOverRho2, IOneOverRho2, minusImOverRho;
+    F selectiveStrengthFactor;
+    F plus_one = 1.0f;
 
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
@@ -374,13 +376,17 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
 
         // No transformation back into cosmology units, as strength makes no sense in cosmology. This saves multiplications.
         if (doShearStrengthModel) {
-            result.ax += Im * (POneOverRho2 * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + IOneOverRho2 * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz));
-            result.ay += Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
-            result.az += Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
+            // Disable the interaction of different materials via strength.
+            mask1 = PiMat == IiMat;
+            selectiveStrengthFactor = maskz_mov(mask1,plus_one);
 
-            result.uDot -= Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
+            result.ax += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + IOneOverRho2 * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz));
+            result.ay += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
+            result.az += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
 
-            minusImOverRho = - Im / Irho;
+            result.uDot -= selectiveStrengthFactor * Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
+
+            minusImOverRho = -Im / Irho * selectiveStrengthFactor;
 
             result.dvxdx = minusImOverRho * dvx * PdWdx;
             result.dvxdy = minusImOverRho * dvx * PdWdy;

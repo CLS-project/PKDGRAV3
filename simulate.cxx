@@ -586,6 +586,16 @@ int MSR::ValidateParameters() {
         print_warning("Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
         parameters.set_bGasOnTheFlyPrediction(false);
     }
+    if (parameters.get_bGasEvolveDensity()) {
+        if (parameters.get_bGasInterfaceCorrection()) {
+            print_error("ERROR: bGasEvolveDensity is not compatible with bGasInterfaceCorrection, exiting.\n");
+            return 0;
+        }
+        if (parameters.get_bDoDensity()) {
+            print_error("ERROR: bGasEvolveDensity is not compatible with bDoDensity, exiting.\n");
+            return 0;
+        }
+    }
 
     if ((parameters.get_dVelocityDamper() > 0.0) && ((parameters.get_dVelocityDamperEnd() > 0.0) || (parameters.get_dVelocityDamperEndTime() > 0.0))) {
         if (parameters.get_dVelocityDamperEnd() <= 0.0) {

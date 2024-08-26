@@ -1078,7 +1078,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 if (!pkd->bNoParticleOrder)
                     p.set_order(temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz));
             }
-            pkd->particles.setClass(fDarkMass,fDarkSoft,0,FIO_SPECIES_DARK,&p);
+            pkd->particles.setClass(fDarkMass,fDarkSoft,0,1.0,FIO_SPECIES_DARK,&p);
             p.set_marked(true);
             p.set_rung(0);
             if (pkd->bNoParticleOrder) p.set_group(0);
@@ -1087,7 +1087,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             if (in->bICgas) {
                 auto pgas = pkd->particles[i+in->nMove];
                 pgas = p;
-                pkd->particles.setClass(fGasMass, fGasSoft, 0, FIO_SPECIES_SPH, &pgas);
+                pkd->particles.setClass(fGasMass, fGasSoft, 0, 1.0, FIO_SPECIES_SPH, &pgas);
 
                 if (pkd->particles.present(PKD_FIELD::oParticleID)) {
                     auto &ID = pgas.ParticleID();

@@ -74,10 +74,10 @@ __device__ __forceinline__ auto evalInteraction(const gpu::denCorrInput pp,const
 template<bool bGravStep, bool doShearStrengthModel>
 __device__ __forceinline__ auto evalInteraction(const gpu::sphForceInput pp,const gpu::sphForceBlk<WIDTH> *__restrict__ blk,int i) {
     return EvalSPHForces<float,bool,doShearStrengthModel>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.Omega,
-            pp.vx, pp.vy, pp.vz, pp.rho, pp.P, pp.c, pp.isGas,
+            pp.vx, pp.vy, pp.vz, pp.rho, pp.P, pp.c, pp.iMat, pp.isGas,
             pp.Sxx, pp.Syy, pp.Sxy, pp.Sxz, pp.Syz,
             blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->fBall[i], blk->Omega[i],
-            blk->vx[i], blk->vy[i], blk->vz[i], blk->rho[i], blk->P[i], blk->c[i], blk->rung[i], blk->isGas[i],
+            blk->vx[i], blk->vy[i], blk->vz[i], blk->rho[i], blk->P[i], blk->c[i], blk->rung[i], blk->iMat[i], blk->isGas[i],
             blk->Sxx[i], blk->Syy[i], blk->Sxy[i], blk->Sxz[i], blk->Syz[i],
             SPHoptions.kernelType, SPHoptions.epsilon, SPHoptions.alpha, SPHoptions.beta,
             SPHoptions.EtaCourant, SPHoptions.a, SPHoptions.H, SPHoptions.useIsentropic);

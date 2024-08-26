@@ -558,6 +558,13 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
         aCheckpointClasses[i].fMass = PyFloat_AsDouble(fMassObj);
         aCheckpointClasses[i].fSoft = PyFloat_AsDouble(fSoftObj);
         aCheckpointClasses[i].iMat = PyLong_AsLong(iMatObj);
+        if (PyList_Size(class_list) > 4) {
+            auto accFacObj = PyList_GetItem(class_list, 4);
+            aCheckpointClasses[i].accFac = PyFloat_AsDouble(accFacObj);
+        }
+        else {
+            aCheckpointClasses[i].accFac = 1;
+        }
     }
 
     auto iStep = restore<int>(pFile,step);
@@ -702,19 +709,21 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
     // Create a list with the checkpoint classes
     auto classes_list = PyList_New(nCheckpointClasses);
     for (int i = 0; i < nCheckpointClasses; ++i) {
-        auto class_list = PyList_New(4); // Each inner list has 4 elements
+        auto class_list = PyList_New(5); // Each inner list has 5 elements
 
         // Convert structure members to Python objects and add them to the class_list
         PyObject *eSpecies = PyLong_FromLong(aCheckpointClasses[i].eSpecies);
         PyObject *fMass = PyFloat_FromDouble(aCheckpointClasses[i].fMass);
         PyObject *fSoft = PyFloat_FromDouble(aCheckpointClasses[i].fSoft);
         PyObject *iMat = PyLong_FromLong(aCheckpointClasses[i].iMat);
+        PyObject *accFac = PyFloat_FromDouble(aCheckpointClasses[i].accFac);
 
         // Note: PyList_SetItem steals a reference to the item
         PyList_SetItem(class_list, 0, eSpecies);
         PyList_SetItem(class_list, 1, fMass);
         PyList_SetItem(class_list, 2, fSoft);
         PyList_SetItem(class_list, 3, iMat);
+        PyList_SetItem(class_list, 4, accFac);
 
         // Add the inner list to the outer list
         PyList_SetItem(classes_list, i, class_list); // This also steals a reference
@@ -2328,6 +2337,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.bDoGas = DoGas();
     in.iRoot = iRoot;
+    in.bGasEvolveDensity = parameters.get_bGasEvolveDensity();
 
     pstDrift(pst,&in,sizeof(in),NULL,0);
 
