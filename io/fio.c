@@ -584,7 +584,6 @@ static int listGetAttr(FIO fio, const int headerType, const char *attr, FIO_TYPE
     switch (dataType) {
     case FIO_TYPE_UINT32: *(uint32_t *)(data) = v; break;
     case FIO_TYPE_UINT64:*(uint64_t *)(data) = v; break;
-    case FIO_TYPE_INT64:*(int64_t *)(data) = v; break;
     default: return 0;
     }
     return 1;
@@ -2935,7 +2934,6 @@ static hid_t fio2hdf(FIO_TYPE dataType,fioHDF5 *hio) {
     case FIO_TYPE_UINT8:  return H5T_NATIVE_UINT8;
     case FIO_TYPE_UINT32: return H5T_NATIVE_UINT32;
     case FIO_TYPE_UINT64: return H5T_NATIVE_UINT64;
-    case FIO_TYPE_INT64:  return H5T_NATIVE_INT64;
     case FIO_TYPE_INT:    return H5T_NATIVE_INT;
     case FIO_TYPE_STRING: return hio->stringType;
     default:
