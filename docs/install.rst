@@ -298,11 +298,12 @@ Sample wrapper script "pkdgrav3.sh"::
     "$@"
 
 
----------------
-Python Packages
----------------
+-----------------------------
+Python Packages (Daint/Eiger)
+-----------------------------
 
-Some additional Python package are required to compile the code. **After** you load the
+For daint and eiger
+some additional Python package are required to compile the code. **After** you load the
 system modules above, use the following to install the necessary packages::
 
     cd /path/to/pkdgrav3
