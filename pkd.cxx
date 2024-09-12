@@ -1633,8 +1633,12 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
      *
      * TODO: Check and debug parallel HDF5
      */
-    unsigned int numPart_file[6] = {0,0,0,0,0,0};
-    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
+
+    // Header compatible with Gadget-4, with NumPart_ThisFile and NumPart_Total as int64, no NumPart_Total_HighWord
+    // This limits the number of particles at 2**64-1
+    //
+    uint64_t numPart_file[6] = {0,0,0,0,0,0};
+    //fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
     //int numPart_all[6];
 
     numPart_file[0] = nGas;
@@ -1644,8 +1648,8 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
     numPart_file[4] = nStar;
     numPart_file[5] = nBH;
 
-    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
-    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
+    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT64, 6, &numPart_file[0]);
+    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT64, 6, &numPart_file[0]);
 
     double massTable[6] = {0,0,0,0,0,0};
     // This is not yet fully supported, as the classes do not have to match the
