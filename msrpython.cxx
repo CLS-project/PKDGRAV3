@@ -18,6 +18,7 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <structmember.h> // for PyMemberDef
+#include "core/abort_error.h"
 #include "parse.h"
 #include "master.h"
 #include "csmpython.h"
@@ -169,11 +170,7 @@ int MSR::Python(int argc, char *argv[]) {
             fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n");
             abort();
         }
-        FILE *fp = fopen(filename,"r");
-        if (fp == NULL) {
-            perror(filename);
-            exit(errno);
-        }
+        auto fp = abort_false(1000,fopen(filename,"r"),filename);
         PyDict_SetItemString(locals, "__file__", script);
         auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
         Py_XDECREF(s);

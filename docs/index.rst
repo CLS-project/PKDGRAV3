@@ -18,6 +18,7 @@ Welcome to pkdgrav3's documentation!
    parameters.rst
    changes.rst
    resources.rst
+   error_codes.rst
 
 .. only:: html or text
 

@@ -37,6 +37,7 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <assert.h>
+#include "core/abort_error.h"
 #include <time.h>
 #ifdef HAVE_SYS_TIME_H
     #include <sys/time.h>
