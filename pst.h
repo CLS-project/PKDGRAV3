@@ -71,7 +71,6 @@ typedef struct pstContext {
 } *PST;
 
 #define PST_SERVICES        100
-#define PST_FILENAME_SIZE   512
 #define PST_MAX_FILES           16384
 
 enum pst_service {
@@ -282,9 +281,9 @@ struct inReadFile {
     double dOmega0;
     double dOmegab;
     int nProcessors;
-    /*char achFilename[PST_FILENAME_SIZE];*/
+    /*char achFilename[PATH_MAX];*/
 };
-typedef char inReadFileFilename[PST_FILENAME_SIZE];
+typedef char inReadFileFilename[PATH_MAX];
 int pstReadFile(PST,void *,int,void *,int);
 
 /* PST_COMPRESSASCII */
@@ -302,7 +301,7 @@ int pstCompressASCII(PST,void *,int,void *,int);
 /* PST_WRITEASCII */
 struct inWriteASCII {
     uint64_t nFileOffset;
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 int pstWriteASCII(PST,void *,int,void *,int);
 
@@ -331,7 +330,7 @@ struct inWrite {
     int iLower, iUpper;
     int bHDF5;
     int mFlags;
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 int pstWrite(PST,void *,int,void *,int);
 
@@ -358,7 +357,7 @@ struct inOutput {
     int nPartner;     /* How many partners there are */
     outType eOutputType;  /* What kind of output */
     int iGrid;        /* Which grid (for grid output) */
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 
 /* PST_OUTPUT */
@@ -494,7 +493,7 @@ int pstCoolingHydReion(PST,void *,int,void *,int);
 #endif
 #ifdef GRACKLE
 struct inGrackleInit {
-    char achCoolingTable[256];
+    char achCoolingTable[PATH_MAX];
     UNITS units;
     int bComove;
     double dScaleFactor;
@@ -1129,11 +1128,11 @@ int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 struct inLightConeOpen {
     int nSideHealpix;
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inLightConeClose {
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut);
 

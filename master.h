@@ -357,7 +357,7 @@ public:
     double dCheckpointTime;
     int iCheckpointStep;
     int nCheckpointThreads;
-    char achCheckpointName[PST_FILENAME_SIZE];
+    char achCheckpointName[PATH_MAX];
 protected:
     static double Time();
     static void Leader();

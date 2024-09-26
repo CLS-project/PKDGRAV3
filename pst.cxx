@@ -78,7 +78,7 @@ void pstAddServices(PST pst,MDL mdl) {
     nThreads = mdlThreads(mdl);
 
     mdlAddService(mdl,PST_READFILE,pst,(fcnService_t *)pstReadFile,
-                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),0);
+                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),0);
     mdlAddService(mdl,PST_COMPRESSASCII,pst,(fcnService_t *)pstCompressASCII,
                   sizeof(struct inCompressASCII),sizeof(struct outCompressASCII));
     mdlAddService(mdl,PST_WRITEASCII,pst,(fcnService_t *)pstWriteASCII,
@@ -200,7 +200,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ADDWRITESTART,pst,(fcnService_t *)pstAddWriteStart,
                   sizeof(struct inAddWriteStart),0);
     mdlAddService(mdl,PST_ONENODEREADINIT,pst,(fcnService_t *)pstOneNodeReadInit,
-                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),
+                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),
                   nThreads*sizeof(int));
     mdlAddService(mdl,PST_ACTIVEORDER,pst,(fcnService_t *)pstActiveOrder,
                   0,sizeof(uint64_t));
@@ -658,7 +658,7 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PST_FILENAME_SIZE];
+        char achOutFile[PATH_MAX];
         makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"");
         pkdCheckpoint(pkd,achOutFile);
     }
@@ -678,7 +678,7 @@ int pstSendArray(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
     auto in = static_cast<struct inWrite *>(vin);
     FIO fio;
     int i;
@@ -2282,7 +2282,7 @@ int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PST_FILENAME_SIZE];
+        char achOutFile[PATH_MAX];
         if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"lcp.");
         else achOutFile[0] = 0;
         pkdLightConeOpen(pkd, achOutFile, in->nSideHealpix);
@@ -2300,7 +2300,7 @@ int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PST_FILENAME_SIZE];
+        char achOutFile[PATH_MAX];
         if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"hpb.");
         else achOutFile[0] = 0;
         pkdLightConeClose(pst->plcl->pkd,achOutFile);

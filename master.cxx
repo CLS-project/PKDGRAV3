@@ -909,7 +909,7 @@ int MSR::GetLock() {
     auto bOverwrite = parameters.get_bOverwrite();
 
     FILE *fp = NULL;
-    char achTmp[256],achFile[256];
+    char achTmp[PATH_MAX],achFile[PATH_MAX];
 
     MakePath(parameters.get_achDataSubPath(),LOCKFILE,achFile);
     if (!bOverwrite && (fp = fopen(achFile,"r"))) {
@@ -942,7 +942,7 @@ int MSR::CheckForStop(const char *achStopFile) {
     ** is removed and the return status is set to 1, otherwise 0.
     */
 
-    char achFile[256];
+    char achFile[PATH_MAX];
     FILE *fp = NULL;
     MakePath(parameters.get_achDataSubPath(),achStopFile,achFile);
     if ((fp = fopen(achFile,"r"))) {
@@ -1171,7 +1171,7 @@ uint64_t MSR::CalcWriteStart() {
 }
 
 void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
     int nProcessors;
     double dvFac, dExp;
     double dsec;
@@ -1664,7 +1664,7 @@ void MSR::Reorder() {
 
 void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
     LCL *plcl;
     PST pst0;
     int id,iDim;
@@ -3728,7 +3728,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     if (parameters.has_achTfFile()) {
         auto achTfFile = parameters.get_achTfFile();
         FILE *fp = fopen(achTfFile.data(),"r");
-        char buffer[256];
+        char buffer[PATH_MAX];
 
         if (parameters.get_bVStart())
             print("Reading transfer function from {}\n", achTfFile.data());
@@ -3791,7 +3791,7 @@ double MSR::Read(std::string_view achInFile) {
 
     TimerStart(TIMER_NONE);
 
-    auto nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
+    auto nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX);
     std::unique_ptr<char[]> buffer {new char[sizeof(inReadFile) + nBytes]};
     auto read = new (buffer.get()) inReadFile;
 
