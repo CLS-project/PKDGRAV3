@@ -22,7 +22,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include <cstdlib>
 #include <stdio.h>
 
-[[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line,std::string_view text) {
+[[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line) {
     fmt::print(stderr, fg(fmt::color::crimson) | fmt::emphasis::bold,
                "INTERNAL error {code}, function {func}, file {file}, line {line}\n"
                "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n",
