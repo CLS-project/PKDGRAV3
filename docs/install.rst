@@ -6,12 +6,14 @@ The pkdgrav3 code requires the following packages:
 
 CMake_ - cmake build system
     Most modern systems already have cmake installed. Pkdgrav3 requires
-    version 3.1 or newer of cmake. You can check with "cmake --version"::
+    version 3.24 or newer of cmake. You can check with "cmake --version"::
 
         pkdgrav3:~> cmake --version
         cmake version 3.26.0
 
     .. _CMake: https://cmake.org/
+
+    The CMake package will be installed in the Python virtul environment (see below).
 
 Message Passing Interface (MPI)
   Most distributions or Supercomputer centers provide an MPI implementation.
