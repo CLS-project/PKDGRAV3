@@ -6,6 +6,24 @@ endif()
 include(CheckLanguage)
 include(FindPkgConfig)
 
+# Option to enable or disable cpptrace
+option(USE_CPPTRACE "Enable cpptrace for backtrace support" ON)
+if (USE_CPPTRACE)
+  include(FetchContent)
+  FetchContent_Declare(
+    cpptrace
+    GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
+    GIT_TAG        v0.7.1 # <HASH or TAG>
+  )
+  FetchContent_GetProperties(cpptrace)
+  if (NOT cpptrace_POPULATED)
+    message(STATUS "Fetching cpptrace...")
+    FetchContent_MakeAvailable(cpptrace)
+  endif()
+else()
+  message(STATUS "cpptrace support disabled.")
+endif()
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Release build with debug info selected")
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -100,6 +118,13 @@ endif()
 if (elfutils_FOUND)
    set(USE_ELFUTILS TRUE)
    target_link_libraries(${PROJECT_NAME} elfutils::dw elfutils::elf)
+endif()
+
+# Link cpptrace if available
+if (cpptrace_POPULATED)
+  target_link_libraries(${PROJECT_NAME} cpptrace::cpptrace)
+else()
+  message(WARNING "cpptrace not available. Skipping backtrace support.")
 endif()
 
 if (APPLE)

@@ -6,7 +6,9 @@
 #include <stdexcept>
 #include <execinfo.h>
 #include <mutex>
-#ifdef USE_ELFUTILS
+#if defined(USE_CPPTRACE)
+#include <cpptrace/cpptrace.hpp>
+#elif defined(USE_ELFUTILS)
 #include <elfutils/libdwfl.h>
 #include <boost/core/demangle.hpp>
 
@@ -127,7 +129,7 @@ void mdlbt::ignore_SIGBUS() {
 
 void mdlbt::terminate_handler() {
     std::unique_lock<std::mutex> lck(backtrace_mutex);
-    show_backtrace();
+    show_backtrace_with_snippets();
     std::_Exit(EXIT_FAILURE);
 }
 
@@ -154,12 +156,23 @@ void mdlbt::signal_handler(int signo, siginfo_t *si, void *unused) {
     fsync(fileno(stdout));
     fsync(fileno(stderr));
     std::cerr << "SIGNAL " << signo << " at " << si->si_addr << '\n';
-    show_backtrace();
+    show_backtrace_with_snippets();
     //std::_Exit(EXIT_FAILURE);
 }
 
+void mdlbt::show_backtrace_with_snippets(int max_frames,int skip_frames) {
+#if defined(USE_CPPTRACE)
+    cpptrace::generate_trace(skip_frames+1,max_frames).print_with_snippets();
+#else
+    show_backtrace(max_frames,skip_frames);
+#endif
+}
 void mdlbt::show_backtrace(int max_frames,int skip_frames) {
 #ifdef USE_BT
+    ++skip_frames; // Don't report ourself
+#if defined(USE_CPPTRACE)
+    cpptrace::generate_trace(skip_frames,max_frames).print();
+#else
     void *stack[512];
     int stack_size = ::backtrace(stack, sizeof stack / sizeof *stack);
     if (stack_size > max_frames) stack_size = max_frames;
@@ -176,6 +189,7 @@ void mdlbt::show_backtrace(int max_frames,int skip_frames) {
         std::cerr << i << ":" << functions[i] << '\n';
     }
     free(functions);
+#endif
 #endif
 #endif
     std::cerr.flush();

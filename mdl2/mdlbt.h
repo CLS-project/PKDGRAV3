@@ -9,6 +9,7 @@ private:
     static void signal_sigbus(int signo, siginfo_t *si, void *unused);
 public:
     static void show_backtrace(int max_frames=63,int skip_frames=0);
+    static void show_backtrace_with_snippets(int max_frames=63,int skip_frames=0);
     void register_backtrace();
     void ignore_SIGBUS();
 };

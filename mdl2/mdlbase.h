@@ -158,6 +158,7 @@ public:
 #ifdef USE_BT
     using mdlbt::ignore_SIGBUS;
     using mdlbt::show_backtrace;
+    using mdlbt::show_backtrace_with_snippets;
 #endif
     struct {
         int32_t nThreads; /* Global number of threads (total) */

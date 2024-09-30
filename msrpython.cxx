@@ -170,7 +170,8 @@ int MSR::Python(int argc, char *argv[]) {
             fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n");
             abort();
         }
-        auto fp = abort_false(1000,fopen(filename,"r"),filename);
+        auto fp = fopen(filename,"r");
+        abort_false(1000,fp,filename);
         PyDict_SetItemString(locals, "__file__", script);
         auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
         Py_XDECREF(s);

@@ -96,7 +96,7 @@ public:
         }
         FMT_CATCH(fmt::format_error &f) {
             fmt::print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold,"ERROR in formatting string: {}\n",f.what());
-            mdl->show_backtrace(5,2);
+            mdl->show_backtrace_with_snippets(5,2);
         }
     }
     template<typename... Args>

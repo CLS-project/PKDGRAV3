@@ -28,27 +28,9 @@
     }
 
 [[noreturn]] void abort_error_print_message(int code, const char *func, const char *file, int line, const std::string_view message);
-#define abort_false(code, fp_expr, message) abort_false_impl(code, fp_expr, message, __func__, __FILE__, __LINE__)
-template <typename T>
-auto abort_false_impl(int code, T&& fp_expr, const char *message,
-                      const char *func, const char *file, int line)
--> decltype(auto) {
-    // Use SFINAE to determine if T is an lvalue reference
-    if constexpr (std::is_lvalue_reference_v<T&&>) {
-        // Lvalue reference case
-        if (!fp_expr) {
-            abort_error_print_message(code, func, file, line, message);
-        }
-        return fp_expr; // Return lvalue reference
+#define abort_false(code, condition, message)\
+    if (!(condition)) { \
+        abort_error_print_message(code, __func__, __FILE__, __LINE__,message); \
     }
-    else {
-        // Rvalue reference case
-        auto _fp = std::forward<T>(fp_expr); // Move or copy
-        if (!_fp) {
-            abort_error_print_message(code, func, file, line, message);
-        }
-        return _fp; // Return by value
-    }
-}
 
 #endif

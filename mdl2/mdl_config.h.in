@@ -19,6 +19,7 @@
 #cmakedefine USE_METAL 1
 #cmakedefine USE_HWLOC 1
 #cmakedefine USE_ELFUTILS 1
+#cmakedefine USE_CPPTRACE 1
 #cmakedefine MDL_FFTW 1
 #cmakedefine USE_BT 1
 #cmakedefine DEBUG_COUNT_CACHE 1

@@ -15,9 +15,11 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "abort_error.h"
+#include "mdlbt.h"
 #include "fmt/format.h"  // This will be part of c++20
 #include <fmt/color.h>
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
+#include <cstdlib>
 #include <stdio.h>
 
 [[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line,std::string_view text) {
@@ -25,7 +27,8 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
                "INTERNAL error {code}, function {func}, file {file}, line {line}\n"
                "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n",
                "code"_a=code, "func"_a=func, "file"_a=file, "line"_a=line);
-    abort();
+    mdlbt::show_backtrace(63,1);
+    std::exit(EXIT_FAILURE);
 }
 
 [[noreturn]] void abort_error_print_message(int code, const char *func, const char *file, int line, const std::string_view message) {
@@ -34,5 +37,6 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
                "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n"
                "{message}: {error}\n"
                ,"code"_a=code, "func"_a=func, "file"_a=file, "line"_a=line, "message"_a=message,"error"_a=strerror(errno));
-    abort();
+    mdlbt::show_backtrace(63,1);
+    std::exit(EXIT_FAILURE);
 }
