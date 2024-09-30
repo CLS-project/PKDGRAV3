@@ -607,7 +607,7 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
 
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
-    assert(nGas==0 || DoGas());
+    abort_assert(1001,nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
@@ -692,7 +692,7 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
     PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
     nBytes = pstGetClasses(pst,NULL,0,aCheckpointClasses,PKD_MAX_CLASSES*sizeof(PARTCLASS));
     int nCheckpointClasses = nBytes / sizeof(PARTCLASS);
-    assert(nCheckpointClasses*sizeof(PARTCLASS)==nBytes);
+    abort_assert(1002,nCheckpointClasses*sizeof(PARTCLASS)==nBytes);
 
     for (i=0; i<=FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = N;
@@ -808,7 +808,7 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     double dsec;
 
     auto filename = BuildCpName(iStep,".chk");
-    assert(filename.size() < sizeof(in.achOutFile));
+    abort_assert(1003,filename.size() < sizeof(in.achOutFile));
     strcpy(in.achOutFile,filename.c_str());
     in.nProcessors = parallel_write_count();
     if (csm->val.bComove) {
@@ -966,7 +966,7 @@ void MSR::SetClasses() {
     std::vector<PARTCLASS> classes(PKD_MAX_CLASSES);
     auto nClass = pstGetClasses(pst,NULL,0,classes.data(),classes.size()*sizeof(PARTCLASS));
     auto n = nClass / sizeof(PARTCLASS);
-    assert(n*sizeof(PARTCLASS)==nClass);
+    abort_assert(1002,n*sizeof(PARTCLASS)==nClass);
     classes.resize(n);
     std::sort(classes.begin(),classes.end());
     pstSetClasses(pst,classes.data(),nClass,NULL,0);
