@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.12)
 cmake_policy(VERSION 3.12...3.22)
-if(POLICY CMP0167) # Find Boost in the new way
-    cmake_policy(SET CMP0167 NEW)
+if(POLICY CMP0144)
+    cmake_policy(SET CMP0144 NEW)
+endif()
+# Find Boost in the old way for now
+# Not sure how the new way can work with spack
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 OLD)
 endif()
 include(CheckLanguage)
 include(FindPkgConfig)
