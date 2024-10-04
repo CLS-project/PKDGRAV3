@@ -21,22 +21,34 @@
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include <cstdlib>
 #include <stdio.h>
+#include <iostream>
+#include <mutex>
+
+static std::mutex error_mutex;
 
 [[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line) {
+    error_mutex.lock();
+    std::cerr << std::flush;
     fmt::print(stderr, fg(fmt::color::crimson) | fmt::emphasis::bold,
                "INTERNAL error {code}, function {func}, file {file}, line {line}\n"
                "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n",
                "code"_a=code, "func"_a=func, "file"_a=file, "line"_a=line);
     mdlbt::show_backtrace(63,1);
+    std::cerr << std::flush;
+    error_mutex.unlock();
     std::exit(EXIT_FAILURE);
 }
 
 [[noreturn]] void abort_error_print_message(int code, const char *func, const char *file, int line, const std::string_view message) {
+    error_mutex.lock();
+    std::cerr << std::flush;
     fmt::print(stderr, fg(fmt::color::crimson) | fmt::emphasis::bold,
                "error {code}, function {func}, file {file}, line {line}\n"
                "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n"
                "{message}: {error}\n"
                ,"code"_a=code, "func"_a=func, "file"_a=file, "line"_a=line, "message"_a=message,"error"_a=strerror(errno));
     mdlbt::show_backtrace(63,1);
+    std::cerr << std::flush;
+    error_mutex.unlock();
     std::exit(EXIT_FAILURE);
 }

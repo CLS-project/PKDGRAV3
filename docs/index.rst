@@ -12,6 +12,7 @@ Welcome to pkdgrav3's documentation!
 
    install.rst
    quickstart.rst
+   fileformats.rst
    analysis.rst
    units.rst
    extensions.rst
