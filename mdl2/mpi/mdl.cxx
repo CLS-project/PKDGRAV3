@@ -43,9 +43,6 @@ static inline int size_t_to_int(size_t v) {
 #ifdef HAVE_SIGNAL_H
     #include <signal.h>
 #endif
-#ifdef HAVE_SYS_PRCTL_H
-    #include <sys/prctl.h>
-#endif
 
 #include <math.h>
 #include <limits.h>
@@ -1878,31 +1875,12 @@ void mpiClass::KillAll(int signo) {
         if (i!=Core()) pthread_kill(threadid[i], signo);
 }
 
-int TraceProcess() {
-#ifdef HAVE_SYS_PRCTL_H
-    prctl(PR_SET_PDEATHSIG, SIGTERM);
-#endif
-    return 0;
-}
-
 extern "C"
 int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     mpiClass mdl(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
     return mdl.Launch(fcnMaster,fcnWorkerInit,fcnWorkerDone);
 }
 int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
-#define SHARED_MEM_SIZE (1ul * 1024 * 1024 * 1024 * 100) // 100 GB
-
-    void *shared_mem = mmap(NULL, SHARED_MEM_SIZE, PROT_READ | PROT_WRITE,
-                            MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-    if (shared_mem == MAP_FAILED) {
-        perror("mmap failed");
-        exit(EXIT_FAILURE);
-    }
-
-    auto child_pid = fork();
-    if (child_pid==0) return TraceProcess();
-
     int i,j,n,bDiag,bDedicated,thread_support,rc,flag, *piTagUB;
     bool bThreads = false;
     char *p, ach[256];
