@@ -386,6 +386,7 @@ protected:
     uint64_t storageSize;
 public:
     particleStore particles;
+    extraStore extra;
     treeStore tree;
     int FreeStore() { return particles.FreeStore(); }
     int Local() { return particles.Local(); }
@@ -394,7 +395,9 @@ public:
     auto EphemeralBytes() {return nEphemeralBytes; }
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(Bound) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return tree.ElementSize(); }
-    auto ParticleMemory() { return (particles.ParticleSize() + EphemeralBytes()) * (FreeStore()+1); }
+    auto ExtraSize() { return extra.ElementSize(); }
+    auto ExtraMemory() { return extra.ElementSize() * (extra.FreeStore()+1); }
+    auto ParticleMemory() { return (particles.ParticleSize() + EphemeralBytes()) * (FreeStore()+1) + ExtraMemory(); }
     PARTICLE *Particle(int i) { return particles.Element(i); }
 
     void SaveParticle(PARTICLE *a) {

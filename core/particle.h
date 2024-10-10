@@ -18,7 +18,9 @@
 #ifndef CORE_PARTICLE_H
 #define CORE_PARTICLE_H
 #include "pkd_config.h"
+#include <cstdint>
 #include <limits>
+#include <sys/types.h>
 #include <vector>
 #include <set>
 #include <algorithm>
@@ -352,7 +354,53 @@ enum PKD_FIELD {
     oParticleID,
     oGlobalGid, /* global group id, uint64 */
 
+    oExtra,
     MAX_FIELD
+};
+
+// This should be in a different header file
+enum class EXTRA_FIELD {
+    oMFM, /* Sph structure */
+    oMFV, /* MFV structure */
+    oStar, /* Star structure */
+    oBH, /* BH structure */
+
+    MAX_FIELD
+};
+
+class extraStore : public dataStore<PARTICLE, EXTRA_FIELD> {
+private:
+    uint64_t nUsed = -1;
+public:
+    void initialize() {
+    }
+    uint64_t append() {
+        return nUsed++;
+    }
+    auto &MFM( PARTICLE *p ) const {
+        return get<meshless::FIELDS>(p,EXTRA_FIELD::oMFM);
+    }
+    const auto &MFM( const PARTICLE *p ) const {
+        return get<meshless::FIELDS>(p,EXTRA_FIELD::oMFM);
+    }
+    auto &MFV( PARTICLE *p ) const {
+        return get<meshless::MFV>(p,EXTRA_FIELD::oMFV);
+    }
+    const auto &MFV( const PARTICLE *p ) const {
+        return get<meshless::MFV>(p,EXTRA_FIELD::oMFV);
+    }
+    auto &star( PARTICLE *p ) const {
+        return get<meshless::STAR>(p,EXTRA_FIELD::oStar);
+    }
+    const auto &star( const PARTICLE *p ) const {
+        return get<meshless::STAR>(p,EXTRA_FIELD::oStar);
+    }
+    auto &bh( PARTICLE *p ) const {
+        return get<meshless::STAR>(p,EXTRA_FIELD::oBH);
+    }
+    const auto &bh( const PARTICLE *p ) const {
+        return get<meshless::STAR>(p,EXTRA_FIELD::oBH);
+    }
 };
 
 //! \brief Array of particles (main storage).
@@ -362,8 +410,10 @@ enum PKD_FIELD {
 class particleStore : public dataStore<PARTICLE,PKD_FIELD>, protected Integerize {
 protected:
     friend class Particle;
+    friend class extraStore;
     bool bIntegerPosition = false;
     bool bNoParticleOrder = false;
+    extraStore *extra;
     std::vector<PARTCLASS> ParticleClasses;
     float fSoftFix = -1.0;
     float fSoftFac = 1.0;
@@ -492,24 +542,37 @@ public:
     void set_ball(PARTICLE *p, float fBall) const {
         if (present(PKD_FIELD::oBall)) get<float>(p,PKD_FIELD::oBall) = fBall;
     }
+    uint64_t extra_index( PARTICLE *p ) const {
+        return get<uint64_t>(p, PKD_FIELD::oExtra);
+    }
+    uint64_t set_extra_index( PARTICLE *p, uint64_t index ) const {
+        if (present(PKD_FIELD::oExtra)) get<uint64_t>(p, PKD_FIELD::oExtra) = index;
+    }
     /* Sph variables */
+    /* TO BE RENAMED TO MFM */
     auto &sph( PARTICLE *p ) const {
-#if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
-        assert( species(p)==FIO_SPECIES_SPH);
-#endif
-        return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->get<meshless::FIELDS>(
+                   extra->Element(extraIndex), EXTRA_FIELD::oMFM
+               );
     }
     const auto &sph( const PARTICLE *p ) const {
-#if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
-        assert( species(p)==FIO_SPECIES_SPH);
-#endif
-        return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->get<meshless::FIELDS>(
+                   extra->Element(extraIndex), EXTRA_FIELD::oMFM
+               );
     }
     auto &mfv( PARTICLE *p ) const {
-        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->get<meshless::MFV>(
+                   extra->Element(extraIndex), EXTRA_FIELD::oMFV
+               );
     }
     const auto &mfv( const PARTICLE *p ) const {
-        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->get<meshless::MFV>(
+                   extra->Element(extraIndex), EXTRA_FIELD::oMFV
+               );
     }
     /* NewSph variables */
     auto &newsph( PARTICLE *p ) const {
@@ -528,44 +591,28 @@ public:
     }
 
     auto &star( PARTICLE *p ) const {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-#ifdef DEBUG_UNION_EXTRAFIELDS
-        assert( species(p)==FIO_SPECIES_STAR);
-#endif //DEBUG
-        return get<meshless::STAR>(p,PKD_FIELD::oSph);
-#else
-        return get<meshless::STAR>(p,PKD_FIELD::oStar);
-#endif
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->get<meshless::STAR>(
+                   extra->Element(extraIndex), EXTRA_FIELD::oStar
+               );
     }
     const auto &star( const PARTICLE *p ) const {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-#ifdef DEBUG_UNION_EXTRAFIELDS
-        assert( species(p)==FIO_SPECIES_STAR);
-#endif //DEBUG
-        return get<meshless::STAR>(p,PKD_FIELD::oSph);
-#else
-        return get<meshless::STAR>(p,PKD_FIELD::oStar);
-#endif
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->get<meshless::STAR>(
+                   extra->Element(extraIndex), EXTRA_FIELD::oStar
+               );
     }
     auto &BH( PARTICLE *p ) const {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-#ifdef DEBUG_UNION_EXTRAFIELDS
-        assert( dpecies(p)==FIO_SPECIES_BH);
-#endif //DEBUG
-        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oSph);
-#else
-        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oBH);
-#endif
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->get<meshless::BLACKHOLE>(
+                   extra->Element(extraIndex), EXTRA_FIELD::oBH
+               );
     }
     const auto &BH( const PARTICLE *p ) const {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-#ifdef DEBUG_UNION_EXTRAFIELDS
-        assert( dpecies(p)==FIO_SPECIES_BH);
-#endif //DEBUG
-        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oSph);
-#else
-        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oBH);
-#endif
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->get<meshless::BLACKHOLE>(
+                   extra->Element(extraIndex), EXTRA_FIELD::oBH
+               );
     }
     auto Timer( PARTICLE *p ) const {
         return &get<meshless::STAR>(p,PKD_FIELD::oStar).fTimer;
@@ -681,6 +728,7 @@ public:
         auto is_rung_range(uint8_t uRungLo,uint8_t uRungHi)  const { return store().is_rung_range(p,uRungLo,uRungHi); }
         void set_density(float fDensity) {store().set_density(p,fDensity);}
         void set_ball(float fBall) {store().set_ball(p,fBall);}
+        void set_extra_index(uint64_t index) {store().set_extra_index(p,index);}
 
         auto is_dark()      const {return species() == FIO_SPECIES_DARK;}
         auto is_gas()       const {return species() == FIO_SPECIES_SPH;}
@@ -721,9 +769,10 @@ public:
     }
 
 public:
-    void initialize(bool bIntegerPosition,bool bNoParticleOrder) {
+    void initialize(bool bIntegerPosition,bool bNoParticleOrder, extraStore *extra) {
         this->bIntegerPosition = bIntegerPosition;
         this->bNoParticleOrder = bNoParticleOrder;
+        this->extra = extra;
         if (bNoParticleOrder) dataStore<PARTICLE,PKD_FIELD>::set_header<UPARTICLE>();
         else dataStore<PARTICLE,PKD_FIELD>::set_header<PARTICLE>();
         ParticleClasses.reserve(PKD_MAX_CLASSES);

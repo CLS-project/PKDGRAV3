@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/particle.h"
 #ifdef HAVE_CONFIG_H
     #include "config.h"
 #else
@@ -356,7 +357,11 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
-    particles.initialize(this->bIntegerPosition,this->bNoParticleOrder);
+    extra.add<meshless::FIELDS>(EXTRA_FIELD::oMFM, "MFM");
+    extra.add<meshless::MFV>(EXTRA_FIELD::oMFV, "MFV");
+    extra.commit();
+
+    particles.initialize(this->bIntegerPosition,this->bNoParticleOrder, &extra);
 
     if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"r");
     else                        particles.add<double[3]>(PKD_FIELD::oPosition,"r");
@@ -372,6 +377,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** 64 bit integer.
     */
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
+    if ( mMemoryModel ) particles.add<uint64_t>(PKD_FIELD::oExtra,"extra");
 
     if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
         auto gas = particles.overlay(PKD_FIELD::oSph);
@@ -418,6 +424,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
         particles.add<float>(PKD_FIELD::oPotential,"phi");
     }
     particles.commit();
+
 
     /*
     ** Tree node memory models
@@ -500,10 +507,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if (nEphemeral * mdl->Cores()*nEphemeralBytes < nMinEphemeral)
         nEphemeral = (nMinEphemeral + mdl->Cores()*nEphemeralBytes - 1) / (mdl->Cores()*nEphemeralBytes);
 
-    uint64_t nElements[3] = {uint64_t(nStore+1),nEphemeral,0};
-    uint64_t nBytesPerElement[3] = {particles.ParticleSize(),nEphemeralBytes,sizeof(uint64_t)};
-    void *pSegments[3];
-    storageSize = mdl->new_shared_array(pSegments,3,nElements,nBytesPerElement,nMinTotalStore);
+    uint64_t nElements[4] = {uint64_t(nStore+1),nEphemeral,nGas,0};
+    uint64_t nBytesPerElement[4] = {particles.ParticleSize(),nEphemeralBytes,extra.ElementSize(),sizeof(uint64_t)};
+    void *pSegments[4];
+    storageSize = mdl->new_shared_array(pSegments,4,nElements,nBytesPerElement,nMinTotalStore);
     if (storageSize == 0) {
         fprintf(stderr, "ERROR: unable to allocate main storage\n");
         abort();
@@ -512,6 +519,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     storageBase = pSegments[0];
     particles.setStore(pSegments[0],nStore);
     this->pLite = pSegments[1];                 // Ephemeral storage
+    extra.setStore(pSegments[2],nGas);
     /*
     ** Now we setup the node storage for the tree.  This storage is no longer
     ** continguous as the MDL now supports non-contiguous arrays.  We allocate
@@ -520,7 +528,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** nodes total which is the integer limit anyway. We may use the extra storage
     ** from above if constraint (c) could not otherwise be met.
     */
-    tree.initialize(&particles,this->bIntegerPosition,nTreeBitsLo,nTreeBitsHi,nElements[2]*nBytesPerElement[2],pSegments[2]);
+    tree.initialize(&particles,this->bIntegerPosition,nTreeBitsLo,nTreeBitsHi,nElements[3]*nBytesPerElement[3],pSegments[3]);
 
     /*
     ** We also allocate a temporary particle used for swapping.  We need to do
@@ -772,6 +780,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                 assert(dTuFac>0.0);
                 p.set_ball(2.*afSphOtherData[0]);
                 if (p.have_sph()) {
+                    uint64_t extra_index = pkd->extra.append();
+                    p.set_extra_index(extra_index);
                     auto &Sph = p.sph();
                     Sph.ElemMass = metals * fMass;
 #ifdef HAVE_METALLICITY
