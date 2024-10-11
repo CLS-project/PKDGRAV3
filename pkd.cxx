@@ -15,7 +15,6 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "core/particle.h"
 #ifdef HAVE_CONFIG_H
     #include "config.h"
 #else

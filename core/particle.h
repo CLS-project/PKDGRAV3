@@ -18,9 +18,7 @@
 #ifndef CORE_PARTICLE_H
 #define CORE_PARTICLE_H
 #include "pkd_config.h"
-#include <cstdint>
 #include <limits>
-#include <sys/types.h>
 #include <vector>
 #include <set>
 #include <algorithm>
@@ -34,7 +32,8 @@
 #include "element.h"
 #include "bound.h"
 #include "io/fio.h"
-#include "chemistry.h"
+#include "meshless.h"
+#include "extra.h"
 
 #define PKD_MAX_CLASSES 256
 
@@ -99,183 +98,6 @@ struct PARTCLASS {
 };
 static_assert(std::is_trivial<PARTCLASS>());
 
-namespace meshless {
-namespace hana = boost::hana;
-typedef double myreal;
-
-#ifdef BLACKHOLES
-struct  BH_ACCRETOR {
-    BOOST_HANA_DEFINE_STRUCT(
-        BH_ACCRETOR,
-        (int, iPid),
-        (int, iIndex)
-    );
-};
-#endif
-
-// These fields are required for meshless finite volume (MFV),
-// in addition to the meshless finate mass (MFM) fields (FIELDS).
-struct MFV {
-    BOOST_HANA_DEFINE_STRUCT(
-        MFV,
-        (blitz::TinyVector<myreal,3>, lastDrDotFrho),
-        (blitz::TinyVector<myreal,3>, drDotFrho)
-    );
-};
-
-struct FIELDS {
-    BOOST_HANA_DEFINE_STRUCT(
-        FIELDS,
-
-        (blitz::TinyVector<double,6>, B), // IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric
-        (myreal, Ncond),/* IA: Condition number for pathological configurations */
-
-        /* IA: Gradients */
-        (blitz::TinyVector<myreal,3>, gradRho),
-        (blitz::TinyVector<myreal,3>, gradVx),
-        (blitz::TinyVector<myreal,3>, gradVy),
-        (blitz::TinyVector<myreal,3>, gradVz),
-        (blitz::TinyVector<myreal,3>, gradP),
-
-        /* IA: last time this particle's primitve variables were updated */
-        (myreal, lastUpdateTime),
-        (blitz::TinyVector<myreal,3>, lastAcc),
-        (blitz::TinyVector<myreal,3>, lastMom),
-        (myreal, lastE),
-        (myreal, lastUint),
-        (myreal, lastHubble), // TODO: Maybe there is a more intelligent way to avoid saving this...
-        (float, c),        /* sound speed */
-
-        (float, lastMass),
-
-        /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
-        (double, omega),
-
-        /* IA: Fluxes */
-        (myreal, Frho),
-        (blitz::TinyVector<myreal,3>,  Fmom),
-        (myreal, Fene),
-
-        /* IA: Conserved variables */
-        (blitz::TinyVector<double,3>,  mom),
-        (double, E),
-        /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
-        (double, Uint),
-
-#ifdef ENTROPY_SWITCH
-        (double, S),
-        (double, lastS),
-        (double, maxEkin),
-#endif
-
-        /* IA: Primitive variables */
-        (double, P),
-
-        /* IA: fBall from the last iteration. Used for the bisection algorithm */
-        //(float, fLastBall),
-        /* IA: Number of neighbors correspoding to that fBall */
-        //(int, nLastNeighs),
-
-        /* IA: TODO temporarly */
-        //(uint8_t, uNewRung),
-
-#ifdef STAR_FORMATION
-        (float, SFR),
-#endif
-
-        (blitz::TinyVector<float,ELEMENT_COUNT>, ElemMass),
-#ifdef HAVE_METALLICITY
-        (float, fMetalMass),
-#endif
-
-#ifdef STELLAR_EVOLUTION
-        (blitz::TinyVector<float,3>, ReceivedMom),
-        (float, fReceivedMass),
-        (float, fReceivedE),
-#endif
-
-#if defined(FEEDBACK) || defined(BLACKHOLES)
-        (float, fAccFBEnergy),
-#endif
-
-#ifdef BLACKHOLES
-        // This could ideally be stored in a temporal buffer (pLite), but it has some
-        // limitations as it has to be shared when doing mdlAcquire.
-        (BH_ACCRETOR, BHAccretor),
-#endif
-
-        (uint8_t, uWake)
-    );
-
-}; // FIELDS
-
-struct STAR_METALS {
-    BOOST_HANA_DEFINE_STRUCT(
-        STAR_METALS,
-        (int, oZ),
-        (float, fDeltaZ)
-    );
-}; // STAR_METALS
-
-struct STAR {
-    BOOST_HANA_DEFINE_STRUCT(
-        STAR,
-        (double, omega),
-#ifdef STELLAR_EVOLUTION
-        (blitz::TinyVector<float,ELEMENT_COUNT>, ElemAbun), /* Formation abundances */
-        (float, fMetalAbun),            /* Formation metallicity */
-        (float, fInitialMass),
-        (float, fLastEnrichTime),
-        (float, fLastEnrichMass),
-        (int, iLastEnrichMass),
-        (float, fNextEnrichTime),
-        (STAR_METALS, CCSN),
-        (STAR_METALS, AGB),
-        (STAR_METALS, Lifetime),
-        (float, fSNIaOnsetTime),
-#endif
-#ifdef FEEDBACK
-        (int, bCCSNFBDone),
-        (int, bSNIaFBDone),
-        (float, fSNEfficiency),
-#endif
-        (float, fTimer)  /* Time of formation */
-    );
-}; // STAR
-
-struct GAS_PIN {
-    BOOST_HANA_DEFINE_STRUCT(
-        GAS_PIN,
-        (int, iPid),
-        (int, iIndex)
-    );
-};
-
-struct BLACKHOLE {
-    BOOST_HANA_DEFINE_STRUCT(
-        BLACKHOLE,
-        (double, omega),
-        (double, dInternalMass),
-        (double, lastUpdateTime),
-        (double, dAccretionRate),
-        (double, dEddingtonRatio),
-        (double, dFeedbackRate),
-        (double, dAccEnergy),
-        (float, fTimer),    /* Time of formation */
-        (GAS_PIN, GasPin),
-        (bool, bForceReposition)
-    );
-};
-
-#ifdef OPTIM_UNION_EXTRAFIELDS
-union EXTRAFIELDS {
-    FIELDS sph;
-    STAR star;
-    BLACKHOLE bh;
-};
-#endif
-
-} // meshless
 
 namespace sph {
 namespace hana = boost::hana;
@@ -358,50 +180,6 @@ enum PKD_FIELD {
     MAX_FIELD
 };
 
-// This should be in a different header file
-enum class EXTRA_FIELD {
-    oMFM, /* Sph structure */
-    oMFV, /* MFV structure */
-    oStar, /* Star structure */
-    oBH, /* BH structure */
-
-    MAX_FIELD
-};
-
-class extraStore : public dataStore<PARTICLE, EXTRA_FIELD> {
-private:
-    uint64_t nUsed = -1;
-public:
-    void initialize() {
-    }
-    uint64_t append() {
-        return nUsed++;
-    }
-    auto &MFM( PARTICLE *p ) const {
-        return get<meshless::FIELDS>(p,EXTRA_FIELD::oMFM);
-    }
-    const auto &MFM( const PARTICLE *p ) const {
-        return get<meshless::FIELDS>(p,EXTRA_FIELD::oMFM);
-    }
-    auto &MFV( PARTICLE *p ) const {
-        return get<meshless::MFV>(p,EXTRA_FIELD::oMFV);
-    }
-    const auto &MFV( const PARTICLE *p ) const {
-        return get<meshless::MFV>(p,EXTRA_FIELD::oMFV);
-    }
-    auto &star( PARTICLE *p ) const {
-        return get<meshless::STAR>(p,EXTRA_FIELD::oStar);
-    }
-    const auto &star( const PARTICLE *p ) const {
-        return get<meshless::STAR>(p,EXTRA_FIELD::oStar);
-    }
-    auto &bh( PARTICLE *p ) const {
-        return get<meshless::STAR>(p,EXTRA_FIELD::oBH);
-    }
-    const auto &bh( const PARTICLE *p ) const {
-        return get<meshless::STAR>(p,EXTRA_FIELD::oBH);
-    }
-};
 
 //! \brief Array of particles (main storage).
 //!
@@ -410,7 +188,6 @@ public:
 class particleStore : public dataStore<PARTICLE,PKD_FIELD>, protected Integerize {
 protected:
     friend class Particle;
-    friend class extraStore;
     bool bIntegerPosition = false;
     bool bNoParticleOrder = false;
     extraStore *extra;
@@ -545,8 +322,12 @@ public:
     uint64_t extra_index( PARTICLE *p ) const {
         return get<uint64_t>(p, PKD_FIELD::oExtra);
     }
-    uint64_t set_extra_index( PARTICLE *p, uint64_t index ) const {
+    void set_extra_index( PARTICLE *p, uint64_t index ) const {
         if (present(PKD_FIELD::oExtra)) get<uint64_t>(p, PKD_FIELD::oExtra) = index;
+    }
+    auto extra_field( PARTICLE *p ) const {
+        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        return extra->Element(extraIndex);
     }
     /* Sph variables */
     /* TO BE RENAMED TO MFM */
@@ -729,6 +510,8 @@ public:
         void set_density(float fDensity) {store().set_density(p,fDensity);}
         void set_ball(float fBall) {store().set_ball(p,fBall);}
         void set_extra_index(uint64_t index) {store().set_extra_index(p,index);}
+        auto extra_index()  const { return store().extra_index(p);}
+        auto extra_field()  const { return store().extra_field(p);}
 
         auto is_dark()      const {return species() == FIO_SPECIES_DARK;}
         auto is_gas()       const {return species() == FIO_SPECIES_SPH;}
