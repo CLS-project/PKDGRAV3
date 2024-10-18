@@ -3,7 +3,9 @@
 #include <csignal>
 class mdlbt {
 private:
+    void *BacktraceThread();
     static void terminate_handler();
+    static void print_backtrace(void *stack[], int stack_size);
 
     static void signal_handler(int signo, siginfo_t *si, void *unused);
     static void signal_sigbus(int signo, siginfo_t *si, void *unused);

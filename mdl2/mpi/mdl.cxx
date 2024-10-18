@@ -62,6 +62,13 @@ static inline int size_t_to_int(size_t v) {
     #include <numa.h>
 #endif
 #include "mpi.h"
+#if defined(USE_CPPTRACE)
+    #include <cpptrace/from_current.hpp>
+#else
+    #define CPPTRACE_TRY try
+    #define CPPTRACE_CATCH catch
+    #define CPPTRACE_CATCH_ALT catch
+#endif
 
 template<typename T>
 MPI_Datatype mpi_type(T v) {
@@ -421,7 +428,7 @@ void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
 void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status) {
     int bytes, source, cancelled;
     assert(message);
-    MPI_Test_cancelled(&status,&cancelled);
+    MPI_Test_cancelled(&status, &cancelled);
     if (cancelled) {
         MPI_Request_free(&request);
         assert(request==MPI_REQUEST_NULL);
@@ -888,7 +895,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
         auto nLine = c->getLineElementCount();
         auto pData = static_cast<char *>(data);
         for (auto i=0; i<nLine; ++i) {
-            c->cache_helper->unpack(&pData[i*c->iDataSize],&c->OneLine[i*pack_size],pKey);
+            c->cache_helper->unpack(&pData[i*c->iDataSize], &c->OneLine[i*pack_size],pKey);
         }
     }
 
@@ -1014,7 +1021,7 @@ mdlMessageFlushToRank *mpiClass::get_flush_buffer(int iProc,int iSize,bool bWait
     if (iFlush != flushHeadBusy.end()) {
         pFlush = *iFlush;
         flushHeadBusy.erase(iFlush); // We want to add this to the front of the queue later
-        if ( !pFlush->canBuffer(iSize)) {
+        if (!pFlush->canBuffer(iSize)) {
             pFlush->action(this);
             flushBuffersByRank[iProc] = flushHeadBusy.end();
             pFlush = NULL; // We need a buffer
@@ -1332,7 +1339,7 @@ int mdlClass::swapglobal(void *buffer,dd_offset_type count,dd_offset_type datasi
 
     // This will combine the elements we receive in the lower segment with our data
     // The data between the end of ddFree[0] and us are new elements
-    auto coalesce_lower = [this,me,&my_count]() {
+    auto coalesce_lower = [this,me, &my_count]() {
         auto free_end = ddFreeOffset[0] + ddFreeCounts[0];
         my_count += ddOffset[me] - free_end;
         ddOffset[me] = free_end;
@@ -1446,7 +1453,7 @@ void mpiClass::MessageSwapGlobal(mdlMessageSwapGlobal *message) {
     auto nSend = std::accumulate(scounts.begin(),scounts.end(),dd_offset_type(0));
     dd_offset_type nMaxSend;
     /* We are done when there is nothing globally left to send */
-    MPI_Allreduce(&nSend,&nMaxSend,1,mpi_type(nSend),MPI_MAX,commMDL);
+    MPI_Allreduce(&nSend, &nMaxSend,1,mpi_type(nSend),MPI_MAX,commMDL);
     if (nMaxSend==0) {
         message->finished(true);
         message->sendBack();
@@ -1476,7 +1483,7 @@ void mpiClass::MessageSwapGlobal(mdlMessageSwapGlobal *message) {
     }
 
     MPI_Datatype mpitype;
-    MPI_Type_contiguous(datasize,MPI_BYTE,&mpitype);
+    MPI_Type_contiguous(datasize,MPI_BYTE, &mpitype);
     MPI_Type_commit(&mpitype);
     std::vector<MPI_Request> requests;
     std::vector<MPI_Status> statuses;
@@ -1658,7 +1665,7 @@ void mpiClass::MessageDFT_C2R(mdlMessageDFT_C2R *message) {
 void mpiClass::MessageFFT_Sizes(mdlMessageFFT_Sizes *sizes) {
     sizes->nLocal = 2*FFTW3(mpi_local_size_3d_transposed)
                     (sizes->n3,sizes->n2,sizes->n1/2+1,commMDL,
-                     &sizes->nz,&sizes->sz,&sizes->ny,&sizes->sy);
+                     &sizes->nz, &sizes->sz, &sizes->ny, &sizes->sy);
     sizes->sendBack();
 }
 
@@ -1668,13 +1675,13 @@ void mpiClass::MessageFFT_Plans(mdlMessageFFT_Plans *plans) {
     if (result.second) { // Just inserted: we need to create the plan!
         info.nLocal = 2*FFTW3(mpi_local_size_3d_transposed)
                       (plans->n3,plans->n2,plans->n1/2+1,commMDL,
-                       &info.nz,&info.sz,&info.ny,&info.sy);
+                       &info.nz, &info.sz, &info.ny, &info.sy);
         info.fplan = FFTW3(mpi_plan_dft_r2c_3d)(
                          plans->n3,plans->n2,plans->n1,plans->data,plans->kdata,
-                         commMDL,FFTW_MPI_TRANSPOSED_OUT | (plans->data==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
+        commMDL,FFTW_MPI_TRANSPOSED_OUT | (plans->data==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
         info.iplan = FFTW3(mpi_plan_dft_c2r_3d)(
                          plans->n3,plans->n2,plans->n1,plans->kdata,plans->data,
-                         commMDL,FFTW_MPI_TRANSPOSED_IN  | (plans->kdata==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
+        commMDL,FFTW_MPI_TRANSPOSED_IN  | (plans->kdata==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
     }
     plans->nLocal = info.nLocal;
     plans->nz = info.nz;
@@ -1689,7 +1696,7 @@ void mpiClass::MessageFFT_Plans(mdlMessageFFT_Plans *plans) {
 
 void mpiClass::MessageAlltoallv(mdlMessageAlltoallv *a2a) {
     MPI_Datatype mpitype;
-    MPI_Type_contiguous(a2a->dataSize,MPI_BYTE,&mpitype);
+    MPI_Type_contiguous(a2a->dataSize,MPI_BYTE, &mpitype);
     MPI_Type_commit(&mpitype);
     MPI_Ialltoallv(
         a2a->sbuff, a2a->scount, a2a->sdisps, mpitype,
@@ -1705,9 +1712,9 @@ void mpiClass::MessageSendRequest(mdlMessageSendRequest *send) {
     int tag = send->tag + MDL_TAG_THREAD_OFFSET * iCore;
 
     /* Grab a free tag for the reply */
-    auto it = std::find(pRequestTargets.begin()+iRequestTarget,pRequestTargets.end(),-1);
+    auto it = std::find(pRequestTargets.begin()+iRequestTarget,pRequestTargets.end(), -1);
     if (it==pRequestTargets.end()) {
-        it = std::find(pRequestTargets.begin(),pRequestTargets.begin()+iRequestTarget,-1);
+        it = std::find(pRequestTargets.begin(),pRequestTargets.begin()+iRequestTarget, -1);
         assert(it != pRequestTargets.begin()+iRequestTarget);
     }
     iRequestTarget = it - pRequestTargets.begin();
@@ -1881,6 +1888,9 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void *(*fcnWorke
     return mdl.Launch(fcnMaster,fcnWorkerInit,fcnWorkerDone);
 }
 int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
+#ifdef USE_BT
+    register_backtrace();
+#endif
     int i,j,n,bDiag,bDedicated,thread_support,rc,flag, *piTagUB;
     bool bThreads = false;
     char *p, ach[256];
@@ -1946,8 +1956,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         argv[argc] = nullptr;
     }
     if (!bThreads) {
-        if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) layout.nCores = atoi(p);
-        else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) layout.nCores = atoi(p);
+        if ((p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) layout.nCores = atoi(p);
+        else if ((p=getenv("OMP_NUM_THREADS")) != NULL ) layout.nCores = atoi(p);
     }
     assert(Cores()>0);
 
@@ -1957,7 +1967,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     __itt_task_begin(domain, __itt_null, __itt_null, shMPITask);
 #endif
     commMDL = MPI_COMM_WORLD;
-    rc = MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED,&thread_support);
+    rc = MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &thread_support);
     if (rc!=MPI_SUCCESS) {
         MPI_Error_string(rc, ach, &i);
         perror(ach);
@@ -2077,10 +2087,10 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 
     /* Ring buffer of requests */
     iRequestTarget = 0;
-    pRequestTargets.resize(2 * log2(1.0 * Threads()) + Cores(),-1);
+    pRequestTargets.resize(2 * log2(1.0 * Threads()) + Cores(), -1);
 
     /* Make sure that MPI supports enough tags */
-    rc = MPI_Comm_get_attr(commMDL,MPI_TAG_UB,&piTagUB,&flag);
+    rc = MPI_Comm_get_attr(commMDL,MPI_TAG_UB, &piTagUB, &flag);
     if (rc==MPI_SUCCESS && flag) {
         assert(Cores()*MDL_TAG_THREAD_OFFSET < *piTagUB);
         assert(pRequestTargets.size()*MDL_TAG_THREAD_OFFSET < *piTagUB);
@@ -2131,9 +2141,6 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         hwloc_bitmap_free(set_proc);
         hwloc_topology_destroy(topology);
     }
-#endif
-#ifdef USE_BT
-    register_backtrace();
 #endif
     if (!bDedicated) {
         delete queueReceive.release();
@@ -2451,19 +2458,25 @@ void *mdlClass::WorkerThread() {
     __itt_thread_set_name(szName);
 #endif
     pthread_setspecific(mdl_key, this);
-#ifdef USE_BT
-    register_backtrace();
-#endif
     worker_ctx = (*fcnWorkerInit)(static_cast<MDL>(this));
     pthread_setspecific(worker_key, worker_ctx);
     CommitServices();
-    if (Self()) Handler();
-    else {
-        exit_code = run_master();
-        result = &exit_code;
-    }
-    (*fcnWorkerDone)(static_cast<MDL>(this),worker_ctx);
 
+    CPPTRACE_TRY {
+        if (Self()) Handler();
+        else {
+            exit_code = run_master();
+            result = &exit_code;
+        }
+        (*fcnWorkerDone)(static_cast<MDL>(this),worker_ctx);
+    } CPPTRACE_CATCH(const std::exception& e) {
+        std::cerr<<e.what()<<std::endl;
+#ifdef USE_CPPTRACE
+        cpptrace::from_current_exception().print();
+#endif
+        std::cerr.flush();
+        std::_Exit(EXIT_FAILURE);
+    }
     if (Core() != iCoreMPI) {
         enqueueAndWait(mdlMessageSTOP());
     }
@@ -2492,7 +2505,7 @@ void mdlClass::Send(int id,mdlPack pack, void *ctx) {
     vOut = new char[SEND_BUFFER_SIZE];
 
     do {
-        nBuff = (*pack)(ctx,&id,SEND_BUFFER_SIZE,vOut);
+        nBuff = (*pack)(ctx, &id,SEND_BUFFER_SIZE,vOut);
         mdl_MPI_Ssend(vOut,nBuff,id,MDL_TAG_SEND);
     } while ( nBuff != 0 );
     delete[] vOut;
@@ -2510,9 +2523,9 @@ void mdlClass::Recv(int id,mdlPack unpack, void *ctx) {
     vIn = new char[SEND_BUFFER_SIZE];
 
     do {
-        mdl_MPI_Recv(vIn,SEND_BUFFER_SIZE,id,MDL_TAG_SEND,&nBytes);
+        mdl_MPI_Recv(vIn,SEND_BUFFER_SIZE,id,MDL_TAG_SEND, &nBytes);
         inid = id; //status.MPI_SOURCE;
-        nUnpack = (*unpack)(ctx,&inid,nBytes,vIn);
+        nUnpack = (*unpack)(ctx, &inid,nBytes,vIn);
     } while (nUnpack>0 && nBytes>0);
 
     delete[] vIn;
@@ -2614,7 +2627,7 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
     while (nInBytes && nBufBytes) {
         nInMax = size_t_to_int((nInBytes < MDL_TRANS_SIZE)?nInBytes:MDL_TRANS_SIZE);
         nInMax = size_t_to_int((nInMax < nBufBytes)?nInMax:nBufBytes);
-        mdl_MPI_Recv(pszIn,nInMax,id,MDL_TAG_SWAP,&nBytes);
+        mdl_MPI_Recv(pszIn,nInMax,id,MDL_TAG_SWAP, &nBytes);
         assert(nBytes == nInMax);
         pszIn = &pszIn[nInMax];
         nInBytes -= nInMax;
@@ -2672,7 +2685,7 @@ void mdlClass::Handler() {
         id = phi->idFrom;
         sid = phi->sid;
 
-        nOutBytes = RunService(sid,phi->nInBytes,pszIn,&reply.Buffer.front());
+        nOutBytes = RunService(sid,phi->nInBytes,pszIn, &reply.Buffer.front());
         enqueueAndWait(reply.makeReply(Self(),phi->replyTag,sid,id,nOutBytes));
     } while (sid != SRV_STOP);
 }
@@ -2754,7 +2767,7 @@ uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements
         nTotalBytes = 0;
         for (auto t=0; t<Cores(); ++t) nTotalBytes += pmdl[t]->nMessageData;
         assert(nTotalBytes >= nMinTotalStore);
-        auto region = mmap(nullptr,nTotalBytes,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+        auto region = mmap(nullptr,nTotalBytes,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS, -1,0);
         if (region==MAP_FAILED) return 0;   // This likely means that there isn't enough memory.
 #ifdef __linux__
         madvise(region,nTotalBytes,MADV_DONTDUMP);
@@ -2955,7 +2968,7 @@ void mdlGridCoordFirstLast(MDL cmdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l
 
     if ( mdlCore(mdl)*nPerCore >= nLocal) nThisCore = 0;
     else if (mdlCore(mdl) == mdlCores(mdl)-1) nThisCore = nLocal - (mdlCores(mdl)-1)*nPerCore;
-    else if ( (1+mdlCore(mdl))*nPerCore < nLocal) nThisCore = nPerCore;
+    else if ((1+mdlCore(mdl))*nPerCore < nLocal) nThisCore = nPerCore;
     else nThisCore = nLocal - mdlCore(mdl)*nPerCore;
 
     /* Calculate global x,y,z coordinates, and local "i" coordinate. */
@@ -3026,8 +3039,8 @@ MDLFFT mdlClass::FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real)
     ** Note also that the "actual" dimension 1 side of the r-space array
     ** can be (and usually is) larger than "n1" because of the inplace FFT.
     */
-    mdlGridInitialize(this,&fft->rgrid,n1,n2,n3,2*(n1/2+1));
-    mdlGridInitialize(this,&fft->kgrid,n1/2+1,n3,n2,n1/2+1);
+    mdlGridInitialize(this, &fft->rgrid,n1,n2,n3,2*(n1/2+1));
+    mdlGridInitialize(this, &fft->kgrid,n1/2+1,n3,n2,n1/2+1);
     mdlGridSetLocal(this,fft->rgrid,plans.sz,plans.nz,plans.nLocal);
     mdlGridSetLocal(this,fft->kgrid,plans.sy,plans.ny,plans.nLocal/2);
     mdlGridShare(this,fft->rgrid);
@@ -3071,10 +3084,10 @@ void mdlFFTFree( MDL mdl, MDLFFT fft, void *p ) {
 
 void mdlFFT( MDL cmdl, MDLFFT fft, FFTW3(real) *data ) { static_cast<mdlClass *>(cmdl)->FFT(fft,data); }
 void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
-    mdlMessageDFT_R2C trans(fft,data,(FFTW3(complex) *)data);
+    mdlMessageDFT_R2C trans(fft,data, (FFTW3(complex) *)data);
     ThreadBarrier();
     if (Core() == iCoreMPI) {
-        FFTW3(execute_dft_r2c)(fft->fplan,data,(FFTW3(complex) *)(data));
+        FFTW3(execute_dft_r2c)(fft->fplan,data, (FFTW3(complex) *)(data));
     }
     else if (Core() == 0) {
         // NOTE: we do not receive a "reply" to this message, rather the synchronization
@@ -3087,10 +3100,10 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
 
 void mdlIFFT( MDL cmdl, MDLFFT fft, FFTW3(complex) *kdata ) { static_cast<mdlClass *>(cmdl)->IFFT(fft,kdata); }
 void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
-    mdlMessageDFT_C2R trans(fft,(FFTW3(real) *)kdata,kdata);
+    mdlMessageDFT_C2R trans(fft, (FFTW3(real) *)kdata,kdata);
     ThreadBarrier();
     if (Core() == iCoreMPI) {
-        FFTW3(execute_dft_c2r)(fft->iplan,kdata,(FFTW3(real) *)(kdata));
+        FFTW3(execute_dft_c2r)(fft->iplan,kdata, (FFTW3(real) *)(kdata));
     }
     else if (Core() == 0) {
         // NOTE: we do not receive a "reply" to this message, rather the synchronization

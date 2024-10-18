@@ -17,8 +17,8 @@ if (USE_CPPTRACE)
   include(FetchContent)
   FetchContent_Declare(
     cpptrace
-    GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-    GIT_TAG        v0.7.1 # <HASH or TAG>
+    GIT_REPOSITORY https://github.com/jdpotter/cpptrace.git
+    GIT_TAG        v0.7.2 # <HASH or TAG>
   )
   FetchContent_GetProperties(cpptrace)
   if (NOT cpptrace_POPULATED)

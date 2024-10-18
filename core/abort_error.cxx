@@ -24,6 +24,25 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include <iostream>
 #include <mutex>
 
+pkdgrav_error::pkdgrav_error(int error_code)
+    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold, "error {code}\n"
+                                     "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n",
+                                     "code"_a=error_code)) {}
+
+
+pkdgrav_error::pkdgrav_error(int error_code, const char *func, const char *file, int line)
+    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold, "error {code}\n"
+                                     "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n"
+                                     "function {func}, file {file}, line {line}\n",
+                                     "code"_a=error_code, "func"_a=func, "file"_a=file, "line"_a=line)) {};
+
+pkdgrav_error::pkdgrav_error(int error_code, const char *func, const char *file, int line, const std::string_view message)
+    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold, "error {code}\n"
+                                     "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n"
+                                     "function {func}, file {file}, line {line}\n"
+                                     "{message}\n",
+                                     "code"_a=error_code, "func"_a=func, "file"_a=file, "line"_a=line, "message"_a=message)) {};
+
 static std::mutex error_mutex;
 
 [[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line) {
@@ -39,7 +58,7 @@ static std::mutex error_mutex;
     std::exit(EXIT_FAILURE);
 }
 
-[[noreturn]] void abort_error_print_message(int code, const char *func, const char *file, int line, const std::string_view message) {
+[[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line, const std::string_view message) {
     error_mutex.lock();
     std::cerr << std::flush;
     fmt::print(stderr, fg(fmt::color::crimson) | fmt::emphasis::bold,
