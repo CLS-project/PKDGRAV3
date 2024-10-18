@@ -6,7 +6,6 @@
 #include <stdexcept>
 #include <execinfo.h>
 #include <pthread.h>
-#include <thread>
 #include <mutex>
 #include <condition_variable>
 #include <sys/wait.h>
@@ -99,9 +98,8 @@ std::ostream &operator<<(std::ostream &s, DebugInfo const &di) {
 
 #endif
 
-static std::thread backtrace_thread;
-
 // We allow only a single thread to generate a backtrace at a time
+static bool backtrace_running = false;
 static std::mutex backtrace_mutex;
 static std::condition_variable backtrace_ready_cv;
 static std::condition_variable backgrace_done_cv;
@@ -121,8 +119,9 @@ static std::size_t backtrace_count = 0;
 // Here we register the function that will generate a backtrace when an
 // abnormal termination occurs.
 void mdlbt::register_backtrace() {
+    std::unique_lock<std::mutex> lock(backtrace_mutex);
+    backtrace_running = true;
     backtrace_thread = std::thread(&mdlbt::BacktraceThread, this);
-    backtrace_thread.detach();
 
     // std::set_terminate(terminate_handler);
 
@@ -154,7 +153,8 @@ void *mdlbt::BacktraceThread() {
         std::unique_lock<std::mutex> lock(backtrace_mutex);
 
         // Wait until signaled that the buffer is filled
-        backtrace_ready_cv.wait(lock, [] { return backtrace_count; });
+        backtrace_ready_cv.wait(lock, [] { return backtrace_count || !backtrace_running; });
+        if (!backtrace_running) break;
 
         // Simulate processing the backtrace-filled buffer
 #ifdef USE_CPPTRACE
@@ -173,8 +173,15 @@ void *mdlbt::BacktraceThread() {
         // Notify the thread that filled the buffer that processing is done
         backgrace_done_cv.notify_one();
     }
-
     return NULL;
+}
+
+mdlbt::~mdlbt() {
+    if (backtrace_thread.joinable()) {
+        backtrace_running = false;
+        backtrace_ready_cv.notify_one();
+        backtrace_thread.join();
+    }
 }
 
 void mdlbt::terminate_handler() {
