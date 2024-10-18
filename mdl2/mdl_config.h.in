@@ -11,7 +11,6 @@
 #cmakedefine HAVE_SIGNAL_H 1
 #cmakedefine HAVE_INTTYPES_H 1
 #cmakedefine HAVE_MEMKIND 1
-#cmakedefine HAVE_NUMA 1
 #cmakedefine HAVE_SCHED_YIELD 1
 #cmakedefine HAVE_MACH_MACH_TIME_H 1
 #cmakedefine HAVE_MACH_ABSOLUTE_TIME 1

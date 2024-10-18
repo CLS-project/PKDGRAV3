@@ -58,9 +58,6 @@ static inline int size_t_to_int(size_t v) {
     #include <sys/resource.h>
     #include <sys/mman.h>
 #endif
-#ifdef HAVE_NUMA
-    #include <numa.h>
-#endif
 #include "mpi.h"
 #if defined(USE_CPPTRACE)
     #include <cpptrace/from_current.hpp>
@@ -2784,11 +2781,12 @@ uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements
         assert(p-q == nTotalBytes);
     }
     ThreadBarrier();
-#ifdef HAVE_NUMA
+    // Loop over all segments and touch each page so it is mapped to the correct core
     for (auto i=0; i<nSegments; ++i) {
-        numa_setlocal_memory(pSegments[i],nElements[i]*nBytesPerElement[i]);
+        auto p = reinterpret_cast<char *>(pSegments[i]);
+        auto size = nElements[i]*nBytesPerElement[i];
+        for ( std::size_t j = 0; j < size; j += nPageSize ) p[j] = 0;
     }
-#endif
 
     return nTotalBytes;
 }
