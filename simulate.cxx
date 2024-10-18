@@ -583,8 +583,9 @@ int MSR::ValidateParameters() {
     }
 #endif
 
-    if (model == HYDRO_MODEL::SPH) {
-        checkEOSlibVersion();
+    if (model == HYDRO_MODEL::SPH && !checkEOSlibVersion()) {
+        print_error("ERROR: EOSlib version mismatch.\n");
+        return 0;
     }
 
     if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {

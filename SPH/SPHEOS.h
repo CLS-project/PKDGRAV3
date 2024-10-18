@@ -38,13 +38,14 @@ static inline float SPHEOSconvertEntropicFunctiontoInternalEnergy(float rho, flo
 static inline float SPHEOSconvertInternalEnergytoEntropicFunction(float rho, float u, int iMat, SPHOptions *SPHoptions) {
     return u * (SPHoptions->gamma - 1.0f) / pow(rho, SPHoptions->gamma - 1.0f);
 };
-static inline void checkEOSlibVersion() {
+static inline int checkEOSlibVersion() {
 #ifdef HAVE_EOSLIB_H
     if ((EOS_VERSION_MAJOR * 10000 + EOS_VERSION_MINOR * 100 + EOS_VERSION_PATCH) < 10000) {
-        printf("EOSlib has an old version (%s). At least version 1.0.0 is needed.\n",EOS_VERSION_TEXT);
-        assert(0);
+        printf("EOSlib version (%s) is outdated. At least version 1.0.0 is needed.\n",EOS_VERSION_TEXT);
+        return 0;
     }
 #endif
+    return 1;
 }
 #ifdef __cplusplus
 }
