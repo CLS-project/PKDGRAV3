@@ -23,6 +23,7 @@
 #include "fmt/format.h"
 #include <fmt/ranges.h>
 #include "SPH/SPHOptions.h"
+#include "SPH/SPHEOS.h"
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 /******************************************************************************\
@@ -581,6 +582,10 @@ int MSR::ValidateParameters() {
                       "Setting bMemMass to true\n");
     }
 #endif
+
+    if (model == HYDRO_MODEL::SPH) {
+        checkEOSlibVersion();
+    }
 
     if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {
         print_warning("Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
