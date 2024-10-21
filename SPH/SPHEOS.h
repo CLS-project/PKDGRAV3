@@ -40,8 +40,11 @@ static inline float SPHEOSconvertInternalEnergytoEntropicFunction(float rho, flo
 };
 static inline int checkEOSlibVersion() {
 #ifdef HAVE_EOSLIB_H
-    if ((EOS_VERSION_MAJOR * 10000 + EOS_VERSION_MINOR * 100 + EOS_VERSION_PATCH) < 10000) {
-        printf("EOSlib version (%s) is outdated. At least version 1.0.0 is needed.\n",EOS_VERSION_TEXT);
+#define EOS_VERSION_MAJOR_REQUIRED 1
+#define EOS_VERSION_MINOR_REQUIRED 0
+#define EOS_VERSION_PATCH_REQUIRED 0
+    if ((EOS_VERSION_MAJOR * 10000 + EOS_VERSION_MINOR * 100 + EOS_VERSION_PATCH) < (EOS_VERSION_MAJOR_REQUIRED * 10000 + EOS_VERSION_MINOR_REQUIRED * 100 + EOS_VERSION_PATCH_REQUIRED)) {
+        printf("EOSlib version (%s) is outdated. At least version %d.%d.%d is needed.\n",EOS_VERSION_TEXT,EOS_VERSION_MAJOR_REQUIRED,EOS_VERSION_MINOR_REQUIRED,EOS_VERSION_PATCH_REQUIRED);
         return 0;
     }
 #endif
