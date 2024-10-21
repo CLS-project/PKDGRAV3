@@ -47,6 +47,9 @@ static inline int checkEOSlibVersion() {
         printf("EOSlib version (%s) is outdated. At least version %d.%d.%d is needed.\n",EOS_VERSION_TEXT,EOS_VERSION_MAJOR_REQUIRED,EOS_VERSION_MINOR_REQUIRED,EOS_VERSION_PATCH_REQUIRED);
         return 0;
     }
+    if (!EOSCheckVersions()) {
+        return 0;
+    }
 #endif
     return 1;
 }
