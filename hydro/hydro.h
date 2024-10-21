@@ -62,6 +62,40 @@ inline dvec cubicSplineKernel(dvec r, dvec H) {
 }
 #endif
 
+// First derivative (i.e. dW / dq) of the cubic spline kernel
+template <typename dtype=double, typename mtype=bool>
+inline dtype cubicSplineKernelDeriv(dtype r, dtype H) {
+    const dtype dHInv = 1.0 / H;
+    const dtype q = r * dHInv;
+    const dtype dNorm = 48. * M_1_PI * dHInv * dHInv * dHInv;
+
+    if (q < 0.5) {
+        return dNorm * q * (3.*q - 2.);
+    }
+    else if (q < 1.0) {
+        return - dNorm * (1.-q) * (1.-q);
+    }
+    else {
+        return 0.0;
+    }
+}
+
+#ifdef SIMD_H
+template <>
+inline dvec cubicSplineKernelDeriv(dvec r, dvec H) {
+    const dvec dHInv = 1.0 / H;
+    const dvec q = r * dHInv;
+    const dvec dNorm = 48. * M_1_PI * dHInv * dHInv * dHInv;
+    dvec out{0.}, t;
+
+    t = - dNorm * (1.-q) * (1.-q);
+    out = mask_mov(out, q<1.0, t);
+    t = dNorm * q * (3.*q - 2.);
+    out = mask_mov(out, q<0.5, t);
+    return out;
+}
+#endif
+
 /* Density loop */
 struct hydroDensityPack {
     blitz::TinyVector<double,3> position;
@@ -101,6 +135,7 @@ struct hydroFluxesPack {
     meshless::myreal lastUpdateTime;
     blitz::TinyVector<meshless::myreal,3> lastAcc;
     double omega;
+    double spheom;
     double P;
     float fBall;
     float fDensity;

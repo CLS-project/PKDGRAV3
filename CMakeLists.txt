@@ -449,6 +449,11 @@ else(USE_MFM)
    message("-- Compiling with MFV hydrodynamics")
 endif(USE_MFM)
 
+option(MFM_FLUX_CORRECTION "Use SPH to correct the MFM thermal energy flux under certain conditions" OFF)
+if (MFM_FLUX_CORRECTION)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DMFM_FLUX_CORRECTION)
+endif(MFM_FLUX_CORRECTION)
+
 option(FORCE_2D "Flag for running 2D cases" OFF)
 if (FORCE_2D)
    message("-- NOT RECOMMENDED: Ignoring fluxes in the z-direction and interactions among misaligned particles")

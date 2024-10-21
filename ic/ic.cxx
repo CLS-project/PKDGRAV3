@@ -586,6 +586,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 Sph.lastHubble = 0.0;
                 Sph.lastMass = fGasMass;
                 Sph.lastAcc = 0.;
+                Sph.omega = 0.0;
+                Sph.spheom = 0.;
 #ifndef USE_MFM
                 Sph.lastDrDotFrho = 0.;
                 Sph.drDotFrho = 0.;
@@ -600,7 +602,6 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 Sph.fAccFBEnergy = 0.;
 #endif
                 Sph.uWake = 0;
-                Sph.omega = 0.0;
 #ifdef BLACKHOLES
                 Sph.BHAccretor.iIndex = NOT_ACCRETED;
                 Sph.BHAccretor.iPid   = NOT_ACCRETED;

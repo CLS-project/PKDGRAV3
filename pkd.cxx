@@ -791,6 +791,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     Sph.lastHubble = 0.0;
                     Sph.lastMass = fMass;
                     Sph.lastAcc = 0.;
+                    Sph.omega = 0.;
+                    Sph.spheom = 0.;
 #ifndef USE_MFM
                     Sph.lastDrDotFrho = 0.;
                     Sph.drDotFrho = 0.;

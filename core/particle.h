@@ -142,6 +142,7 @@ struct FIELDS {
 
         /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
         (double, omega),
+        (double, spheom),
 
         /* IA: Fluxes */
         (myreal, Frho),
