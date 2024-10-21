@@ -48,9 +48,9 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
         vpred[2] = NewSph.vpred[2];
     }
     else {
-        vpred[0] = v[0] + dtPredDrift * ap[0];
-        vpred[1] = v[1] + dtPredDrift * ap[1];
-        vpred[2] = v[2] + dtPredDrift * ap[2];
+        vpred[0] = v[0] + dtPredDrift * ap[0] * p.accFac();
+        vpred[1] = v[1] + dtPredDrift * ap[1] * p.accFac();
+        vpred[2] = v[2] + dtPredDrift * ap[2] * p.accFac();
         if ((SPHoptions->VelocityDamper > 0.0) && p.marked()) {
             vpred[0] *= exp(kick->dtOpen[p.rung()] * SPHoptions->VelocityDamper);
             vpred[1] *= exp(kick->dtOpen[p.rung()] * SPHoptions->VelocityDamper);
@@ -127,9 +127,9 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
     if (SPHoptions->doConsistentPrediction) {
         const auto &v = p.velocity();
         const auto &ap = p.acceleration();
-        NewSph.vpred[0] = v[0] + dtPredDrift * ap[0];
-        NewSph.vpred[1] = v[1] + dtPredDrift * ap[1];
-        NewSph.vpred[2] = v[2] + dtPredDrift * ap[2];
+        NewSph.vpred[0] = v[0] + dtPredDrift * ap[0] * p.accFac();
+        NewSph.vpred[1] = v[1] + dtPredDrift * ap[1] * p.accFac();
+        NewSph.vpred[2] = v[2] + dtPredDrift * ap[2] * p.accFac();
     }
 
     if (pkdIsGas(pkd, &p)) {
