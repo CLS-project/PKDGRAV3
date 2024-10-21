@@ -20,6 +20,7 @@
 
 #include "SPHOptions.h"
 #include "../pkd.h"
+#include "../core/abort_error.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,20 +39,21 @@ static inline float SPHEOSconvertEntropicFunctiontoInternalEnergy(float rho, flo
 static inline float SPHEOSconvertInternalEnergytoEntropicFunction(float rho, float u, int iMat, SPHOptions *SPHoptions) {
     return u * (SPHoptions->gamma - 1.0f) / pow(rho, SPHoptions->gamma - 1.0f);
 };
-static inline int checkEOSlibVersion() {
+static inline void checkEOSlibVersion() {
+    int result = 1;
 #ifdef HAVE_EOSLIB_H
 #define EOS_VERSION_MAJOR_REQUIRED 1
 #define EOS_VERSION_MINOR_REQUIRED 0
 #define EOS_VERSION_PATCH_REQUIRED 0
     if ((EOS_VERSION_MAJOR * 10000 + EOS_VERSION_MINOR * 100 + EOS_VERSION_PATCH) < (EOS_VERSION_MAJOR_REQUIRED * 10000 + EOS_VERSION_MINOR_REQUIRED * 100 + EOS_VERSION_PATCH_REQUIRED)) {
         printf("EOSlib version (%s) is outdated. At least version %d.%d.%d is needed.\n",EOS_VERSION_TEXT,EOS_VERSION_MAJOR_REQUIRED,EOS_VERSION_MINOR_REQUIRED,EOS_VERSION_PATCH_REQUIRED);
-        return 0;
+        result = 0;
     }
     if (!EOSCheckVersions()) {
-        return 0;
+        result = 0;
     }
 #endif
-    return 1;
+    abort_assert(1004,result);
 }
 #ifdef __cplusplus
 }

@@ -24,7 +24,6 @@
 #include <fmt/ranges.h>
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
-#include "core/abort_error.h"
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 /******************************************************************************\
@@ -584,9 +583,7 @@ int MSR::ValidateParameters() {
     }
 #endif
 
-    if (model == HYDRO_MODEL::SPH && !checkEOSlibVersion()) {
-        abort_assert(1004,0);
-    }
+    if (model == HYDRO_MODEL::SPH) checkEOSlibVersion();
 
     if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {
         print_warning("Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
