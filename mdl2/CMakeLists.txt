@@ -17,8 +17,8 @@ if (USE_CPPTRACE)
   include(FetchContent)
   FetchContent_Declare(
     cpptrace
-    GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-    GIT_TAG        v0.7.1 # <HASH or TAG>
+    GIT_REPOSITORY https://github.com/jdpotter/cpptrace.git
+    GIT_TAG        v0.7.2 # <HASH or TAG>
   )
   FetchContent_GetProperties(cpptrace)
   if (NOT cpptrace_POPULATED)
@@ -65,10 +65,6 @@ CHECK_FUNCTION_EXISTS(sched_yield HAVE_SCHED_YIELD)
 INCLUDE(CheckLibraryExists)
 CHECK_LIBRARY_EXISTS(memkind hbw_posix_memalign "" HAVE_MEMKIND)
 
-CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)
-if (HAVE_NUMA_H)
-  CHECK_LIBRARY_EXISTS(numa numa_setlocal_memory "" HAVE_NUMA)
-endif()
 CHECK_INCLUDE_FILES(mach/mach_time.h HAVE_MACH_MACH_TIME_H)
 
 INCLUDE(CheckSymbolExists)
@@ -172,10 +168,6 @@ endif()
 if(HAVE_MEMKIND)
 find_library(MEMKIND_LIBRARY memkind)
 target_link_libraries(${PROJECT_NAME} ${MEMKIND_LIBRARY})
-endif()
-if(HAVE_NUMA)
-  find_library(NUMA_LIBRARY numa)
-  target_link_libraries(${PROJECT_NAME} ${NUMA_LIBRARY})
 endif()
 target_link_libraries(${PROJECT_NAME} Boost::boost)
 
