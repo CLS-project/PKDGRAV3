@@ -24,6 +24,7 @@
 #include <fmt/ranges.h>
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
+#include "core/abort_error.h"
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 /******************************************************************************\
@@ -584,8 +585,7 @@ int MSR::ValidateParameters() {
 #endif
 
     if (model == HYDRO_MODEL::SPH && !checkEOSlibVersion()) {
-        print_error("ERROR: EOSlib version mismatch.\n");
-        return 0;
+        abort_assert(1004,0);
     }
 
     if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {

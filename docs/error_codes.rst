@@ -47,6 +47,16 @@ This information is important as this error code can have multiple causes.
 1004
 ----
 
-**Description**: Explanation for error 1004.
+**Description**: EOSlib or one of the libraries used by EOSlib are outdated.
+
+**Resolution**: Pull new versions of EOSlib and/or the libraries used by EOSlib and recompile pkdgrav3. The specific library that is outdated is specified in the line above the error.
+
+
+.. _error_1005:
+
+1005
+----
+
+**Description**: Explanation for error 1005.
 
 **Resolution**: Details for fixing the issue.
