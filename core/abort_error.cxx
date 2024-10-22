@@ -55,7 +55,7 @@ static std::mutex error_mutex;
     mdlbt::show_backtrace(63,1);
     std::cerr << std::flush;
     error_mutex.unlock();
-    std::exit(EXIT_FAILURE);
+    std::_Exit(EXIT_FAILURE);
 }
 
 [[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line, const std::string_view message) {
@@ -69,5 +69,5 @@ static std::mutex error_mutex;
     mdlbt::show_backtrace(63,1);
     std::cerr << std::flush;
     error_mutex.unlock();
-    std::exit(EXIT_FAILURE);
+    std::_Exit(EXIT_FAILURE);
 }
