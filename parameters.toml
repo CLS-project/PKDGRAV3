@@ -1393,6 +1393,11 @@ flag="MaxPhysicalSoft"
 default=0.0
 help="maximum softening in physical coordinates"
 
+["Gas".dExternalAcceleration]
+flag="externalAcceleration"
+default=[0.0, 0.0, 0.0]
+help="External acceleration that is applied to all particles in every step. Only active if HYDRO_MODEL.SPH is used."
+
 ################################################################################
 ########## Cooling
 ################################################################################

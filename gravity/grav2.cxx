@@ -995,6 +995,13 @@ int pkdGravInteract(PKD pkd,
         if (SPHoptions->doCentrifugal) {
             addCentrifugalAcceleration(pkd, wp);
         }
+        if (wp->SPHoptions->doExternalAcceleration) {
+            for (int i=0; i< wp->nP; i++) {
+                wp->pInfoOut[i].a[0] += wp->SPHoptions->externalAccelerationX;
+                wp->pInfoOut[i].a[1] += wp->SPHoptions->externalAccelerationY;
+                wp->pInfoOut[i].a[2] += wp->SPHoptions->externalAccelerationZ;
+            }
+        }
     }
 
     if (SPHoptions->doGravity) {
