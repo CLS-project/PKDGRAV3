@@ -298,9 +298,6 @@ void pkdParticleWorkDone(workParticle *wp) {
                 wp->pInfoOut[i].a[1] += acc[1];
                 wp->pInfoOut[i].a[2] += acc[2];
 #endif
-                wp->pInfoOut[i].a[0] *= p.accFac();
-                wp->pInfoOut[i].a[1] *= p.accFac();
-                wp->pInfoOut[i].a[2] *= p.accFac();
                 if (pkd->particles.present(PKD_FIELD::oAcceleration)) {
                     p.acceleration() = wp->pInfoOut[i].a;
                 }
@@ -435,9 +432,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                 if (pkd->particles.present(PKD_FIELD::oVelocity)) {
                     auto &v = p.velocity();
                     if (wp->kick && wp->kick->bKickClose) {
-                        v[0] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[0];
-                        v[1] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[1];
-                        v[2] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[2];
+                        v[0] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[0] * p.accFac();
+                        v[1] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[1] * p.accFac();
+                        v[2] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[2] * p.accFac();
                         if (wp->SPHoptions->doSPHForces && pkdIsGas(pkd, wp->pPart[i])) {
                             auto &NewSph = p.newsph();
                             if (wp->SPHoptions->useIsentropic) {
@@ -478,9 +475,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                             v[1] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
                             v[2] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
                         }
-                        v[0] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[0];
-                        v[1] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[1];
-                        v[2] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[2];
+                        v[0] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[0] * p.accFac();
+                        v[1] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[1] * p.accFac();
+                        v[2] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[2] * p.accFac();
                         if (wp->SPHoptions->doSPHForces && pkdIsGas(pkd, wp->pPart[i])) {
                             auto &NewSph = p.newsph();
                             NewSph.u += wp->kick->dtOpen[p.rung()] * NewSph.uDot;
@@ -997,6 +994,13 @@ int pkdGravInteract(PKD pkd,
         queueSPHForces( pkd, wp, pkd->ilp, bGPU);
         if (SPHoptions->doCentrifugal) {
             addCentrifugalAcceleration(pkd, wp);
+        }
+        if (wp->SPHoptions->doExternalAcceleration) {
+            for (int i=0; i< wp->nP; i++) {
+                wp->pInfoOut[i].a[0] += wp->SPHoptions->externalAccelerationX;
+                wp->pInfoOut[i].a[1] += wp->SPHoptions->externalAccelerationY;
+                wp->pInfoOut[i].a[2] += wp->SPHoptions->externalAccelerationZ;
+            }
         }
     }
 
