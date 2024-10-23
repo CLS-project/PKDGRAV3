@@ -631,7 +631,7 @@ private:
 #if defined(USE_MFM) && defined(MFM_FLUX_CORRECTION)
         const dtype cs_p{sqrt(dConstGamma*pP/pDensity)};
         const dtype cs_q{sqrt(dConstGamma*qP/qDensity)};
-        mtype cond{(S_M/min(cs_p,cs_q)) < 0.6};
+        mtype cond{abs(S_M/min(cs_p,cs_q)) < 0.6};
         if (movemask(cond)) {
             const dtype dU_mfm_p = pVpredx*F_v[0] + pVpredy*F_v[1] + pVpredz*F_v[2] - F_p;
             const dtype dU_mfm_q = F_p - qVpredx*F_v[0] - qVpredy*F_v[1] - qVpredz*F_v[2];
