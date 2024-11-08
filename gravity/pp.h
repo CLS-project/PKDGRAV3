@@ -292,7 +292,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr, scaledPdWdr;
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, hij, dvdotdx, muij, Piij;
-    F POneOverRho2, IOneOverRho2, minusImOverRho;
+    F POneOverRho2, IOneOverRho2, PminusPointFiveOverRho, IminusPointFiveOverRho;
     F selectiveStrengthFactor;
     F plus_one = 1.0f;
 
@@ -389,29 +389,31 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
             result.ay += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
             result.az += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
 
-            result.uDot -= selectiveStrengthFactor * Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
+            result.uDot -= 0.5f * selectiveStrengthFactor * Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
+            result.uDot -= 0.5f * selectiveStrengthFactor * Im * IOneOverRho2 * (dvx * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz) + dvy * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz) + dvz * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
 
-            minusImOverRho = -Im / Irho * selectiveStrengthFactor;
+            PminusPointFiveOverRho = -0.5f / Prho * selectiveStrengthFactor;
+            IminusPointFiveOverRho = -0.5f / Irho * selectiveStrengthFactor;
 
-            result.dvxdx = minusImOverRho * dvx * PdWdx;
-            result.dvxdy = minusImOverRho * dvx * PdWdy;
-            result.dvxdz = minusImOverRho * dvx * PdWdz;
-            result.dvydx = minusImOverRho * dvy * PdWdx;
-            result.dvydy = minusImOverRho * dvy * PdWdy;
-            result.dvydz = minusImOverRho * dvy * PdWdz;
-            result.dvzdx = minusImOverRho * dvz * PdWdx;
-            result.dvzdy = minusImOverRho * dvz * PdWdy;
-            result.dvzdz = minusImOverRho * dvz * PdWdz;
+            result.dvxdx = Im * dvx * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.dvxdy = Im * dvx * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.dvxdz = Im * dvx * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+            result.dvydx = Im * dvy * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.dvydy = Im * dvy * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.dvydz = Im * dvy * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+            result.dvzdx = Im * dvz * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.dvzdy = Im * dvz * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.dvzdz = Im * dvz * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
 
-            result.Cinvxx = minusImOverRho * dx * PdWdx;
-            result.Cinvxy = minusImOverRho * dx * PdWdy;
-            result.Cinvxz = minusImOverRho * dx * PdWdz;
-            result.Cinvyx = minusImOverRho * dy * PdWdx;
-            result.Cinvyy = minusImOverRho * dy * PdWdy;
-            result.Cinvyz = minusImOverRho * dy * PdWdz;
-            result.Cinvzx = minusImOverRho * dz * PdWdx;
-            result.Cinvzy = minusImOverRho * dz * PdWdy;
-            result.Cinvzz = minusImOverRho * dz * PdWdz;
+            result.Cinvxx = Im * dx * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.Cinvxy = Im * dx * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.Cinvxz = Im * dx * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+            result.Cinvyx = Im * dy * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.Cinvyy = Im * dy * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.Cinvyz = Im * dy * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+            result.Cinvzx = Im * dz * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.Cinvzy = Im * dz * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.Cinvzz = Im * dz * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
         }
 
         // physical divv as used in gasoline
