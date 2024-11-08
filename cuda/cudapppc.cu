@@ -80,7 +80,7 @@ __device__ __forceinline__ auto evalInteraction(const gpu::sphForceInput pp,cons
             blk->vx[i], blk->vy[i], blk->vz[i], blk->rho[i], blk->P[i], blk->c[i], blk->rung[i], blk->iMat[i], blk->isGas[i],
             blk->Sxx[i], blk->Syy[i], blk->Sxy[i], blk->Sxz[i], blk->Syz[i],
             SPHoptions.kernelType, SPHoptions.epsilon, SPHoptions.alpha, SPHoptions.beta,
-            SPHoptions.EtaCourant, SPHoptions.a, SPHoptions.H, SPHoptions.useIsentropic);
+            SPHoptions.EtaCourant, SPHoptions.a, SPHoptions.H, SPHoptions.useIsentropic, SPHoptions.disableStressAtInterface);
 }
 
 /// Evaluate a single P-C interaction

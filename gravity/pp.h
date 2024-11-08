@@ -272,7 +272,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung, F IiMat, F IisGas,
     F ISxx, F ISyy, F ISxy, F ISxz, F ISyz,
     int kernelType, float epsilon, float alpha, float beta,
-    float EtaCourant,float a,float H,bool useIsentropic) {
+    float EtaCourant,float a,float H,bool useIsentropic, bool disableStressAtInterface) {
     ResultSPHForces<F,doShearStrengthModel> result;
     F isGasInteraction = PisGas * IisGas;
     if (testz(isGasInteraction == 1.0f)) {
@@ -376,9 +376,14 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
 
         // No transformation back into cosmology units, as strength makes no sense in cosmology. This saves multiplications.
         if (doShearStrengthModel) {
-            // Disable the interaction of different materials via strength.
-            mask1 = PiMat == IiMat;
-            selectiveStrengthFactor = maskz_mov(mask1,plus_one);
+            if (disableStressAtInterface) {
+                // Disable the interaction of different materials via strength.
+                mask1 = PiMat == IiMat;
+                selectiveStrengthFactor = maskz_mov(mask1,plus_one);
+            }
+            else {
+                selectiveStrengthFactor = plus_one;
+            }
 
             result.ax += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + IOneOverRho2 * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz));
             result.ay += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));

@@ -1350,6 +1350,11 @@ flag="ShearStrengthModel"
 default=false
 help="Enables the shear strength model for HYDRO_MODEL.SPH."
 
+["Gas".bDisableStressAtInterface]
+flag="DisableStressAtInterface"
+default=false
+help="Disables stress interactions at interfaces between materials for the shear strength model for HYDRO_MODEL.SPH."
+
 ["Gas".bMeshlessHydro]
 flag="meshless"
 default=false

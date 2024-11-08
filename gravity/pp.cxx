@@ -200,7 +200,7 @@ template<typename BLOCK, bool doShearStrengthModel> struct ilist::EvalBlock<Resu
                           blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],blk.iMat.v[i],blk.isGas.v[i],
                           blk.Sxx.v[i], blk.Syy.v[i], blk.Sxy.v[i], blk.Sxz.v[i], blk.Syz.v[i],
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
-                          SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
+                          SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic,SPHoptions->disableStressAtInterface);
         }
         return result;
     }
