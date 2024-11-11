@@ -219,7 +219,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
         if (*omega < 0)
             Neff = - *omega;
 
-        double dConvFac = .5;
+        double dConvFac = 0.5;
         do {
             const auto pH = partj.ball();
             TinyVector<double,6> E;
@@ -243,6 +243,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                         // of neighbours and repeat the iterative procedure
                         Neff *= 1.2;
                         niter = 0;
+                        dConvFac = 0.5;
                         continue;
                     }
                     else {
@@ -256,6 +257,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                     // the effective number of ngb is increased
                     Neff *= 1.2;
                     niter = 0;
+                    dConvFac = 0.5;
                     continue;
                 }
 
@@ -309,6 +311,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                             // the effective number of nn is increased
                             Neff *= 1.2;
                             niter = 0;
+                            dConvFac = 0.5;
                             onLowerLimit = 0;
                             continue;
                         }
