@@ -31,10 +31,6 @@ void MSR::SetStellarEvolutionParam() {
     }
 
     calc.dWindSpecificEkin = 0.5 * pow(parameters.get_dStellarWindSpeed() / units.dKmPerSecUnit, 2);
-    /* The number of gas particles to enrich is set to the average number of
-       neighbours within a smoothing length. The factor 0.5 comes from the cubic
-       spline kernel used by the hydro */
-    calc.nSmoothEnrich = 0.5 * parameters.get_nSmooth();
 }
 
 void MSR::StellarEvolutionInit(double dTime) {

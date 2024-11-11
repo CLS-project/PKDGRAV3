@@ -87,7 +87,6 @@ struct CALC {
     double dBHFBEcrit;
 #endif
 #ifdef STELLAR_EVOLUTION
-    int nSmoothEnrich;
     double dWindSpecificEkin;
     double dSNIaNorm;
     double dSNIaScale;

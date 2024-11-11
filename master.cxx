@@ -3221,7 +3221,7 @@ int MSR::NewTopStepKDK(
 #endif
 #ifdef STELLAR_EVOLUTION
     if (parameters.get_bChemEnrich()) {
-        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,calc.nSmoothEnrich);
+        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,parameters.get_nSmooth());
     }
 #endif
 #endif
@@ -3410,7 +3410,7 @@ void MSR::TopStepKDK(
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
         if (parameters.get_bChemEnrich()) {
-            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,calc.nSmoothEnrich);
+            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,parameters.get_nSmooth());
         }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);
