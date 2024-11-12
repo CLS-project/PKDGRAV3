@@ -147,6 +147,7 @@ typedef struct {
     uint64_t disableStressAtInterface : 1;
     uint64_t evolveDensity : 1;
     uint64_t doExternalAcceleration : 1;
+    uint64_t disableShockHeating : 1;
 } SPHOptions;
 
 typedef struct {
@@ -154,6 +155,7 @@ typedef struct {
     bool doInterfaceCorrection;
     bool useIsentropic;
     bool disableStressAtInterface;
+    bool disableShockHeating;
     float epsilon;
     float alpha;
     float beta;

@@ -272,7 +272,7 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung, F IiMat, F IisGas,
     F ISxx, F ISyy, F ISxy, F ISxz, F ISyz,
     int kernelType, float epsilon, float alpha, float beta,
-    float EtaCourant,float a,float H,bool useIsentropic, bool disableStressAtInterface) {
+    float EtaCourant,float a,float H,bool useIsentropic, bool disableStressAtInterface, bool disableShockHeating) {
     ResultSPHForces<F,doShearStrengthModel> result;
     F isGasInteraction = PisGas * IisGas;
     if (testz(isGasInteraction == 1.0f)) {
@@ -362,11 +362,12 @@ PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
         Piij = (-alpha * cij * muij + beta * muij * muij) / rhoij;
 
         // du/dt
-        if (useIsentropic) {
-            result.uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        result.uDot = 0.0f;
+        if (!disableShockHeating) {
+            result.uDot += 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
-        else {
-            result.uDot = Im * (PP * POneOverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz) + 0.5f * Piij * (dvx * dWdx + dvy * dWdy + dvz * dWdz));
+        if (!useIsentropic) {
+            result.uDot += Im * PP * POneOverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz);
         }
 
         // acceleration
