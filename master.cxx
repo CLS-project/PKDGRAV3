@@ -1241,7 +1241,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
                 | (bDouble?FIO_FLAG_CHECKPOINT:0)
                 | (parameters.get_bDoublePos()?FIO_FLAG_DOUBLE_POS:0)
                 | (parameters.get_bDoubleVel()?FIO_FLAG_DOUBLE_VEL:0)
-                | (parameters.get_bMemParticleID()?FIO_FLAG_ID:0)
+                | ((parameters.get_bMemParticleID()||MeshlessHydro())?FIO_FLAG_ID:0)
                 | (parameters.get_bMemMass()?0:FIO_FLAG_COMPRESS_MASS)
                 | (parameters.get_bMemSoft()?0:FIO_FLAG_COMPRESS_SOFT)
                 | (parameters.has_dSoft()?FIO_FLAG_GLOBAL_SOFT:0)
