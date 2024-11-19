@@ -343,6 +343,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
 
     // Make sure that the tree is usable before the start of the simulation
     if (bDoStartFof || bDoStartOutput) {
+        ReorderExtra();
         DomainDecomp();
         BuildTree(bEwald);
     }

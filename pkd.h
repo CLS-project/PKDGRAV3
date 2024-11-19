@@ -389,7 +389,10 @@ public:
     extraStore extra;
     treeStore tree;
     int FreeStore() { return particles.FreeStore(); }
+    int FreeExtraStore() { return extra.FreeStore(); }
+    // I do not like at all the name "Local" for indicating the number of particles...
     int Local() { return particles.Local(); }
+    int ExtraLocal() { return extra.Local(); }
     int SetLocal(int n);
     int AddLocal(int n);
     auto EphemeralBytes() {return nEphemeralBytes; }
@@ -399,6 +402,7 @@ public:
     auto ExtraMemory() { return extra.ElementSize() * (extra.FreeStore()+1); }
     auto ParticleMemory() { return (particles.ParticleSize() + EphemeralBytes()) * (FreeStore()+1) + ExtraMemory(); }
     PARTICLE *Particle(int i) { return particles.Element(i); }
+    meshless::EXTRAFIELDS *Extra(int i) { return extra.Element(i); }
 
     void SaveParticle(PARTICLE *a) {
         memcpy(pTempPRIVATE,a,particles.ParticleSize());
@@ -409,7 +413,9 @@ public:
     void CopyParticle(PARTICLE *a, PARTICLE *b) {
         memcpy(a,b,particles.ParticleSize());
     }
-
+    void CopyExtra(meshless::EXTRAFIELDS *a, meshless::EXTRAFIELDS *b) {
+        memcpy(a,b,extra.ExtraSize());
+    }
 public:
     auto Nodes() const {
         return tree.Nodes();
@@ -752,6 +758,7 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
 void pkdGravEvalPC(const PINFOIN &pPart, ilcTile &tile, PINFOOUT &pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas,int bGasEvolveDensity);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
+void pkdReorderExtra(PKD pkd);
 #ifdef OPTIM_REORDER_IN_NODES
     void pkdReorderWithinNodes(PKD pkd);
 #endif

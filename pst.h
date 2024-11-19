@@ -156,6 +156,7 @@ enum pst_service {
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
 #endif
+    PST_REORDEREXTRA,
 #ifdef OPTIM_REORDER_IN_NODES
     PST_REORDERINNODES,
 #endif

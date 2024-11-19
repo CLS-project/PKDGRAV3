@@ -41,6 +41,7 @@
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "core/ignoresigbus.h"
+#include "core/extrareorder.h"
 
 #include "io/service.h"
 #include "io/restore.h"
@@ -143,6 +144,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceRsSaveIds>(pst));
     mdl->AddService(std::make_unique<ServiceRsReorderIds>(pst));
     mdl->AddService(std::make_unique<ServiceRsExtract>(pst));
+    mdl->AddService(std::make_unique<ServiceReorderExtra>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceDomainDecomp>(pst));
 #ifdef NEW_REORDER
     mdl->AddService(std::make_unique<NewDD::ServiceReorder>(pst));

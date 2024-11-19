@@ -30,7 +30,6 @@
 #include "datastore.h"
 #include "element.h"
 #include "meshless.h"
-#include "particle.h"
 
 // This should be in a different header file
 enum class EXTRA_FIELD {
@@ -43,13 +42,14 @@ enum class EXTRA_FIELD {
 };
 
 class extraStore : public dataStore<meshless::EXTRAFIELDS, EXTRA_FIELD> {
-private:
-    uint64_t nUsed = 0;
 public:
     void initialize() {
     }
+    auto ExtraSize() const {return ElementSize(); }
+    void Add(int i) { SetLocal(Local()+i); }
     uint64_t append() {
-        return nUsed++;
+        SetLocal(Local()+1);
+        return Local()-1; //NB: we return the index, not the number
     }
     // auto &MFM( PARTICLE *p ) const {
     //     return get<meshless::FIELDS>(p,EXTRA_FIELD::oMFM);
@@ -98,6 +98,9 @@ public:
     auto operator[](int i) {
         return ExtraFieldReference(*this,i);
     }
+    auto operator[](meshless::EXTRAFIELDS *e) {
+        return ExtraFieldReference(*this,e);
+    }
     // auto operator[](SingleReference<Particle> p) {
     //     auto i = p.extra_index();
     //     return ExtraFieldReference(*this,i);
@@ -108,5 +111,7 @@ public:
     // }
 
 };
+
+
 #endif //CORE_extra_H
 

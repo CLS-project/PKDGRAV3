@@ -33,7 +33,7 @@
 #include "bound.h"
 #include "io/fio.h"
 #include "meshless.h"
-#include "extra.h"
+#include "core/extra.h"
 
 #define PKD_MAX_CLASSES 256
 

@@ -175,6 +175,7 @@ public:
     void BuildTreeFixed(int bNeedEwald,uint8_t uRungDD);
     void BuildTreeActive(int bNeedEwald,uint8_t uRungDD);
     void BuildTreeMarked(int bNeedEwald=0);
+    void ReorderExtra();
 #ifdef OPTIM_SMOOTH_NODE
     void ReorderWithinNodes();
 #endif

@@ -1178,6 +1178,7 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
 
 #ifdef NAIVE_DOMAIN_DECOMP
     Reorder();
+    ReorderExtra();
 #else
     if ( iLastRungRT >= 0 ) Reorder();
 #endif
@@ -1926,6 +1927,11 @@ int MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric
     return out.nSmoothed;
 }
 #endif
+
+void MSR::ReorderExtra() {
+    printf("Reordering extra...\n");
+    mdl->RunService(PST_REORDEREXTRA,0,NULL,0);
+}
 
 #ifdef OPTIM_REORDER_IN_NODES
 void MSR::ReorderWithinNodes() {

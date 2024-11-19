@@ -15,6 +15,8 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/extra.h"
+#include "core/meshless.h"
 #ifdef HAVE_CONFIG_H
     #include "config.h"
 #else
@@ -2237,6 +2239,34 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     pkd->bnd = Bound(dMin,dMax);
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
 }
+
+void pkdReorderExtra(PKD pkd) {
+    for (uint32_t i=0; i<pkd->Local(); ++i) {
+        auto control = pkd->particles[i].sph().P;
+        uint64_t prev_index = pkd->particles[i].extra_index();
+        uint64_t new_index = static_cast<uint64_t>(i); // ONLY VALID FOR GAS-ONLY SIMULATIONS!!
+        if (prev_index != new_index) {
+            uint32_t lookahead = 1;
+            uint64_t ahead_index = pkd->particles[i+lookahead].extra_index();
+            // Look for the particle whose extra struct is in our objective index
+            while ( ahead_index != new_index ) {
+                lookahead++;
+                assert (lookahead + i <= pkd->Local());
+                ahead_index = pkd->particles[i+lookahead].extra_index();
+            }
+
+            auto a = pkd->extra[ahead_index];
+            auto b = pkd->extra[prev_index];
+            swap(a, b);
+
+            pkd->particles[i+lookahead].set_extra_index(prev_index);
+            pkd->particles[i].set_extra_index(new_index);
+
+        }
+        assert (pkd->particles[i].sph().P == control);
+    }
+}
+
 
 #ifdef OPTIM_REORDER_IN_NODES
 /// @brief Order particles in buckets by type
