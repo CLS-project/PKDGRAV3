@@ -469,6 +469,7 @@ public:
 
 public:
     int nRejects;
+    int nExtraRejects;
     int nActive;
     blitz::TinyVector<uint64_t,MAX_RUNG+1> nRung;
     uint64_t nDark;
@@ -718,15 +719,16 @@ int pkdActiveOrder(PKD);
 #define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
 void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod);
 void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved);
-int pkdColRejects(PKD,int);
-int pkdColRejects_Old(PKD,int,double,double,int);
+std::pair<int,int> pkdColRejects(PKD,int);
+std::pair<int,int> pkdColRejects_Old(PKD,int,double,double,int);
 
-int pkdSwapRejects(PKD,int);
+std::pair<int,int> pkdSwapRejects(PKD,int);
 int pkdSwapSpace(PKD);
+int pkdSwapExtraSpace(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 
-int pkdColOrdRejects(PKD,uint64_t,int);
+std::pair<int,int> pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,

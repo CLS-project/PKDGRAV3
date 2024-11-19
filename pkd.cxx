@@ -1215,13 +1215,27 @@ int pkdActiveOrder(PKD pkd) {
     return (pkd->nActive = i - pkd->particles.begin());
 }
 
-int pkdColRejects(PKD pkd,int nSplit) {
-    int iRejects,i;
+std::pair<int,int> pkdColRejects(PKD pkd,int nSplit) {
+    int iRejects,iExtraRejects,i;
 
     mdlassert(pkd->mdl,pkd->nRejects == 0);
+    mdlassert(pkd->mdl,pkd->nExtraRejects == 0);
 
     pkd->nRejects = pkd->Local() - nSplit;
     iRejects = pkd->FreeStore() - pkd->nRejects;
+
+
+    // Assume that the decorators have been reordered
+    int nExtraSplit = nSplit==pkd->Local()?pkd->ExtraLocal():pkd->particles[nSplit].extra_index();
+    pkd->nExtraRejects = pkd->ExtraLocal() - nExtraSplit;
+    iExtraRejects = pkd->FreeExtraStore() - pkd->nExtraRejects;
+
+    // printf("splits %d \t %d %d\n", pkd->Self(), nSplit, nExtraSplit);
+    // printf("rejects %d \t %d %d\n", pkd->Self(), pkd->nRejects, pkd->nExtraRejects);
+    // printf("locals %d \t %d %d\n", pkd->Self(), pkd->Local(), pkd->ExtraLocal());
+
+    // Only for gas only sims
+    assert(nSplit==nExtraSplit);
     /*
     ** Move rejects to High memory.
     */
@@ -1230,23 +1244,73 @@ int pkdColRejects(PKD pkd,int nSplit) {
             pkd->particles[iRejects+i] = pkd->particles[nSplit+i];
     }
     pkd->SetLocal(nSplit);
-    return (pkd->nRejects);
+    pkd->extra.SetLocal(nExtraSplit);
+
+    // Same for decorators
+    if (pkd->ExtraLocal() != pkd->FreeExtraStore()) {
+        for (i=pkd->nExtraRejects-1; i>=0; --i)
+            pkd->extra[iExtraRejects+i] = pkd->extra[nExtraSplit+i];
+    }
+
+    return std::pair<int,int>(pkd->nRejects, pkd->nExtraRejects);
 }
 
-int pkdSwapRejects(PKD pkd,int idSwap) {
+std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
     size_t nBuf;
     size_t nOutBytes,nSndBytes,nRcvBytes;
+    size_t nOutExtraBytes,nSndExtraBytes,nRcvExtraBytes;
+    size_t nPartRejects, nExtraRejects;
+
+    auto oldLocal = pkd->Local();
+    auto oldExtraLocal = pkd->ExtraLocal();
+
+    // for (auto i=0; i<pkd->Local(); i++)
+    //     printf("%d \t %d - %d\n", pkd->Self(), i, pkd->particles[i].extra_index());
+    // abort();
 
     if (idSwap != -1) {
+        printf("%d have %d(%d) rejects\n", pkd->Self(), pkd->nRejects, pkd->nExtraRejects);
         nBuf = (pkdSwapSpace(pkd))*pkd->particles.ParticleSize();
+
         nOutBytes = pkd->nRejects*pkd->particles.ParticleSize();
+        nOutExtraBytes = pkd->nExtraRejects*pkd->extra.ExtraSize();
+
         mdlassert(pkd->mdl,pkd->Local() + pkd->nRejects <= pkd->FreeStore());
-        mdlSwap(pkd->mdl,idSwap,nBuf,pkd->Particle(pkd->Local()),
-                nOutBytes,&nSndBytes,&nRcvBytes);
+        // Swap the particles
+        auto outPart = mdlSwap(pkd->mdl,idSwap,nBuf,pkd->Particle(pkd->Local()),
+                               nOutBytes,&nSndBytes,&nRcvBytes);
+        // and their decorators
+        // NB: same element size as particles, to always swap the same amount
+        // of elements!
+        nBuf = (pkdSwapSpace(pkd))*pkd->extra.ExtraSize();
+        auto outExtra = mdlSwap(pkd->mdl,idSwap,nBuf,pkd->Extra(pkd->ExtraLocal()),
+                                nOutExtraBytes,&nSndExtraBytes,&nRcvExtraBytes);
+
+        // printf("%d %d \t %d \t %" PRIu64 "\t %" PRIu64 "\t %" PRIu64 "\n",
+        //         pkd->Self(), outPart, pkd->nRejects, nOutBytes, nSndBytes, nRcvBytes);
+
         pkd->AddLocal(nRcvBytes/pkd->particles.ParticleSize());
-        pkd->nRejects -= nSndBytes/pkd->particles.ParticleSize();
+        pkd->extra.Add(nRcvExtraBytes/pkd->extra.ExtraSize());
+
+        nPartRejects = nSndBytes/pkd->particles.ParticleSize();
+        nExtraRejects = nSndExtraBytes/pkd->extra.ExtraSize();
+        printf("%d (%d/%d) swapped with %d a total of %d(%d) elements, changing the count from %d(%d) to %d(%d)\n",
+               pkd->Self(), outPart, outExtra, idSwap, nPartRejects, nExtraRejects,
+               oldLocal, oldExtraLocal, pkd->Local(), pkd->ExtraLocal());
+        //assert (nPartRejects == nExtraRejects); // only for gas-only simulations
+
+        pkd->nRejects -= nPartRejects;
+        pkd->nExtraRejects -= nExtraRejects;
+        printf("%d have %d(%d) remaining rejects\n", pkd->Self(), pkd->nRejects, pkd->nExtraRejects);
+        //assert(outPart==1);
+        //assert(outExtra==1);
+
+        // Bookkeep so that newly arrived particles have the correct extra index
+        for (auto i=oldLocal; i<pkd->Local(); i++)
+            pkd->particles[i].set_extra_index(i);
+
     }
-    return (pkd->nRejects);
+    return std::pair<int,int>(pkd->nRejects, pkd->nExtraRejects);
 }
 
 void pkdSwapAll(PKD pkd, int idSwap) {
@@ -1261,16 +1325,34 @@ void pkdSwapAll(PKD pkd, int idSwap) {
     iBuf = pkdSwapSpace(pkd);
     for (i=pkd->Local()-1; i>=0; --i)
         pkd->CopyParticle(pkd->Particle(iBuf+i),pkd->Particle(i));
+
     nBuf = pkd->FreeStore()*pkd->particles.ParticleSize();
     nOutBytes = pkd->Local()*pkd->particles.ParticleSize();
     mdlSwap(pkd->mdl,idSwap,nBuf,pkd->particles, nOutBytes,
             &nSndBytes, &nRcvBytes);
     mdlassert(pkd->mdl,nSndBytes/pkd->particles.ParticleSize() == pkd->Local());
+    printf("(part) %d swap with %d, old %d new %d\n", pkd->Self(), idSwap, pkd->Local(), int(nRcvBytes/pkd->particles.ParticleSize()));
     pkd->SetLocal(nRcvBytes/pkd->particles.ParticleSize());
+    /*
+    ** Repeat for decorator.
+    */
+    iBuf = pkdSwapExtraSpace(pkd);
+    for (i=pkd->ExtraLocal()-1; i>=0; --i)
+        pkd->CopyExtra(pkd->Extra(iBuf+i),pkd->Extra(i));
+    nBuf = pkd->FreeExtraStore()*pkd->extra.ExtraSize();
+    nOutBytes = pkd->ExtraLocal()*pkd->extra.ExtraSize();
+    mdlSwap(pkd->mdl,idSwap,nBuf,pkd->extra, nOutBytes,
+            &nSndBytes, &nRcvBytes);
+    mdlassert(pkd->mdl,nSndBytes/pkd->extra.ExtraSize() == pkd->ExtraLocal());
+    printf("(extra) %d swap with %d, old %d new %d\n", pkd->Self(), idSwap, pkd->ExtraLocal(), int(nRcvBytes/pkd->extra.ExtraSize()));
+    pkd->extra.SetLocal(nRcvBytes/pkd->extra.ExtraSize());
 }
 
 int pkdSwapSpace(PKD pkd) {
     return (pkd->FreeStore() - pkd->Local());
+}
+int pkdSwapExtraSpace(PKD pkd) {
+    return (pkd->FreeExtraStore() - pkd->ExtraLocal());
 }
 
 int pkdActive(PKD pkd) {
@@ -1290,7 +1372,7 @@ void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize) {
     return pkd->tree[i];
 }
 
-int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
+std::pair<int,int> pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
     int nSplit;
     if (iSplitSide) nSplit = pkdLowerOrdPart(pkd,nOrdSplit,0,pkd->Local()-1);
     else nSplit = pkdUpperOrdPart(pkd,nOrdSplit,0,pkd->Local()-1);
