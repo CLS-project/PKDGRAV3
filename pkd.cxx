@@ -1590,18 +1590,47 @@ struct packWriteCtx {
     double dvFac;
     double dTuFac;
     int iIndex;
+    int iExtraIndex;
 };
 
 static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packWriteCtx *ctx = (struct packWriteCtx *)vctx;
-    PKD pkd = ctx->pkd;
-    auto p = &pkd->particles[static_cast<PARTICLE *>(vBuff)];
-    int n = nSize / pkd->particles.ParticleSize();
     int i;
+    PKD pkd = ctx->pkd;
+    if (nSize==0)
+        return 0;
     double dvFacGas = sqrt(ctx->dvFac);
-    assert( n*pkd->particles.ParticleSize() == nSize);
-    for (i=0; i<n; ++i,++p) {
-        writeParticle(pkd,ctx->fio,ctx->dvFac,dvFacGas,ctx->bnd,*p);
+
+    // Retrieve number of particles/decorators
+    auto nPart = static_cast<uint64_t *>(vBuff)[0];
+    auto nExtra = static_cast<uint64_t *>(vBuff)[1];
+    // Position of the particle buffer
+    auto pStart = &static_cast<uint64_t *>(vBuff)[2];
+    // Position of the decorator buffer
+    meshless::EXTRAFIELDS *dStart = (meshless::EXTRAFIELDS *)((char *)(pStart)+
+                                    nPart * pkd->particles.ParticleSize());
+
+    auto p = &pkd->particles[reinterpret_cast<PARTICLE *>(pStart)];
+    assert( nPart*pkd->particles.ParticleSize() +
+            nExtra*pkd->extra.ExtraSize() + 2*sizeof(uint64_t) == nSize);
+
+    auto nFree = pkd->FreeExtraStore();
+    assert(nFree > 0);
+    for (i=0; i<nPart; ++i,++p) {
+        particleStore::Particle &P = *p;
+        // It would be interesting to implement a have_decorator
+        if (P.have_sph()) {
+            // We could use the very last element in the extra
+            // store?
+            // This options implies quite a lot of memory copy..
+            // so it should be improved if IO is found to be a
+            // bottleneck
+            P.set_extra_index(pkd->ExtraLocal()-1);
+            memcpy(pkd->Extra(pkd->ExtraLocal()-1), dStart, sizeof(meshless::EXTRAFIELDS));
+            //printf("%e %e \n", d.sph.Uint, pkd->Extra(pkd->ExtraLocal()-1)->sph.Uint);
+            dStart++;
+        }
+        writeParticle(pkd,ctx->fio,ctx->dvFac,dvFacGas,ctx->bnd,P);
     }
     return 1;
 }
@@ -1614,6 +1643,7 @@ void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Boun
     ctx.dvFac = dvFac;
     ctx.dTuFac = dTuFac;
     ctx.iIndex = 0;
+    ctx.iExtraIndex = 0;
 #ifdef MPI_VERSION
     mdlRecv(pkd->mdl,iNode,unpackWrite,&ctx);
 #endif
@@ -1626,13 +1656,39 @@ void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Boun
 static int packWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packWriteCtx *ctx = (struct packWriteCtx *)vctx;
     PKD pkd = ctx->pkd;
-    int nLeft = pkd->Local() - ctx->iIndex;
-    int n = nSize / pkd->particles.ParticleSize();
-    if ( n > nLeft ) n = nLeft;
-    nSize = n*pkd->particles.ParticleSize();
-    memcpy(vBuff,pkd->Particle(ctx->iIndex), nSize );
-    ctx->iIndex += n;
-    return nSize;
+    int nExtra = 0, nPart=0;
+    int i=ctx->iIndex;
+    // Extra count information sent at the start of the buffer
+    // indicating number of particles and decorators
+    auto n = 2*sizeof(uint64_t);
+
+    auto pSize = pkd->particles.ParticleSize();
+    auto dSize = pkd->extra.ExtraSize();
+    while (n < nSize-(pSize+dSize)  && i < pkd->Local()) {
+        n += pSize;
+        if (pkd->particles[i].have_sph()) {
+            n+=dSize;
+            nExtra++;
+        }
+        nPart++;
+        i++;
+    }
+    auto nPartSize = nPart*pSize;
+    auto nExtraSize = nExtra*dSize;
+
+    auto nBuff = static_cast<uint64_t *>(vBuff);
+    nBuff[0] = nPart;
+    nBuff[1] = nExtra;
+    memcpy(static_cast<char *>(vBuff)+2*sizeof(uint64_t),pkd->Particle(ctx->iIndex), nPartSize );
+    memcpy(static_cast<char *>(vBuff)+2*sizeof(uint64_t)+nPartSize,pkd->Extra(ctx->iExtraIndex), nExtraSize );
+    //for (auto i=ctx->iExtraIndex; i<ctx->iExtraIndex+nExtra; i++)
+    //    printf("pre %e \n", pkd->Extra(i)->sph.Uint);
+    ctx->iIndex += nPart;
+    ctx->iExtraIndex += nExtra;
+    if (nPart)
+        return n;
+    else
+        return 0;
 }
 
 /* Send all particled data to the specified node for writing */
@@ -1642,6 +1698,7 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
     ctx.fio = NULL;
     ctx.dvFac = 1.0;
     ctx.iIndex = 0;
+    ctx.iExtraIndex = 0;
 #ifdef MPI_VERSION
     mdlSend(pkd->mdl,iNode,packWrite, &ctx);
 #endif
