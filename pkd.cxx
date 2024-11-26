@@ -358,8 +358,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
-    extra.add<meshless::FIELDS>(EXTRA_FIELD::oMFM, "MFM");
-    extra.add<meshless::MFV>(EXTRA_FIELD::oMFV, "MFV");
+    //extra.add<meshless::EXTRAFIELDS>(EXTRA_FIELD::oMFM, "MFM");
+    //extra.add<meshless::MFV>(EXTRA_FIELD::oMFV, "MFV");
     extra.commit();
 
     particles.initialize(this->bIntegerPosition,this->bNoParticleOrder, &extra);
@@ -378,7 +378,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** 64 bit integer.
     */
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
-    if ( mMemoryModel ) particles.add<uint64_t>(PKD_FIELD::oExtra,"extra");
+    if ( mMemoryModel ) particles.add<meshless::EXTRAFIELDS *>(PKD_FIELD::oExtra,"extra");
 
     if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
         auto gas = particles.overlay(PKD_FIELD::oSph);
@@ -1240,17 +1240,23 @@ std::pair<int,int> pkdColRejects(PKD pkd,int nSplit) {
     ** Move rejects to High memory.
     */
     if (pkd->Local() != pkd->FreeStore()) {
-        for (i=pkd->nRejects-1; i>=0; --i)
+        for (i=pkd->nRejects-1; i>=0; --i) {
             pkd->particles[iRejects+i] = pkd->particles[nSplit+i];
+            assert( pkd->particles[iRejects+i].mass() == pkd->particles[nSplit+i].mass());
+            assert( pkd->particles[iRejects+i].position(0) == pkd->particles[nSplit+i].position(0));
+        }
     }
-    pkd->SetLocal(nSplit);
-    pkd->extra.SetLocal(nExtraSplit);
 
     // Same for decorators
     if (pkd->ExtraLocal() != pkd->FreeExtraStore()) {
-        for (i=pkd->nExtraRejects-1; i>=0; --i)
+        for (i=pkd->nExtraRejects-1; i>=0; --i) {
             pkd->extra[iExtraRejects+i] = pkd->extra[nExtraSplit+i];
+            assert( pkd->Extra(nExtraSplit+i)->sph.Uint == pkd->Extra(iExtraRejects+i)->sph.Uint);
+        }
     }
+
+    pkd->SetLocal(nSplit);
+    pkd->extra.SetLocal(nExtraSplit);
 
     return std::pair<int,int>(pkd->nRejects, pkd->nExtraRejects);
 }
@@ -1258,56 +1264,106 @@ std::pair<int,int> pkdColRejects(PKD pkd,int nSplit) {
 std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
     size_t nBuf;
     size_t nOutBytes,nSndBytes,nRcvBytes;
-    size_t nOutExtraBytes,nSndExtraBytes,nRcvExtraBytes;
-    size_t nPartRejects, nExtraRejects;
+    size_t nOutExtraBytes,nSndExtraBytes,nRcvExtraBytes,nSkipBytes;
 
     auto oldLocal = pkd->Local();
     auto oldExtraLocal = pkd->ExtraLocal();
-
-    // for (auto i=0; i<pkd->Local(); i++)
-    //     printf("%d \t %d - %d\n", pkd->Self(), i, pkd->particles[i].extra_index());
-    // abort();
 
     if (idSwap != -1) {
         printf("%d have %d(%d) rejects\n", pkd->Self(), pkd->nRejects, pkd->nExtraRejects);
         nBuf = (pkdSwapSpace(pkd))*pkd->particles.ParticleSize();
 
         nOutBytes = pkd->nRejects*pkd->particles.ParticleSize();
-        nOutExtraBytes = pkd->nExtraRejects*pkd->extra.ExtraSize();
 
         mdlassert(pkd->mdl,pkd->Local() + pkd->nRejects <= pkd->FreeStore());
         // Swap the particles
         auto outPart = mdlSwap(pkd->mdl,idSwap,nBuf,pkd->Particle(pkd->Local()),
                                nOutBytes,&nSndBytes,&nRcvBytes);
-        // and their decorators
-        // NB: same element size as particles, to always swap the same amount
-        // of elements!
-        nBuf = (pkdSwapSpace(pkd))*pkd->extra.ExtraSize();
-        auto outExtra = mdlSwap(pkd->mdl,idSwap,nBuf,pkd->Extra(pkd->ExtraLocal()),
-                                nOutExtraBytes,&nSndExtraBytes,&nRcvExtraBytes);
+
+
+
+        auto nNewPart = nRcvBytes/pkd->particles.ParticleSize();
+        auto nSentPart = nSndBytes/pkd->particles.ParticleSize();
+        if (!outPart)
+            printf("%d tried to swap %d with %d, but only sent %d and received %d\n",
+                   pkd->Self(), pkd->nRejects, idSwap, nSentPart, nNewPart);
+
+        pkd->AddLocal(nNewPart);
+
+        // Make sure that we have enough space for receiving the associated
+        // decorators to the newly arrived particles
+        int nNewExtra = 0;
+        for (auto i=oldLocal; i<pkd->Local(); i++) {
+            if (pkd->particles[i].is_gas()) {
+                nNewExtra++;
+            }
+        }
+        assert(nNewExtra < pkdSwapExtraSpace(pkd));
+        // Also only share now the associated decorators to the particles that
+        // we have just sen
+        int nToBeSendExtra = 0;
+        // NOT sure about if this should be
+        //    [oldLocal - nSentPart, oldLocal]
+        // or
+        //    [pkd->nRejects, pkd->nRejects+nSentPart]
+        // Basically, if we did not send all our buffer, which part was left to send?
+        // The beginning or the end? I think that as pkd->nRejects is updated below
+        // the sent part starts from pkd->nRejects.
+        //for (auto i=pkd->nRejects; i<pkd->nRejects+nSentPart; i++) {
+        for (auto i=0; i<nSentPart; i++) {
+            if (pkd->particles[pkd->FreeStore()-pkd->nRejects+i].is_gas()) {
+                nToBeSendExtra++;
+            }
+        }
+
+        // i.e., sanity check, we are not miscounting the decorators
+        assert(nToBeSendExtra <= pkd->nExtraRejects);
+
+        // i.e., otherwise we can not be sure that we can get all the decorators
+        assert(pkdSwapSpace(pkd) <= pkdSwapExtraSpace(pkd));
+
+        nOutExtraBytes = pkd->nExtraRejects*pkd->extra.ExtraSize();
+        nSkipBytes = (pkd->nExtraRejects-nToBeSendExtra)*pkd->extra.ExtraSize();
+        nBuf = pkdSwapExtraSpace(pkd)*pkd->extra.ExtraSize();
+        //nBuf = nToBeSendExtra*pkd->extra.ExtraSize();
+
+        auto outExtra = mdlSwapSkip(pkd->mdl,idSwap,nBuf,pkd->Extra(pkd->ExtraLocal()),
+                                    nOutExtraBytes, nSkipBytes, &nSndExtraBytes,&nRcvExtraBytes);
+
+        auto nSentExtra = nSndExtraBytes/pkd->extra.ExtraSize();
+
+        // i.e., the swap was completed
+        assert(nSndExtraBytes == nOutExtraBytes-nSkipBytes);
+        // which should be the same as
+        assert(outExtra == 1);
+        // i.e., we received the correct amount of decorators
+        assert(nRcvExtraBytes == nNewExtra*pkd->extra.ExtraSize());
+        // i.e., same amount of particles and decorators was exchanged (only for gas-only sims)
+        assert(nRcvExtraBytes/pkd->extra.ExtraSize() == nRcvBytes/pkd->particles.ParticleSize());
 
         // printf("%d %d \t %d \t %" PRIu64 "\t %" PRIu64 "\t %" PRIu64 "\n",
         //         pkd->Self(), outPart, pkd->nRejects, nOutBytes, nSndBytes, nRcvBytes);
 
-        pkd->AddLocal(nRcvBytes/pkd->particles.ParticleSize());
         pkd->extra.Add(nRcvExtraBytes/pkd->extra.ExtraSize());
 
-        nPartRejects = nSndBytes/pkd->particles.ParticleSize();
-        nExtraRejects = nSndExtraBytes/pkd->extra.ExtraSize();
         printf("%d (%d/%d) swapped with %d a total of %d(%d) elements, changing the count from %d(%d) to %d(%d)\n",
-               pkd->Self(), outPart, outExtra, idSwap, nPartRejects, nExtraRejects,
+               pkd->Self(), outPart, outExtra, idSwap, nSentPart, nSentExtra,
                oldLocal, oldExtraLocal, pkd->Local(), pkd->ExtraLocal());
-        //assert (nPartRejects == nExtraRejects); // only for gas-only simulations
+        assert (nSentPart == nSentPart); // only for gas-only simulations
 
-        pkd->nRejects -= nPartRejects;
-        pkd->nExtraRejects -= nExtraRejects;
+        pkd->nRejects -= nSentPart;
+        pkd->nExtraRejects -= nSentExtra;
         printf("%d have %d(%d) remaining rejects\n", pkd->Self(), pkd->nRejects, pkd->nExtraRejects);
-        //assert(outPart==1);
-        //assert(outExtra==1);
 
         // Bookkeep so that newly arrived particles have the correct extra index
-        for (auto i=oldLocal; i<pkd->Local(); i++)
-            pkd->particles[i].set_extra_index(i);
+        uint64_t d = oldExtraLocal;
+        for (auto i=oldLocal; i<pkd->Local(); i++) {
+            auto P = pkd->particles[i];
+            if (P.is_gas()) {
+                P.set_extra_index(d);
+                d++;
+            }
+        }
 
     }
     return std::pair<int,int>(pkd->nRejects, pkd->nExtraRejects);
@@ -1346,6 +1402,18 @@ void pkdSwapAll(PKD pkd, int idSwap) {
     mdlassert(pkd->mdl,nSndBytes/pkd->extra.ExtraSize() == pkd->ExtraLocal());
     printf("(extra) %d swap with %d, old %d new %d\n", pkd->Self(), idSwap, pkd->ExtraLocal(), int(nRcvBytes/pkd->extra.ExtraSize()));
     pkd->extra.SetLocal(nRcvBytes/pkd->extra.ExtraSize());
+
+    // Handle the newly arrived pointers to the decorators
+    // Assume that they were ordered
+    uint64_t nExtra = 0;
+    for (auto i=0; i<pkd->Local(); ++i) {
+        auto p = pkd->particles[i];
+        if (p.is_gas()) {
+            p.set_extra_index(nExtra);
+            nExtra++;
+        }
+    }
+    assert(nExtra == pkd->ExtraLocal());
 }
 
 int pkdSwapSpace(PKD pkd) {
@@ -1529,6 +1597,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
 #ifdef HAVE_METALLICITY
                 otherData[2] = Sph.fMetalMass / fMass;
 #endif
+                //printf("writeParticle %e\n", Sph.Uint);
 
                 fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
                             Sph.Uint/fMass,metals.data(),ph,temperature,&otherData[0]);
@@ -1607,28 +1676,21 @@ static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     // Position of the particle buffer
     auto pStart = &static_cast<uint64_t *>(vBuff)[2];
     // Position of the decorator buffer
-    meshless::EXTRAFIELDS *dStart = (meshless::EXTRAFIELDS *)((char *)(pStart)+
-                                    nPart * pkd->particles.ParticleSize());
+    meshless::EXTRAFIELDS *dStart = reinterpret_cast<meshless::EXTRAFIELDS *>(reinterpret_cast<char *>(pStart)+ nPart * pkd->particles.ParticleSize());
+
+    printf("%d unpacking %d(%d) particles total %d \t %d\n", pkd->Self(), nPart, nExtra, nSize, reinterpret_cast<char *>(dStart) - reinterpret_cast<char *>(vBuff));
 
     auto p = &pkd->particles[reinterpret_cast<PARTICLE *>(pStart)];
+    auto d = &pkd->extra[reinterpret_cast<meshless::EXTRAFIELDS *>(dStart)];
     assert( nPart*pkd->particles.ParticleSize() +
             nExtra*pkd->extra.ExtraSize() + 2*sizeof(uint64_t) == nSize);
 
-    auto nFree = pkd->FreeExtraStore();
-    assert(nFree > 0);
     for (i=0; i<nPart; ++i,++p) {
         particleStore::Particle &P = *p;
         // It would be interesting to implement a have_decorator
-        if (P.have_sph()) {
-            // We could use the very last element in the extra
-            // store?
-            // This options implies quite a lot of memory copy..
-            // so it should be improved if IO is found to be a
-            // bottleneck
-            P.set_extra_index(pkd->ExtraLocal()-1);
-            memcpy(pkd->Extra(pkd->ExtraLocal()-1), dStart, sizeof(meshless::EXTRAFIELDS));
-            //printf("%e %e \n", d.sph.Uint, pkd->Extra(pkd->ExtraLocal()-1)->sph.Uint);
-            dStart++;
+        if (P.is_gas()) {
+            P.set_extra(d);
+            d++;
         }
         writeParticle(pkd,ctx->fio,ctx->dvFac,dvFacGas,ctx->bnd,P);
     }
@@ -1666,7 +1728,7 @@ static int packWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     auto dSize = pkd->extra.ExtraSize();
     while (n < nSize-(pSize+dSize)  && i < pkd->Local()) {
         n += pSize;
-        if (pkd->particles[i].have_sph()) {
+        if (pkd->particles[i].is_gas()) {
             n+=dSize;
             nExtra++;
         }
@@ -1681,8 +1743,7 @@ static int packWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     nBuff[1] = nExtra;
     memcpy(static_cast<char *>(vBuff)+2*sizeof(uint64_t),pkd->Particle(ctx->iIndex), nPartSize );
     memcpy(static_cast<char *>(vBuff)+2*sizeof(uint64_t)+nPartSize,pkd->Extra(ctx->iExtraIndex), nExtraSize );
-    //for (auto i=ctx->iExtraIndex; i<ctx->iExtraIndex+nExtra; i++)
-    //    printf("pre %e \n", pkd->Extra(i)->sph.Uint);
+
     ctx->iIndex += nPart;
     ctx->iExtraIndex += nExtra;
     if (nPart)
@@ -2381,9 +2442,12 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 
 void pkdReorderExtra(PKD pkd) {
     for (uint32_t i=0; i<pkd->Local(); ++i) {
-        auto control = pkd->particles[i].sph().P;
+        auto control = pkd->particles[i].sph().Uint;
+        assert (control > 0);
         uint64_t prev_index = pkd->particles[i].extra_index();
-        uint64_t new_index = static_cast<uint64_t>(i); // ONLY VALID FOR GAS-ONLY SIMULATIONS!!
+        // ONLY VALID FOR GAS-ONLY SIMULATIONS!!
+        uint64_t new_index = static_cast<uint64_t>(i);
+        // printf("%" PRIu64 " %" PRIu64 "\n", prev_index, new_index);
         if (prev_index != new_index) {
             uint32_t lookahead = 1;
             uint64_t ahead_index = pkd->particles[i+lookahead].extra_index();
@@ -2402,7 +2466,7 @@ void pkdReorderExtra(PKD pkd) {
             pkd->particles[i].set_extra_index(new_index);
 
         }
-        assert (pkd->particles[i].sph().P == control);
+        assert (pkd->particles[i].sph().Uint == control);
     }
 }
 

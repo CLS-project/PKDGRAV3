@@ -2555,9 +2555,12 @@ void mdlClass::Recv(int id,mdlPack unpack, void *ctx) {
  ** of his memory.
  */
 extern "C" int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes) {
-    return static_cast<mdlClass *>(mdl)->Swap(id,nBufBytes,vBuf,nOutBytes,pnSndBytes,pnRcvBytes);
+    return static_cast<mdlClass *>(mdl)->Swap(id,nBufBytes,vBuf,nOutBytes,0,pnSndBytes,pnRcvBytes);
 }
-int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes) {
+extern "C" int mdlSwapSkip(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t nSkipBytes, size_t *pnSndBytes,size_t *pnRcvBytes) {
+    return static_cast<mdlClass *>(mdl)->Swap(id,nBufBytes,vBuf,nOutBytes,nSkipBytes,pnSndBytes,pnRcvBytes);
+}
+int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t nSkipBytes, size_t *pnSndBytes,size_t *pnRcvBytes) {
     size_t nInBytes,nOutBufBytes;
     int nInMax,nOutMax,nBytes;
     char *pszBuf = CAST(char *,vBuf);
@@ -2572,7 +2575,7 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
     /*
      ** Send number of rejects to target thread amount of free space
      */
-    swi.nOutBytes = nOutBytes;
+    swi.nOutBytes = nOutBytes - nSkipBytes;
     swi.nBufBytes = nBufBytes;
     mdl_MPI_Sendrecv(&swi, sizeof(swi), id, MDL_TAG_SWAPINIT,
                      &swo, sizeof(swo), id, MDL_TAG_SWAPINIT, &nBytes);
@@ -2586,6 +2589,7 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
     assert(nBufBytes >= nOutBytes);
     pszOut = &pszBuf[nBufBytes-nOutBytes];
     pszIn = pszBuf;
+    nOutBytes -= nSkipBytes;
     while (nOutBytes && nInBytes) {
         /*
          ** nOutMax is the maximum number of bytes allowed to be sent

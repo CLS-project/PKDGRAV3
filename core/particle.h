@@ -320,39 +320,49 @@ public:
         if (present(PKD_FIELD::oBall)) get<float>(p,PKD_FIELD::oBall) = fBall;
     }
     uint64_t extra_index( PARTICLE *p ) const {
-        return get<uint64_t>(p, PKD_FIELD::oExtra);
+        auto d = get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra);
+        return extra->ExtraIndex(d);
     }
     void set_extra_index( PARTICLE *p, uint64_t index ) const {
-        if (present(PKD_FIELD::oExtra)) get<uint64_t>(p, PKD_FIELD::oExtra) = index;
+        if (present(PKD_FIELD::oExtra)) {
+            get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra) = extra->Element(index);
+        }
+    }
+    void set_extra( PARTICLE *p, meshless::EXTRAFIELDS *d ) const {
+        if (present(PKD_FIELD::oExtra)) {
+            get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra) = d;
+        }
     }
     auto extra_field( PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
-        return extra->Element(extraIndex);
+        return get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra);
+    }
+    const auto extra_field( PARTICLE const *p ) const {
+        return get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra);
     }
     /* Sph variables */
     /* TO BE RENAMED TO MFM */
     auto &sph( PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        auto d = extra_field(p);
         return extra->get<meshless::FIELDS>(
-                   extra->Element(extraIndex), EXTRA_FIELD::oMFM
+                   d, EXTRA_FIELD::oMFM
                );
     }
     const auto &sph( const PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        auto d = extra_field(p);
         return extra->get<meshless::FIELDS>(
-                   extra->Element(extraIndex), EXTRA_FIELD::oMFM
+                   d, EXTRA_FIELD::oMFM
                );
     }
     auto &mfv( PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        auto d = extra_field(p);
         return extra->get<meshless::MFV>(
-                   extra->Element(extraIndex), EXTRA_FIELD::oMFV
+                   d, EXTRA_FIELD::oMFV
                );
     }
     const auto &mfv( const PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        auto d = extra_field(p);
         return extra->get<meshless::MFV>(
-                   extra->Element(extraIndex), EXTRA_FIELD::oMFV
+                   d, EXTRA_FIELD::oMFV
                );
     }
     /* NewSph variables */
@@ -372,27 +382,27 @@ public:
     }
 
     auto &star( PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        auto d = extra_field(p);
         return extra->get<meshless::STAR>(
-                   extra->Element(extraIndex), EXTRA_FIELD::oStar
+                   d, EXTRA_FIELD::oStar
                );
     }
     const auto &star( const PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        auto d = extra_field(p);
         return extra->get<meshless::STAR>(
-                   extra->Element(extraIndex), EXTRA_FIELD::oStar
+                   d, EXTRA_FIELD::oStar
                );
     }
     auto &BH( PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        auto d = extra_field(p);
         return extra->get<meshless::BLACKHOLE>(
-                   extra->Element(extraIndex), EXTRA_FIELD::oBH
+                   d, EXTRA_FIELD::oBH
                );
     }
     const auto &BH( const PARTICLE *p ) const {
-        auto extraIndex = get<uint64_t>(p,PKD_FIELD::oExtra);
+        auto d = extra_field(p);
         return extra->get<meshless::BLACKHOLE>(
-                   extra->Element(extraIndex), EXTRA_FIELD::oBH
+                   d, EXTRA_FIELD::oBH
                );
     }
     auto Timer( PARTICLE *p ) const {
@@ -510,6 +520,7 @@ public:
         void set_density(float fDensity) {store().set_density(p,fDensity);}
         void set_ball(float fBall) {store().set_ball(p,fBall);}
         void set_extra_index(uint64_t index) {store().set_extra_index(p,index);}
+        void set_extra(meshless::EXTRAFIELDS *d) {store().set_extra(p,d);}
         auto extra_index()  const { return store().extra_index(p);}
         auto extra_field()  const { return store().extra_field(p);}
 

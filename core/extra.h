@@ -45,7 +45,11 @@ class extraStore : public dataStore<meshless::EXTRAFIELDS, EXTRA_FIELD> {
 public:
     void initialize() {
     }
-    auto ExtraSize() const {return ElementSize(); }
+    auto ExtraSize() const {return ElementSize();}
+    // Given a pointer, return the index in the store
+    uint64_t ExtraIndex(meshless::EXTRAFIELDS *d) const {
+        return (reinterpret_cast<char *>(d)-reinterpret_cast<char *const>(pStore))/ElementSize();
+    }
     void Add(int i) { SetLocal(Local()+i); }
     uint64_t append() {
         SetLocal(Local()+1);

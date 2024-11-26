@@ -329,7 +329,7 @@ public:
     }
     void Send(int id,mdlPack pack, void *ctx);
     void Recv(int id,mdlPack unpack, void *ctx);
-    int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes);
+    int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t nSkipBytes, size_t *pnSndBytes,size_t *pnRcvBytes);
 
     void CacheCheck();
     void CacheBarrier(int cid);
@@ -546,6 +546,7 @@ void *mdlWORKER(void);
 
 void mdlAbort(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
+int mdlSwapSkip(MDL,int,size_t,void *,size_t,size_t,size_t *,size_t *);
 void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
 void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
 void mdlAddService(MDL,int,void *,fcnService_t *fcnService,int,int);
