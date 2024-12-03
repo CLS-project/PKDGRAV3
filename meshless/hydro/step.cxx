@@ -89,8 +89,11 @@ void flushHydroStep(void *vpkd,void *dst,const void *src) {
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     if (p2.is_gas()) {
+        const auto &sph = p2.sph();
+
         p1->uNewRung = p2.new_rung();
-        p1->uWake = p2.sph().uWake;
+        p1->uWake = sph.uWake;
+        pkd->extra.CacheRelease(reinterpret_cast<const meshless::EXTRAFIELDS *>(&sph));
     }
 }
 

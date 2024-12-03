@@ -222,6 +222,14 @@ int smHashPresent(SMX smx,void *p) {
     return 0;
 }
 
+void init_shared_decorator(void *vpkd, void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto extra = pkd->extra.CacheAdd();
+    memcpy(extra, p.extra_field(), pkd->extra.ExtraSize());
+    p.set_extra(extra);
+}
+
 static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType,int bMakeCache) {
     SMX smx;
     void (*initParticle)(void *,void *) = NULL;
@@ -476,14 +484,16 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->bOwnCache = 1;
         if (bPacked) {
             if (bSymmetric) {
+                pkd->extra.CacheStart(false);
                 mdlPackedCacheCO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
                                  pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 pack,unpack,iFlushSize,init,flush,comb);
+                                 pack,unpack,iFlushSize,init,init_shared_decorator,flush,comb);
             }
             else {
+                pkd->extra.CacheStart(true);
                 mdlPackedCacheRO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
                                  pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 pack,unpack);
+                                 init_shared_decorator,pack,unpack);
             }
         }
         else if (bSymmetric) {
