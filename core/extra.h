@@ -30,6 +30,7 @@
 #include "datastore.h"
 #include "element.h"
 #include "meshless.h"
+#include "boost/dynamic_bitset.hpp"
 
 // This should be in a different header file
 enum class EXTRA_FIELD {
@@ -42,18 +43,99 @@ enum class EXTRA_FIELD {
 };
 
 class extraStore : public dataStore<meshless::EXTRAFIELDS, EXTRA_FIELD> {
+private:
+    int nCache = 0;     //!< Number of occupied elements in the cache
+    bool readonly;      //!< Whether the cache is used as part of a RO particle cache
+    boost::dynamic_bitset<> cacheUsed;
 public:
     void initialize() {
+        cacheUsed = boost::dynamic_bitset();
+        cacheUsed.reserve(nStore/2);
     }
     auto ExtraSize() const {return ElementSize();}
     // Given a pointer, return the index in the store
-    uint64_t ExtraIndex(meshless::EXTRAFIELDS *d) const {
+    uint64_t ExtraIndex(value_type *d) const {
         return (reinterpret_cast<char *>(d)-reinterpret_cast<char *const>(pStore))/ElementSize();
     }
+    uint64_t ExtraIndex(const value_type *d) const {
+        return (reinterpret_cast<const char *>(d)-reinterpret_cast<char *const>(pStore))/ElementSize();
+    }
     void Add(int i) { SetLocal(Local()+i); }
+    int SetLocal(int n) {
+        nLocal = n;
+        cacheUsed.resize(nStore-nLocal);
+        return nLocal;
+    }
     uint64_t append() {
         SetLocal(Local()+1);
         return Local()-1; //NB: we return the index, not the number
+    }
+    //! Prepare the cache depending on whether it will act as read-only or not
+    void CacheStart(bool readonly) {
+        CacheClean();
+        nCache = 0;
+        readonly = readonly;
+    }
+    //! Clean the cache
+    void CacheClean() {
+        cacheUsed.reset();
+    }
+    //! Return the current total size of the cache
+    auto CacheSize() {
+        return nStore - nLocal;
+    }
+    //! Return the current number of available cache elements
+    auto CacheAvail() {
+        return CacheSize() - nCache;
+    }
+    //! Return a element of the cache that can be used to
+    //! temporarily store a decorator
+    value_type *CacheAdd() {
+        CacheCheck();
+        if (readonly) {
+            // We just take the next element in line
+            nCache++;
+            if (!CacheAvail())
+                nCache = 1;
+            return Element(nCache-1);
+        }
+        else {
+            // We use a simple loop to find the first free element,
+            // a more complex cache could be implemented
+            for (auto i=nLocal; i<nStore; i++) {
+                if (!cacheUsed.test(i-nLocal)) {
+                    cacheUsed.flip(i-nLocal);
+                    if (i-nLocal==137)
+                        printf("Adding %d %d %d \t %e\n", i, nCache, CacheAvail(), Element(i)->sph.Uint);
+                    nCache++;
+                    return Element(i);
+                }
+            }
+            abort();
+        }
+    }
+    void CacheCheck() {
+        if (nCache != cacheUsed.count())
+            printf("\n\tCache size: %d\n\tCache usage: %d(%d)\n",
+                   CacheSize(), nCache, cacheUsed.count());
+
+        assert(nCache == cacheUsed.count());
+
+    }
+    const void CacheRelease(const value_type *e) {
+        CacheCheck();
+        auto i = ExtraIndex(e);
+        // if (!cacheUsed.test(i-nLocal))
+        //     printf("Releasing %d \t %e \n",i-nLocal, e->sph.Uint);
+        //assert(cacheUsed[i]);
+        if (cacheUsed.test(i-nLocal)) {
+            cacheUsed.flip(ExtraIndex(e)-nLocal);
+            nCache--;
+        }
+        else {
+            // This seems to happen when flushing..
+            // assert();
+        }
     }
     // auto &MFM( PARTICLE *p ) const {
     //     return get<meshless::FIELDS>(p,EXTRA_FIELD::oMFM);
