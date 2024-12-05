@@ -3885,6 +3885,7 @@ double MSR::Read(std::string_view achInFile) {
     dsec = TimerGet(TIMER_NONE);
     SetClasses();
     print("Input file has been successfully read, Wallclock: {:.5f} secs.\n", dsec);
+    ReorderExtra();
 
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.

@@ -1105,7 +1105,7 @@ int ServiceWeight::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     plcl->iPart = pkdWeight(pkd,in->iSplitDim,fSplit,iSplitSide,
                             plcl->iWtFrom,plcl->iWtTo,
                             &nLow,&nHigh,&fLow,&fHigh);
-    pkdReorderExtra(pkd);
+
     out->nLow = nLow;
     out->nHigh = nHigh;
     out->fLow = fLow + plcl->fWtLow;
@@ -1183,7 +1183,7 @@ int ServiceWeightWrap::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     int nLow,nHigh;
     plcl->iPart = pkdWeightWrap(pkd,in->iSplitDim,in->fSplit,in->fSplit2,in->iSplitSide,
                                 plcl->iWtFrom,plcl->iWtTo,&nLow,&nHigh);
-    pkdReorderExtra(pkd);
+
     out->nLow = nLow;
     out->nHigh = nHigh;
     /* For collect rejects */

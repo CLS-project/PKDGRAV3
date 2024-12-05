@@ -529,6 +529,7 @@ public:
         auto is_star()      const {return species() == FIO_SPECIES_STAR;}
         auto is_bh()        const {return species() == FIO_SPECIES_BH;}
     };
+    friend class SingleReference<Particle>;
 
     /// @brief A "pointer" reference to a "particle"
     ///
@@ -675,5 +676,8 @@ public:
     int SelSphere(blitz::TinyVector<double,3> r, double dRadius, int setIfTrue=true, int clearIfFalse=true );
     int SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true );
 };
+
+template<>
+void SingleReference<particleStore::Particle>::swap(SingleReference &rhs) noexcept;
 
 #endif

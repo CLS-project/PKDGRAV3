@@ -105,8 +105,6 @@ public:
             for (auto i=nLocal; i<nStore; i++) {
                 if (!cacheUsed.test(i-nLocal)) {
                     cacheUsed.flip(i-nLocal);
-                    if (i-nLocal==137)
-                        printf("Adding %d %d %d \t %e\n", i, nCache, CacheAvail(), Element(i)->sph.Uint);
                     nCache++;
                     return Element(i);
                 }

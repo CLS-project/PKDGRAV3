@@ -15,10 +15,30 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "particle.h"
+#include "core/element.h"
 using blitz::TinyVector;
 using blitz::dot;
 using blitz::all;
 #include <numeric>
+
+template<>
+void SingleReference<particleStore::Particle>::swap(SingleReference &rhs) noexcept {
+    auto n = this->store().ElementSize();
+    char buffer[n];
+    memcpy(buffer,this->p,n);
+    memcpy(this->p,rhs.p,n);
+    memcpy(rhs.p,buffer,n);
+
+    auto a_index = rhs.extra_index();
+    auto a = this->store().extra->operator[](rhs.extra_field());
+    auto b = this->store().extra->operator[](this->extra_field());
+    auto b_index = this->extra_index();
+
+    a.swap(b);
+
+    rhs.set_extra_index(b_index);
+    this->set_extra_index(a_index);
+}
 
 /// @brief Calculate the bounding box for a range of particles
 /// @param b starting iterator

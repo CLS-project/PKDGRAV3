@@ -746,7 +746,6 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
     else  BuildFromTemplate(pkd,uRoot,nBucket,nGroup,uTemp);
     Create(pkd,uRoot,ddHonHLimit);
 
-    pkdReorderExtra(pkd);
 
     if (uRoot == FIXROOT) {
 #ifndef SINGLE_CACHES
