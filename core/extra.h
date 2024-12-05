@@ -100,16 +100,17 @@ public:
             return Element(nCache-1);
         }
         else {
-            // We use a simple loop to find the first free element,
-            // a more complex cache could be implemented
-            for (auto i=nLocal; i<nStore; i++) {
-                if (!cacheUsed.test(i-nLocal)) {
-                    cacheUsed.flip(i-nLocal);
-                    nCache++;
-                    return Element(i);
-                }
+            // Try as if the cache was read-only, but if we find that that element
+            // is occupied, we start looping forward.
+            auto i = nCache;
+            auto size = CacheSize();
+            while (cacheUsed.test(i)) {
+                i++;
+                if (i==size) i=0;
             }
-            abort();
+            nCache++;
+            cacheUsed.flip(i);
+            return Element(nLocal+i);
         }
     }
     void CacheCheck() {
