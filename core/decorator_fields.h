@@ -4,7 +4,7 @@
 #include "blitz/array.h"
 #include "chemistry.h"
 
-namespace meshless {
+namespace decorators {
 namespace hana = boost::hana;
 typedef double myreal;
 
@@ -28,9 +28,9 @@ struct MFV {
     );
 };
 
-struct FIELDS {
+struct MFM {
     BOOST_HANA_DEFINE_STRUCT(
-        FIELDS,
+        MFM,
 
         (blitz::TinyVector<double,6>, B), // IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric
         (myreal, Ncond),/* IA: Condition number for pathological configurations */
@@ -112,7 +112,7 @@ struct FIELDS {
         (uint8_t, uWake)
     );
 
-}; // FIELDS
+}; // MFM
 
 struct STAR_METALS {
     BOOST_HANA_DEFINE_STRUCT(
@@ -172,13 +172,11 @@ struct BLACKHOLE {
     );
 };
 
-#ifdef OPTIM_UNION_EXTRAFIELDS
-union EXTRAFIELDS {
-    FIELDS sph;
+union FIELDS {
+    MFM sph;
     STAR star;
     BLACKHOLE bh;
 };
-#endif
 
 } // meshless
 

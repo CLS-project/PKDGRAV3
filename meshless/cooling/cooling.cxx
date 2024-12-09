@@ -493,7 +493,7 @@ inline static double bisection_iter(
 void cooling_cool_part(PKD pkd,
                        const struct cooling_function_data *cooling,
                        //struct part *restrict p, struct xpart *restrict xp,
-                       particleStore::ParticleReference &p, meshless::FIELDS *psph,
+                       particleStore::ParticleReference &p, decorators::MFM *psph,
                        const float dt, const double time,
                        const float delta_redshift, const double redshift) {
 
@@ -686,7 +686,7 @@ void cooling_cool_part(PKD pkd,
  */
 float cooling_get_temperature(PKD pkd, const float redshift,
                               const struct cooling_function_data *restrict cooling,
-                              particleStore::Particle &p, meshless::FIELDS *psph) {
+                              particleStore::Particle &p, decorators::MFM *psph) {
 
 #ifdef SWIFT_DEBUG_CHECKS
     if (cooling->Redshifts == NULL)

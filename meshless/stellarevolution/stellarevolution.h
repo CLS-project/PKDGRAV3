@@ -97,7 +97,7 @@ struct stevFlush {
 
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
-void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, meshless::FIELDS &, const double);
+void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, decorators::MFM &, const double);
 
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
 void packChemEnrich(void *vpkd, void *dst, const void *src);

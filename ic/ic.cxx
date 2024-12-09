@@ -1111,7 +1111,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 double a_m1 = 1./in->dExpansion;
                 VelGas *= a_m1;
 
-                /* Fill the meshless::FIELDS with some initial values */
+                /* Fill the decorators::MFM with some initial values */
                 double u = in->dInitialT * in->dTuFac;
                 assert(pkd->particles.present(PKD_FIELD::oSph));
                 auto &Sph = pgas.sph();

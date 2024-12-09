@@ -29,15 +29,15 @@ void SingleReference<particleStore::Particle>::swap(SingleReference &rhs) noexce
     memcpy(this->p,rhs.p,n);
     memcpy(rhs.p,buffer,n);
 
-    auto a_index = rhs.extra_index();
-    auto a = this->store().extra->operator[](rhs.extra_field());
-    auto b = this->store().extra->operator[](this->extra_field());
-    auto b_index = this->extra_index();
+    auto a_index = rhs.decorator_index();
+    auto a = this->store().decorator->operator[](rhs.decorator_field());
+    auto b = this->store().decorator->operator[](this->decorator_field());
+    auto b_index = this->decorator_index();
 
     a.swap(b);
 
-    rhs.set_extra_index(b_index);
-    this->set_extra_index(a_index);
+    rhs.set_decorator_index(b_index);
+    this->set_decorator_index(a_index);
 }
 
 /// @brief Calculate the bounding box for a range of particles

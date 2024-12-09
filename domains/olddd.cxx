@@ -685,14 +685,14 @@ int ServiceDomain::RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,
     s1 = 0;
     r1 = 0;
     for (i=0; i<n1; ++i) {
-        s1 += p1[i].nExtraSpace;
-        r1 += p1[i].nExtraRejects;
+        s1 += p1[i].nDecoratorSpace;
+        r1 += p1[i].nDecoratorRejects;
     }
     s2 = 0;
     r2 = 0;
     for (i=0; i<n2; ++i) {
-        s2 += p2[i].nExtraSpace;
-        r2 += p2[i].nExtraRejects;
+        s2 += p2[i].nDecoratorSpace;
+        r2 += p2[i].nDecoratorRejects;
     }
     assert(r1 <= s2);
     assert(r2 <= s1);
@@ -706,7 +706,7 @@ int ServiceDomain::RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,
     while (1) {
         nLarge = 0;
         for (i=0; i<n1; ++i) {
-            auto maxRejects = std::max(p1[i].nRejects, p1[i].nExtraRejects);
+            auto maxRejects = std::max(p1[i].nRejects, p1[i].nDecoratorRejects);
             if (maxRejects > nLarge) {
                 nLarge = maxRejects;
                 i1 = i;
@@ -722,10 +722,10 @@ int ServiceDomain::RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,
         }
         if (nLarge == 0) break;
         p1[i1].nRejects = 0;
-        p1[i1].nExtraRejects = 0;
+        p1[i1].nDecoratorRejects = 0;
         p1[i1].nSpace = 0;
         p2[i2].nRejects = 0;
-        p2[i2].nExtraRejects = 0;
+        p2[i2].nDecoratorRejects = 0;
         p2[i2].nSpace = 0;
         id1 = p1[i1].id;
         id2 = p2[i2].id;
@@ -739,7 +739,7 @@ int ServiceDomain::RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,
     while (1) {
         nLarge = 0;
         for (i=0; i<n2; ++i) {
-            auto maxRejects = std::max(p2[i].nRejects, p2[i].nExtraRejects);
+            auto maxRejects = std::max(p2[i].nRejects, p2[i].nDecoratorRejects);
             if (maxRejects > nLarge) {
                 nLarge = maxRejects;
                 i2 = i;
@@ -755,10 +755,10 @@ int ServiceDomain::RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,
         }
         if (nLarge == 0) break;
         p1[i1].nRejects = 0;
-        p1[i1].nExtraRejects = 0;
+        p1[i1].nDecoratorRejects = 0;
         p1[i1].nSpace = 0;
         p2[i2].nRejects = 0;
-        p2[i2].nExtraRejects = 0;
+        p2[i2].nDecoratorRejects = 0;
         p2[i2].nSpace = 0;
         id1 = p1[i1].id;
         id2 = p2[i2].id;
@@ -791,9 +791,9 @@ int ServiceColRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
 int ServiceColRejects::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto pkd = pst->plcl->pkd;
     auto pOutRej = static_cast<output *>(vout);
-    std::tie(pOutRej->nRejects,pOutRej->nExtraRejects) = pkdColRejects(pkd, pst->plcl->nSplit);
+    std::tie(pOutRej->nRejects,pOutRej->nDecoratorRejects) = pkdColRejects(pkd, pst->plcl->nSplit);
     pOutRej->nSpace = pkdSwapSpace(pkd);
-    pOutRej->nExtraSpace = pkdSwapExtraSpace(pkd);
+    pOutRej->nDecoratorSpace = pkdSwapDecoratorSpace(pkd);
     pOutRej->id = pst->idSelf;
     pOutRej->nLocal = pkd->Local();
     return sizeof(output);
@@ -822,9 +822,9 @@ int ServiceSwapRejects::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto pidSwap = static_cast<input *>(vin);
     auto pOutRej = static_cast<output *>(vout);
     auto idSwap = pidSwap[pst->idSelf];
-    std::tie(pOutRej->nRejects,pOutRej->nExtraRejects) = pkdSwapRejects(pkd,idSwap);
+    std::tie(pOutRej->nRejects,pOutRej->nDecoratorRejects) = pkdSwapRejects(pkd,idSwap);
     pOutRej->nSpace = pkdSwapSpace(pkd);
-    pOutRej->nExtraSpace = pkdSwapExtraSpace(pkd);
+    pOutRej->nDecoratorSpace = pkdSwapDecoratorSpace(pkd);
     pOutRej->id = pst->idSelf;
     return sizeof(output);
 }
@@ -851,9 +851,9 @@ int ServiceColOrdRejects::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     auto pkd = pst->plcl->pkd;
     auto in = static_cast<input *>(vin);
     auto pOutRej = static_cast<output *>(vout);
-    std::tie(pOutRej->nRejects, pOutRej->nExtraRejects) = pkdColOrdRejects(pkd,in->iOrdSplit,in->iSplitSide);
+    std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdColOrdRejects(pkd,in->iOrdSplit,in->iSplitSide);
     pOutRej->nSpace = pkdSwapSpace(pkd);
-    pOutRej->nExtraSpace = pkdSwapExtraSpace(pkd);
+    pOutRej->nDecoratorSpace = pkdSwapDecoratorSpace(pkd);
     pOutRej->id = pst->idSelf;
     return sizeof(output);
 }

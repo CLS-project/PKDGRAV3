@@ -386,23 +386,23 @@ protected:
     uint64_t storageSize;
 public:
     particleStore particles;
-    extraStore extra;
+    decoratorStore decorators;
     treeStore tree;
     int FreeStore() { return particles.FreeStore(); }
-    int FreeExtraStore() { return extra.FreeStore(); }
+    int FreeDecoratorStore() { return decorators.FreeStore(); }
     // I do not like at all the name "Local" for indicating the number of particles...
     int Local() { return particles.Local(); }
-    int ExtraLocal() { return extra.Local(); }
+    int DecoratorLocal() { return decorators.Local(); }
     int SetLocal(int n);
     int AddLocal(int n);
     auto EphemeralBytes() {return nEphemeralBytes; }
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(Bound) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return tree.ElementSize(); }
-    auto ExtraSize() { return extra.ElementSize(); }
-    auto ExtraMemory() { return extra.ElementSize() * (extra.FreeStore()+1); }
-    auto ParticleMemory() { return (particles.ParticleSize() + EphemeralBytes()) * (FreeStore()+1) + ExtraMemory(); }
+    auto DecoratorSize() { return decorators.ElementSize(); }
+    auto DecoratorMemory() { return decorators.ElementSize() * (decorators.FreeStore()+1); }
+    auto ParticleMemory() { return (particles.ParticleSize() + EphemeralBytes()) * (FreeStore()+1) + DecoratorMemory(); }
     PARTICLE *Particle(int i) { return particles.Element(i); }
-    meshless::EXTRAFIELDS *Extra(int i) { return extra.Element(i); }
+    decorators::FIELDS *Decorator(int i) { return decorators.Element(i); }
 
     void SaveParticle(PARTICLE *a) {
         memcpy(pTempPRIVATE,a,particles.ParticleSize());
@@ -413,8 +413,8 @@ public:
     void CopyParticle(PARTICLE *a, PARTICLE *b) {
         memcpy(a,b,particles.ParticleSize());
     }
-    void CopyExtra(meshless::EXTRAFIELDS *a, meshless::EXTRAFIELDS *b) {
-        memcpy(a,b,extra.ExtraSize());
+    void CopyDecorator(decorators::FIELDS *a, decorators::FIELDS *b) {
+        memcpy(a,b,decorators.DecoratorSize());
     }
 public:
     auto Nodes() const {
@@ -469,7 +469,7 @@ public:
 
 public:
     int nRejects;
-    int nExtraRejects;
+    int nDecoratorRejects;
     int nActive;
     blitz::TinyVector<uint64_t,MAX_RUNG+1> nRung;
     uint64_t nDark;
@@ -636,7 +636,7 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
-static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph, double dConstGamma) {
+static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph, double dConstGamma) {
 #ifndef OLD_FB_SCHEME
     psph->Uint += psph->fAccFBEnergy;
     psph->E += psph->fAccFBEnergy;
@@ -724,7 +724,7 @@ std::pair<int,int> pkdColRejects_Old(PKD,int,double,double,int);
 
 std::pair<int,int> pkdSwapRejects(PKD,int);
 int pkdSwapSpace(PKD);
-int pkdSwapExtraSpace(PKD);
+int pkdSwapDecoratorSpace(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 
@@ -760,7 +760,7 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
 void pkdGravEvalPC(const PINFOIN &pPart, ilcTile &tile, PINFOOUT &pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas,int bGasEvolveDensity);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
-void pkdReorderExtra(PKD pkd);
+void pkdReorderDecorator(PKD pkd);
 #ifdef OPTIM_REORDER_IN_NODES
     void pkdReorderWithinNodes(PKD pkd);
 #endif

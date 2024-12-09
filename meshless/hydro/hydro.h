@@ -11,6 +11,10 @@
 #define XZ 2
 #define YZ 4
 
+namespace meshless {
+typedef double myreal;
+}
+
 /* -----------------
  * MAIN FUNCTIONS AND CLASSES
  * -----------------
@@ -164,20 +168,20 @@ void combHydroStep(void *vpkd,void *dst,const void *src);
 void pkdWakeParticles(PKD pkd,int iRoot,double dTime,double dDelta);
 
 /* Source terms */
-void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                         double pDelta, blitz::TinyVector<double,3> &pa, double dScaleFactor,
                         int bComove);
-void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma);
-void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                        const blitz::TinyVector<double,3> &pa, double dConstGamma);
-void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                         double dTuFac, double dConstGamma);
-void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                       const blitz::TinyVector<double,3> &pa, double dScaleFactor,
                       double dTime, double dDelta, double dConstGamma);
-void hydroResetFluxes(meshless::FIELDS *psph);
+void hydroResetFluxes(decorators::MFM *psph);
 
 /* -----------------
  * HELPERS

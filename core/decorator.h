@@ -15,8 +15,8 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CORE_extra_H
-#define CORE_extra_H
+#ifndef CORE_DECORATOR_H
+#define CORE_DECORATOR_H
 #include "pkd_config.h"
 #include <cstdint>
 #include <limits>
@@ -29,11 +29,11 @@
 #include <iterator>
 #include "datastore.h"
 #include "element.h"
-#include "meshless.h"
+#include "decorator_fields.h"
 #include "boost/dynamic_bitset.hpp"
 
 // This should be in a different header file
-enum class EXTRA_FIELD {
+enum class DECORATOR_FIELD {
     oMFM, /* Sph structure */
     oMFV, /* MFV structure */
     oStar, /* Star structure */
@@ -42,7 +42,7 @@ enum class EXTRA_FIELD {
     MAX_FIELD
 };
 
-class extraStore : public dataStore<meshless::EXTRAFIELDS, EXTRA_FIELD> {
+class decoratorStore : public dataStore<decorators::FIELDS, DECORATOR_FIELD> {
 private:
     int nCache = 0;     //!< Number of occupied elements in the cache
     bool readonly;      //!< Whether the cache is used as part of a RO particle cache
@@ -52,12 +52,12 @@ public:
         cacheUsed = boost::dynamic_bitset();
         cacheUsed.reserve(nStore/2);
     }
-    auto ExtraSize() const {return ElementSize();}
+    auto DecoratorSize() const {return ElementSize();}
     // Given a pointer, return the index in the store
-    uint64_t ExtraIndex(value_type *d) const {
+    uint64_t DecoratorIndex(value_type *d) const {
         return (reinterpret_cast<char *>(d)-reinterpret_cast<char *const>(pStore))/ElementSize();
     }
-    uint64_t ExtraIndex(const value_type *d) const {
+    uint64_t DecoratorIndex(const value_type *d) const {
         return (reinterpret_cast<const char *>(d)-reinterpret_cast<char *const>(pStore))/ElementSize();
     }
     void Add(int i) { SetLocal(Local()+i); }
@@ -123,12 +123,12 @@ public:
     }
     const void CacheRelease(const value_type *e) {
         CacheCheck();
-        auto i = ExtraIndex(e);
+        auto i = DecoratorIndex(e);
         // if (!cacheUsed.test(i-nLocal))
         //     printf("Releasing %d \t %e \n",i-nLocal, e->sph.Uint);
         //assert(cacheUsed[i]);
         if (cacheUsed.test(i-nLocal)) {
-            cacheUsed.flip(ExtraIndex(e)-nLocal);
+            cacheUsed.flip(DecoratorIndex(e)-nLocal);
             nCache--;
         }
         else {
@@ -136,67 +136,35 @@ public:
             // assert();
         }
     }
-    // auto &MFM( PARTICLE *p ) const {
-    //     return get<meshless::FIELDS>(p,EXTRA_FIELD::oMFM);
-    // }
-    // const auto &MFM( const PARTICLE *p ) const {
-    //     return get<meshless::FIELDS>(p,EXTRA_FIELD::oMFM);
-    // }
-    // auto &MFV( PARTICLE *p ) const {
-    //     return get<meshless::MFV>(p,EXTRA_FIELD::oMFV);
-    // }
-    // const auto &MFV( const PARTICLE *p ) const {
-    //     return get<meshless::MFV>(p,EXTRA_FIELD::oMFV);
-    // }
-    // auto &star( PARTICLE *p ) const {
-    //     return get<meshless::STAR>(p,EXTRA_FIELD::oStar);
-    // }
-    // const auto &star( const PARTICLE *p ) const {
-    //     return get<meshless::STAR>(p,EXTRA_FIELD::oStar);
-    // }
-    // auto &bh( PARTICLE *p ) const {
-    //     return get<meshless::STAR>(p,EXTRA_FIELD::oBH);
-    // }
-    // const auto &bh( const PARTICLE *p ) const {
-    //     return get<meshless::STAR>(p,EXTRA_FIELD::oBH);
-    // }
 
-    class ExtraField : public SingleElement<meshless::EXTRAFIELDS,extraStore> {
+    class DecoratorField : public SingleElement<decorators::FIELDS,decoratorStore> {
     public:
         using SingleElement::SingleElement;
     public:
     };
 
-    /// @brief A "pointer" reference to a "extra field"
+    /// @brief A "pointer" reference to a decorator
     ///
     /// This uses the default copy/assignment semantics (the internal pointers are copied).
     /// The Particle class uses direct assignment.
-    using ExtraFieldPointer = SinglePointer<ExtraField>;
+    using DecoratorFieldPointer = SinglePointer<DecoratorField>;
 
-    /// @brief A "reference" to a extra field
-    /// This allows extra fields to be assigned and swapped
-    using ExtraFieldReference = SingleReference<ExtraField>;
+    /// @brief A "reference" to a decorator
+    /// This allows decorator fields to be assigned and swapped
+    using DecoratorFieldReference = SingleReference<DecoratorField>;
 
-    /// @brief Return a pointer proxy to a extra fields
-    /// @param i Index of the extra fields
+    /// @brief Return a pointer proxy to a decorator fields
+    /// @param i Index of the decorator fields
     /// @return pointer proxy
     auto operator[](int i) {
-        return ExtraFieldReference(*this,i);
+        return DecoratorFieldReference(*this,i);
     }
-    auto operator[](meshless::EXTRAFIELDS *e) {
-        return ExtraFieldReference(*this,e);
+    auto operator[](decorators::FIELDS *e) {
+        return DecoratorFieldReference(*this,e);
     }
-    // auto operator[](SingleReference<Particle> p) {
-    //     auto i = p.extra_index();
-    //     return ExtraFieldReference(*this,i);
-    // }
-    // const auto operator[](const PARTICLE *p) const {
-    //     auto i = p.extra_index();
-    //     return ExtraFieldReference(*this,i);
-    // }
 
 };
 
 
-#endif //CORE_extra_H
+#endif //CORE_DECORATOR_H
 

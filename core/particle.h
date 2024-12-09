@@ -32,8 +32,8 @@
 #include "element.h"
 #include "bound.h"
 #include "io/fio.h"
-#include "meshless.h"
-#include "core/extra.h"
+#include "decorator_fields.h"
+#include "core/decorator.h"
 
 #define PKD_MAX_CLASSES 256
 
@@ -176,7 +176,7 @@ enum PKD_FIELD {
     oParticleID,
     oGlobalGid, /* global group id, uint64 */
 
-    oExtra,
+    oDecorator,
     MAX_FIELD
 };
 
@@ -190,7 +190,7 @@ protected:
     friend class Particle;
     bool bIntegerPosition = false;
     bool bNoParticleOrder = false;
-    extraStore *extra;
+    decoratorStore *decorator;
     std::vector<PARTCLASS> ParticleClasses;
     float fSoftFix = -1.0;
     float fSoftFac = 1.0;
@@ -319,50 +319,50 @@ public:
     void set_ball(PARTICLE *p, float fBall) const {
         if (present(PKD_FIELD::oBall)) get<float>(p,PKD_FIELD::oBall) = fBall;
     }
-    uint64_t extra_index( PARTICLE *p ) const {
-        auto d = get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra);
-        return extra->ExtraIndex(d);
+    uint64_t decorator_index( PARTICLE *p ) const {
+        auto d = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+        return decorator->DecoratorIndex(d);
     }
-    void set_extra_index( PARTICLE *p, uint64_t index ) const {
-        if (present(PKD_FIELD::oExtra)) {
-            get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra) = extra->Element(index);
+    void set_decorator_index( PARTICLE *p, uint64_t index ) const {
+        if (present(PKD_FIELD::oDecorator)) {
+            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = decorator->Element(index);
         }
     }
-    void set_extra( PARTICLE *p, meshless::EXTRAFIELDS *d ) const {
-        if (present(PKD_FIELD::oExtra)) {
-            get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra) = d;
+    void set_decorator( PARTICLE *p, decorators::FIELDS *d ) const {
+        if (present(PKD_FIELD::oDecorator)) {
+            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = d;
         }
     }
-    auto extra_field( PARTICLE *p ) const {
-        return get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra);
+    auto decorator_field( PARTICLE *p ) const {
+        return get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
     }
-    const auto extra_field( PARTICLE const *p ) const {
-        return get<meshless::EXTRAFIELDS *>(p, PKD_FIELD::oExtra);
+    const auto decorator_field( PARTICLE const *p ) const {
+        return get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
     }
     /* Sph variables */
     /* TO BE RENAMED TO MFM */
     auto &sph( PARTICLE *p ) const {
-        auto d = extra_field(p);
-        return extra->get<meshless::FIELDS>(
-                   d, EXTRA_FIELD::oMFM
+        auto d = decorator_field(p);
+        return decorator->get<decorators::MFM>(
+                   d, DECORATOR_FIELD::oMFM
                );
     }
     const auto &sph( const PARTICLE *p ) const {
-        auto d = extra_field(p);
-        return extra->get<meshless::FIELDS>(
-                   d, EXTRA_FIELD::oMFM
+        auto d = decorator_field(p);
+        return decorator->get<decorators::MFM>(
+                   d, DECORATOR_FIELD::oMFM
                );
     }
     auto &mfv( PARTICLE *p ) const {
-        auto d = extra_field(p);
-        return extra->get<meshless::MFV>(
-                   d, EXTRA_FIELD::oMFV
+        auto d = decorator_field(p);
+        return decorator->get<decorators::MFV>(
+                   d, DECORATOR_FIELD::oMFV
                );
     }
     const auto &mfv( const PARTICLE *p ) const {
-        auto d = extra_field(p);
-        return extra->get<meshless::MFV>(
-                   d, EXTRA_FIELD::oMFV
+        auto d = decorator_field(p);
+        return decorator->get<decorators::MFV>(
+                   d, DECORATOR_FIELD::oMFV
                );
     }
     /* NewSph variables */
@@ -382,31 +382,31 @@ public:
     }
 
     auto &star( PARTICLE *p ) const {
-        auto d = extra_field(p);
-        return extra->get<meshless::STAR>(
-                   d, EXTRA_FIELD::oStar
+        auto d = decorator_field(p);
+        return decorator->get<decorators::STAR>(
+                   d, DECORATOR_FIELD::oStar
                );
     }
     const auto &star( const PARTICLE *p ) const {
-        auto d = extra_field(p);
-        return extra->get<meshless::STAR>(
-                   d, EXTRA_FIELD::oStar
+        auto d = decorator_field(p);
+        return decorator->get<decorators::STAR>(
+                   d, DECORATOR_FIELD::oStar
                );
     }
     auto &BH( PARTICLE *p ) const {
-        auto d = extra_field(p);
-        return extra->get<meshless::BLACKHOLE>(
-                   d, EXTRA_FIELD::oBH
+        auto d = decorator_field(p);
+        return decorator->get<decorators::BLACKHOLE>(
+                   d, DECORATOR_FIELD::oBH
                );
     }
     const auto &BH( const PARTICLE *p ) const {
-        auto d = extra_field(p);
-        return extra->get<meshless::BLACKHOLE>(
-                   d, EXTRA_FIELD::oBH
+        auto d = decorator_field(p);
+        return decorator->get<decorators::BLACKHOLE>(
+                   d, DECORATOR_FIELD::oBH
                );
     }
     auto Timer( PARTICLE *p ) const {
-        return &get<meshless::STAR>(p,PKD_FIELD::oStar).fTimer;
+        return &get<decorators::STAR>(p,PKD_FIELD::oStar).fTimer;
     }
     auto is_deleted(PARTICLE *p) const {
         return (species(p) == FIO_SPECIES_UNKNOWN);
@@ -519,10 +519,10 @@ public:
         auto is_rung_range(uint8_t uRungLo,uint8_t uRungHi)  const { return store().is_rung_range(p,uRungLo,uRungHi); }
         void set_density(float fDensity) {store().set_density(p,fDensity);}
         void set_ball(float fBall) {store().set_ball(p,fBall);}
-        void set_extra_index(uint64_t index) {store().set_extra_index(p,index);}
-        void set_extra(meshless::EXTRAFIELDS *d) {store().set_extra(p,d);}
-        auto extra_index()  const { return store().extra_index(p);}
-        auto extra_field()  const { return store().extra_field(p);}
+        void set_decorator_index(uint64_t index) {store().set_decorator_index(p,index);}
+        void set_decorator(decorators::FIELDS *d) {store().set_decorator(p,d);}
+        auto decorator_index()  const { return store().decorator_index(p);}
+        auto decorator_field()  const { return store().decorator_field(p);}
 
         auto is_dark()      const {return species() == FIO_SPECIES_DARK;}
         auto is_gas()       const {return species() == FIO_SPECIES_SPH;}
@@ -564,10 +564,10 @@ public:
     }
 
 public:
-    void initialize(bool bIntegerPosition,bool bNoParticleOrder, extraStore *extra) {
+    void initialize(bool bIntegerPosition,bool bNoParticleOrder, decoratorStore *decorator) {
         this->bIntegerPosition = bIntegerPosition;
         this->bNoParticleOrder = bNoParticleOrder;
-        this->extra = extra;
+        this->decorator = decorator;
         if (bNoParticleOrder) dataStore<PARTICLE,PKD_FIELD>::set_header<UPARTICLE>();
         else dataStore<PARTICLE,PKD_FIELD>::set_header<PARTICLE>();
         ParticleClasses.reserve(PKD_MAX_CLASSES);

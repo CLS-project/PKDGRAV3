@@ -16,16 +16,16 @@
  */
 #include "TraversePST.h"
 
-class ServiceReorderExtra : public TraversePST {
+class ServiceReorderDecorator : public TraversePST {
 public:
     typedef void input;
     typedef void output;
-    explicit ServiceReorderExtra(PST pst)
-        : TraversePST(pst,PST_REORDEREXTRA,0,0,"ReorderExtra") {}
+    explicit ServiceReorderDecorator(PST pst)
+        : TraversePST(pst,PST_REORDERDECORATOR,0,0,"ReorderDecorator") {}
 protected:
     int Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
         auto pkd = pst->plcl->pkd;
-        pkdReorderExtra(pkd);
+        pkdReorderDecorator(pkd);
         return 0;
     }
 };

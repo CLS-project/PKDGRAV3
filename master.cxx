@@ -1178,7 +1178,7 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
 
 #ifdef NAIVE_DOMAIN_DECOMP
     Reorder();
-    ReorderExtra();
+    ReorderDecorator();
 #else
     if ( iLastRungRT >= 0 ) Reorder();
 #endif
@@ -1928,9 +1928,9 @@ int MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric
 }
 #endif
 
-void MSR::ReorderExtra() {
-    printf("Reordering extra...\n");
-    mdl->RunService(PST_REORDEREXTRA,0,NULL,0);
+void MSR::ReorderDecorator() {
+    printf("Reordering decorator...\n");
+    mdl->RunService(PST_REORDERDECORATOR,0,NULL,0);
 }
 
 #ifdef OPTIM_REORDER_IN_NODES
@@ -3885,7 +3885,7 @@ double MSR::Read(std::string_view achInFile) {
     dsec = TimerGet(TIMER_NONE);
     SetClasses();
     print("Input file has been successfully read, Wallclock: {:.5f} secs.\n", dsec);
-    ReorderExtra();
+    ReorderDecorator();
 
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.

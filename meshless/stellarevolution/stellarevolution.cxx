@@ -199,7 +199,7 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
     return 0;
 }
 
-void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS &sph,
+void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, decorators::MFM &sph,
                          const double dConstGamma) {
     const double dOldEkin = blitz::dot(sph.mom, sph.mom) / (2.0 * p.mass());
 
