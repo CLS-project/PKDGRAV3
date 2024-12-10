@@ -314,7 +314,7 @@ void pkdContext::set_factor(std::uint32_t factor) {
 }
 
 pkdContext::pkdContext(mdl::mdlClass *mdl,
-                       int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
+                       int nStore, int nDecoratorStore, uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
                        const TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
@@ -358,6 +358,26 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
+        auto gas = decorators.overlay(DECORATOR_FIELD::oMFM);
+        gas.add<decorators::MFM>(DECORATOR_FIELD::oMFM,"hydro");
+        if ( mMemoryModel & PKD_MODEL_MFV )
+            gas.add<decorators::MFV>(DECORATOR_FIELD::oMFV,"mfv");
+    }
+
+    if ( mMemoryModel & PKD_MODEL_STAR ) {
+        auto star = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the star field on the MFM field
+        star.add<decorators::STAR>(DECORATOR_FIELD::oStar,"star");
+    }
+
+#ifdef BLACKHOLES
+    if ( mMemoryModel & PKD_MODEL_BH ) {
+        auto bh = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the blackhole field on the MFM field
+        bh.add<decorators::BLACKHOLE>(DECORATOR_FIELD::oBH,"bh");
+    }
+#endif // BLACKHOLES
+
+
     decorators.commit();
 
     particles.initialize(this->bIntegerPosition,this->bNoParticleOrder, &decorators);
@@ -378,26 +398,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
     if ( mMemoryModel ) particles.add<decorators::FIELDS *>(PKD_FIELD::oDecorator,"decorator");
 
-    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
-        auto gas = particles.overlay(PKD_FIELD::oSph);
-        gas.add<decorators::MFM>(PKD_FIELD::oSph,"hydro");
-        if ( mMemoryModel & PKD_MODEL_MFV )
-            gas.add<decorators::MFV>(PKD_FIELD::oMFV,"mfv");
-    }
-
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
     if ( mMemoryModel & PKD_MODEL_STRENGTH ) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr,"strength");
-    if ( mMemoryModel & PKD_MODEL_STAR ) {
-        auto star = particles.overlay(PKD_FIELD::oSph); // Overlay the star field on the sph field
-        star.add<decorators::STAR>(PKD_FIELD::oStar,"star");
-    }
-
-#ifdef BLACKHOLES
-    if ( mMemoryModel & PKD_MODEL_BH ) {
-        auto bh = particles.overlay(PKD_FIELD::oSph); // Overlay the blackhole field on the sph field
-        bh.add<decorators::BLACKHOLE>(PKD_FIELD::oBH,"bh");
-    }
-#endif // BLACKHOLES
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
         particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth,"vsmooth");
@@ -506,7 +508,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if (nEphemeral * mdl->Cores()*nEphemeralBytes < nMinEphemeral)
         nEphemeral = (nMinEphemeral + mdl->Cores()*nEphemeralBytes - 1) / (mdl->Cores()*nEphemeralBytes);
 
-    uint64_t nElements[4] = {uint64_t(nStore+1),nEphemeral,nGas,0};
+    uint64_t nElements[4] = {uint64_t(nStore+1),nEphemeral,uint64_t(nDecoratorStore+1),0};
     uint64_t nBytesPerElement[4] = {particles.ParticleSize(),nEphemeralBytes,decorators.ElementSize(),sizeof(uint64_t)};
     void *pSegments[4];
     storageSize = mdl->new_shared_array(pSegments,4,nElements,nBytesPerElement,nMinTotalStore);
@@ -518,7 +520,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     storageBase = pSegments[0];
     particles.setStore(pSegments[0],nStore);
     this->pLite = pSegments[1];                 // Ephemeral storage
-    decorators.setStore(pSegments[2],nGas);
+    decorators.setStore(pSegments[2],nDecoratorStore);
     /*
     ** Now we setup the node storage for the tree.  This storage is no longer
     ** continguous as the MDL now supports non-contiguous arrays.  We allocate
@@ -701,7 +703,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
     pkd->particles.clearClasses();
-    if (pkd->particles.present(PKD_FIELD::oStar)) {
+    if (pkd->decorators.present(DECORATOR_FIELD::oStar)) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         auto p = pkd->particles[pkd->Local()];
         pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_STAR,&p);
@@ -778,7 +780,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             else {
                 assert(dTuFac>0.0);
                 p.set_ball(2.*afSphOtherData[0]);
-                if (p.have_sph()) {
+                if (p.have_mfm()) {
                     uint64_t decorator_index = pkd->decorators.append();
                     p.set_decorator_index(decorator_index);
                     auto &Sph = p.sph();
@@ -1249,7 +1251,7 @@ std::pair<int,int> pkdColRejects(PKD pkd,int nSplit) {
     if (pkd->DecoratorLocal() != pkd->FreeDecoratorStore()) {
         for (i=pkd->nDecoratorRejects-1; i>=0; --i) {
             pkd->decorators[iDecoratorRejects+i] = pkd->decorators[nDecoratorSplit+i];
-            assert( pkd->Decorator(nDecoratorSplit+i)->sph.Uint == pkd->Decorator(iDecoratorRejects+i)->sph.Uint);
+            assert( pkd->decorators[nDecoratorSplit+i].mfm().Uint == pkd->decorators[iDecoratorRejects+i].mfm().Uint);
         }
     }
 
@@ -1549,7 +1551,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                         fDensity,T,metals.data(),0.0f,T,otherData);
         }
         else {
-            assert(p.have_sph());
+            assert(p.have_mfm());
             auto &Sph = p.sph();
             {
 #if defined(COOLING)
@@ -2368,8 +2370,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     ** Update particle positions
     */
     if (bDoGas) {
-        if (pkd->particles.present(PKD_FIELD::oSph) /*pkd->param.bMeshlessHydro*/) {
-            assert(pkd->particles.present(PKD_FIELD::oSph));
+        if (pkd->decorators.present(DECORATOR_FIELD::oMFM)) {
             assert(pkd->particles.present(PKD_FIELD::oAcceleration));
             for (i=pLower; i<=pUpper; ++i) {
                 auto p = pkd->particles[i];
@@ -2668,7 +2669,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     assert(pkd->particles.present(PKD_FIELD::oAcceleration));
 
     if (bDoGas) { // pkd->param.bMeshlessHydro
-        assert(pkd->particles.present(PKD_FIELD::oSph));
         for (auto &p : pkd->particles) {
             if (!p.is_gas()) {
                 if (p.is_rung_range(uRungLo,uRungHi)) {

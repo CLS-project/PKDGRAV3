@@ -78,6 +78,7 @@ public:
     }
     //! Clean the cache
     void CacheClean() {
+        nCache = 0;
         cacheUsed.reset();
     }
     //! Return the current total size of the cache
@@ -91,7 +92,7 @@ public:
     //! Return a element of the cache that can be used to
     //! temporarily store a decorator
     value_type *CacheAdd() {
-        CacheCheck();
+        //CacheDebug();
         if (readonly) {
             // We just take the next element in line
             nCache++;
@@ -102,8 +103,9 @@ public:
         else {
             // Try as if the cache was read-only, but if we find that that element
             // is occupied, we start looping forward.
-            auto i = nCache;
-            auto size = CacheSize();
+            auto size = cacheUsed.size();
+            auto i = (nCache==size)?0:nCache;
+            //assert(cacheUsed.count()!=cacheUsed.size()); // Decorator cache is full
             while (cacheUsed.test(i)) {
                 i++;
                 if (i==size) i=0;
@@ -113,22 +115,21 @@ public:
             return Element(nLocal+i);
         }
     }
-    void CacheCheck() {
-        if (nCache != cacheUsed.count())
-            printf("\n\tCache size: %d\n\tCache usage: %d(%d)\n",
-                   CacheSize(), nCache, cacheUsed.count());
+    void CacheDebug() {
+        //printf("\n\tCache size: %d\n\tCache usage: %d(%ld)\n",
+        //       CacheSize(), nCache, cacheUsed.count());
 
         assert(nCache == cacheUsed.count());
 
     }
     const void CacheRelease(const value_type *e) {
-        CacheCheck();
-        auto i = DecoratorIndex(e);
+        //CacheDebug();
+        auto i = DecoratorIndex(e) - nLocal;
         // if (!cacheUsed.test(i-nLocal))
         //     printf("Releasing %d \t %e \n",i-nLocal, e->sph.Uint);
         //assert(cacheUsed[i]);
-        if (cacheUsed.test(i-nLocal)) {
-            cacheUsed.flip(DecoratorIndex(e)-nLocal);
+        if (cacheUsed.test(i)) {
+            cacheUsed.flip(i);
             nCache--;
         }
         else {
@@ -137,10 +138,36 @@ public:
         }
     }
 
+
+    const auto &mfm( const decorators::FIELDS *d ) const {
+        return get<decorators::MFM>(
+                   d, DECORATOR_FIELD::oMFM
+               );
+    }
+    const auto &mfv( const decorators::FIELDS *d ) const {
+        return get<decorators::MFV>(
+                   d, DECORATOR_FIELD::oMFV
+               );
+    }
+    const auto &star( const decorators::FIELDS *d ) const {
+        return get<decorators::STAR>(
+                   d, DECORATOR_FIELD::oStar
+               );
+    }
+    const auto &bh( const decorators::FIELDS *d ) const {
+        return get<decorators::BLACKHOLE>(
+                   d, DECORATOR_FIELD::oBH
+               );
+    }
+
     class DecoratorField : public SingleElement<decorators::FIELDS,decoratorStore> {
     public:
         using SingleElement::SingleElement;
     public:
+        auto &mfm()         const { return store().mfm(p); }
+        auto &mfv()         const { return store().mfv(p); }
+        auto &star()         const { return store().star(p); }
+        auto &bh()         const { return store().bh(p); }
     };
 
     /// @brief A "pointer" reference to a decorator

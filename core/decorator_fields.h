@@ -172,10 +172,7 @@ struct BLACKHOLE {
     );
 };
 
-union FIELDS {
-    MFM sph;
-    STAR star;
-    BLACKHOLE bh;
+struct FIELDS {
 };
 
 } // meshless

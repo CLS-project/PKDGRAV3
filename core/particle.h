@@ -440,17 +440,17 @@ public:
         bool have_velocity()     const {return have(PKD_FIELD::oVelocity);}
         bool have_acceleration() const {return have(PKD_FIELD::oAcceleration);}
         bool have_potential()    const {return have(PKD_FIELD::oPotential);}
-        bool have_sph()          const {return have(PKD_FIELD::oSph);}
-        bool have_mfv()          const {return have(PKD_FIELD::oMFV);}
+        bool have_mfm()          const {return store().decorator->present(DECORATOR_FIELD::oMFM);}
+        bool have_mfv()          const {return store().decorator->present(DECORATOR_FIELD::oMFV);}
         bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
         bool have_newsphstr()    const {return have(PKD_FIELD::oNewSphStr);}
-        bool have_star()         const {return have(PKD_FIELD::oStar);}
+        bool have_star()         const {return store().decorator->present(DECORATOR_FIELD::oStar);}
         bool have_ball()         const {return have(PKD_FIELD::oBall);}
         bool have_mass()         const {return have(PKD_FIELD::oMass);}
         bool have_group()        const {return have(PKD_FIELD::oGroup);}
         bool have_soft()         const {return have(PKD_FIELD::oSoft);}
         bool have_density()      const {return have(PKD_FIELD::oDensity);}
-        bool have_bh()           const {return have(PKD_FIELD::oBH);}
+        bool have_bh()           const {return store().decorator->present(DECORATOR_FIELD::oBH);}
         bool have_vel_smooth()   const {return have(PKD_FIELD::oVelSmooth);}
         bool have_rung_dest()    const {return have(PKD_FIELD::oRungDest);}
         bool have_particle_id()  const {return have(PKD_FIELD::oParticleID);}

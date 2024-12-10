@@ -226,7 +226,10 @@ void init_shared_decorator(void *vpkd, void *dst) {
     PKD pkd = (PKD) vpkd;
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
     auto decorator = pkd->decorators.CacheAdd();
-    memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
+    if (decorator)
+        memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
+    else
+        mdlFlushCache(pkd->mdl,CID_PARTICLE);
     p.set_decorator(decorator);
 }
 
@@ -312,7 +315,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         comb = NULL;
         break;
     case SMX_HYDRO_DENSITY:
-        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
+        assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensity;
         initParticle = NULL; /* Original Particle */
         pack = packHydroDensity;
@@ -323,7 +326,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         iPackSize = sizeof(hydroDensityPack);
         break;
     case SMX_HYDRO_DENSITY_FINAL:
-        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
+        assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensityFinal;
         initParticle = NULL; /* Original Particle */
         pack = packHydroDensity;
@@ -334,7 +337,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         iPackSize = sizeof(hydroDensityPack);
         break;
     case SMX_HYDRO_GRADIENT:
-        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
+        assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmooth = hydroGradients;
         initParticle = NULL; /* Original Particle */
         pack = packHydroGradients;
@@ -346,7 +349,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         break;
 #ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
-        assert (pkd->particles.present(PKD_FIELD::oSph));
+        assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmoothNode = hydroRiemann_wrapper;
         smx->fcnSmoothGetBufferInfo = hydroFluxGetBufferInfo;
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
@@ -363,7 +366,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         break;
 #endif
     case SMX_HYDRO_STEP:
-        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
+        assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmooth = hydroStep;
         initParticle = NULL; /* Original Particle */
         pack = packHydroStep;

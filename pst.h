@@ -255,6 +255,7 @@ void pstFinish(PST);
 struct inInitializePStore {
     uint64_t mMemoryModel;
     uint64_t nStore;
+    uint64_t nDecoratorStore;
     fioSpeciesList nSpecies;
     blitz::TinyVector<double,3> fPeriod;
     uint64_t nMinEphemeral;

@@ -342,6 +342,10 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     int i;
     for ( i=0; i<=FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
     ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(mdl));
+    ps.nDecoratorStore = ceil( dStorageAmount * (ps.nSpecies[FIO_SPECIES_SPH] +
+                               ps.nSpecies[FIO_SPECIES_BH] + ps.nSpecies[FIO_SPECIES_STAR])
+                               / mdlThreads(mdl))
+                         + parameters.get_nDecoratorCacheSize();
     ps.nTreeBitsLo = parameters.get_nTreeBitsLo();
     ps.nTreeBitsHi = parameters.get_nTreeBitsHi();
     ps.iCacheSize  = parameters.get_iCacheSize();
@@ -394,9 +398,10 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     outInitializePStore pout;
     pstInitializePStore(pst,&ps,sizeof(ps),&pout,sizeof(pout));
     PKD pkd = pst->plcl->pkd;
-    print("Allocated {} MB for particle store on each processor.\n", pkd->ParticleMemory()/(1024*1024));
-    print("Particles: {} bytes (persistent) + {} bytes (ephemeral), Nodes: {} bytes\n",
-          pkd->particles.ParticleSize(),ps.nEphemeralBytes,pkd->NodeSize());
+    print("Allocated {} MB for {} particles on each processor.\n", pkd->ParticleMemory()/(1024*1024), pkd->FreeStore());
+    print("Allocated {} MB for {} decorators (+ {} cache) on each processor.\n", pkd->DecoratorMemory()/(1024*1024), pkd->FreeDecoratorStore()-parameters.get_nDecoratorCacheSize(), parameters.get_nDecoratorCacheSize());
+    print("Particles: {} bytes (persistent) + {} bytes (decorator) + {} bytes (ephemeral) , Nodes: {} bytes\n",
+          pkd->particles.ParticleSize(),pkd->decorators.DecoratorSize(), ps.nEphemeralBytes,pkd->NodeSize());
     if (pkd->particles.ParticleSize() > MDL_CACHE_DATA_SIZE) {
         print_error("ERROR! MDL_CACHE_DATA_SIZE ({} bytes) is too small for the given particle size, please increasing it\n", MDL_CACHE_DATA_SIZE);
         abort();
