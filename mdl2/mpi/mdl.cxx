@@ -23,6 +23,7 @@ using namespace mdl;
 #include <cstring>
 #include <set>
 #include <queue>
+#include <chrono>
 
 static inline int size_t_to_int(size_t v) {
     return (int)v;
@@ -1260,7 +1261,16 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
     --nOpenCaches;
     if (nOpenCaches == 0) {
         // Make sure that there are no cache message inflight at this point; that would potentially be bad.
-        assert(std::all_of(countCacheInflight.begin(), countCacheInflight.end(), [](int i) { return i==0; }));
+        // This would normally be Isend requests that have not been completed even though the message was received.
+        // We know that the message was received bacause the barrier completed. This is allowed by MPI, but weird.
+        auto done = [this]() { return std::all_of(countCacheInflight.begin(), countCacheInflight.end(), [](int i) { return i==0; }); };
+        auto start_time = std::chrono::steady_clock::now();
+        while (!done() && std::chrono::steady_clock::now() - start_time < std::chrono::seconds(5)) {
+            bookkeeping();
+            checkMPI();
+            yield();
+        }
+        assert(done());
 #ifdef DEBUG_COUNT_CACHE
         std::vector<uint64_t> countRecvExpected(Procs());
         MPI_Alltoall(countCacheSend.data(),1,MPI_UINT64_T,countRecvExpected.data(),1,MPI_UINT64_T,commMDL);
