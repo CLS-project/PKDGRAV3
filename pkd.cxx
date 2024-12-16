@@ -1224,28 +1224,44 @@ std::pair<int,int> pkdColRejects(PKD pkd,int nSplit) {
     pkd->nRejects = pkd->Local() - nSplit;
     iRejects = pkd->FreeStore() - pkd->nRejects;
 
-
-    // Assume that the decorators have been reordered
-    int nDecoratorSplit = nSplit==pkd->Local()?pkd->DecoratorLocal():pkd->particles[nSplit].decorator_index();
-    pkd->nDecoratorRejects = pkd->DecoratorLocal() - nDecoratorSplit;
-    iDecoratorRejects = pkd->FreeDecoratorStore() - pkd->nDecoratorRejects;
-
-    // printf("splits %d \t %d %d\n", pkd->Self(), nSplit, nDecoratorSplit);
-    // printf("rejects %d \t %d %d\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
-    // printf("locals %d \t %d %d\n", pkd->Self(), pkd->Local(), pkd->DecoratorLocal());
+    pkdReorderDecorator(pkd);
 
     // Only for gas only sims
-    assert(nSplit==nDecoratorSplit);
+    //assert(nSplit==nDecoratorSplit);
+
+    // We need to keep track of the decorator indeces of the particles to be swapped,
+    // for this we use the ephemeral storage
+    auto ephem = pkd->Ephemeral<bool>();
+    int nDecoratorRejects = 0;
+
+
     /*
     ** Move rejects to High memory.
     */
     if (pkd->Local() != pkd->FreeStore()) {
         for (i=pkd->nRejects-1; i>=0; --i) {
             pkd->particles[iRejects+i] = pkd->particles[nSplit+i];
+            ephem[pkd->nRejects-i-1] = pkd->particles[iRejects+i].have_decorator();
+            if (ephem[pkd->nRejects-i-1])
+                nDecoratorRejects++;
             assert( pkd->particles[iRejects+i].mass() == pkd->particles[nSplit+i].mass());
             assert( pkd->particles[iRejects+i].position(0) == pkd->particles[nSplit+i].position(0));
         }
     }
+    else {
+        // Even if there is no particle movements, we should still fill the
+        // decorator flag in the ephemeral storage
+        for (i=pkd->nRejects-1; i>=0; --i) {
+            ephem[pkd->nRejects-i-1] = pkd->particles[nSplit+i].have_decorator();
+            if (ephem[pkd->nRejects-i-1])
+                nDecoratorRejects++;
+        }
+    }
+
+    uint64_t nDecoratorSplit = nSplit==pkd->Local()?pkd->DecoratorLocal():pkd->DecoratorLocal()-nDecoratorRejects;
+    pkd->nDecoratorRejects = pkd->DecoratorLocal() - nDecoratorSplit;
+    iDecoratorRejects = pkd->FreeDecoratorStore() - pkd->nDecoratorRejects;
+
 
     // Same for decorators
     if (pkd->DecoratorLocal() != pkd->FreeDecoratorStore()) {
@@ -1270,7 +1286,7 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
     auto oldDecoratorLocal = pkd->DecoratorLocal();
 
     if (idSwap != -1) {
-        printf("%d have %d(%d) rejects\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
+        //printf("%d have %d(%d) rejects\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
         nBuf = (pkdSwapSpace(pkd))*pkd->particles.ParticleSize();
 
         nOutBytes = pkd->nRejects*pkd->particles.ParticleSize();
@@ -1284,9 +1300,9 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
 
         auto nNewPart = nRcvBytes/pkd->particles.ParticleSize();
         auto nSentPart = nSndBytes/pkd->particles.ParticleSize();
-        if (!outPart)
-            printf("%d tried to swap %d with %d, but only sent %d and received %d\n",
-                   pkd->Self(), pkd->nRejects, idSwap, nSentPart, nNewPart);
+        // if (!outPart)
+        //     printf("%d tried to swap %d with %d, but only sent %d and received %d\n",
+        //            pkd->Self(), pkd->nRejects, idSwap, nSentPart, nNewPart);
 
         pkd->AddLocal(nNewPart);
 
@@ -1294,29 +1310,26 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
         // decorators to the newly arrived particles
         int nNewDecorator = 0;
         for (auto i=oldLocal; i<pkd->Local(); i++) {
-            if (pkd->particles[i].is_gas()) {
+            if (pkd->particles[i].have_decorator()) {
                 nNewDecorator++;
             }
         }
         assert(nNewDecorator < pkdSwapDecoratorSpace(pkd));
         // Also only share now the associated decorators to the particles that
         // we have just sen
+
         int nToBeSendDecorator = 0;
-        // NOT sure about if this should be
-        //    [oldLocal - nSentPart, oldLocal]
-        // or
-        //    [pkd->nRejects, pkd->nRejects+nSentPart]
-        // Basically, if we did not send all our buffer, which part was left to send?
-        // The beginning or the end? I think that as pkd->nRejects is updated below
-        // the sent part starts from pkd->nRejects.
-        //for (auto i=pkd->nRejects; i<pkd->nRejects+nSentPart; i++) {
+        auto ephem = pkd->Ephemeral<bool>();
         for (auto i=0; i<nSentPart; i++) {
-            if (pkd->particles[pkd->FreeStore()-pkd->nRejects+i].is_gas()) {
+            // NB: We store this in reverse order so that if we need multiple
+            // swaps we no not need to know how many elements were copied before.
+            if (ephem[pkd->nRejects-i-1]) {
                 nToBeSendDecorator++;
             }
         }
 
         // i.e., sanity check, we are not miscounting the decorators
+//        printf("%d %d \t %d %d\n", pkd->Self(), nSentPart,nToBeSendDecorator, pkd->nDecoratorRejects);
         assert(nToBeSendDecorator <= pkd->nDecoratorRejects);
 
         // i.e., otherwise we can not be sure that we can get all the decorators
@@ -1338,32 +1351,32 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
         // i.e., we received the correct amount of decorators
         assert(nRcvDecoratorBytes == nNewDecorator*pkd->decorators.DecoratorSize());
         // i.e., same amount of particles and decorators was exchanged (only for gas-only sims)
-        assert(nRcvDecoratorBytes/pkd->decorators.DecoratorSize() == nRcvBytes/pkd->particles.ParticleSize());
+        //assert(nRcvDecoratorBytes/pkd->decorators.DecoratorSize() == nRcvBytes/pkd->particles.ParticleSize());
 
         // printf("%d %d \t %d \t %" PRIu64 "\t %" PRIu64 "\t %" PRIu64 "\n",
         //         pkd->Self(), outPart, pkd->nRejects, nOutBytes, nSndBytes, nRcvBytes);
 
         pkd->decorators.Add(nRcvDecoratorBytes/pkd->decorators.DecoratorSize());
 
-        printf("%d (%d/%d) swapped with %d a total of %d(%d) elements, changing the count from %d(%d) to %d(%d)\n",
-               pkd->Self(), outPart, outDecorator, idSwap, nSentPart, nSentDecorator,
-               oldLocal, oldDecoratorLocal, pkd->Local(), pkd->DecoratorLocal());
-        assert (nSentPart == nSentPart); // only for gas-only simulations
+        // printf("%d (%d/%d) swapped with %d a total of %d(%d) elements, changing the count from %d(%d) to %d(%d)\n",
+        //        pkd->Self(), outPart, outDecorator, idSwap, nSentPart, nSentDecorator,
+        //        oldLocal, oldDecoratorLocal, pkd->Local(), pkd->DecoratorLocal());
+        // assert (nSentPart == nSentPart); // only for gas-only simulations
 
         pkd->nRejects -= nSentPart;
         pkd->nDecoratorRejects -= nSentDecorator;
-        printf("%d have %d(%d) remaining rejects\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
+        //printf("%d have %d(%d) remaining rejects\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
 
         // Bookkeep so that newly arrived particles have the correct decorator index
         uint64_t d = oldDecoratorLocal;
         for (auto i=oldLocal; i<pkd->Local(); i++) {
             auto P = pkd->particles[i];
-            if (P.is_gas()) {
+            if (P.have_decorator()) {
                 P.set_decorator_index(d);
                 d++;
             }
         }
-
+        assert(d == pkd->DecoratorLocal());
     }
     return std::pair<int,int>(pkd->nRejects, pkd->nDecoratorRejects);
 }
@@ -2439,33 +2452,41 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 }
 
 void pkdReorderDecorator(PKD pkd) {
+    uint64_t iDecorator = 0;
     for (uint32_t i=0; i<pkd->Local(); ++i) {
-        auto control = pkd->particles[i].sph().Uint;
-        assert (control > 0);
-        uint64_t prev_index = pkd->particles[i].decorator_index();
-        // ONLY VALID FOR GAS-ONLY SIMULATIONS!!
-        uint64_t new_index = static_cast<uint64_t>(i);
-        // printf("%" PRIu64 " %" PRIu64 "\n", prev_index, new_index);
-        if (prev_index != new_index) {
-            uint32_t lookahead = 1;
-            uint64_t ahead_index = pkd->particles[i+lookahead].decorator_index();
-            // Look for the particle whose decorator struct is in our objective index
-            while ( ahead_index != new_index ) {
-                lookahead++;
-                assert (lookahead + i <= pkd->Local());
-                ahead_index = pkd->particles[i+lookahead].decorator_index();
+        if (pkd->particles[i].have_decorator()) {
+            auto prev_index = pkd->particles[i].decorator_field();
+            auto new_index = pkd->decorators[iDecorator];
+            if (prev_index != &new_index) {
+                uint32_t lookahead = 0;
+                auto ahead_index = prev_index;
+                // Look for the particle whose decorator struct is in our objective index
+                while ( ahead_index != &new_index ) {
+                    lookahead++;
+                    //assert (lookahead + i <= pkd->Local());
+                    if (pkd->particles[i+lookahead].have_decorator())
+                        ahead_index = pkd->particles[i+lookahead].decorator_field();
+                }
+
+                auto a = pkd->decorators[ahead_index];
+                auto b = pkd->decorators[prev_index];
+                swap(a, b);
+
+                pkd->particles[i+lookahead].set_decorator(prev_index);
+                pkd->particles[i].set_decorator(&new_index);
+
             }
-
-            auto a = pkd->decorators[ahead_index];
-            auto b = pkd->decorators[prev_index];
-            swap(a, b);
-
-            pkd->particles[i+lookahead].set_decorator_index(prev_index);
-            pkd->particles[i].set_decorator_index(new_index);
-
+            iDecorator++;
         }
-        assert (pkd->particles[i].sph().Uint == control);
     }
+
+    // int last_index = -1;
+    // for (uint32_t i=0; i<pkd->Local(); ++i) {
+    //     if (pkd->particles[i].have_decorator()) {
+    //         assert(pkd->particles[i].decorator_index()==last_index+1);
+    //         last_index++;
+    //     }
+    // }
 }
 
 

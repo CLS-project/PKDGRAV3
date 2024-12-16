@@ -1113,7 +1113,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
                 /* Fill the decorators::MFM with some initial values */
                 double u = in->dInitialT * in->dTuFac;
-                assert(pkd->particles.present(PKD_FIELD::oSph));
+                assert(pkd->decorators.present(DECORATOR_FIELD::oMFM));
+                pgas.set_decorator_index(pkd->decorators.append());
                 auto &Sph = pgas.sph();
                 Sph.ElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
 #ifdef HAVE_HELIUM

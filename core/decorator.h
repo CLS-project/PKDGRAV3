@@ -98,7 +98,7 @@ public:
             nCache++;
             if (!CacheAvail())
                 nCache = 1;
-            return Element(nCache-1);
+            return Element(nLocal+nCache-1);
         }
         else {
             // Try as if the cache was read-only, but if we find that that element

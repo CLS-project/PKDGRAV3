@@ -3784,6 +3784,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     dsec = MSR::Time() - sec;
     print_detail("IC Generation Complete @ a={a:.6}, Wallclock: {seconds:.5} secs\n", "a"_a=in.dExpansion, "seconds"_a=dsec);
     print_detail("Mean of noise sample is {mean:g}, RMS {rms:g}\n", "mean"_a=mean, "rms"_a=rms);
+    ReorderDecorator();
 
     return getTime(out.dExpansion);
 }

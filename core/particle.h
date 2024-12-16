@@ -528,6 +528,7 @@ public:
         auto is_gas()       const {return species() == FIO_SPECIES_SPH;}
         auto is_star()      const {return species() == FIO_SPECIES_STAR;}
         auto is_bh()        const {return species() == FIO_SPECIES_BH;}
+        auto have_decorator()    const {return !this->is_dark(); }
     };
     friend class SingleReference<Particle>;
 

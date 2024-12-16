@@ -225,12 +225,12 @@ int smHashPresent(SMX smx,void *p) {
 void init_shared_decorator(void *vpkd, void *dst) {
     PKD pkd = (PKD) vpkd;
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto decorator = pkd->decorators.CacheAdd();
-    if (decorator)
-        memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
-    else
-        mdlFlushCache(pkd->mdl,CID_PARTICLE);
-    p.set_decorator(decorator);
+    if (p.have_decorator()) {
+        auto decorator = pkd->decorators.CacheAdd();
+        if (decorator)
+            memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
+        p.set_decorator(decorator);
+    }
 }
 
 static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType,int bMakeCache) {
