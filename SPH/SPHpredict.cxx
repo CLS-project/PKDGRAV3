@@ -46,15 +46,22 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
         vpred[0] = NewSph.vpred[0];
         vpred[1] = NewSph.vpred[1];
         vpred[2] = NewSph.vpred[2];
+        if (SPHoptions->VelocityDamper > 0.0) {
+            double dampingTimestep = std::max(kick->dtOpen[p.rung()],kick->dtClose[p.rung()]);
+            vpred[0] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            vpred[1] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            vpred[2] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+        }
     }
     else {
         vpred[0] = v[0] + dtPredDrift * ap[0] * p.accFac();
         vpred[1] = v[1] + dtPredDrift * ap[1] * p.accFac();
         vpred[2] = v[2] + dtPredDrift * ap[2] * p.accFac();
-        if ((SPHoptions->VelocityDamper > 0.0) && p.marked()) {
-            vpred[0] *= exp(kick->dtOpen[p.rung()] * SPHoptions->VelocityDamper);
-            vpred[1] *= exp(kick->dtOpen[p.rung()] * SPHoptions->VelocityDamper);
-            vpred[2] *= exp(kick->dtOpen[p.rung()] * SPHoptions->VelocityDamper);
+        if ((SPHoptions->VelocityDamper > 0.0) && !p.marked()) {
+            double dampingTimestep = std::max(kick->dtOpen[p.rung()],kick->dtClose[p.rung()]);
+            vpred[0] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            vpred[1] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            vpred[2] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
         }
     }
     if ((SPHoptions->doSPHForces || SPHoptions->doDensityCorrection) && pkdIsGas(pkd, &p)) {
