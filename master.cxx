@@ -3953,7 +3953,7 @@ double MSR::Read(std::string_view achInFile) {
         if (parameters.get_bWriteIC() || (NoSteps())) {
             Output(iStartStep, dTime, 0.0, 0);
         }
-        if (NoSteps()) exit(0);
+        if (NoSteps()) std::_Exit(EXIT_FAILURE); // For now. this will be replaced sood.
     }
 
     return dTime;
