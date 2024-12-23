@@ -99,6 +99,7 @@ enum pst_service {
     PST_OUTPUT_SEND,
     PST_CHECKPOINT,
     PST_RESTORE,
+    PST_RESTORE_DECORATOR,
     PST_BUILDTREE,
     PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
@@ -270,6 +271,7 @@ struct inInitializePStore {
 };
 struct outInitializePStore {
     int nSizeParticle;
+    int nSizeDecorator;
     int nSizeNode;
 };
 int pstInitializePStore(PST,void *,int,void *,int);

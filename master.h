@@ -140,7 +140,7 @@ protected:
     int64_t parallel_read_count();
     int64_t parallel_write_count();
     void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
-    void Restore(const std::string &filename,int nSizeParticle);
+    void Restore(const std::string &filename,int nSizeParticle, int nSizeDecorator);
     void PrintStat(const STAT &ps,char const *pszPrefix,int p);
 
 public:
@@ -436,7 +436,7 @@ protected:
     int ReadOuts(double dTime);
     void Exit(int status);
     uint64_t getMemoryModel();
-    std::pair<int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
+    std::tuple<int,int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
     int CheckForStop(const char *achStopFile);
     int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
     void SetClasses();

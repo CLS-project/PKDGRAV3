@@ -336,7 +336,7 @@ EphemeralMemory MSR::EphemeralMemoryGrid(int nGrid,int nCount) {
     return EphemeralMemory(mdl,nGrid,nCount);
 }
 
-std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {
+std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {
     struct inInitializePStore ps;
     double dStorageAmount = (1.0+parameters.get_dExtraStore());
     int i;
@@ -408,7 +408,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     }
     if (ps.nMinEphemeral)
         print("Ephemeral will be at least {} MB per node.\n",ps.nMinEphemeral/(1024*1024));
-    return std::make_pair(pout.nSizeParticle,pout.nSizeNode);
+    return std::make_tuple(pout.nSizeParticle,pout.nSizeDecorator,pout.nSizeNode);
 }
 
 /// @brief Return the number of threads to use for parallel reading/writing
@@ -453,17 +453,16 @@ void MSR::stat_files(std::vector<uint64_t> &counts,const std::string_view &filen
     delete [] out;
 }
 
-void MSR::Restore(const std::string &baseName,int nSizeParticle) {
+void MSR::Restore(const std::string &baseName,int nSizeParticle, int nSizeDecorator) {
     std::vector<uint64_t> counts;
+    std::vector<uint64_t> counts_d;
     std::string filename_template = baseName + ".{i}";
-    TimerStart(TIMER_NONE);
+    std::string filename_d_template = baseName + ".dec.{i}";
+
     print("Scanning Checkpoint files...\n");
+
+    TimerStart(TIMER_NONE);
     stat_files(counts,filename_template,nSizeParticle);
-    TimerStop(TIMER_NONE);
-    auto dsec = TimerGet(TIMER_NONE);
-    print("... identified {} particles in {} files, Wallclock: {:.5f} secs.\n",
-          std::accumulate(counts.begin(),counts.end(),uint64_t(0)),
-          int(counts.size()), dsec);
 
     using mdl::ServiceBuffer;
     ServiceBuffer msg {
@@ -482,6 +481,39 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
     mdl->RunService(PST_RESTORE,msg);
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+    print("... identified {} particles in {} files, Wallclock: {:.5f} secs.\n",
+          std::accumulate(counts.begin(),counts.end(),uint64_t(0)),
+          int(counts.size()), dsec);
+
+    // Repeat for decorators
+    TimerStart(TIMER_NONE);
+    stat_files(counts_d,filename_d_template,nSizeDecorator+nSizeParticle);
+    ServiceBuffer msg_d {
+        ServiceBuffer::Field<ServiceInput::input>(),
+        ServiceBuffer::Field<ServiceInput::io_elements>(counts_d.size())
+    };
+    auto hdr_d = static_cast<ServiceInput::input *>(msg_d.data(0));
+    auto elements_d = static_cast<ServiceInput::io_elements *>(msg_d.data(1));
+    hdr_d->nFiles = counts_d.size();
+    hdr_d->nElements = std::accumulate(counts_d.begin(),counts_d.end(),uint64_t(0));
+    std::copy(counts_d.begin(),counts_d.end(),elements_d);
+    hdr_d->iBeg = 0;
+    hdr_d->iEnd = hdr_d->nElements;
+    strncpy(hdr_d->io.filename,filename_d_template.c_str(),sizeof(hdr_d->io.filename));
+    hdr_d->io.nSimultaneous = parallel_read_count();
+    assert(hdr_d->io.nSimultaneous > 0);
+    hdr_d->io.nSegment = hdr_d->io.iThread = 0; // setup later
+    hdr_d->io.iReaderWriter = 0;
+    mdl->RunService(PST_RESTORE_DECORATOR,msg_d);
+
+    //mdl->RunService(PST_RESET_DECORATOR);
+    TimerStop(TIMER_NONE);
+    dsec = TimerGet(TIMER_NONE);
+    print("... identified {} decorators in {} files, Wallclock: {:.5f} secs.\n",
+          std::accumulate(counts_d.begin(),counts_d.end(),uint64_t(0)),
+          int(counts_d.size()), dsec);
 }
 
 template<>
@@ -615,10 +647,10 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
     abort_assert(1001,nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
-    auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
+    auto [nSizeParticle,nSizeDecorator,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
-    Restore(filename,nSizeParticle);
     pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
+    Restore(filename,nSizeParticle,nSizeDecorator);
     CalcBound();
     CountRungs(NULL);
 

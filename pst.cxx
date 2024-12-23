@@ -383,6 +383,7 @@ int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
         if (plcl->pkd) delete plcl->pkd;
         initializePStore(&plcl->pkd,pst->mdl,in);
         out->nSizeParticle = plcl->pkd->particles.ElementSize();
+        out->nSizeDecorator = plcl->pkd->decorators.ElementSize();
         out->nSizeNode = plcl->pkd->tree.ElementSize();
     }
     return sizeof(*out);
@@ -659,8 +660,10 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         char achOutFile[PATH_MAX];
+        char achOutDecoratorFile[PATH_MAX];
         makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"");
-        pkdCheckpoint(pkd,achOutFile);
+        makeName(achOutDecoratorFile,sizeof(achOutDecoratorFile),in->achOutFile,mdlSelf(pkd->mdl),"dec.");
+        pkdCheckpoint(pkd,achOutFile, achOutDecoratorFile);
     }
     return 0;
 }

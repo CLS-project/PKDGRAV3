@@ -24,6 +24,7 @@
 #endif
 #include <cinttypes>
 #include "io/iomodule.h"
+#include "io/iostaggered.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -1472,7 +1473,13 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
 
 #define MAX_IO_BUFFER_SIZE (8*1024*1024)
 
-void pkdCheckpoint(PKD pkd,const char *fname) {
+void pkdCheckpoint(PKD pkd,const char *fname, const char *fname_decorator) {
+    // Order particles by type to prepare for checkpoint
+    auto ii = std::partition(pkd->particles.begin(), pkd->particles.end(),
+    [](auto &p) { return !p.have_decorator(); } );
+    auto split = ii - pkd->particles.begin();
+    pkdReorderDecorator(pkd);
+
     asyncFileInfo info;
     size_t nFileSize;
     int fd;
@@ -1482,7 +1489,7 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
         perror(fname);
         abort();
     }
-    nFileSize = pkd->particles.ParticleSize() * pkd->Local();
+    nFileSize = pkd->particles.ParticleSize() * split;
     char *pBuffer = (char *)pkd->particles.Element(0);
     while (nFileSize) {
         size_t count = nFileSize > MAX_IO_BUFFER_SIZE ? MAX_IO_BUFFER_SIZE : nFileSize;
@@ -1491,6 +1498,16 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
         nFileSize -= count;
     }
     io_close(&info);
+
+    // Repeat for particles with decorators
+    auto nElements = pkd->Local() - split;
+    for (auto i=split; i<pkd->Local(); i++)
+        assert(pkd->particles[i].have_decorator());
+    auto pDecorators = static_cast<void *>(pkd->decorators.Element(0));
+    auto pParticles = static_cast<void *>(pkd->particles.Element(split));
+    io_staggered_write(fname_decorator, pParticles, pDecorators, nElements,
+                       pkd->particles.ParticleSize(),
+                       pkd->decorators.DecoratorSize());
 }
 
 /*****************************************************************************\
