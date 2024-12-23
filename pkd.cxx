@@ -838,6 +838,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             p.set_density(fDensity);
             if (p.have_star()) {
+                uint64_t decorator_index = pkd->decorators.append();
+                p.set_decorator_index(decorator_index);
                 auto &Star = p.star();
                 Star.fTimer = fTimer;
                 Star.omega  = 0.;
@@ -862,6 +864,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                       &fDensity,otherData,&fTimer);
             pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             if (p.have_bh()) {
+                uint64_t decorator_index = pkd->decorators.append();
+                p.set_decorator_index(decorator_index);
                 auto &BH = p.BH();
                 BH.omega  = 0.;
                 BH.dInternalMass = otherData[0];
@@ -1415,7 +1419,7 @@ void pkdSwapAll(PKD pkd, int idSwap) {
     uint64_t nDecorator = 0;
     for (auto i=0; i<pkd->Local(); ++i) {
         auto p = pkd->particles[i];
-        if (p.is_gas()) {
+        if (p.have_decorator()) {
             p.set_decorator_index(nDecorator);
             nDecorator++;
         }
