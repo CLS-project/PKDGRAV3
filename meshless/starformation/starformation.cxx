@@ -145,8 +145,8 @@ void pkdStarForm(PKD pkd,
                  double *dMassFormed,   /* mass of stars formed */
                  int *nDeleted) { /* gas particles deleted */
 
-    assert(pkd->particles.present(PKD_FIELD::oStar));
-    assert(pkd->particles.present(PKD_FIELD::oSph));
+    assert(pkd->decorators.present(DECORATOR_FIELD::oStar));
+    assert(pkd->decorators.present(DECORATOR_FIELD::oMFM));
     assert(pkd->particles.present(PKD_FIELD::oMass));
 
     *nFormed = 0;

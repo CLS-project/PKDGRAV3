@@ -1,5 +1,6 @@
 #include "master.h"
 #include "blackhole/evolve.h"
+#include "smooth/smooth.h"
 
 void MSR::BHAccretion(double dTime) {
     struct inBHAccretion in;
@@ -77,10 +78,11 @@ void combBHAccretion(void *vpkd,void *dst,const void *src) {
 }
 
 void pkdBHAccretion(PKD pkd, double dScaleFactor) {
+    pkd->decorators.CacheStart(false);
     mdlPackedCacheCO(pkd->mdl, CID_PARTICLE, NULL, pkd->particles, pkd->Local(),
                      pkd->particles.ParticleSize(), pkd, sizeof(bhAccretionPack),
                      packBHAccretion, unpackBHAccretion, sizeof(bhAccretionFlush),
-                     initBHAccretion, flushBHAccretion, combBHAccretion);
+                     initBHAccretion, init_shared_decorator,flushBHAccretion, combBHAccretion);
     for (auto &p : pkd->particles) {
         if (p.is_gas()) {
             auto &sph = p.sph();

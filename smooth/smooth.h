@@ -124,6 +124,8 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCn
 
 void smGather(SMX smx,double fBall2,blitz::TinyVector<double,3> r);
 
+void init_shared_decorator(void *vpkd, void *dst);
+
 inline void smSwapNN(NN *nnList, int i, int j) {
     NN temp;
     memcpy(&temp,      &nnList[i], sizeof(NN));

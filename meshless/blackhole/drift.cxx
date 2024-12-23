@@ -112,9 +112,10 @@ void unpackBHReposition(void *vpkd,void *dst,const void *src) {
 }
 
 void pkdBHReposition(PKD pkd) {
+    pkd->decorators.CacheStart(true);
     mdlPackedCacheRO(pkd->mdl, CID_PARTICLE, NULL, pkd->particles,pkd->Local(),
                      pkd->particles.ParticleSize(), pkd, sizeof(bhRepositionPack),
-                     packBHReposition, unpackBHReposition);
+                     init_shared_decorator, packBHReposition, unpackBHReposition);
     for (auto &p : pkd->particles) {
         if (p.is_bh()) {
             auto &bh = p.BH();
