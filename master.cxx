@@ -1478,6 +1478,7 @@ void MSR::DomainDecompOld(int iRung) {
     TimerStart(TIMER_DOMAIN);
 
     mdl->RunService(PST_DOMAINDECOMP,sizeof(in),&in);
+    ReorderDecorator();
     TimerStop(TIMER_DOMAIN);
     dsec = TimerGet(TIMER_DOMAIN);
     print("Domain Decomposition complete, Wallclock: {:.5} secs\n\n",dsec);
