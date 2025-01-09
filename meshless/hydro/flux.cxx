@@ -65,6 +65,8 @@ void unpackHydroFluxes(void *vpkd,void *dst,const void *src) {
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        auto decorator = pkd->decorators.CacheAdd();
+        p1.set_decorator(decorator);
         auto &sph = p1.sph();
 
         p1.set_position(p2->position);
