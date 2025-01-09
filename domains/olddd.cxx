@@ -631,7 +631,6 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 
     ittr = 0;
     while (1) {
-        printf("ittr %d \n", ittr);
         iRet = RejMatch(pst,pst->nLower,pLowerRej.get(),pst->nUpper,pUpperRej.get(),pidSwap.get());
         if (!iRet) break;
         rID = mdl->ReqService(pst->idUpper,PST_SWAPREJECTS,pidSwap.get(),

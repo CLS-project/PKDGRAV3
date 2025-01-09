@@ -518,6 +518,11 @@ void CACHE::initialize(uint32_t cacheSize,
     iLineSize = getLineElementCount()*iDataSize;
     OneLine.resize(iLineSize);
 
+    // We need to accomodate extra buffer space in the case that the pack size
+    // is larger than the element size. This can be common when using decorators.
+    if (helper->data_size() < helper->pack_size())
+        OneLine.resize(getLineElementCount() * helper->pack_size());
+
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
     auto arc = arc_cache.get();
@@ -2074,7 +2079,9 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     assert(sizeof(CacheHeader) == 16); /* Well, should be a multiple of 8 at least. */
 #endif
     nOpenCaches = 0;
-    iReplyBufSize = sizeof(CacheHeader) + MDL_CACHE_DATA_SIZE;
+    // We add some extra buffer space in case the pack struct
+    // is larger than the element size
+    iReplyBufSize = sizeof(CacheHeader) + 2*MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
     msgCacheReceive = std::make_unique<mdlMessageCacheReceive>(iCacheBufSize);
 

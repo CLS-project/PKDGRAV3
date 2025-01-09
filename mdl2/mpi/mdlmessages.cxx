@@ -11,6 +11,8 @@ void mdlMessage::result(class mdlClass *mdl) {}
 FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),mid(mid),Buffer(nSize),mContains(0) {}
 
 void *FlushBuffer::getBuffer(int nSize) {
+    // This can happen when the pack size is larger than
+    // the data size and iReplyBufSize is not large enough
     assert(nBuffer+nSize <= Buffer.size());
     if (nBuffer+nSize > Buffer.size()) return nullptr;
     auto data = &Buffer[nBuffer];
