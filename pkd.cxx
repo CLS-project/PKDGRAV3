@@ -1714,8 +1714,7 @@ static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
 
     for (i=0; i<nPart; ++i,++p) {
         particleStore::Particle &P = *p;
-        // It would be interesting to implement a have_decorator
-        if (P.is_gas()) {
+        if (P.have_decorator()) {
             P.set_decorator(d);
             d++;
         }
@@ -1755,7 +1754,7 @@ static int packWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     auto dSize = pkd->decorators.DecoratorSize();
     while (n < nSize-(pSize+dSize)  && i < pkd->Local()) {
         n += pSize;
-        if (pkd->particles[i].is_gas()) {
+        if (pkd->particles[i].have_decorator()) {
             n+=dSize;
             nDecorator++;
         }

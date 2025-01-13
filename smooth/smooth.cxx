@@ -233,12 +233,47 @@ void init_shared_decorator(void *vpkd, void *dst) {
     }
 }
 
+void init_shared_gas_decorator(void *vpkd, void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+    if (p.is_gas()) {
+        auto decorator = pkd->decorators.CacheAdd();
+        if (decorator)
+            memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
+        p.set_decorator(decorator);
+    }
+}
+
+void init_shared_star_decorator(void *vpkd, void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+    if (p.is_star()) {
+        auto decorator = pkd->decorators.CacheAdd();
+        if (decorator)
+            memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
+        p.set_decorator(decorator);
+    }
+}
+
+
+void init_shared_bh_decorator(void *vpkd, void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+    if (p.is_bh()) {
+        auto decorator = pkd->decorators.CacheAdd();
+        if (decorator)
+            memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
+        p.set_decorator(decorator);
+    }
+}
+
 static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType,int bMakeCache) {
     SMX smx;
     void (*initParticle)(void *,void *) = NULL;
     void (*pack)(void *,void *,const void *) = NULL;
     void (*unpack)(void *,void *,const void *) = NULL;
     void (*init)(void *,void *) = NULL;
+    void (*init_shared)(void *,void *) = NULL;
     void (*flush)(void *,void *,const void *) = NULL;
     void (*comb)(void *,void *,const void *) = NULL;
     bool bPacked = false;
@@ -321,6 +356,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packHydroDensity;
         unpack = unpackHydroDensity;
         init = NULL; /* Cached copies */
+        init_shared = init_shared_gas_decorator;
         comb = NULL;
         bPacked = true;
         iPackSize = sizeof(hydroDensityPack);
@@ -332,6 +368,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packHydroDensity;
         unpack = unpackHydroDensity;
         init = NULL; /* Cached copies */
+        init_shared = init_shared_gas_decorator;
         comb = NULL;
         bPacked = true;
         iPackSize = sizeof(hydroDensityPack);
@@ -342,6 +379,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         initParticle = NULL; /* Original Particle */
         pack = packHydroGradients;
         unpack = unpackHydroGradients;
+        init_shared = init_shared_gas_decorator;
         init = NULL; /* Cached copies */
         comb = NULL;
         bPacked = true;
@@ -358,6 +396,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packHydroFluxes;
         unpack = unpackHydroFluxes;
         init = initHydroFluxesCached; /* Cached copies */
+        init_shared = init_shared_gas_decorator;
         flush = flushHydroFluxes;
         comb = combHydroFluxes;
         bPacked = true;
@@ -372,6 +411,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packHydroStep;
         unpack = unpackHydroStep;
         init = initHydroStep; /* Cached copies */
+        init_shared = init_shared_gas_decorator;
         flush = flushHydroStep;
         comb = combHydroStep;
         bPacked = true;
@@ -385,6 +425,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packSNFeedback;
         unpack = unpackSNFeedback;
         init = initSNFeedback; /* Cached copies */
+        init_shared = init_shared_gas_decorator;
         flush = flushSNFeedback;
         comb = combSNFeedback;
         smx->bSearchGasOnly = 1;
@@ -398,6 +439,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnSmooth = smBHmerger;
         initParticle = NULL; /* Original Particle */
         init = NULL; /* Cached copies */
+        init_shared = NULL; // BH merger across domains is not performed
         comb = combBHmerger;
         break;
     case SMX_BH_STEP:
@@ -406,6 +448,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packBHstep;
         unpack = unpackBHstep;
         init = NULL; /* Cached copies */
+        init_shared = NULL; // No need for gas information in this smooth
         comb = NULL;
         smx->bSearchGasOnly = 1;
         bPacked = true;
@@ -417,6 +460,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packBHEvolve;
         unpack = unpackBHEvolve;
         init = initBHEvolve; /* Cached copies */
+        init_shared = init_shared_gas_decorator;
         flush = flushBHEvolve;
         comb = combBHEvolve;
         smx->bSearchGasOnly = 1;
@@ -430,6 +474,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packBHGasPin;
         unpack = unpackBHGasPin;
         init = NULL; /* Cached copies */
+        init_shared = NULL; // No need for gas information in this smooth
         comb = NULL;
         smx->bSearchGasOnly = 1;
         bPacked = true;
@@ -443,6 +488,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packChemEnrich;
         unpack = unpackChemEnrich;
         init = initChemEnrich;
+        init_shared = init_shared_gas_decorator;
         flush = flushChemEnrich;
         comb = combChemEnrich;
         smx->bSearchGasOnly = 1;
@@ -490,13 +536,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
                 pkd->decorators.CacheStart(false);
                 mdlPackedCacheCO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
                                  pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 pack,unpack,iFlushSize,init,init_shared_decorator,flush,comb);
+                                 pack,unpack,iFlushSize,init,init_shared,flush,comb);
             }
             else {
                 pkd->decorators.CacheStart(true);
                 mdlPackedCacheRO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
                                  pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 init_shared_decorator,pack,unpack);
+                                 init_shared,pack,unpack);
             }
         }
         else if (bSymmetric) {

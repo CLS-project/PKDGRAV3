@@ -64,6 +64,9 @@ void unpackHydroStep(void *vpkd,void *dst,const void *src) {
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        auto decorator = pkd->decorators.CacheAdd();
+        p1.set_decorator(decorator);
+
         p1.set_position(p2->position);
         p1.velocity() = p2->velocity;
         p1.sph().c = p2->c;
@@ -93,8 +96,6 @@ void flushHydroStep(void *vpkd,void *dst,const void *src) {
 
         p1->uNewRung = p2.new_rung();
         p1->uWake = sph.uWake;
-    }
-    if (p2.have_decorator()) {
         pkd->decorators.CacheRelease(p2.decorator_field());
     }
 }

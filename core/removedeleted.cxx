@@ -30,5 +30,11 @@ int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     pkd->SetLocal(i - pkd->particles.begin());
     // Count the particles species
     ServiceCountSpecies::Service(pst,vin,nIn,vout,nOut);
+    auto out = static_cast<output *>(vout);
+    auto nDecorator = out->counts[FIO_SPECIES_SPH] +
+                      out->counts[FIO_SPECIES_STAR] +
+                      out->counts[FIO_SPECIES_BH];
+
+    pkd->decorators.SetLocal(nDecorator);
     return sizeof(output);
 }
