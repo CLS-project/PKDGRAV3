@@ -732,7 +732,7 @@ void stevFreeLifetimeTable(STEV_RAWDATA *RawData) {
     free(RawData);
 }
 
-float stevExponentialNumSNIa(SMF *smf, meshless::STAR &star, float fInitialTime, float fFinalTime) {
+float stevExponentialNumSNIa(SMF *smf, decorators::STAR &star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
         return 0.0f;
     }
@@ -745,7 +745,7 @@ float stevExponentialNumSNIa(SMF *smf, meshless::STAR &star, float fInitialTime,
             expf(-(fFinalTime / (float)smf->dSNIaScale)));
 }
 
-float stevPowerlawNumSNIa(SMF *smf, meshless::STAR &star, float fInitialTime, float fFinalTime) {
+float stevPowerlawNumSNIa(SMF *smf, decorators::STAR &star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
         return 0.0f;
     }
