@@ -3269,14 +3269,6 @@ void MSR::TopStepKDK(
     const auto bEwald = parameters.get_bEwald();
     const auto bGravStep = parameters.get_bGravStep();
     const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
-#ifdef BLACKHOLES
-    if (!iKickRung && !iRung && parameters.get_bBHPlaceSeed()) {
-        PlaceBHSeed(dTime, CurrMaxRung());
-#ifdef OPTIM_REORDER_IN_NODES
-        ReorderWithinNodes();
-#endif
-    }
-#endif
 
     if (iAdjust && (iRung < MaxRung()-1)) {
         msrprintf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
@@ -3444,6 +3436,9 @@ void MSR::TopStepKDK(
         if (parameters.get_bFindGroups()) GroupStats();
         if (parameters.get_bAddDelete()) MoveDeletedParticles();
         BuildTree(bEwald);
+#ifdef BLACKHOLES
+        if (parameters.get_bBHPlaceSeed()) PlaceBHSeed(dTime, CurrMaxRung());
+#endif
     }
 
 }

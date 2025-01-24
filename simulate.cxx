@@ -269,16 +269,21 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bR
     if (MeshlessHydro()) {
         InitSph(dTime, dDelta,bRestart);
     }
+
+    if (bDoStartFof) {
+        GroupStats();
+        BuildTree(bEwald);
+    }
+
 #ifdef BLACKHOLES
     uRungMax = GetMinDt();
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
-#endif
-
-    if (bDoStartFof) {
-        GroupStats();
+    if (parameters.get_bBHPlaceSeed()) {
+        PlaceBHSeed(dTime, uRungMax);
     }
+#endif
 
     double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
