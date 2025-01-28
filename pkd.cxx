@@ -1710,8 +1710,6 @@ static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     // Position of the decorator buffer
     decorators::FIELDS *dStart = reinterpret_cast<decorators::FIELDS *>(reinterpret_cast<char *>(pStart)+ nPart * pkd->particles.ParticleSize());
 
-    printf("%d unpacking %d(%d) particles total %d \t %d\n", pkd->Self(), nPart, nDecorator, nSize, reinterpret_cast<char *>(dStart) - reinterpret_cast<char *>(vBuff));
-
     auto p = &pkd->particles[reinterpret_cast<PARTICLE *>(pStart)];
     auto d = &pkd->decorators[reinterpret_cast<decorators::FIELDS *>(dStart)];
     assert( nPart*pkd->particles.ParticleSize() +
