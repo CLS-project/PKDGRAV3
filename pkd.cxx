@@ -2466,41 +2466,51 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 }
 
 void pkdReorderDecorator(PKD pkd) {
-    uint64_t iDecorator = 0;
+    auto ephem = pkd->Ephemeral<uint32_t>();
+
+    // The ephemeral storage is populated as a map between decorators and their
+    // particles. This way, there is no need to do complex searches later.
     for (uint32_t i=0; i<pkd->Local(); ++i) {
         if (pkd->particles[i].have_decorator()) {
-            auto prev_index = pkd->particles[i].decorator_field();
-            auto new_index = pkd->decorators[iDecorator];
-            if (prev_index != &new_index) {
-                uint32_t lookahead = 0;
-                auto ahead_index = prev_index;
-                // Look for the particle whose decorator struct is in our objective index
-                while ( ahead_index != &new_index ) {
-                    lookahead++;
-                    //assert (lookahead + i <= pkd->Local());
-                    if (pkd->particles[i+lookahead].have_decorator())
-                        ahead_index = pkd->particles[i+lookahead].decorator_field();
-                }
-
-                auto a = pkd->decorators[ahead_index];
-                auto b = pkd->decorators[prev_index];
-                swap(a, b);
-
-                pkd->particles[i+lookahead].set_decorator(prev_index);
-                pkd->particles[i].set_decorator(&new_index);
-
-            }
-            iDecorator++;
+            ephem[ pkd->particles[i].decorator_index() ] = i;
         }
     }
 
-    // int last_index = -1;
+    uint64_t iDecorator = 0;
+    for (uint32_t i=0; i<pkd->Local(); ++i) {
+        if (pkd->particles[i].have_decorator()) {
+            auto p = pkd->particles[i];
+            auto prev_decor = p.decorator_field();
+            auto new_decor = &pkd->decorators[iDecorator];
+            if (prev_decor != new_decor) {
+                // As we built the map before, we can simply get the particle
+                // whose decorator is in the assigned position of p's decorator
+                auto particle_to_swap = pkd->particles[ephem[iDecorator]];
+
+                // Swap the decorators
+                auto a = pkd->decorators[prev_decor];
+                auto b = pkd->decorators[new_decor];
+                swap(a, b);
+
+                // Update the mapping
+                ephem[p.decorator_index()] = ephem[iDecorator];
+
+                // Update the particles' decorators pointers
+                particle_to_swap.set_decorator(prev_decor);
+                p.set_decorator(new_decor);
+            }
+            assert(p.decorator_index()==iDecorator);
+            iDecorator++;
+        }
+    }
+    // uint64_t iDecoratorCheck = 0;
     // for (uint32_t i=0; i<pkd->Local(); ++i) {
     //     if (pkd->particles[i].have_decorator()) {
-    //         assert(pkd->particles[i].decorator_index()==last_index+1);
-    //         last_index++;
+    //         assert(pkd->particles[i].decorator_index()==iDecoratorCheck);
+    //         iDecoratorCheck++;
     //     }
     // }
+    return;
 }
 
 
