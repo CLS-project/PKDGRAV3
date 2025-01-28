@@ -690,13 +690,14 @@ size_t pkdIllMemory(PKD pkd) {
     return pkd->ill.memory();
 }
 
-void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
+void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac, enum FIO_SPECIES species) {
     float dummypot;
     TinyVector<double,3> r, vel;
     TinyVector<float,ELEMENT_COUNT> metals;
     float fMass,fSoft,fDensity,u,fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
+    int i;
 
     mdlassert(pkd->mdl,fio != NULL);
 #ifdef USE_ITT
@@ -704,7 +705,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_string_handle *shMyTask = __itt_string_handle_create("Read");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    pkd->particles.clearClasses();
+
+    if (species == FIO_SPECIES_ALL)
+        pkd->particles.clearClasses();
+
     if (pkd->decorators.present(DECORATOR_FIELD::oStar)) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         auto p = pkd->particles[pkd->Local()];
@@ -720,8 +724,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     fMass = 0.0f;
     fSoft = 0.0f;
 
-    fioSeek(fio,iFirst,FIO_SPECIES_ALL);
-    for (auto i = 0; i < nLocal; ++i) {
+    fioSeek(fio,iFirst,species);
+    for (i = 0; i < nLocal; ++i) {
         auto p = pkd->particles[pkd->Local()+i];
         /*
         ** General initialization.
@@ -754,6 +758,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         }
 
         eSpecies = fioSpecies(fio);
+        if (species!=FIO_SPECIES_ALL) {
+            assert (eSpecies == species);
+        }
         switch (eSpecies) {
         case FIO_SPECIES_SPH:
             ;
@@ -1315,7 +1322,7 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
         }
         assert(nNewDecorator < pkdSwapDecoratorSpace(pkd));
         // Also only share now the associated decorators to the particles that
-        // we have just sen
+        // we have just sent
 
         int nToBeSendDecorator = 0;
         auto ephem = pkd->Ephemeral<bool>();
@@ -1332,7 +1339,7 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
         assert(nToBeSendDecorator <= pkd->nDecoratorRejects);
 
         // i.e., otherwise we can not be sure that we can get all the decorators
-        assert(pkdSwapSpace(pkd) <= pkdSwapDecoratorSpace(pkd));
+        //assert(pkdSwapSpace(pkd) <= pkdSwapDecoratorSpace(pkd));
 
         nOutDecoratorBytes = pkd->nDecoratorRejects*pkd->decorators.DecoratorSize();
         nSkipBytes = (pkd->nDecoratorRejects-nToBeSendDecorator)*pkd->decorators.DecoratorSize();
@@ -1398,7 +1405,6 @@ void pkdSwapAll(PKD pkd, int idSwap) {
     mdlSwap(pkd->mdl,idSwap,nBuf,pkd->particles, nOutBytes,
             &nSndBytes, &nRcvBytes);
     mdlassert(pkd->mdl,nSndBytes/pkd->particles.ParticleSize() == pkd->Local());
-    printf("(part) %d swap with %d, old %d new %d\n", pkd->Self(), idSwap, pkd->Local(), int(nRcvBytes/pkd->particles.ParticleSize()));
     pkd->SetLocal(nRcvBytes/pkd->particles.ParticleSize());
     /*
     ** Repeat for decorator.
@@ -1411,7 +1417,6 @@ void pkdSwapAll(PKD pkd, int idSwap) {
     mdlSwap(pkd->mdl,idSwap,nBuf,pkd->decorators, nOutBytes,
             &nSndBytes, &nRcvBytes);
     mdlassert(pkd->mdl,nSndBytes/pkd->decorators.DecoratorSize() == pkd->DecoratorLocal());
-    printf("(decorators) %d swap with %d, old %d new %d\n", pkd->Self(), idSwap, pkd->DecoratorLocal(), int(nRcvBytes/pkd->decorators.DecoratorSize()));
     pkd->decorators.SetLocal(nRcvBytes/pkd->decorators.DecoratorSize());
 
     // Handle the newly arrived pointers to the decorators

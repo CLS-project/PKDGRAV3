@@ -696,7 +696,7 @@ size_t pkdClMemory(PKD pkd);
 size_t pkdIllMemory(PKD pkd);
 size_t pkdIlcMemory(PKD pkd);
 size_t pkdIlpMemory(PKD pkd);
-void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
+void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac, FIO_SPECIES s);
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdSetSmooth(PKD pkd,double dSmooth);
 void pkdSetCrit(PKD pkd,double dCrit);

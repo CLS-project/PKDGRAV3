@@ -497,7 +497,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
              * Read particles into the local storage.
              */
             assert(pkd->FreeStore() >= nParts[i]);
-            pkdReadFIO(pkd, fio, nStart, nParts[i], in->dvFac,in->dTuFac);
+            pkdReadFIO(pkd, fio, nStart, nParts[i], in->dvFac,in->dTuFac, FIO_SPECIES_ALL);
             nStart += nParts[i];
             /*
              * Now shove them over to the remote processor.
@@ -508,7 +508,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             pkdSwapAll(pkd, id);
             pst->mdl->GetReply(rID);
         }
-        pkdReadFIO(pkd, fio, nNodeStart, nParts[0], in->dvFac,in->dTuFac);
+        pkdReadFIO(pkd, fio, nNodeStart, nParts[0], in->dvFac,in->dTuFac, FIO_SPECIES_ALL);
         delete [] nParts;
         fioClose(fio);
     }

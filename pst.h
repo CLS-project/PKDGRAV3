@@ -280,6 +280,8 @@ int pstInitializePStore(PST,void *,int,void *,int);
 struct inReadFile {
     uint64_t nNodeStart; /* First particle to read (of total) */
     uint64_t nNodeEnd;   /* Last particle to read (of total) */
+    fioSpeciesList nSpeciesStart;
+    fioSpeciesList nSpeciesEnd;
     double dvFac;
     double dTuFac;
     double dOmega0;

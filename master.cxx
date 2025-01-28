@@ -1025,22 +1025,17 @@ void MSR::SwapClasses(int id) {
 
 void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
     int id;
-    uint64_t nStart;
     PST pst0;
     LCL *plcl;
-    int nid;
     ServiceSwapAll::input inswap;
     int rID;
-
-    std::unique_ptr<int[]> nParts {new int[nThreads]};
-    for (id=0; id<nThreads; ++id) {
-        nParts[id] = -1;
-    }
-
-    nid = pstOneNodeReadInit(pst, in, sizeof(*in), nParts.get(), nThreads*sizeof(nParts[0]));
-    assert((size_t)nid == nThreads*sizeof(nParts[0]));
-    for (id=0; id<nThreads; ++id) {
-        assert(nParts[id] > 0);
+    fioSpeciesList nRead, nStart, nBasePart;
+    for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+        // NB: The first nBasePart particles are read by this thread at the end
+        // of this function
+        nBasePart[s] = (in->nSpeciesEnd[s]-in->nSpeciesStart[s])/nThreads;
+        nStart[s] = in->nSpeciesStart[s] + nBasePart[s];
+        nRead[s] = 0;
     }
 
     pst0 = pst;
@@ -1048,14 +1043,21 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
         pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
-    nStart = nParts[0];
     for (id=1; id<nThreads; ++id) {
-        /*
-         * Read particles into the local storage.
-         */
-        assert(plcl->pkd->FreeStore() >= nParts[id]);
-        pkdReadFIO(plcl->pkd, fio, nStart, nParts[id], in->dvFac,in->dTuFac);
-        nStart += nParts[id];
+        for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            if (nBasePart[s] == 0) continue;
+            auto mod = (in->nSpeciesEnd[s]-in->nSpeciesStart[s])%nThreads;
+
+            auto nPart = nBasePart[s];
+            if (id >= nThreads-mod) nPart++;
+            /*
+             * Read particles into the local storage.
+             */
+            assert(plcl->pkd->FreeStore() >= nPart);
+            pkdReadFIO(plcl->pkd, fio, nStart[s], nPart, in->dvFac,in->dTuFac, FIO_SPECIES(s));
+            nStart[s] += nPart;
+            nRead[s] += nPart;
+        }
         /*
          * Now shove them over to the remote processor.
          */
@@ -1065,11 +1067,19 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
         pkdSwapAll(plcl->pkd, id);
         pst0->mdl->GetReply(rID);
     }
-    assert(nStart == N);
-    /*
-     * Now read our own particles.
-     */
-    pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
+    for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+        if (nBasePart[s] == 0) continue;
+        /*
+         * Now read our own particles.
+         */
+        pkdReadFIO(plcl->pkd, fio, 0, nBasePart[s], in->dvFac, in->dTuFac, FIO_SPECIES(s));
+        nRead[s] += nBasePart[s];
+    }
+
+    assert(nRead[FIO_SPECIES_DARK] == nDark);
+    assert(nRead[FIO_SPECIES_SPH] == nGas);
+    assert(nRead[FIO_SPECIES_STAR] == nStar);
+    assert(nRead[FIO_SPECIES_BH] == nBH);
 }
 
 double MSR::SwitchDelta(double dTime,int iStep) {
@@ -3902,7 +3912,11 @@ double MSR::Read(std::string_view achInFile) {
     read->nNodeStart = 0;
     read->nNodeEnd = N - 1;
 
-    for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
+    for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+        nSpecies[s] = fioGetN(fio,s);
+        read->nSpeciesStart[s] = 0;
+        read->nSpeciesEnd[s] = nSpecies[s];
+    }
     InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     read->dOmega0 = csm->val.dOmega0;
