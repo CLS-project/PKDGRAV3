@@ -206,7 +206,7 @@ class packedCACHEhelperRO : public CACHEhelper {
 protected:
     uint32_t nPack;
     void *ctx;
-    void (*init_shared_function)   (void *,void *);
+    void (*init_shared_function)   (void *,void *, bool);
     void (*pack_function)   (void *,void *,const void *);
     void (*unpack_function) (void *,void *,const void *);
 
@@ -217,7 +217,7 @@ protected:
 public:
     explicit packedCACHEhelperRO(uint32_t nData,void *ctx,
                                  uint32_t pack_size,
-                                 void (*init_shared_function)   (void *,void *),
+                                 void (*init_shared_function)   (void *,void *, bool),
                                  void (*pack_function)   (void *,void *,const void *),
                                  void (*unpack_function) (void *,void *,const void *))
         : CACHEhelper(nData,false),nPack(pack_size),ctx(ctx),
@@ -229,7 +229,7 @@ void mdlPackedCacheRO(MDL mdl,int cid,
                       void *(*getElt)(void *pData,int i,int iDataSize),
                       void *pData,int nData,uint32_t iDataSize,
                       void *ctx,uint32_t iPackSize,
-                      void (*init_shared) (void *, void *),
+                      void (*init_shared) (void *, void *, bool),
                       void (*pack)   (void *,void *,const void *),
                       void (*unpack) (void *,void *,const void *)) {
     static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
@@ -244,15 +244,17 @@ protected:
     void (*pack_function)   (void *,void *,const void *);
     void (*unpack_function) (void *,void *,const void *);
     void (*init_function)   (void *,void *);
-    void (*init_shared_function)   (void *,void *);
+    void (*init_shared_function)   (void *,void *, bool);
     void (*flush_function)  (void *,void *,const void *);
+    void (*flush_local_function)  (void *, const void *);
     void (*combine_function)(void *,void *,const void *);
 
     virtual void    pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
     virtual void  unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
     virtual void    init(void *dst)                                   override { (*init_function)(ctx,dst); }
-    virtual void    init_shared(void *dst)                            override { (*init_shared_function)(ctx,dst); }
+    virtual void    init_shared(void *dst, bool bLock)                override { (*init_shared_function)(ctx,dst,bLock); }
     virtual void   flush(void *dst, const void *src)                  override { (*flush_function)(ctx,dst,src); }
+    virtual void   flush_local(const void *dst)                       override { (*flush_local_function)(ctx,dst); }
     virtual void combine(void *dst, const void *src, const void *key) override { (*combine_function)(ctx,dst,src); }
     virtual uint32_t pack_size()  override {return nPack;}
     virtual uint32_t flush_size() override {return nFlush;}
@@ -263,14 +265,16 @@ public:
                                  void (*pack_function)   (void *,void *,const void *),
                                  void (*unpack_function) (void *,void *,const void *),
                                  void (*init_function)   (void *,void *),
-                                 void (*init_shared_function)   (void *,void *),
+                                 void (*init_shared_function)   (void *,void *, bool),
                                  uint32_t flush_size,
                                  void (*flush_function)  (void *,void *,const void *),
+                                 void (*flush_local_function)  (void *, const void *),
                                  void (*combine_function)(void *,void *,const void *))
         : CACHEhelper(nData,true),nPack(pack_size),nFlush(flush_size),ctx(ctx),
           pack_function(pack_function),unpack_function(unpack_function),
           init_function(init_function),init_shared_function(init_shared_function),
-          flush_function(flush_function), combine_function(combine_function) {}
+          flush_function(flush_function), flush_local_function(flush_local_function),
+          combine_function(combine_function) {}
 };
 
 void mdlPackedCacheCO(MDL mdl,int cid,
@@ -281,12 +285,13 @@ void mdlPackedCacheCO(MDL mdl,int cid,
                       void (*unpack) (void *,void *,const void *),
                       uint32_t iFlushSize,
                       void (*init)   (void *,void *),
-                      void (*init_shared)   (void *,void *),
+                      void (*init_shared)   (void *,void *, bool),
                       void (*flush)  (void *,void *,const void *),
+                      void (*flush_local)  (void *, const void *),
                       void (*combine)(void *,void *,const void *)) {
     static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
             std::make_shared<packedCACHEhelperCO>(iDataSize,ctx,iPackSize,
-                    pack,unpack,init,init_shared,iFlushSize,flush,combine));
+                    pack,unpack,init,init_shared,iFlushSize,flush, flush_local, combine));
 }
 
 class advancedCACHEhelper : public CACHEhelper {
@@ -296,8 +301,9 @@ protected:
     void (*pack_function)   (void *,void *,const void *);
     void (*unpack_function) (void *,void *,const void *);
     void (*init_function)   (void *,void *);
-    void (*init_shared_function)   (void *,void *);
+    void (*init_shared_function)   (void *,void *, bool);
     void (*flush_function)  (void *,void *,const void *);
+    void (*flush_local_function)  (void *, const void *);
     void (*combine_function)(void *,void *,const void *);
     uint32_t (*get_thread)  (void *,uint32_t,uint32_t,const void *);
     void *(*create_function) (void *,uint32_t,const void *);
@@ -305,8 +311,9 @@ protected:
     virtual void    pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
     virtual void  unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
     virtual void    init(void *dst)                                   override { if (init_function)   (*init_function)(ctx,dst); }
-    virtual void    init_shared(void *dst)                            override { if (init_shared_function)   (*init_shared_function)(ctx,dst); }
+    virtual void    init_shared(void *dst, bool bLock)                override { if (init_shared_function)   (*init_shared_function)(ctx,dst,bLock); }
     virtual void   flush(void *dst, const void *src)                  override { if (flush_function)  (*flush_function)(ctx,dst,src); }
+    virtual void   flush_local(const void *dst)                       override { if (flush_local_function)  (*flush_local_function)(ctx,dst); }
     virtual void combine(void *dst, const void *src, const void *key) override { if (combine_function)(*combine_function)(ctx,dst,src); }
     virtual void *create(uint32_t size, const void *pKey) override
     { return (*create_function)(ctx,size,pKey); }
@@ -321,15 +328,17 @@ public:
                                  void (*pack_function)   (void *,void *,const void *),
                                  void (*unpack_function) (void *,void *,const void *),
                                  void (*init_function)   (void *,void *),
-                                 void (*init_shared_function)   (void *,void *),
+                                 void (*init_shared_function)   (void *,void *, bool),
                                  uint32_t flush_size,
                                  void (*flush_function)  (void *,void *,const void *),
+                                 void (*flush_local_function)  (void *, const void *),
                                  void (*combine_function)(void *,void *,const void *),
                                  void *(*create_function) (void *,uint32_t,const void *))
         : CACHEhelper(nData,bModify), nPack(pack_size), nFlush(flush_size), ctx(ctx),
           pack_function(pack_function),unpack_function(unpack_function),
           init_function(init_function),init_shared_function(init_shared_function),
-          flush_function(flush_function), combine_function(combine_function),
+          flush_function(flush_function), flush_local_function(flush_local_function),
+          combine_function(combine_function),
           get_thread(get_thread), create_function(create_function) {}
 };
 
@@ -340,16 +349,17 @@ void mdlAdvancedCache(MDL mdl,int cid,void *pHash,int iDataSize,bool bModify,voi
                       void (*pack_function)   (void *,void *,const void *),
                       void (*unpack_function) (void *,void *,const void *),
                       void (*init_function)   (void *,void *),
-                      void (*init_shared_function)   (void *,void *),
+                      void (*init_shared_function)   (void *,void *, bool),
                       uint32_t flush_size,
                       void (*flush_function)  (void *,void *,const void *),
+                      void (*flush_local_function)  (void *, const void *),
                       void (*combine_function)(void *,void *,const void *),
                       void *(*create_function) (void *,uint32_t,const void *)) {
     auto hash = static_cast<hash::GHASH *>(pHash);
     static_cast<mdlClass *>(mdl)->AdvancedCacheInitialize(cid,hash,iDataSize,
             std::make_shared<advancedCACHEhelper>(iDataSize,bModify,ctx,get_thread,
                     pack_size,pack_function,unpack_function,init_function, init_shared_function,
-                    flush_size,flush_function,combine_function,create_function));
+                    flush_size,flush_function,flush_local_function,combine_function,create_function));
 }
 
 extern "C"
@@ -861,13 +871,13 @@ int mpiClass::CacheReceiveReply(int count, CacheHeader *ph, int iProcFrom) {
 
 // Later when we have found an empty cache element, this is called to wait for the result
 // and to copy it into the buffer area.
-void *CACHE::finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src) {
-    auto success = mdl->finishCacheRequest(iCID,uLine,uId,size,pKey,bVirtual,dst,src);
+void *CACHE::finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, bool bLock, void *dst, const void *src) {
+    auto success = mdl->finishCacheRequest(iCID,uLine,uId,size,pKey,bVirtual,bLock,dst,src);
     mdl->TimeAddWaiting();
     return success;
 }
 
-void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data, const void *src) {
+void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, bool bLock, void *data, const void *src) {
     int iCore = uId - mpi->Self();
     auto c = cache[cid].get();
     int s,n;
@@ -897,7 +907,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
             for (auto i=s; i<n; i++ ) {
                 auto p = oc->ReadLock(i);
                 memcpy(pData,p,oc->iDataSize);
-                c->cache_helper->init_shared(pData);
+                c->cache_helper->init_shared(pData, bLock);
                 oc->ReadUnlock(p);
                 pData += oc->iDataSize;
             }
@@ -936,6 +946,7 @@ void CACHE::flushElement( uint32_t uLine, uint32_t uId, uint32_t size, const voi
     auto pData = static_cast<const char *>(data);
     for (auto i=0; i<getLineElementCount(); ++i) {
         cache_helper->flush(mdl->coreFlushBuffer->getBuffer(cache_helper->flush_size()),pData);
+        cache_helper->flush_local(pData);
         pData += iDataSize;
     }
 }

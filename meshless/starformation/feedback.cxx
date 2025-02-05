@@ -131,7 +131,6 @@ void flushSNFeedback(void *vpkd,void *dst,const void *src) {
 #else // OLD_FB_SCHEME
         p1->fAccFBEnergy = sph.fAccFBEnergy;
 #endif
-        pkd->decorators.CacheRelease(p2.decorator_field());
     }
 }
 

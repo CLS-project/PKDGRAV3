@@ -141,7 +141,6 @@ void flushHydroFluxes(void *vpkd,void *dst,const void *src) {
             p1->drDotFrho = mfv.drDotFrho;
             p1->fMass = p2.mass();
         }
-        pkd->decorators.CacheRelease(p2.decorator_field());
     }
 }
 

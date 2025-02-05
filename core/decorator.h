@@ -91,7 +91,7 @@ public:
     }
     //! Return a element of the cache that can be used to
     //! temporarily store a decorator
-    value_type *CacheAdd() {
+    value_type *CacheAdd(bool bLock=true) {
         //CacheDebug();
         if (readonly) {
             // We just take the next element in line
@@ -106,12 +106,18 @@ public:
             auto size = cacheUsed.size();
             auto i = (nCache==size)?0:nCache;
             //assert(cacheUsed.count()!=cacheUsed.size()); // Decorator cache is full
+            int nLap = 0;
             while (cacheUsed.test(i)) {
                 i++;
-                if (i==size) i=0;
+                if (i==size) {
+                    i=0;
+                    assert(nLap<1); // Decorator cache is full
+                    nLap++;
+                }
             }
             nCache++;
-            cacheUsed.flip(i);
+            if (bLock)
+                cacheUsed.flip(i);
             return Element(nLocal+i);
         }
     }

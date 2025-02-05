@@ -233,14 +233,22 @@ void init_shared_decorator(void *vpkd, void *dst) {
     }
 }
 
-void init_shared_gas_decorator(void *vpkd, void *dst) {
+void init_shared_gas_decorator(void *vpkd, void *dst, bool bLock) {
     PKD pkd = (PKD) vpkd;
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
     if (p.is_gas()) {
-        auto decorator = pkd->decorators.CacheAdd();
-        if (decorator)
-            memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
+        auto decorator = pkd->decorators.CacheAdd(bLock);
+        // This only needs to be called if the request is on the same MPI process.
+        memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
         p.set_decorator(decorator);
+    }
+}
+
+void flush_shared_gas_decorator(void *vpkd, const void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<const PARTICLE *>(dst)];
+    if (p.is_gas()) {
+        pkd->decorators.CacheRelease(p.decorator_field());
     }
 }
 
@@ -273,7 +281,8 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     void (*pack)(void *,void *,const void *) = NULL;
     void (*unpack)(void *,void *,const void *) = NULL;
     void (*init)(void *,void *) = NULL;
-    void (*init_shared)(void *,void *) = NULL;
+    void (*init_shared)(void *,void *, bool) = NULL;
+    void (*flush_local)(void *,const void *) = NULL;
     void (*flush)(void *,void *,const void *) = NULL;
     void (*comb)(void *,void *,const void *) = NULL;
     bool bPacked = false;
@@ -357,6 +366,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackHydroDensity;
         init = NULL; /* Cached copies */
         init_shared = init_shared_gas_decorator;
+        flush_local = flush_shared_gas_decorator;
         comb = NULL;
         bPacked = true;
         iPackSize = sizeof(hydroDensityPack);
@@ -369,6 +379,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackHydroDensity;
         init = NULL; /* Cached copies */
         init_shared = init_shared_gas_decorator;
+        flush_local = flush_shared_gas_decorator;
         comb = NULL;
         bPacked = true;
         iPackSize = sizeof(hydroDensityPack);
@@ -380,6 +391,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packHydroGradients;
         unpack = unpackHydroGradients;
         init_shared = init_shared_gas_decorator;
+        flush_local = flush_shared_gas_decorator;
         init = NULL; /* Cached copies */
         comb = NULL;
         bPacked = true;
@@ -397,6 +409,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackHydroFluxes;
         init = initHydroFluxesCached; /* Cached copies */
         init_shared = init_shared_gas_decorator;
+        flush_local = flush_shared_gas_decorator;
         flush = flushHydroFluxes;
         comb = combHydroFluxes;
         bPacked = true;
@@ -412,6 +425,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackHydroStep;
         init = initHydroStep; /* Cached copies */
         init_shared = init_shared_gas_decorator;
+        flush_local = flush_shared_gas_decorator;
         flush = flushHydroStep;
         comb = combHydroStep;
         bPacked = true;
@@ -426,6 +440,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackSNFeedback;
         init = initSNFeedback; /* Cached copies */
         init_shared = init_shared_gas_decorator;
+        flush_local = flush_shared_gas_decorator;
         flush = flushSNFeedback;
         comb = combSNFeedback;
         smx->bSearchGasOnly = 1;
@@ -461,6 +476,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackBHEvolve;
         init = initBHEvolve; /* Cached copies */
         init_shared = init_shared_gas_decorator;
+        flush_local = flush_shared_gas_decorator;
         flush = flushBHEvolve;
         comb = combBHEvolve;
         smx->bSearchGasOnly = 1;
@@ -489,6 +505,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackChemEnrich;
         init = initChemEnrich;
         init_shared = init_shared_gas_decorator;
+        flush_local = flush_shared_gas_decorator;
         flush = flushChemEnrich;
         comb = combChemEnrich;
         smx->bSearchGasOnly = 1;
@@ -536,7 +553,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
                 pkd->decorators.CacheStart(false);
                 mdlPackedCacheCO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
                                  pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 pack,unpack,iFlushSize,init,init_shared,flush,comb);
+                                 pack,unpack,iFlushSize,init,init_shared,flush,flush_local,comb);
             }
             else {
                 pkd->decorators.CacheStart(true);

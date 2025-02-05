@@ -279,7 +279,6 @@ void flushChemEnrich(void *vpkd, void *dst, const void *src) {
 
         p1->ElemMass = sph.ElemMass;
         p1->fMetalMass = sph.fMetalMass;
-        pkd->decorators.CacheRelease(p2.decorator_field());
     }
 }
 

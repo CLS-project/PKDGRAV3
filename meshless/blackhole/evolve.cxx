@@ -229,7 +229,6 @@ void flushBHEvolve(void *vpkd,void *dst,const void *src) {
 
         p1->iAccPid = sph.BHAccretor.iPid;
         p1->iAccIndex = sph.BHAccretor.iIndex;
-        pkd->decorators.CacheRelease(p2.decorator_field());
     }
 }
 

@@ -96,7 +96,6 @@ void flushHydroStep(void *vpkd,void *dst,const void *src) {
 
         p1->uNewRung = p2.new_rung();
         p1->uWake = sph.uWake;
-        pkd->decorators.CacheRelease(p2.decorator_field());
     }
 }
 
