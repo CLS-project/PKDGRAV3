@@ -106,7 +106,7 @@ protected:
     virtual void    pack(void *dst, const void *src) { memcpy(dst,src,nData); }
     virtual void  unpack(void *dst, const void *src, const void *key) { memcpy(dst,src,nData); }
     virtual void    init(void *dst)                                   {}
-    virtual void    init_shared(void *dst, bool bLock)                {}
+    virtual void    init_shared(void *dst)                            {}
     virtual void   flush(void *dst, const void *src)                  { memcpy(dst,src,nData); }
     virtual void   flush_local(const void *dst)                       {}
     virtual void combine(void *dst, const void *src, const void *key) { memcpy(dst,src,nData); }
@@ -131,7 +131,7 @@ private:
     virtual void *getLocalData(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
     virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
     virtual void *invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             override;
-    virtual void *finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, bool bLock, void *dst, const void *src) override;
+    virtual void *finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src) override;
     virtual void combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
     hash::GHASH *hash_table = nullptr;
 
@@ -271,7 +271,7 @@ protected:
     void combine_all_incoming();
 
     void bookkeeping();
-    void *finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, bool bLock, void *dst, const void *src);
+    void *finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src);
 
 protected:
     void flush_core_buffer();
@@ -661,7 +661,7 @@ void mdlPackedCacheRO(MDL mdl,int cid,
                       void *(*getElt)(void *pData,int i,int iDataSize),
                       void *pData,int nData,uint32_t iDataSize,
                       void *ctx,uint32_t iPackSize,
-                      void (*init_shared)   (void *,void *, bool),
+                      void (*init_shared)   (void *,void *),
                       void (*pack)   (void *,void *,const void *),
                       void (*unpack) (void *,void *,const void *));
 void mdlPackedCacheCO(MDL mdl,int cid,
@@ -672,7 +672,7 @@ void mdlPackedCacheCO(MDL mdl,int cid,
                       void (*unpack) (void *,void *,const void *),
                       uint32_t iFlushSize,
                       void (*init)   (void *,void *),
-                      void (*init_shared)   (void *,void *, bool),
+                      void (*init_shared)   (void *,void *),
                       void (*flush)  (void *,void *,const void *),
                       void (*flush_local)  (void *, const void *),
                       void (*combine)(void *,void *,const void *));

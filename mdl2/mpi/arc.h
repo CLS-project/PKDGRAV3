@@ -40,7 +40,7 @@ public:
     virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return uId;}
     virtual void *getLocalData(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return nullptr;}
     virtual void *invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             = 0;
-    virtual void *finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, bool bLock, void *dst, const void *src) = 0;
+    virtual void *finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src) = 0;
     virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) = 0;
     virtual void combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) = 0;
 };
@@ -764,14 +764,14 @@ void *ARC<KEYS...>::fetch(uint32_t uIndex, uint32_t uId, const KEY &key, bool bL
             if (cdb.where()==A1) return nullptr; // Absent
             data = helper->invokeRequest(cdb.uPage,cdb.uId,key_size,&key,bVirtual); // Request the element be fetched
             cdb.data = replace(cdb.where()==B2);
-            helper->finishRequest(cdb.uPage,cdb.uId,key_size,&key,bVirtual,bLock,cdb.data,data);
+            helper->finishRequest(cdb.uPage,cdb.uId,key_size,&key,bVirtual,cdb.data,data);
         }
     }
     else {          // Page is not in the cache
         if (key_size) uId = helper->getThread(uIndex,uId,key_size,&key);
         data = helper->invokeRequest(uIndex,uId,key_size,&key,bVirtual);
         if (!bModify && !bVirtual && data && key_size==0) return data; // Simple local case
-        data = helper->finishRequest(uIndex,uId,key_size,&key,bVirtual,bLock,cacheLine.data(),data);
+        data = helper->finishRequest(uIndex,uId,key_size,&key,bVirtual,cacheLine.data(),data);
         if (data) {
             item = insert_present(Hash);
             auto &cdb = get<CDB>(*item);

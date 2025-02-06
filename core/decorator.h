@@ -45,7 +45,7 @@ enum class DECORATOR_FIELD {
 class decoratorStore : public dataStore<decorators::FIELDS, DECORATOR_FIELD> {
 private:
     int nCache = 0;     //!< Number of occupied elements in the cache
-    bool readonly;      //!< Whether the cache is used as part of a RO particle cache
+    bool readonly = 1;      //!< Whether the cache is used as part of a RO particle cache
     boost::dynamic_bitset<> cacheUsed;
 public:
     void initialize() {
@@ -71,10 +71,10 @@ public:
         return Local()-1; //NB: we return the index, not the number
     }
     //! Prepare the cache depending on whether it will act as read-only or not
-    void CacheStart(bool readonly) {
+    void CacheStart(bool ro) {
         CacheClean();
         nCache = 0;
-        readonly = readonly;
+        readonly = ro;
     }
     //! Clean the cache
     void CacheClean() {
@@ -91,7 +91,7 @@ public:
     }
     //! Return a element of the cache that can be used to
     //! temporarily store a decorator
-    value_type *CacheAdd(bool bLock=true) {
+    value_type *CacheAdd() {
         //CacheDebug();
         if (readonly) {
             // We just take the next element in line
@@ -116,17 +116,26 @@ public:
                 }
             }
             nCache++;
-            if (bLock)
-                cacheUsed.flip(i);
+            //CacheDebug();
             return Element(nLocal+i);
         }
     }
+    void CacheLock(const value_type *e) {
+        if (!readonly) {
+            auto i = DecoratorIndex(e) - nLocal;
+            cacheUsed.set(i);
+            //CacheDebug();
+        }
+    }
+    void CacheUnlock(const value_type *e) {
+        if (!readonly) {
+            auto i = DecoratorIndex(e) - nLocal;
+            cacheUsed.reset(i);
+        }
+    }
     void CacheDebug() {
-        //printf("\n\tCache size: %d\n\tCache usage: %d(%ld)\n",
-        //       CacheSize(), nCache, cacheUsed.count());
-
-        assert(nCache == cacheUsed.count());
-
+        printf("\n\tCache size: %d\n\tCache usage: %d(%ld)\n",
+               CacheSize(), nCache, cacheUsed.count());
     }
     const void CacheRelease(const value_type *e) {
         //CacheDebug();
@@ -135,7 +144,7 @@ public:
         //     printf("Releasing %d \t %e \n",i-nLocal, e->sph.Uint);
         //assert(cacheUsed[i]);
         if (cacheUsed.test(i)) {
-            cacheUsed.flip(i);
+            cacheUsed.reset(i);
             nCache--;
         }
         else {
