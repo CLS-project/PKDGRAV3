@@ -104,7 +104,7 @@ public:
             // Try as if the cache was read-only, but if we find that that element
             // is occupied, we start looping forward.
             auto size = cacheUsed.size();
-            auto i = (nCache==size)?0:nCache;
+            auto i = (nCache>=size)?0:nCache;
             //assert(cacheUsed.count()!=cacheUsed.size()); // Decorator cache is full
             int nLap = 0;
             while (cacheUsed.test(i)) {
