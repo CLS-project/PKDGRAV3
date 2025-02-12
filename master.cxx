@@ -610,6 +610,7 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
     abort_assert(1001,nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
+    if (parameters.get_bTrackPeakPressure()) mMemoryModel |= PKD_MODEL_PEAKPRESSURE;
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     Restore(filename,nSizeParticle);
@@ -3852,6 +3853,7 @@ double MSR::Read(std::string_view achInFile) {
     if (nGas && !DoGas()) parameters.set_hydro_model(HYDRO_MODEL::SPH);
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
+    if (parameters.get_bTrackPeakPressure()) mMemoryModel |= PKD_MODEL_PEAKPRESSURE;
     if (nStar) mMemoryModel |= PKD_MODEL_STAR;
 
     read->nNodeStart = 0;

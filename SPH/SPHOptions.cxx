@@ -103,6 +103,7 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double d
     SPHoptions.evolveDensity = parameters.get_bGasEvolveDensity();
     SPHoptions.doExternalAcceleration = parameters.has_dExternalAcceleration();
     SPHoptions.disableShockHeating = (parameters.get_bDisableShockHeatingWithVelocityDamper() && SPHoptions.VelocityDamper > 0.0);
+    SPHoptions.trackPeakPressure = parameters.get_bTrackPeakPressure();
     return SPHoptions;
 }
 
@@ -158,6 +159,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->evolveDensity = source->evolveDensity;
     target->doExternalAcceleration = source->doExternalAcceleration;
     target->disableShockHeating = source->disableShockHeating;
+    target->trackPeakPressure = source->trackPeakPressure;
 }
 
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {

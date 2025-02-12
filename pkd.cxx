@@ -382,6 +382,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
     if ( mMemoryModel & PKD_MODEL_STRENGTH ) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr,"strength");
+    if ( mMemoryModel & PKD_MODEL_PEAKPRESSURE) particles.add<sph::PEAKPRESSUREFIELDS>(PKD_FIELD::oNewSphPeakPressure,"peakpressure");
     if ( mMemoryModel & PKD_MODEL_STAR ) {
         auto star = particles.overlay(PKD_FIELD::oSph); // Overlay the star field on the sph field
         star.add<meshless::STAR>(PKD_FIELD::oStar,"star");
@@ -2936,6 +2937,10 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
             auto &NewSph = p.newsph();
             NewSph.u = SPHEOSUofRhoT(pkd,p.density(),NewSph.u,p.imaterial(),SPHoptions);
             NewSph.oldRho = p.density();
+            if (SPHoptions->trackPeakPressure) {
+                auto &NewSphPeakP = p.newsphpeakp();
+                NewSphPeakP.Ppeak = -1e20;
+            }
         }
     }
     if (doUConversion) SPHoptions->doUConversion = 0;

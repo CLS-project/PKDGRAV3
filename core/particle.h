@@ -316,6 +316,16 @@ struct STRENGTHFIELDS {
     );
 }; // STRENGTHFIELDS
 
+struct PEAKPRESSUREFIELDS {
+    BOOST_HANA_DEFINE_STRUCT(
+        PEAKPRESSUREFIELDS,
+        (float, Ppeak),
+        (float, TAtPpeak),
+        (float, rhoAtPpeak),
+        (float, tAtPpeak)
+    );
+}; // PEAKPRESSUREFIELDS
+
 } // sph
 
 struct VELSMOOTH {
@@ -345,6 +355,7 @@ enum PKD_FIELD {
     oMFV, /* MFV structure */
     oNewSph, /* NewSph structure */
     oNewSphStr, /* NewSph strength structure */
+    oNewSphPeakPressure, /* NewSph peak pressure fields */
     oStar, /* Star structure */
     oBH, /* BH structure */
     oVelSmooth,
@@ -527,6 +538,14 @@ public:
         return get<sph::STRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
     }
 
+    /* NewSphStrength variables */
+    auto &newsphpeakp( PARTICLE *p ) const {
+        return get<sph::PEAKPRESSUREFIELDS>(p,PKD_FIELD::oNewSphPeakPressure);
+    }
+    const auto &newsphpeakp( const PARTICLE *p ) const {
+        return get<sph::PEAKPRESSUREFIELDS>(p,PKD_FIELD::oNewSphPeakPressure);
+    }
+
     auto &star( PARTICLE *p ) const {
 #ifdef OPTIM_UNION_EXTRAFIELDS
 #ifdef DEBUG_UNION_EXTRAFIELDS
@@ -606,6 +625,7 @@ public:
         bool have_mfv()          const {return have(PKD_FIELD::oMFV);}
         bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
         bool have_newsphstr()    const {return have(PKD_FIELD::oNewSphStr);}
+        bool have_newsphpeakp()  const {return have(PKD_FIELD::oNewSphPeakPressure);}
         bool have_star()         const {return have(PKD_FIELD::oStar);}
         bool have_ball()         const {return have(PKD_FIELD::oBall);}
         bool have_mass()         const {return have(PKD_FIELD::oMass);}
@@ -669,6 +689,7 @@ public:
         auto &mfv()         const { return store().mfv(p); }
         auto &newsph()      const { return store().newsph(p); }
         auto &newsphstr()   const { return store().newsphstr(p); }
+        auto &newsphpeakp() const { return store().newsphpeakp(p); }
         auto &star()        const { return store().star(p); }
         auto &BH()          const { return store().BH(p); }
         auto Timer()        const { return store().Timer(p); }
