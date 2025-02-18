@@ -4,8 +4,8 @@ pipelines:
     - step:
         size: 2x
         script:
-          - cmake .
-          - make
+          - cmake -S . -B build
+          - cmake --build build -- -j 8
   branches:
     develop:
       - parallel:
@@ -43,5 +43,5 @@ pipelines:
           script:
             - >
               cmake -DCOOLING=on -DSTAR_FORMATION=on -DFEEDBACK=on
-              -DEEOS_POLYTROPE=on -DBLACKHOLES=on -DSTELLAR_EVOLUTION=on .
-            - make
+              -DEEOS_POLYTROPE=on -DBLACKHOLES=on -DSTELLAR_EVOLUTION=on -S . -B build
+            - cmake --build build -- -j 8
