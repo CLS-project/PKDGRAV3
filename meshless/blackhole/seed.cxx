@@ -88,7 +88,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             // Now convert this particle into a BH
             // We just change the class of the particle
             double omega = pLowPot.sph().omega;
-            pLowPot.set_class(pLowPot.mass(),pLowPot.soft0(),0,FIO_SPECIES_BH);
+            pLowPot.set_class(pLowPot.mass(),pLowPot.soft0(),0,1.0,FIO_SPECIES_BH);
 
             auto &bh = pLowPot.BH();
             // When changing the class, we have to take into account tht

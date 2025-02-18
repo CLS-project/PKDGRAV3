@@ -23,6 +23,7 @@
     #include "pkd_config.h"
 #endif
 #include <stdint.h>
+#include <climits>
 #include "core/particle.h"
 #include "gravity/ilp.h"
 #include "gravity/ilc.h"
@@ -46,7 +47,6 @@ typedef float  mass_t;
 #define COST_FLOP_HLOOP 62 // +-*:46  AND/CMP:16 div: rsqrt:0
 #define COST_FLOP_SOFT 15
 #define COST_FLOP_OPEN 97 // +-*:55  AND/CMP:42
-
 
 // There are a number of "parameters" that are calculated from regular parameters
 // These are stored in the following structure, but maybe they should be removed
@@ -236,7 +236,7 @@ struct inChemCompInit {
 struct inEndTimestep {
     UNITS units;
 #ifdef GRACKLE
-    char achCoolingTable[256];
+    char achCoolingTable[PATH_MAX];
 #endif
     double dTime;
     double dDelta;

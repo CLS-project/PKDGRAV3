@@ -73,6 +73,10 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double d
         SPHoptions.a = 1.0f;
         SPHoptions.H = 0.0f;
     }
+    auto externalAcceleration = parameters.get_dExternalAcceleration();
+    SPHoptions.externalAccelerationX = externalAcceleration[0];
+    SPHoptions.externalAccelerationY = externalAcceleration[1];
+    SPHoptions.externalAccelerationZ = externalAcceleration[2];
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
     SPHoptions.doDensityCorrection = 0;
@@ -95,6 +99,10 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double d
     SPHoptions.CentrifugalOmega0 = parameters.get_dCentrifOmega0();
     SPHoptions.doExtensiveILPTest = parameters.get_bGasDoExtensiveILPTest();
     SPHoptions.doShearStrengthModel = parameters.get_bShearStrengthModel();
+    SPHoptions.disableStressAtInterface = parameters.get_bDisableStressAtInterface();
+    SPHoptions.evolveDensity = parameters.get_bGasEvolveDensity();
+    SPHoptions.doExternalAcceleration = parameters.has_dExternalAcceleration();
+    SPHoptions.disableShockHeating = (parameters.get_bDisableShockHeatingWithVelocityDamper() && SPHoptions.VelocityDamper > 0.0);
     return SPHoptions;
 }
 
@@ -121,6 +129,9 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->nRungCorrection = source->nRungCorrection;
     target->a = source->a;
     target->H = source->H;
+    target->externalAccelerationX = source->externalAccelerationX;
+    target->externalAccelerationY = source->externalAccelerationY;
+    target->externalAccelerationZ = source->externalAccelerationZ;
     target->doGravity = 0;
     target->doDensity = 0;
     target->doDensityCorrection = 0;
@@ -143,12 +154,18 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->CentrifugalOmega0 = source->CentrifugalOmega0;
     target->doExtensiveILPTest = source->doExtensiveILPTest;
     target->doShearStrengthModel = source->doShearStrengthModel;
+    target->disableStressAtInterface = source->disableStressAtInterface;
+    target->evolveDensity = source->evolveDensity;
+    target->doExternalAcceleration = source->doExternalAcceleration;
+    target->disableShockHeating = source->disableShockHeating;
 }
 
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {
     target->kernelType = source->kernelType;
     target->doInterfaceCorrection = source->doInterfaceCorrection;
     target->useIsentropic = source->useIsentropic;
+    target->disableStressAtInterface = source->disableStressAtInterface;
+    target->disableShockHeating = source->disableShockHeating;
     target->epsilon = source->epsilon;
     target->alpha = source->alpha;
     target->beta = source->beta;

@@ -96,7 +96,7 @@ public:
         }
         FMT_CATCH(fmt::format_error &f) {
             fmt::print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold,"ERROR in formatting string: {}\n",f.what());
-            mdl->show_backtrace(5,2);
+            mdl->show_backtrace_with_snippets(5,2);
         }
     }
     template<typename... Args>
@@ -357,7 +357,7 @@ public:
     double dCheckpointTime;
     int iCheckpointStep;
     int nCheckpointThreads;
-    char achCheckpointName[PST_FILENAME_SIZE];
+    char achCheckpointName[PATH_MAX];
 protected:
     static double Time();
     static void Leader();

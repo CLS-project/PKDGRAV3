@@ -122,6 +122,9 @@ typedef struct {
     float CentrifugalT0;
     float CentrifugalT1;
     float CentrifugalOmega0;
+    float externalAccelerationX;
+    float externalAccelerationY;
+    float externalAccelerationZ;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doDensityCorrection : 1;
@@ -141,12 +144,18 @@ typedef struct {
     uint64_t doCentrifugal : 1;
     uint64_t doExtensiveILPTest : 1;
     uint64_t doShearStrengthModel : 1;
+    uint64_t disableStressAtInterface : 1;
+    uint64_t evolveDensity : 1;
+    uint64_t doExternalAcceleration : 1;
+    uint64_t disableShockHeating : 1;
 } SPHOptions;
 
 typedef struct {
     int kernelType;
     bool doInterfaceCorrection;
     bool useIsentropic;
+    bool disableStressAtInterface;
+    bool disableShockHeating;
     float epsilon;
     float alpha;
     float beta;

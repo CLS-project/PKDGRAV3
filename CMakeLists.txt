@@ -3,9 +3,6 @@ cmake_policy(VERSION 3.14...3.22)
 if(POLICY CMP0144)
     cmake_policy(SET CMP0144 NEW)
 endif()
-if(POLICY CMP0167) # Find Boost in the new way
-    cmake_policy(SET CMP0167 NEW)
-endif()
 include(CheckLanguage)
 include(CheckFunctionExists)
 include(CheckCXXCompilerFlag)
@@ -17,7 +14,7 @@ if (APPLE)
   link_directories(/usr/local/lib)
 endif(APPLE)
 
-project(pkdgrav3 VERSION 3.3)
+project(pkdgrav3 VERSION 3.4)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
@@ -125,6 +122,7 @@ INCLUDE (CheckIncludeFiles)
 INCLUDE (CheckLibraryExists)
 CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
 CHECK_INCLUDE_FILES (signal.h HAVE_SIGNAL_H)
+CHECK_INCLUDE_FILES (sys/prctl.h HAVE_SYS_PRCTL_H)
 CHECK_INCLUDE_FILES (sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES (sys/stat.h HAVE_SYS_STAT_H)
 CHECK_INCLUDE_FILES (sys/param.h HAVE_SYS_PARAM_H)
@@ -202,7 +200,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c units.cxx
+	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c core/abort_error.cxx units.cxx
 	pyrameters.cxx ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.h
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
@@ -721,12 +719,12 @@ target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} blitz fmt)
 
 enable_testing()
-add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-add_test(NAME gravity   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-add_test(NAME select    COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/select.py    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-add_test(NAME fof   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/foftest.py   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME cosmology COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test-files)
+add_test(NAME gravity   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test-files)
+add_test(NAME select    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/select.py    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test-files)
+add_test(NAME fof   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/foftest.py   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test-files)
 if(EOSLIB_PATH AND ANEOSMATERIAL_PATH)
-add_test(NAME NewSPH   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/NewSPH.py   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME NewSPH   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/NewSPH.py   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test-files/sph-data)
 endif()
 
 if(NOT CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)

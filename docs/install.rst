@@ -6,12 +6,14 @@ The pkdgrav3 code requires the following packages:
 
 CMake_ - cmake build system
     Most modern systems already have cmake installed. Pkdgrav3 requires
-    version 3.1 or newer of cmake. You can check with "cmake --version"::
+    version 3.24 or newer of cmake. You can check with "cmake --version"::
 
         pkdgrav3:~> cmake --version
         cmake version 3.26.0
 
     .. _CMake: https://cmake.org/
+
+    The CMake package will be installed in the Python virtul environment (see below).
 
 Message Passing Interface (MPI)
   Most distributions or Supercomputer centers provide an MPI implementation.
@@ -257,11 +259,53 @@ putting the following in your $HOME/.bashrc::
     fi
     alias pkdenv='uenv start --view=spack,modules prgenv-gnu/24.7:v3'
 
----------------
-Python Packages
----------------
+Running on Tödi requires a wrapper script, and setting environment variables.
+The following is subject to change. Sample job script::
 
-Some additional Python package are required to compile the code. **After** you load the
+    #!/bin/bash -l
+    #SBATCH -J "test"
+    #SBATCH --account=youraccount
+    #SBATCH --time=01:00:00 --no-requeue
+    #SBATCH --nodes=1
+    #SBATCH --cpus-per-task=18 --ntasks-per-node=4
+    #SBATCH --ntasks-per-core=1
+    #SBATCH --kill-on-invalid-dep=yes
+    #SBATCH --uenv=prgenv-gnu/24.7:v3
+
+    uenv view spack,modules
+
+    export FI_CXI_RX_MATCH_MODE=software
+    export FI_CXI_RDZV_THRESHOLD=$((2*1048576))
+    export FI_CXI_REQ_BUF_SIZE=$((2*2097152))
+    export FI_CXI_REQ_BUF_MIN_POSTED=60
+    export FI_CXI_REQ_BUF_MAX_CACHED=200
+
+    srun --cpu-bind=none --cpus-per-task=$SLURM_CPUS_PER_TASK ./pkdgrav3.sh ./pkdgrav3 cosmology.par
+
+
+Sample wrapper script "pkdgrav3.sh"::
+
+    #!/bin/bash
+    export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
+    export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
+    export CUDA_VISIBLE_DEVICES=$(( SLURM_LOCALID % 4 ))
+
+    # Launch MPS from a single rank per node
+    if [ $SLURM_LOCALID -eq 0 ]; then
+        CUDA_VISIBLE_DEVICES=0,1,2,3 nvidia-cuda-mps-control -d
+    fi
+    # Wait for MPS to start
+    sleep 5
+
+    "$@"
+
+
+-----------------------------
+Python Packages (Daint/Eiger)
+-----------------------------
+
+For daint and eiger
+some additional Python package are required to compile the code. **After** you load the
 system modules above, use the following to install the necessary packages::
 
     cd /path/to/pkdgrav3

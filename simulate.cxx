@@ -23,6 +23,7 @@
 #include "fmt/format.h"
 #include <fmt/ranges.h>
 #include "SPH/SPHOptions.h"
+#include "SPH/SPHEOS.h"
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 /******************************************************************************\
@@ -582,9 +583,21 @@ int MSR::ValidateParameters() {
     }
 #endif
 
+    if (model == HYDRO_MODEL::SPH) checkEOSlibVersion();
+
     if (parameters.get_bGasInterfaceCorrection() && parameters.get_bGasOnTheFlyPrediction()) {
         print_warning("Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
         parameters.set_bGasOnTheFlyPrediction(false);
+    }
+    if (parameters.get_bGasEvolveDensity()) {
+        if (parameters.get_bGasInterfaceCorrection()) {
+            print_error("ERROR: bGasEvolveDensity is not compatible with bGasInterfaceCorrection, exiting.\n");
+            return 0;
+        }
+        if (parameters.get_bDoDensity()) {
+            print_error("ERROR: bGasEvolveDensity is not compatible with bDoDensity, exiting.\n");
+            return 0;
+        }
     }
 
     if ((parameters.get_dVelocityDamper() > 0.0) && ((parameters.get_dVelocityDamperEnd() > 0.0) || (parameters.get_dVelocityDamperEndTime() > 0.0))) {
@@ -612,7 +625,7 @@ int MSR::ValidateParameters() {
     /*
     ** CUDA likes a larger group size
     */
-    if ( (mdl->isCudaActive() || mdl->isMetalActive()) && !parameters.has_nGroup() && parameters.get_nGroup()<256)
+    if ( (mdl->isCudaActive() || mdl->isMetalActive()) && parameters.get_bGPU() && !parameters.has_nGroup() && parameters.get_nGroup()<256)
         parameters.set_nGroup(256);
 
 #ifndef USE_HDF5

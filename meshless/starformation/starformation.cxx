@@ -207,7 +207,7 @@ void pkdStarForm(PKD pkd,
 #endif
 
                 // We just change the class of the particle to stellar one
-                p.set_class(mass, p.soft0(),0, FIO_SPECIES_STAR);
+                p.set_class(mass, p.soft0(),0,1.0, FIO_SPECIES_STAR);
                 auto &star = p.star();
 
                 // When changing the class, we have to take into account that

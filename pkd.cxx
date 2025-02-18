@@ -697,12 +697,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     if (pkd->particles.present(PKD_FIELD::oStar)) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         auto p = pkd->particles[pkd->Local()];
-        pkd->particles.setClass(0,0,0,FIO_SPECIES_STAR,&p);
+        pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_STAR,&p);
     }
 #ifdef BLACKHOLES
     assert(pkd->particles.present(PKD_FIELD::oMass));
     auto p = pkd->particles[pkd->Local()];
-    pkd->particles.setClass(0,0,0,FIO_SPECIES_BH,&p);
+    pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_BH,&p);
 #endif
 
     // Protect against uninitialized values
@@ -758,10 +758,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                        &fDensity,&u,metals.data(),afSphOtherData);
             if (p.have_newsph()) {
                 fSoft = 1.0f; // Dummy value, because the field in the file is used as hSmooth
-                pkd->particles.setClass(fMass,fSoft,metals[0],eSpecies,&p);
+                pkd->particles.setClass(fMass,fSoft,metals[0] >= 0.0 ? metals[0] : -metals[0], metals[0] >= 0.0 ? 1.0 : 0.0,eSpecies,&p);
             }
             else {
-                pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
+                pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             }
             p.set_density(fDensity);
             if (p.have_newsph()) {
@@ -821,7 +821,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             break;
         case FIO_SPECIES_DARK:
             fioReadDark(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,&fDensity);
-            pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
+            pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             p.set_density(fDensity);
             break;
         case FIO_SPECIES_STAR:
@@ -829,7 +829,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afStarOtherData[4];
             fioReadStar(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,&fDensity,
                         metals.data(),&fTimer,afStarOtherData);
-            pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
+            pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             p.set_density(fDensity);
             if (p.have_star()) {
                 auto &Star = p.star();
@@ -854,7 +854,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float otherData[3];
             fioReadBH(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,
                       &fDensity,otherData,&fTimer);
-            pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
+            pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             if (p.have_bh()) {
                 auto &BH = p.BH();
                 BH.omega  = 0.;
@@ -2136,7 +2136,7 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas) {
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas,int bGasEvolveDensity) {
     int i;
     TinyVector<double,3> rfinal,r0,dr;
     int pLower, pUpper;
@@ -2198,11 +2198,13 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
             for (i=pLower; i<=pUpper; ++i) {
                 auto p = pkd->particles[i];
                 const auto &v = p.velocity();
-                // if (p.is_gas()) {
-                // auto &NewSph = p.newsph();
-                // float dfBalldt = 1.0f / 3.0f * p.ball() * p.density() * NewSph.divv;
-                // p.set_ball(p.ball() + dDelta * dfBalldt);
-                // }
+                if (bGasEvolveDensity && p.is_gas()) {
+                    auto &NewSph = p.newsph();
+                    // float dfBalldt = 1.0f / 3.0f * p.ball() * p.density() * NewSph.divv;
+                    // p.set_ball(p.ball() + dDelta * dfBalldt);
+                    p.set_density(p.density() - dDelta * p.density() * NewSph.divv);
+                }
+
                 r0 = p.position();
                 p.set_position(rfinal = r0 + dDelta*v);
                 assert(isfinite(rfinal[0]));
@@ -2712,7 +2714,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
     /* p.iOrder = -2 - p.iOrder; JW: Not needed -- just preserve iOrder */
     int pSpecies = p.species();
-    p.set_class(0.0,0.0,0,FIO_SPECIES_UNKNOWN); /* Special "DELETED" class == FIO_SPECIES_UNKNOWN */
+    p.set_class(0.0,0.0,0,1.0,FIO_SPECIES_UNKNOWN); /* Special "DELETED" class == FIO_SPECIES_UNKNOWN */
 
     // IA: We copy the last particle into this position, the tree will no longer be valid!!!
     //

@@ -1308,6 +1308,14 @@ docs='''
 Enables interface correction for HYDRO_MODEL.SPH. This uses an additional pass to correct densities at interfaces (material and vacuum).
 '''
 
+["Gas".bGasEvolveDensity]
+flag="GasEvolveDensity"
+default=false
+help="Evolve density with div v instead of smooth"
+docs='''
+Evolves the density with :math:`\frac{D\rho}{D t} = -\rho \nabla\cdot \vec{v}` instead of using a smooth to calculate the density. This is not compatible with bGasInterfaceCorrection or bDoDensity. If bGasEvolveDensity is active together with either one of them, the program halts.
+'''
+
 ["Gas".bCentrifugal]
 flag="Centrifugal"
 default=false
@@ -1341,6 +1349,16 @@ help="Extensively test the ILP for completeness. Very costly."
 flag="ShearStrengthModel"
 default=false
 help="Enables the shear strength model for HYDRO_MODEL.SPH."
+
+["Gas".bDisableStressAtInterface]
+flag="DisableStressAtInterface"
+default=false
+help="Disables stress interactions at interfaces between materials for the shear strength model for HYDRO_MODEL.SPH."
+
+["Gas".bDisableShockHeatingWithVelocityDamper]
+flag="DisableShockHeatingWithVelocityDamper"
+default=true
+help="When velocity damper is active (or >0 if dynamic velocity damper is used), shock heating for HYDRO_MODEL.SPH is disabled."
 
 ["Gas".bMeshlessHydro]
 flag="meshless"
@@ -1384,6 +1402,11 @@ docs='''
 flag="MaxPhysicalSoft"
 default=0.0
 help="maximum softening in physical coordinates"
+
+["Gas".dExternalAcceleration]
+flag="externalAcceleration"
+default=[0.0, 0.0, 0.0]
+help="External acceleration that is applied to all particles in every step. Only active if HYDRO_MODEL.SPH is used."
 
 ################################################################################
 ########## Cooling

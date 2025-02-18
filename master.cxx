@@ -37,6 +37,7 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <assert.h>
+#include "core/abort_error.h"
 #include <time.h>
 #ifdef HAVE_SYS_TIME_H
     #include <sys/time.h>
@@ -558,6 +559,13 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
         aCheckpointClasses[i].fMass = PyFloat_AsDouble(fMassObj);
         aCheckpointClasses[i].fSoft = PyFloat_AsDouble(fSoftObj);
         aCheckpointClasses[i].iMat = PyLong_AsLong(iMatObj);
+        if (PyList_Size(class_list) > 4) {
+            auto accFacObj = PyList_GetItem(class_list, 4);
+            aCheckpointClasses[i].accFac = PyFloat_AsDouble(accFacObj);
+        }
+        else {
+            aCheckpointClasses[i].accFac = 1;
+        }
     }
 
     auto iStep = restore<int>(pFile,step);
@@ -599,7 +607,7 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
 
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
-    assert(nGas==0 || DoGas());
+    abort_assert(1001,nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
@@ -684,7 +692,7 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
     PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
     nBytes = pstGetClasses(pst,NULL,0,aCheckpointClasses,PKD_MAX_CLASSES*sizeof(PARTCLASS));
     int nCheckpointClasses = nBytes / sizeof(PARTCLASS);
-    assert(nCheckpointClasses*sizeof(PARTCLASS)==nBytes);
+    abort_assert(1002,nCheckpointClasses*sizeof(PARTCLASS)==nBytes);
 
     for (i=0; i<=FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = N;
@@ -702,19 +710,21 @@ void MSR::writeParameters(const std::string &baseName,int iStep,int nSteps,doubl
     // Create a list with the checkpoint classes
     auto classes_list = PyList_New(nCheckpointClasses);
     for (int i = 0; i < nCheckpointClasses; ++i) {
-        auto class_list = PyList_New(4); // Each inner list has 4 elements
+        auto class_list = PyList_New(5); // Each inner list has 5 elements
 
         // Convert structure members to Python objects and add them to the class_list
         PyObject *eSpecies = PyLong_FromLong(aCheckpointClasses[i].eSpecies);
         PyObject *fMass = PyFloat_FromDouble(aCheckpointClasses[i].fMass);
         PyObject *fSoft = PyFloat_FromDouble(aCheckpointClasses[i].fSoft);
         PyObject *iMat = PyLong_FromLong(aCheckpointClasses[i].iMat);
+        PyObject *accFac = PyFloat_FromDouble(aCheckpointClasses[i].accFac);
 
         // Note: PyList_SetItem steals a reference to the item
         PyList_SetItem(class_list, 0, eSpecies);
         PyList_SetItem(class_list, 1, fMass);
         PyList_SetItem(class_list, 2, fSoft);
         PyList_SetItem(class_list, 3, iMat);
+        PyList_SetItem(class_list, 4, accFac);
 
         // Add the inner list to the outer list
         PyList_SetItem(classes_list, i, class_list); // This also steals a reference
@@ -798,7 +808,7 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     double dsec;
 
     auto filename = BuildCpName(iStep,".chk");
-    assert(filename.size() < sizeof(in.achOutFile));
+    abort_assert(1003,filename.size() < sizeof(in.achOutFile));
     strcpy(in.achOutFile,filename.c_str());
     in.nProcessors = parallel_write_count();
     if (csm->val.bComove) {
@@ -899,7 +909,7 @@ int MSR::GetLock() {
     auto bOverwrite = parameters.get_bOverwrite();
 
     FILE *fp = NULL;
-    char achTmp[256],achFile[256];
+    char achTmp[PATH_MAX],achFile[PATH_MAX];
 
     MakePath(parameters.get_achDataSubPath(),LOCKFILE,achFile);
     if (!bOverwrite && (fp = fopen(achFile,"r"))) {
@@ -932,7 +942,7 @@ int MSR::CheckForStop(const char *achStopFile) {
     ** is removed and the return status is set to 1, otherwise 0.
     */
 
-    char achFile[256];
+    char achFile[PATH_MAX];
     FILE *fp = NULL;
     MakePath(parameters.get_achDataSubPath(),achStopFile,achFile);
     if ((fp = fopen(achFile,"r"))) {
@@ -956,7 +966,7 @@ void MSR::SetClasses() {
     std::vector<PARTCLASS> classes(PKD_MAX_CLASSES);
     auto nClass = pstGetClasses(pst,NULL,0,classes.data(),classes.size()*sizeof(PARTCLASS));
     auto n = nClass / sizeof(PARTCLASS);
-    assert(n*sizeof(PARTCLASS)==nClass);
+    abort_assert(1002,n*sizeof(PARTCLASS)==nClass);
     classes.resize(n);
     std::sort(classes.begin(),classes.end());
     pstSetClasses(pst,classes.data(),nClass,NULL,0);
@@ -1161,7 +1171,7 @@ uint64_t MSR::CalcWriteStart() {
 }
 
 void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
     int nProcessors;
     double dvFac, dExp;
     double dsec;
@@ -1654,7 +1664,7 @@ void MSR::Reorder() {
 
 void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
     LCL *plcl;
     PST pst0;
     int id,iDim;
@@ -2328,6 +2338,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.bDoGas = DoGas();
     in.iRoot = iRoot;
+    in.bGasEvolveDensity = parameters.get_bGasEvolveDensity();
 
     pstDrift(pst,&in,sizeof(in),NULL,0);
 
@@ -3717,7 +3728,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     if (parameters.has_achTfFile()) {
         auto achTfFile = parameters.get_achTfFile();
         FILE *fp = fopen(achTfFile.data(),"r");
-        char buffer[256];
+        char buffer[PATH_MAX];
 
         if (parameters.get_bVStart())
             print("Reading transfer function from {}\n", achTfFile.data());
@@ -3780,7 +3791,7 @@ double MSR::Read(std::string_view achInFile) {
 
     TimerStart(TIMER_NONE);
 
-    auto nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
+    auto nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX);
     std::unique_ptr<char[]> buffer {new char[sizeof(inReadFile) + nBytes]};
     auto read = new (buffer.get()) inReadFile;
 

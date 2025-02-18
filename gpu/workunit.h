@@ -58,7 +58,7 @@ template <int n> struct sphForceBlk {
     fvector<n> dx, dy, dz;
     fvector<n> m, fBall, Omega;
     fvector<n> vx, vy, vz;
-    fvector<n> rho, P, c, rung, isGas;
+    fvector<n> rho, P, c, rung, iMat, isGas;
     fvector<n> Sxx, Syy, Sxy, Sxz, Syz;
 };
 
@@ -128,7 +128,7 @@ struct alignas(64) sphForceInput {
     float dx, dy, dz;
     float fBall, Omega;
     float vx, vy, vz;
-    float rho, P, c, isGas;
+    float rho, P, c, iMat, isGas;
     float Sxx, Syy, Sxy, Sxz, Syz;
 };
 static_assert(sizeof(sphForceInput)==128,"Check size of sphForceInput");

@@ -747,7 +747,7 @@ void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptio
 void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdGravEvalPC(const PINFOIN &pPart, ilcTile &tile, PINFOOUT &pOut );
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas,int bGasEvolveDensity);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
 #ifdef OPTIM_REORDER_IN_NODES
     void pkdReorderWithinNodes(PKD pkd);
