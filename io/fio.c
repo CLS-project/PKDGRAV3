@@ -2599,8 +2599,9 @@ static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
         iDims[0] = chunk;
         iDims[1] = 1;
         rc = H5Pset_chunk( dataProperties, nDims>1?2:1, iDims ); assert(rc>=0);
-        /* Also request the FLETCHER checksum */
-        rc = H5Pset_filter(dataProperties,H5Z_FILTER_FLETCHER32,0,0,NULL); assert(rc>=0);
+        rc = H5Pset_shuffle( dataProperties ); assert(rc>=0);
+        rc = H5Pset_deflate( dataProperties, 9 ); assert(rc>=0);
+        rc = H5Pset_fletcher32( dataProperties ); assert(rc>=0);
     }
 
 
