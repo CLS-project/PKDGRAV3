@@ -3487,7 +3487,7 @@ static void hdf5Close(FIO fio) {
     if (hio->unitsID != H5I_INVALID_HID) H5Gclose(hio->unitsID);
     if (hio->paramsID != H5I_INVALID_HID) H5Gclose(hio->paramsID);
     H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
-    assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
+    assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL|H5F_OBJ_LOCAL)==1);
     H5Fclose(hio->fileID);
     H5Tclose(hio->stringType);
     H5Tclose(hio->fp16leType);
