@@ -761,10 +761,10 @@ int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
-                       uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
+                       fioSpeciesList nTotal, fioSpeciesList nThisFile,
                        double dBoxSize, double h, int nProcessors, UNITS units);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd);
-void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd);
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten);
 void pkdWriteViaNode(PKD pkd, int iNode);
 char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,PKD_FIELD field,int iUnitSize,double dvFac,int bMarked);
 void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize,double dvFac,int bMarked);

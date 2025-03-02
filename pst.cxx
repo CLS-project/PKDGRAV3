@@ -746,15 +746,26 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 mdlassert(pst->mdl,fio!=NULL);
             }
 
-            pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime,
-                              in->nDark, in->nGas, in->nStar, in->nBH,
-                              in->dBoxSize, in->HubbleParam, in->nProcessorsTotal, in->units);
+            fioSpeciesList nTotal, nThisFile;
+            nTotal[FIO_SPECIES_DARK] = in->nDark;
+            nTotal[FIO_SPECIES_SPH]  = in->nGas;
+            nTotal[FIO_SPECIES_STAR] = in->nStar;
+            nTotal[FIO_SPECIES_BH]   = in->nBH;
+            nThisFile[FIO_SPECIES_DARK] = plcl->pkd->nDark;
+            nThisFile[FIO_SPECIES_SPH]  = plcl->pkd->nGas;
+            nThisFile[FIO_SPECIES_STAR] = plcl->pkd->nStar;
+            nThisFile[FIO_SPECIES_BH]   = plcl->pkd->nBH;
+
             pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,in->bnd);
             for (i=in->iLower+1; i<in->iUpper; ++i ) {
                 int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
-                pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,in->bnd);
+                pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,in->bnd,nThisFile);
                 mdlGetReply(pst->mdl,rID,NULL,NULL);
             }
+
+            pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, nTotal, nThisFile,
+                              in->dBoxSize, in->HubbleParam, in->nProcessorsTotal, in->units);
+
             fioClose(fio);
         }
     }

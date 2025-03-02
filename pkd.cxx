@@ -1518,6 +1518,7 @@ struct packWriteCtx {
     Bound bnd;
     double dvFac;
     double dTuFac;
+    fioSpeciesList nWritten;
     int iIndex;
 };
 
@@ -1531,21 +1532,24 @@ static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     assert( n*pkd->particles.ParticleSize() == nSize);
     for (i=0; i<n; ++i,++p) {
         writeParticle(pkd,ctx->fio,ctx->dvFac,dvFacGas,ctx->bnd,*p);
+        ++ctx->nWritten[p->species()];
     }
     return 1;
 }
 
-void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd) {
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten) {
     struct packWriteCtx ctx;
     ctx.pkd = pkd;
     ctx.fio = fio;
     ctx.bnd = bnd;
     ctx.dvFac = dvFac;
     ctx.dTuFac = dTuFac;
+    for (auto i = 0; i <= FIO_SPECIES_LAST; ++i) ctx.nWritten[i] = 0;
     ctx.iIndex = 0;
 #ifdef MPI_VERSION
     mdlRecv(pkd->mdl,iNode,unpackWrite,&ctx);
 #endif
+    for (auto i = 0; i <= FIO_SPECIES_LAST; ++i) nWritten[i] += ctx.nWritten[i];
 }
 
 /*****************************************************************************\
@@ -1577,7 +1581,7 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 }
 
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
-                       uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
+                       fioSpeciesList nTotal, fioSpeciesList nThisFile,
                        double dBoxSize, double h, int nProcessors, UNITS units) {
     char version[] = PACKAGE_VERSION;
     fioSetAttr(fio, HDF5_HEADER_G, "PKDGRAV version", FIO_TYPE_STRING, 1, version);
@@ -1622,36 +1626,32 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
 #endif
     fioSetAttr(fio, HDF5_HEADER_G, "Flag_Metals", FIO_TYPE_INT, 1, &flag);
 
-    // In HDF5 format the position and velocities are always stored as doubles
-    flag=1;
+    flag = (fio->mFlags&FIO_FLAG_DOUBLE_POS) && (fio->mFlags&FIO_FLAG_DOUBLE_VEL);
     fioSetAttr(fio, HDF5_HEADER_G, "Flag_DoublePrecision", FIO_TYPE_INT, 1, &flag);
 
     fioSetAttr(fio, HDF5_HEADER_G, "BoxSize", FIO_TYPE_DOUBLE, 1, &dBoxSize);
     fioSetAttr(fio, HDF5_HEADER_G, "NumFilesPerSnapshot", FIO_TYPE_INT, 1, &nProcessors);
 
-    /* Prepare the particle information in tables
-     * For now, we only support one file per snapshot,
-     * this bParaWrite=0
-     *
-     * TODO: Check and debug parallel HDF5
-     */
+    // Prepare the particle information in tables
+    // Header compatible with Gadget-4, with NumPart_ThisFile and NumPart_Total as uint64,
+    // no NumPart_Total_HighWord. This limits the number of particles at 2**64-1
+    fioSpeciesList nPart;
 
-    // Header compatible with Gadget-4, with NumPart_ThisFile and NumPart_Total as int64, no NumPart_Total_HighWord
-    // This limits the number of particles at 2**64-1
-    //
-    uint64_t numPart_file[6] = {0,0,0,0,0,0};
-    //fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
-    //int numPart_all[6];
+    nPart[0] = nThisFile[FIO_SPECIES_SPH];
+    nPart[1] = nThisFile[FIO_SPECIES_DARK];
+    nPart[2] = 0;
+    nPart[3] = 0;
+    nPart[4] = nThisFile[FIO_SPECIES_STAR];
+    nPart[5] = nThisFile[FIO_SPECIES_BH];
+    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT64, 6, &nPart[0]);
 
-    numPart_file[0] = nGas;
-    numPart_file[1] = nDark;
-    numPart_file[2] = 0;
-    numPart_file[3] = 0;
-    numPart_file[4] = nStar;
-    numPart_file[5] = nBH;
-
-    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT64, 6, &numPart_file[0]);
-    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT64, 6, &numPart_file[0]);
+    nPart[0] = nTotal[FIO_SPECIES_SPH];
+    nPart[1] = nTotal[FIO_SPECIES_DARK];
+    nPart[2] = 0;
+    nPart[3] = 0;
+    nPart[4] = nTotal[FIO_SPECIES_STAR];
+    nPart[5] = nTotal[FIO_SPECIES_BH];
+    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT64, 6, &nPart[0]);
 
     double massTable[6] = {0,0,0,0,0,0};
     // This is not yet fully supported, as the classes do not have to match the
