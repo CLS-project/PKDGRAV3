@@ -1258,7 +1258,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     in.iLower = 0;
     in.iUpper = nThreads;
     in.iIndex = 0;
-    in.nProcessors = nProcessors;
+    in.nProcessorsTotal = in.nProcessors = nProcessors;
     pstWrite(pst,&in,sizeof(in),NULL,0);
 }
 
@@ -4051,7 +4051,7 @@ double MSR::Read(std::string_view achInFile) {
 
     read->nProcessors = parallel_read_count();
 
-    if (!fioGetAttr(fio,HDF5_HEADER_G, "NumFilesPerSnapshot",FIO_TYPE_UINT32,&j)) j = 1;
+    if (!fioGetAttr(fio,HDF5_HEADER_G, "NumFilesPerSnapshot",FIO_TYPE_INT,&j)) j = 1;
     printf("Reading %" PRIu64 " particles from %d file%s using %d processor%s\n",
            N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 

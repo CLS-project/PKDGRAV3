@@ -327,6 +327,7 @@ struct inWrite {
     int bStandard;
     int iIndex;
     int nProcessors;
+    int nProcessorsTotal;
     int iLower, iUpper;
     int bHDF5;
     int mFlags;
