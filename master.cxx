@@ -1068,7 +1068,17 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
         pst0->mdl->GetReply(rID);
     }
     for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
-        if (nBasePart[s] == 0) continue;
+        if (nBasePart[s] == 0) {
+            // It may happen that we have so little particles that we can
+            // not divide them by threads, so we just load it here
+            auto mod = (in->nSpeciesEnd[s]-in->nSpeciesStart[s])%nThreads;
+            if (mod) {
+                nBasePart[s] = mod;
+            }
+            else {
+                continue;
+            }
+        }
         /*
          * Now read our own particles.
          */
