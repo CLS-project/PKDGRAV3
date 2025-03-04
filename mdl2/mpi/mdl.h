@@ -108,7 +108,6 @@ protected:
     virtual void    init(void *dst)                                   {}
     virtual void    init_shared(void *dst)                            {}
     virtual void   flush(void *dst, const void *src)                  { memcpy(dst,src,nData); }
-    virtual void   flush_local(const void *dst)                       {}
     virtual void combine(void *dst, const void *src, const void *key) { memcpy(dst,src,nData); }
     virtual void *create(uint32_t size, const void *pKey) { return nullptr; }
     virtual uint32_t getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return uId;}
@@ -154,7 +153,7 @@ protected:
 public:
     void initialize(uint32_t cacheSize,
                     void *(*getElt)(void *pData,int i,int iDataSize),
-                    void *pData,int nData,
+                    void *pData,int nData, int iArrayElementSize,
                     std::shared_ptr<CACHEhelper> helper);
 
     void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
@@ -167,6 +166,7 @@ protected:
     RWLock rwlock;
 public:
     int iDataSize;
+    int iArrayElementSize;
     int nData;
     uint32_t nLineBits;
     uint32_t getLineElementCount() const {return 1 << nLineBits;}
@@ -185,7 +185,7 @@ public:
     bool isActive() {return cache_helper.get() != nullptr; }
     bool modify() {assert(cache_helper); return cache_helper->modify();}
     uint32_t key_size() {return arc_cache->key_size();}
-    void *getElement(int i) {return (*getElt)(pData,i,iDataSize);}
+    void *getElement(int i) {return (*getElt)(pData,i,iArrayElementSize);}
     void *WriteLock(int iIndex) {rwlock.lock_write(); return getElement(iIndex);}
     void WriteUnlock(const void *p) {rwlock.unlock_write();}
     void *ReadLock(int iIndex) {rwlock.lock_read(); return getElement(iIndex);}
@@ -303,7 +303,11 @@ public:
                            std::shared_ptr<CACHEhelper> helper);
     CACHE *CacheInitialize(int cid,
                            void *(*getElt)(void *pData,int i,int iDataSize),
-                           void *pData,int nData,int iDataSize);
+                           void *pData,int nData, int iArrayElementSize,
+                           std::shared_ptr<CACHEhelper> helper);
+    CACHE *CacheInitialize(int cid,
+                           void *(*getElt)(void *pData,int i,int iDataSize),
+                           void *pData,int nData,int iDataSize, int iArrayElementSize);
     CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
     void *AcquireWrite(int cid,int iIndex) {
@@ -650,6 +654,7 @@ void *mdlSetArray(MDL mdl,size_t nmemb,size_t size,void *vdata);
 void mdlFreeArray(MDL,void *);
 void mdlSetCacheSize(MDL,int);
 int mdlCacheStatus(MDL mdl,int cid); /* zero means not open */
+
 void mdlROcache(MDL mdl,int cid,
                 void *(*getElt)(void *pData,int i,int iDataSize),
                 void *pData,int iDataSize,int nData);
@@ -664,6 +669,19 @@ void mdlPackedCacheRO(MDL mdl,int cid,
                       void (*init_shared)   (void *,void *),
                       void (*pack)   (void *,void *,const void *),
                       void (*unpack) (void *,void *,const void *));
+/* We provide two interfaces for each cache (could be easier if in C++). One
+ * for the common case where iDataSize=iArrayElementSize (i.e, all data is in
+ * a large array). And other ("Stride" variants) where the cache elements have
+ * iDataSize but are separated in the buffer array by iArrayElementSize bytes.
+ * This is used for caching particles+decorators in the same ARC cache
+ */
+void mdlPackedStrideCacheRO(MDL mdl,int cid,
+                            void *(*getElt)(void *pData,int i,int iArrayElementSize),
+                            void *pData,int nData,uint32_t iDataSize, int iArrayElementSize,
+                            void *ctx,uint32_t iPackSize,
+                            void (*init_shared)   (void *,void *),
+                            void (*pack)   (void *,void *,const void *),
+                            void (*unpack) (void *,void *,const void *));
 void mdlPackedCacheCO(MDL mdl,int cid,
                       void *(*getElt)(void *pData,int i,int iDataSize),
                       void *pData,int nData,uint32_t iDataSize,
@@ -674,8 +692,18 @@ void mdlPackedCacheCO(MDL mdl,int cid,
                       void (*init)   (void *,void *),
                       void (*init_shared)   (void *,void *),
                       void (*flush)  (void *,void *,const void *),
-                      void (*flush_local)  (void *, const void *),
                       void (*combine)(void *,void *,const void *));
+void mdlPackedStrideCacheCO(MDL mdl,int cid,
+                            void *(*getElt)(void *pData,int i,int iArrayElementSize),
+                            void *pData,int nData,uint32_t iDataSize, int iArrayElementSize,
+                            void *ctx,uint32_t iPackSize,
+                            void (*pack)   (void *,void *,const void *),
+                            void (*unpack) (void *,void *,const void *),
+                            uint32_t iFlushSize,
+                            void (*init)   (void *,void *),
+                            void (*init_shared)   (void *,void *),
+                            void (*flush)  (void *,void *,const void *),
+                            void (*combine)(void *,void *,const void *));
 void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize);
 void mdlAdvancedCacheCO(MDL mdl,int cid,void *pHash,int iDataSize,
                         void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));

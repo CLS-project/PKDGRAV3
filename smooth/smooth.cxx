@@ -222,65 +222,25 @@ int smHashPresent(SMX smx,void *p) {
     return 0;
 }
 
-void init_shared_decorator(void *vpkd, void *dst) {
-    PKD pkd = (PKD) vpkd;
-    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
-    if (p.have_decorator()) {
-        auto decorator = pkd->decorators.CacheAdd();
-        if (decorator)
-            memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
-        p.set_decorator(decorator);
-    }
-}
 
 void init_shared_gas_decorator(void *vpkd, void *dst) {
     PKD pkd = (PKD) vpkd;
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
     if (p.is_gas()) {
-        auto decorator = pkd->decorators.CacheAdd();
-        // This only needs to be called if the request is on the same MPI process.
-        memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
-        p.set_decorator(decorator);
+        auto src_decorator = p.decorator_field();
+        p.set_adj_decorator();
+        memcpy(p.decorator_field(), src_decorator, pkd->decorators.DecoratorSize());
     }
 }
 
-void flush_shared_gas_decorator(void *vpkd, const void *dst) {
-    PKD pkd = (PKD) vpkd;
-    auto p = pkd->particles[static_cast<const PARTICLE *>(dst)];
-    if (p.is_gas()) {
-        pkd->decorators.CacheRelease(p.decorator_field());
-    }
-}
-
-
-inline PARTICLE *acquireParticle(SMX smx, int cid, int pj, int id) {
-    auto pkd = smx->pkd;
-    auto p = pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,cid,pj,id))];
-    // For now hardcoded, need to propagate info to smx layer
-    if (p.species() == smx->decorator_species) {
-        pkd->decorators.CacheLock(p.decorator_field());
-    }
-    return &p;
-}
-
-inline void releaseParticle(SMX smx, int cid, PARTICLE *pp) {
-    auto pkd = smx->pkd;
-    mdlRelease(pkd->mdl,CID_PARTICLE, pp);
-    auto p = pkd->particles[pp];
-    // For now hardcoded, need to propagate info to smx layer
-    if (p.species() == smx->decorator_species) {
-        pkd->decorators.CacheUnlock(p.decorator_field());
-    }
-}
 
 void init_shared_star_decorator(void *vpkd, void *dst) {
     PKD pkd = (PKD) vpkd;
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
     if (p.is_star()) {
-        auto decorator = pkd->decorators.CacheAdd();
-        if (decorator)
-            memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
-        p.set_decorator(decorator);
+        auto src_decorator = p.decorator_field();
+        p.set_adj_decorator();
+        memcpy(p.decorator_field(), src_decorator, pkd->decorators.DecoratorSize());
     }
 }
 
@@ -289,10 +249,9 @@ void init_shared_bh_decorator(void *vpkd, void *dst) {
     PKD pkd = (PKD) vpkd;
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
     if (p.is_bh()) {
-        auto decorator = pkd->decorators.CacheAdd();
-        if (decorator)
-            memcpy(decorator, p.decorator_field(), pkd->decorators.DecoratorSize());
-        p.set_decorator(decorator);
+        auto src_decorator = p.decorator_field();
+        p.set_adj_decorator();
+        memcpy(p.decorator_field(), src_decorator, pkd->decorators.DecoratorSize());
     }
 }
 
@@ -303,12 +262,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     void (*unpack)(void *,void *,const void *) = NULL;
     void (*init)(void *,void *) = NULL;
     void (*init_shared)(void *,void *) = NULL;
-    void (*flush_local)(void *,const void *) = NULL;
     void (*flush)(void *,void *,const void *) = NULL;
     void (*comb)(void *,void *,const void *) = NULL;
     bool bPacked = false;
+    bool bStrideCache = false;
     uint32_t iPackSize = 0;
     uint32_t iFlushSize = 0;
+    int iDataSize = pkd->particles.ParticleSize();
     int i;
 
     smx = new struct smContext;
@@ -388,7 +348,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackHydroDensity;
         init = NULL; /* Cached copies */
         init_shared = init_shared_gas_decorator;
-        flush_local = flush_shared_gas_decorator;
         smx->decorator_species = FIO_SPECIES_SPH;
         comb = NULL;
         bPacked = true;
@@ -402,7 +361,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackHydroDensity;
         init = NULL; /* Cached copies */
         init_shared = init_shared_gas_decorator;
-        flush_local = flush_shared_gas_decorator;
         smx->decorator_species = FIO_SPECIES_SPH;
         comb = NULL;
         bPacked = true;
@@ -415,12 +373,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         pack = packHydroGradients;
         unpack = unpackHydroGradients;
         init_shared = init_shared_gas_decorator;
-        flush_local = flush_shared_gas_decorator;
         smx->decorator_species = FIO_SPECIES_SPH;
         init = NULL; /* Cached copies */
         comb = NULL;
         bPacked = true;
         iPackSize = sizeof(hydroGradientsPack);
+        bStrideCache = true;
+        iDataSize = pkd->particles.ParticleSize() + pkd->decorators.DecoratorSize();
         break;
 #ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
@@ -434,13 +393,14 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackHydroFluxes;
         init = initHydroFluxesCached; /* Cached copies */
         init_shared = init_shared_gas_decorator;
-        flush_local = flush_shared_gas_decorator;
         smx->decorator_species = FIO_SPECIES_SPH;
         flush = flushHydroFluxes;
         comb = combHydroFluxes;
         bPacked = true;
         iPackSize = sizeof(hydroFluxesPack);
         iFlushSize = sizeof(hydroFluxesFlush);
+        bStrideCache = true;
+        iDataSize = pkd->particles.ParticleSize() + pkd->decorators.DecoratorSize();
         break;
 #endif
     case SMX_HYDRO_STEP:
@@ -451,13 +411,14 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackHydroStep;
         init = initHydroStep; /* Cached copies */
         init_shared = init_shared_gas_decorator;
-        flush_local = flush_shared_gas_decorator;
         smx->decorator_species = FIO_SPECIES_SPH;
         flush = flushHydroStep;
         comb = combHydroStep;
         bPacked = true;
         iPackSize = sizeof(hydroStepPack);
         iFlushSize = sizeof(hydroStepFlush);
+        bStrideCache = true;
+        iDataSize = pkd->particles.ParticleSize() + pkd->decorators.DecoratorSize();
         break;
 #ifdef FEEDBACK
     case SMX_SN_FEEDBACK:
@@ -467,7 +428,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackSNFeedback;
         init = initSNFeedback; /* Cached copies */
         init_shared = init_shared_gas_decorator;
-        flush_local = flush_shared_gas_decorator;
         smx->decorator_species = FIO_SPECIES_SPH;
         flush = flushSNFeedback;
         comb = combSNFeedback;
@@ -475,6 +435,8 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         bPacked = true;
         iPackSize = sizeof(snFeedbackPack);
         iFlushSize = sizeof(snFeedbackFlush);
+        bStrideCache = true;
+        iDataSize = pkd->particles.ParticleSize() + pkd->decorators.DecoratorSize();
         break;
 #endif
 #ifdef BLACKHOLES
@@ -504,7 +466,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackBHEvolve;
         init = initBHEvolve; /* Cached copies */
         init_shared = init_shared_gas_decorator;
-        flush_local = flush_shared_gas_decorator;
         smx->decorator_species = FIO_SPECIES_SPH;
         flush = flushBHEvolve;
         comb = combBHEvolve;
@@ -512,6 +473,8 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         bPacked = true;
         iPackSize = sizeof(bhEvolvePack);
         iFlushSize = sizeof(bhEvolveFlush);
+        bStrideCache = true;
+        iDataSize = pkd->particles.ParticleSize() + pkd->decorators.DecoratorSize();
         break;
     case SMX_BH_GASPIN:
         smx->fcnSmooth = smBHGasPin;
@@ -534,7 +497,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         unpack = unpackChemEnrich;
         init = initChemEnrich;
         init_shared = init_shared_gas_decorator;
-        flush_local = flush_shared_gas_decorator;
         smx->decorator_species = FIO_SPECIES_SPH;
         flush = flushChemEnrich;
         comb = combChemEnrich;
@@ -542,6 +504,8 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         bPacked = true;
         iPackSize = sizeof(stevPack);
         iFlushSize = sizeof(stevFlush);
+        bStrideCache = true;
+        iDataSize = pkd->particles.ParticleSize() + pkd->decorators.DecoratorSize();
         break;
 #endif
     case SMX_BALL:
@@ -580,16 +544,28 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->bOwnCache = 1;
         if (bPacked) {
             if (bSymmetric) {
-                pkd->decorators.CacheStart(false);
-                mdlPackedCacheCO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
-                                 pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 pack,unpack,iFlushSize,init,init_shared,flush,flush_local,comb);
+                if (bStrideCache) {
+                    mdlPackedStrideCacheCO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
+                                           iDataSize,pkd->particles.ParticleSize(),pkd,iPackSize,
+                                           pack,unpack,iFlushSize,init,init_shared,flush,comb);
+                }
+                else {
+                    mdlPackedCacheCO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
+                                     pkd->particles.ParticleSize(),pkd,iPackSize,
+                                     pack,unpack,iFlushSize,init,init_shared,flush,comb);
+                }
             }
             else {
-                pkd->decorators.CacheStart(true);
-                mdlPackedCacheRO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
-                                 pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 init_shared,pack,unpack);
+                if (bStrideCache) {
+                    mdlPackedStrideCacheRO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
+                                           iDataSize,pkd->particles.ParticleSize(),pkd,iPackSize,
+                                           init_shared,pack,unpack);
+                }
+                else {
+                    mdlPackedCacheRO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
+                                     pkd->particles.ParticleSize(),pkd,iPackSize,
+                                     init_shared,pack,unpack);
+                }
             }
         }
         else if (bSymmetric) {
@@ -785,7 +761,7 @@ PQ *pqSearch(SMX smx,PQ *pq,TinyVector<double,3> r,int iRoot) {
                     }
                     else {
                         smHashDel(smx,pq->pPart);
-                        releaseParticle(smx,CID_PARTICLE,pq->pPart);
+                        mdlRelease(pkd->mdl,CID_PARTICLE,pq->pPart);
                         pq->iPid = idSelf;
                     }
                     pq->pPart = &p;
@@ -817,9 +793,9 @@ PQ *pqSearch(SMX smx,PQ *pq,TinyVector<double,3> r,int iRoot) {
                     }
                     else {
                         smHashDel(smx,pq->pPart);
-                        releaseParticle(smx,CID_PARTICLE,pq->pPart);
+                        mdlRelease(pkd->mdl,CID_PARTICLE,pq->pPart);
                     }
-                    auto p = pkd->particles[acquireParticle(smx,CID_PARTICLE,pj,id)];
+                    auto p = pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
                     pq->pPart = &p;
                     pq->fDist2 = fDist2;
                     pq->dr = dr;
@@ -870,7 +846,7 @@ void smSmoothFinish(SMX smx) {
         }
         else {
             smHashDel(smx,smx->pq[i].pPart);
-            releaseParticle(smx,CID_PARTICLE,smx->pq[i].pPart);
+            mdlRelease(smx->pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
         }
     }
 }
@@ -1090,7 +1066,7 @@ void smGather(SMX smx,double fBall2,TinyVector<double,3> r) {
                         }
                         smx->nnList[nCnt].fDist2 = fDist2;
                         smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].pPart = acquireParticle(smx,CID_PARTICLE,pj,id);
+                        smx->nnList[nCnt].pPart = static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id));
                         smx->nnList[nCnt].iIndex = pj;
                         smx->nnList[nCnt].iPid = id;
                         ++nCnt;
@@ -1183,7 +1159,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,doubl
     */
     for (int i=0; i<smx->nnListSize; ++i) {
         if (smx->nnList[i].iPid != pkd->Self()) {
-            releaseParticle(smx,CID_PARTICLE,smx->nnList[i].pPart);
+            mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
         }
     }
 }
@@ -1493,7 +1469,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                             }
 
                             nnList_p[nCnt_p].pPart = (smx->nnList[pk].iPid == pkd->Self()) ?
-                                                     smx->nnList[pk].pPart : acquireParticle(smx,CID_PARTICLE,smx->nnList[pk].iIndex,smx->nnList[pk].iPid);
+                                                     smx->nnList[pk].pPart : static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,smx->nnList[pk].iIndex,smx->nnList[pk].iPid));
                             nnList_p[nCnt_p].fDist2 = fDist2;
                             nnList_p[nCnt_p].dr = dr;
                             nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
@@ -1529,7 +1505,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                     for (auto pk = 0; pk < nCnt_p; ++pk) {
                         if (nnList_p[pk].iPid != pkd->Self()) {
-                            releaseParticle(smx,CID_PARTICLE,nnList_p[pk].pPart);
+                            mdlRelease(pkd->mdl,CID_PARTICLE,nnList_p[pk].pPart);
                         }
                     }
                 }

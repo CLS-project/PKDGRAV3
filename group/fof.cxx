@@ -600,7 +600,7 @@ NextCell:
     ** Now lets go looking for local particles which have a remote neighbor that is part of
     ** a group.
     */
-    pkd->mdl->CacheInitialize(CID_PARTICLE,NULL,pkd->particles,pkd->Local(),pkd->particles.ParticleSize());
+    pkd->mdl->CacheInitialize(CID_PARTICLE,NULL,pkd->particles,pkd->Local(),pkd->particles.ParticleSize(),pkd->particles.ParticleSize());
     pkdFofRemoteSearch(pkd,dTau2,bPeriodic,nReplicas,nBucket);
     pkd->mdl->FinishCache(CID_PARTICLE);
 }

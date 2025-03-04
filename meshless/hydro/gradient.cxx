@@ -48,8 +48,8 @@ void unpackHydroGradients(void *vpkd,void *dst,const void *src) {
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
-        auto decorator = pkd->decorators.CacheAdd();
-        p1.set_decorator(decorator);
+        p1.set_adj_decorator();
+
         p1.set_position(p2->position);
         p1.velocity() = p2->velocity;
         p1.sph().P = p2->P;

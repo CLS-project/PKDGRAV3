@@ -65,8 +65,8 @@ void unpackHydroFluxes(void *vpkd,void *dst,const void *src) {
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
-        auto decorator = pkd->decorators.CacheAdd();
-        p1.set_decorator(decorator);
+        p1.set_adj_decorator();
+
         auto &sph = p1.sph();
 
         p1.set_position(p2->position);
@@ -106,6 +106,7 @@ void initHydroFluxesCached(void *vpkd,void *dst) {
     // because these operations are done in a cache-line basis, and a line may
     // contain other particles that are not of interest!
     if (p.is_gas()) {
+        // assert((int)((char*)p.decorator_field()-(char*)dst) == pkd->particles.ParticleSize());
         auto &sph = p.sph();
 
         sph.Frho = 0.0;
@@ -129,6 +130,7 @@ void flushHydroFluxes(void *vpkd,void *dst,const void *src) {
 
     if (p2.is_gas()) {
         const auto &sph = p2.sph();
+        // assert((int)((char*)p2.decorator_field()-(char*)src) == pkd->particles.ParticleSize());
 
         p1->Frho = sph.Frho;
         p1->Fmom = sph.Fmom;

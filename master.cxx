@@ -344,8 +344,7 @@ std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemor
     ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(mdl));
     ps.nDecoratorStore = ceil( dStorageAmount * (ps.nSpecies[FIO_SPECIES_SPH] +
                                ps.nSpecies[FIO_SPECIES_BH] + ps.nSpecies[FIO_SPECIES_STAR])
-                               / mdlThreads(mdl))
-                         + parameters.get_nDecoratorCacheSize();
+                               / mdlThreads(mdl));
     ps.nTreeBitsLo = parameters.get_nTreeBitsLo();
     ps.nTreeBitsHi = parameters.get_nTreeBitsHi();
     ps.iCacheSize  = parameters.get_iCacheSize();
@@ -399,7 +398,7 @@ std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemor
     pstInitializePStore(pst,&ps,sizeof(ps),&pout,sizeof(pout));
     PKD pkd = pst->plcl->pkd;
     print("Allocated {} MB for {} particles on each processor.\n", pkd->ParticleMemory()/(1024*1024), pkd->FreeStore());
-    print("Allocated {} MB for {} decorators (+ {} cache) on each processor.\n", pkd->DecoratorMemory()/(1024*1024), pkd->FreeDecoratorStore()-parameters.get_nDecoratorCacheSize(), parameters.get_nDecoratorCacheSize());
+    print("Allocated {} MB for {} decorators on each processor.\n", pkd->DecoratorMemory()/(1024*1024), pkd->FreeDecoratorStore());
     print("Particles: {} bytes (persistent) + {} bytes (decorator) + {} bytes (ephemeral) , Nodes: {} bytes\n",
           pkd->particles.ParticleSize(),pkd->decorators.DecoratorSize(), ps.nEphemeralBytes,pkd->NodeSize());
     if (pkd->particles.ParticleSize() > MDL_CACHE_DATA_SIZE) {

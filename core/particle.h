@@ -333,11 +333,24 @@ public:
             get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = d;
         }
     }
+    /* Set the adjacent memory space at the end of the particle struct to be
+     * the decorator, similar to the "old" particle information. This is useful
+     * when caching together the decorator and the particles
+     */
+    void set_adj_decorator( PARTICLE *p) const {
+        if (present(PKD_FIELD::oDecorator)) {
+            auto v = reinterpret_cast<char *>(p);
+            auto pdec = reinterpret_cast<decorators::FIELDS *>(v + ElementSize());
+            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = nullptr;
+        }
+    }
     auto decorator_field( PARTICLE *p ) const {
-        return get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+        auto pdec = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+        return pdec ? pdec : reinterpret_cast<decorators::FIELDS *>(reinterpret_cast<char *>(p) + ElementSize());
     }
     const auto decorator_field( PARTICLE const *p ) const {
-        return get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+        auto pdec = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+        return pdec ? pdec : reinterpret_cast<decorators::FIELDS *>(reinterpret_cast<char *>(const_cast<PARTICLE *>(p)) + ElementSize());
     }
     /* Sph variables */
     /* TO BE RENAMED TO MFM */
@@ -521,6 +534,7 @@ public:
         void set_ball(float fBall) {store().set_ball(p,fBall);}
         void set_decorator_index(uint64_t index) {store().set_decorator_index(p,index);}
         void set_decorator(decorators::FIELDS *d) {store().set_decorator(p,d);}
+        void set_adj_decorator() {store().set_adj_decorator(p);}
         auto decorator_index()  const { return store().decorator_index(p);}
         auto decorator_field()  const { return store().decorator_field(p);}
 
