@@ -938,6 +938,16 @@ parameter is set to 0.1 then it increases the size of the particle storage by 10
 This uses additional memory, but makes it easier to balance work.
 '''
 
+["Memory Model and Control".dExtraDecoratorStore]
+flag="extradecorator"
+default=0.2
+help="Extra storage for decorators"
+docs='''
+The code allocates exactly enough space to store the decorators if they are evenly
+distributed between all of the threads, **plus** this fraction.
+This uses additional memory, but makes it easier to balance work.
+'''
+
 ["Memory Model and Control".nTreeBitsLo]
 flag="treelo"
 default=14

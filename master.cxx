@@ -339,11 +339,12 @@ EphemeralMemory MSR::EphemeralMemoryGrid(int nGrid,int nCount) {
 std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {
     struct inInitializePStore ps;
     double dStorageAmount = (1.0+parameters.get_dExtraStore());
+    double dDecoratorStorageAmount = (1.0+parameters.get_dExtraDecoratorStore());
     int i;
     for ( i=0; i<=FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
     ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(mdl));
-    ps.nDecoratorStore = ceil( dStorageAmount * (ps.nSpecies[FIO_SPECIES_SPH] +
-                               ps.nSpecies[FIO_SPECIES_BH] + ps.nSpecies[FIO_SPECIES_STAR])
+    ps.nDecoratorStore = ceil( dDecoratorStorageAmount *
+                               (ps.nSpecies[FIO_SPECIES_SPH] + ps.nSpecies[FIO_SPECIES_BH] + ps.nSpecies[FIO_SPECIES_STAR])
                                / mdlThreads(mdl));
     ps.nTreeBitsLo = parameters.get_nTreeBitsLo();
     ps.nTreeBitsHi = parameters.get_nTreeBitsHi();
