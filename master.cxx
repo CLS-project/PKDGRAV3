@@ -3991,7 +3991,6 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
 double MSR::Read(std::string_view achInFile) {
     double dTime,dExpansion;
     FIO fio;
-    int j;
     double dsec;
     fioSpeciesList nSpecies;
     inReadFileFilename achFilename;
@@ -4051,9 +4050,9 @@ double MSR::Read(std::string_view achInFile) {
 
     read->nProcessors = parallel_read_count();
 
-    if (!fioGetAttr(fio,HDF5_HEADER_G, "NumFilesPerSnapshot",FIO_TYPE_INT,&j)) j = 1;
+    auto &nFiles = fio->fileList.nFiles;
     printf("Reading %" PRIu64 " particles from %d file%s using %d processor%s\n",
-           N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
+           N, nFiles, (nFiles==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(dExpansion);
     if (parameters.get_bInFileLC()) read->dvFac = 1.0;
