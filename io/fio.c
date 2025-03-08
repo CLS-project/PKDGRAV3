@@ -508,7 +508,6 @@ static int listReadDark(FIO fio,
     fioList *vio = (fioList *)fio;
     int rc;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
-
     if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_DARK) return 0;
     rc = fioReadDark(vio->fioCurrent,piParticleID,pdPos,pdVel,
                      pfMass,pfSoft,pfPot,pfDen);
@@ -523,7 +522,6 @@ static int listReadSph(
     fioList *vio = (fioList *)fio;
     int rc;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
-    listNextSpecies(fio);
     if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_SPH) return 0;
     rc = fioReadSph(
              vio->fioCurrent,piParticleID,pdPos,pdVel,
