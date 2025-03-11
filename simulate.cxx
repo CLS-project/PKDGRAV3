@@ -558,15 +558,17 @@ int MSR::ValidateParameters() {
 #ifdef COOLING
         if (parameters.get_bComove()) {
             auto fH_reion_z = parameters.get_fH_reion_z();
-            auto dRedTo = parameters.get_dRedTo();
-            if (!std::any_of(dRedTo.begin(), dRedTo.end(), [fH_reion_z](double z) {
-            return std::fabs(z - fH_reion_z) < 1e-10;
-            })) {
-                print_error("ERROR: Meshless hydrodynamics with cooling requires an element of dRedTo "
-                            "to be set to the redshift of Hydrogen reionization, as set in parameter "
-                            "fH_reion_z. Include the value of fH_reion_z in dRedTo, and choose a "
-                            "value for the corresponding element of nSteps\n");
-                return 0;
+            auto dRedTo = parameters.get_dRedTo(); // Assumed sorted in decreasing order
+            if (dRedTo.front() > fH_reion_z && dRedTo.back() < fH_reion_z) {
+                if (!std::any_of(dRedTo.begin(), dRedTo.end(), [fH_reion_z](double z) {
+                return std::fabs(z - fH_reion_z) < 1e-10;
+                })) {
+                    print_error("ERROR: Meshless hydrodynamics with cooling requires an element of dRedTo "
+                                "to be set to the redshift of Hydrogen reionization, as set in parameter "
+                                "fH_reion_z. Include the value of fH_reion_z in dRedTo, and choose a "
+                                "value for the corresponding element of nSteps\n");
+                    return 0;
+                }
             }
         }
 #endif
