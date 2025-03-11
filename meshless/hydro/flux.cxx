@@ -971,9 +971,9 @@ void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal
 
         if (P.have_mfv()) {
             auto &mfv = P.mfv();
-            mfv.drDotFrho[0] -= qout(minDt) * qout(Frho) * q(dx) * aFac;
-            mfv.drDotFrho[1] -= qout(minDt) * qout(Frho) * q(dy) * aFac;
-            mfv.drDotFrho[2] -= qout(minDt) * qout(Frho) * q(dz) * aFac;
+            mfv.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
+            mfv.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
+            mfv.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
         }
         psph.Frho +=    qout(Frho);
         psph.Fene +=    qout(Fene);
