@@ -78,7 +78,14 @@ protected:
         std::atomic<CXX_Queue_element_hdr_t *> tail = nullptr;
     } normal;
     // The shadow head should be in a different cache line to prevent false sharing
+#if defined(__GNUC__) && (__GNUC__ >= 12)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winterference-size"
+#endif
     char pad[hardware_destructive_interference_size - sizeof(normal)];
+#if defined(__GNUC__) && (__GNUC__ >= 12)
+#pragma GCC diagnostic pop
+#endif
     struct shadow_ {
         std::atomic<CXX_Queue_element_hdr_t *> head = nullptr;
     } shadow;

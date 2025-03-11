@@ -32,7 +32,7 @@ public:
         uint32_t iReaderWriter; // Index of the reader/write [0,nTotalActive)
         uint32_t nSegment;      // Number of threads that act serially together
         uint32_t iThread;       // Index of the first thread in this group
-        char filename[256];
+        char filename[PATH_MAX];
     };
     typedef void output;
     explicit ServiceIO(PST pst,int service_id,int nInBytes=0,const char *name="InputOutput")
@@ -53,7 +53,7 @@ public:
         uint32_t nSimultaneous; // Number at this level of the PST
         uint32_t iReaderWriter; // Index of the reader/write [0,nTotalActive)
         uint32_t nElementSize;  // Size of each element (1 for file size)
-        char filename[256];
+        char filename[PATH_MAX];
     };
     static constexpr int max_files = 100'000;
     struct output {

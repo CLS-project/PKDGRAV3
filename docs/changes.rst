@@ -51,3 +51,34 @@ dxPeriod, dyPeriod, dzPeriod
 
 hxLCP,hyLCP,hzLCP
   These parameters have been replaced with :ref:`hLCP <hLCP>`, a vector of three values.
+
+achOutTimes
+  This parameter has been removed. The functionality can be duplicated by using the list
+  format for nSteps and dRedTo. For example, if you have a list of redshift to output,
+  you can set the number of steps to be one for each interval::
+
+    dRedFrom = 49               # Start at z=49
+    dRedTo = [10,2,1,0.5,0]     # Step to z=10, 2, 1, 0.5 and 0
+    nSteps = [1] * len(dRedTo)  # Taking one step for each interval
+    iOutInterval = 1            # Output every interval
+
+  If you have expansion factors you can just convert them to redshift::
+
+    dRedTo = [1 / a - 1 for a in [0.1,0.5,1] ]
+
+nStepsSync,dRedSync
+  These parameter have been removed. The same functionality is now more generally
+  available with nSteps and dRedTo. For example, before you might have had::
+
+    dRedFrom = 49
+    dRedTo = 0
+    nSteps = 160
+    nStepsSync = 60
+    dRedSync = 10
+
+  This would take 60 steps to redshift 10, then 100 steps to redshift 0.
+  The new way of specifying this is::
+
+    dRedFrom = 40
+    dRedTo = [10,0]
+    nSteps = [60,100]

@@ -30,7 +30,6 @@
 class pkd_parameters;
 
 #include <assert.h>
-#include "cosmo.h"
 
 struct SPHBallOfBalls {
     blitz::TinyVector<float,3> fBoBCenter;
@@ -104,6 +103,8 @@ typedef struct {
     float beta;
     float EtaCourant;
     float EtauDot;
+    float EtaSdot;
+    float timeStepSmin;
     float a;
     float H;
     float gamma;
@@ -121,6 +122,9 @@ typedef struct {
     float CentrifugalT0;
     float CentrifugalT1;
     float CentrifugalOmega0;
+    float externalAccelerationX;
+    float externalAccelerationY;
+    float externalAccelerationZ;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doDensityCorrection : 1;
@@ -128,7 +132,6 @@ typedef struct {
     uint64_t doUConversion : 1;
     uint64_t doSetDensityFlags : 1;
     uint64_t dofBallFactor : 1;
-    uint64_t useNumDen : 1;
     uint64_t useIsentropic : 1;
     uint64_t useBuiltinIdeal : 1;
     uint64_t useDensityFlags : 1;
@@ -140,12 +143,19 @@ typedef struct {
     uint64_t kernelType : 3;
     uint64_t doCentrifugal : 1;
     uint64_t doExtensiveILPTest : 1;
+    uint64_t doShearStrengthModel : 1;
+    uint64_t disableStressAtInterface : 1;
+    uint64_t evolveDensity : 1;
+    uint64_t doExternalAcceleration : 1;
+    uint64_t disableShockHeating : 1;
 } SPHOptions;
 
 typedef struct {
     int kernelType;
     bool doInterfaceCorrection;
     bool useIsentropic;
+    bool disableStressAtInterface;
+    bool disableShockHeating;
     float epsilon;
     float alpha;
     float beta;
@@ -157,7 +167,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTime);
+SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double dTime, double dDelta);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target);
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType);

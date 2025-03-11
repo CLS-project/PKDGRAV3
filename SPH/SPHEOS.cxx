@@ -26,9 +26,7 @@
 float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat, SPHOptions *SPHoptions) {
     float P = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
-        if (SPHoptions->useIsentropic) {
-            u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
-        }
+        if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
         if (T) *T = u / SPHoptions->TuFac;
         *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
         P = (SPHoptions->gamma - 1.0f) * rho * u;
@@ -51,9 +49,7 @@ float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
     float u = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         u = T * SPHoptions->TuFac;
-        if (SPHoptions->useIsentropic) {
-            u = u * (SPHoptions->gamma - 1.0f) / pow(rho,SPHoptions->gamma - 1.0f);
-        }
+        if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
     }
     else {
 #ifdef HAVE_EOSLIB_H
@@ -66,9 +62,7 @@ float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
 float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoptions) {
     float T = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
-        if (SPHoptions->useIsentropic) {
-            u = u / (SPHoptions->gamma - 1.0f) * pow(rho,SPHoptions->gamma - 1.0f);
-        }
+        if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
         T = u / SPHoptions->TuFac;
     }
     else {
@@ -119,4 +113,45 @@ float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHO
 #endif
     }
     return u2;
+}
+
+float SPHEOSGammaofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions) {
+    float Gamma = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        // Builtin ideal gas does not have a shear modulus and will have zero yield strength.
+        Gamma = 0.0f;
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        Gamma = (float)EOSGammaofRhoT(pkd->materials[iMat], rho, T);
+#endif
+    }
+    return Gamma;
+}
+
+void SPHEOSApplyStrengthLimiter(PKD pkd, float rho, float u, int iMat, float *Sxx, float *Syy, float *Sxy, float *Sxz, float *Syz, SPHOptions *SPHoptions) {
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        *Sxx = 0.0f;
+        *Syy = 0.0f;
+        *Sxy = 0.0f;
+        *Sxz = 0.0f;
+        *Syz = 0.0f;
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        int yieldStrengthModel = EOSYieldModel(pkd->materials[iMat]);
+        if (yieldStrengthModel > 0) {
+            double J2 = (*Sxx) * (*Sxx) + (*Sxx) * (*Syy) + (*Sxy) * (*Sxy) + (*Sxz) * (*Sxz) + (*Syy) * (*Syy) + (*Syz) * (*Syz);
+            if (fabs(J2) > 0.0) {
+                double Y = EOSYieldStrength(pkd->materials[iMat], rho, u);
+                double f = std::min(Y / sqrt(J2), 1.0);
+                *Sxx *= f;
+                *Syy *= f;
+                *Sxy *= f;
+                *Sxz *= f;
+                *Syz *= f;
+            }
+        }
+#endif
+    }
 }

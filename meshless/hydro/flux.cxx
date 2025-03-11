@@ -111,17 +111,14 @@ void initHydroFluxesCached(void *vpkd,void *dst) {
         sph.Frho = 0.0;
         sph.Fmom = 0.0;
         sph.Fene = 0.0;
-#ifndef USE_MFM
-        sph.drDotFrho = 0.0;
-#endif
-
         sph.mom = 0.0;
         sph.E = 0.0;
         sph.Uint = 0.0;
-
-#ifndef USE_MFM
-        p.set_mass(0.0);
-#endif
+        if (p.have_mfv()) {
+            auto &mfv = p.mfv();
+            mfv.drDotFrho = 0.0;
+            p.set_mass(0.0);
+        }
     }
 }
 
@@ -136,17 +133,14 @@ void flushHydroFluxes(void *vpkd,void *dst,const void *src) {
         p1->Frho = sph.Frho;
         p1->Fmom = sph.Fmom;
         p1->Fene = sph.Fene;
-#ifndef USE_MFM
-        p1->drDotFrho = sph.drDotFrho;
-#endif
-
         p1->mom = sph.mom;
         p1->E = sph.E;
         p1->Uint = sph.Uint;
-
-#ifndef USE_MFM
-        p1->fMass = p2.mass();
-#endif
+        if (p2.have_mfv()) {
+            const auto &mfv = p2.mfv();
+            p1->drDotFrho = mfv.drDotFrho;
+            p1->fMass = p2.mass();
+        }
     }
 }
 
@@ -162,17 +156,14 @@ void combHydroFluxes(void *vpkd,void *dst,const void *src) {
         sph.Frho += p2->Frho;
         sph.Fmom += p2->Fmom;
         sph.Fene += p2->Fene;
-#ifndef USE_MFM
-        sph.drDotFrho += p2->drDotFrho;
-#endif
-
         sph.mom += p2->mom;
         sph.E += p2->E;
         sph.Uint += p2->Uint;
-
-#ifndef USE_MFM
-        p1.set_mass(p1.mass() + p2->fMass);
-#endif
+        if (p1.have_mfv()) {
+            auto &mfv = p1.mfv();
+            mfv.drDotFrho += p2->drDotFrho;
+            p1.set_mass(p1.mass() + p2->fMass);
+        }
     }
 }
 
@@ -218,7 +209,9 @@ enum FLUX_OUT {
 
 template <typename dtype=dvec, typename mtype=dmask>
 class MeshlessHydroSolver {
-
+    bool bMFV;
+public:
+    explicit MeshlessHydroSolver(bool bMFV) : bMFV(bMFV) {}
 private:
 
     inline void extrapolateDensityInTime(dtype &rho, dtype rho0, dtype vx, dtype vy, dtype vz,
@@ -537,7 +530,7 @@ private:
 
         dtype P_M, S_M;
 
-        RiemannSolverExact<dtype,mtype> riemann(dConstGamma, mask);
+        RiemannSolverExact<dtype,mtype> riemann(dConstGamma, mask, bMFV);
         int niter = riemann.solve(
                         R_rho, R_p, R_v,
                         L_rho, L_p, L_v,
@@ -575,35 +568,34 @@ private:
 
 #ifdef ENTROPY_SWITCH
 
-#ifdef USE_MFM
-        // As we are in a truly lagrangian configuration,
-        // there is no adtypetion of entropy among particles.
-        F_S=0.;
-#else
-        /*
-        for (auto j=0; j<3; j++) F_S += F_v[j]*face_unit[j];
-        if (F_S > 0) {
-            // Maybe this values should be properly extrapolated to the faces..
-            // but this is expensive!
-            F_S *= pS*pOmega;
+        if (!bMFV) {
+            // As we are in a truly lagrangian configuration,
+            // there is no adtypetion of entropy among particles.
+            F_S=0.;
         }
         else {
-            F_S *= qS*qOmega;
+            /*
+            for (auto j=0; j<3; j++) F_S += F_v[j]*face_unit[j];
+            if (F_S > 0) {
+                // Maybe this values should be properly extrapolated to the faces..
+                // but this is expensive!
+                F_S *= pS*pOmega;
+            }
+            else {
+                F_S *= qS*qOmega;
+            }
+            F_S *= F_rho*modApq;
+            */
+            F_S = 0.;
         }
-        F_S *= F_rho*modApq;
-        */
-        F_S = 0.;
-
-#endif //USE_MFM
 #endif //ENTROPY_SWITCH
 
-#ifdef USE_MFM
-        F_rho = 0.;
-        F_p = P_M * S_M;
-        for (auto j=0; j<3; j++)
-            F_v[j] = P_M * face_unit[j];
-#endif
-        // End MFM
+        if (!bMFV)  { // MFM
+            F_rho = 0.;
+            F_p = P_M * S_M;
+            for (auto j=0; j<3; j++)
+                F_v[j] = P_M * face_unit[j];
+        }
 
         // Force 2D
 #ifdef FORCE_1D
@@ -628,24 +620,26 @@ private:
             F_v[j] += vFrame[j]*F_rho;
         }
 
-#if defined(USE_MFM) && defined(MFM_FLUX_CORRECTION)
-        const dtype cs_p{sqrt(dConstGamma*pP/pDensity)};
-        const dtype cs_q{sqrt(dConstGamma*qP/qDensity)};
-        mtype cond{abs(S_M/min(cs_p,cs_q)) < 0.6};
-        if (movemask(cond)) {
-            const dtype dU_mfm_p = pVpredx*F_v[0] + pVpredy*F_v[1] + pVpredz*F_v[2] - F_p;
-            const dtype dU_mfm_q = F_p - qVpredx*F_v[0] - qVpredy*F_v[1] - qVpredz*F_v[2];
+#ifdef MFM_FLUX_CORRECTION
+        if (!bMFV)  { // MFM
+            const dtype cs_p{sqrt(dConstGamma*pP/pDensity)};
+            const dtype cs_q{sqrt(dConstGamma*qP/qDensity)};
+            mtype cond{abs(S_M/min(cs_p,cs_q)) < 0.6};
+            if (movemask(cond)) {
+                const dtype dU_mfm_p = pVpredx*F_v[0] + pVpredy*F_v[1] + pVpredz*F_v[2] - F_p;
+                const dtype dU_mfm_q = F_p - qVpredx*F_v[0] - qVpredy*F_v[1] - qVpredz*F_v[2];
 
-            const dtype dU_sph_fac = 2. * P_M * ((qVpredx-pVpredx)*dx + (qVpredy-pVpredy)*dy + (qVpredz-pVpredz)*dz) / rpq;
-            const dtype dU_sph_p = dU_sph_fac * pSPHEoM * cubicSplineKernelDeriv(rpq, pBall) / pOmega;
-            const dtype dU_sph_q = dU_sph_fac * qSPHEoM * cubicSplineKernelDeriv(rpq, qBall) / qOmega;
+                const dtype dU_sph_fac = 2. * P_M * ((qVpredx-pVpredx)*dx + (qVpredy-pVpredy)*dy + (qVpredz-pVpredz)*dz) / rpq;
+                const dtype dU_sph_p = dU_sph_fac * pSPHEoM * cubicSplineKernelDeriv(rpq, pBall) / pOmega;
+                const dtype dU_sph_q = dU_sph_fac * qSPHEoM * cubicSplineKernelDeriv(rpq, qBall) / qOmega;
 
-            mtype pIsCooler{cs_p < cs_q};
-            mtype pDoCorr{cond & pIsCooler & (dU_mfm_p < 0.0) & (dU_sph_p > dU_mfm_p)};
-            mtype qDoCorr{cond &~pIsCooler & (dU_mfm_q < 0.0) & (dU_sph_q > dU_mfm_q)};
+                mtype pIsCooler{cs_p < cs_q};
+                mtype pDoCorr{cond & pIsCooler & (dU_mfm_p < 0.0) & (dU_sph_p > dU_mfm_p)};
+                mtype qDoCorr{cond &~pIsCooler & (dU_mfm_q < 0.0) & (dU_sph_q > dU_mfm_q)};
 
-            F_p = mask_mov(F_p, pDoCorr, F_p + dU_mfm_p - dU_sph_p);
-            F_p = mask_mov(F_p, qDoCorr, F_p - dU_mfm_q + dU_sph_q);
+                F_p = mask_mov(F_p, pDoCorr, F_p + dU_mfm_p - dU_sph_p);
+                F_p = mask_mov(F_p, qDoCorr, F_p - dU_mfm_q + dU_sph_q);
+            }
         }
 #endif
 
@@ -955,9 +949,9 @@ void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal
     const auto &dDelta = smf->dDelta;
     const auto &aFac = smf->a;
     if (dDelta>0) {
-#ifndef USE_MFM
-        P.set_mass(P.mass() - qout(minDt) * qout(Frho));
-#endif
+        if (P.have_mfv()) {
+            P.set_mass(P.mass() - qout(minDt) * qout(Frho));
+        }
 
         psph.mom[0] -= qout(minDt) * qout(FmomX);
         psph.mom[1] -= qout(minDt) * qout(FmomY);
@@ -975,11 +969,12 @@ void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal
         psph.S -= qout(minDt)* qout(FS);
 #endif
 
-#ifndef USE_MFM
-        psph.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
-        psph.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
-        psph.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
-#endif
+        if (P.have_mfv()) {
+            auto &mfv = P.mfv();
+            mfv.drDotFrho[0] -= qout(minDt) * qout(Frho) * q(dx) * aFac;
+            mfv.drDotFrho[1] -= qout(minDt) * qout(Frho) * q(dy) * aFac;
+            mfv.drDotFrho[2] -= qout(minDt) * qout(Frho) * q(dz) * aFac;
+        }
         psph.Frho +=    qout(Frho);
         psph.Fene +=    qout(Fene);
         psph.Fmom[0] += qout(FmomX);
@@ -1006,9 +1001,9 @@ void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal
         // If this is not the case, something VERY odd must have happened
         assert( qsph.P == q(P) );
         if (dDelta>0) {
-#ifndef USE_MFM
-            Q.set_mass(Q.mass() + qout(minDt) * qout(Frho));
-#endif
+            if (Q.have_mfv()) {
+                Q.set_mass(Q.mass() + qout(minDt) * qout(Frho));
+            }
 
             qsph.mom[0] += qout(minDt) * qout(FmomX);
             qsph.mom[1] += qout(minDt) * qout(FmomY);
@@ -1025,11 +1020,12 @@ void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal
             qsph.S += qout(minDt) * qout(FS);
 #endif
 
-#ifndef USE_MFM
-            qsph.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
-            qsph.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
-            qsph.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
-#endif
+            if (Q.have_mfv()) {
+                auto &mfv = P.mfv();
+                mfv.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
+                mfv.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
+                mfv.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
+            }
             qsph.Frho -=    qout(Frho);
             qsph.Fene -=    qout(Fene);
             qsph.Fmom[0] -= qout(FmomX);
@@ -1058,11 +1054,13 @@ void hydroFluxGetBufferInfo(int *in, int *out) {
 void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
                           meshless::myreal *restrict input_buffer,
                           meshless::myreal *restrict output_buffer, SMF *smf) {
+    PKD pkd = smf->pkd;
+    auto P = pkd->particles[p];
 
 #if defined(USE_SIMD_FLUX)
-    MeshlessHydroSolver<dvec,dmask> solver;
+    MeshlessHydroSolver<dvec,dmask> solver(P.have_mfv());
 #else
-    MeshlessHydroSolver<vec<double,double>,mmask<bool>> solver;
+    MeshlessHydroSolver<vec<double,double>,mmask<bool>> solver(P.have_mfv());
 #endif
     solver.hydroRiemann(p,fBall,nSmooth, nBuff,
                         input_buffer,

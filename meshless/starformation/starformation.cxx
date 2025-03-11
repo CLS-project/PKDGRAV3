@@ -125,9 +125,9 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         struct outStarForm fsStats;
 
-        rID = mdlReqService(pst->mdl,pst->idUpper,PST_STARFORM,in,nIn);
+        rID = pst->mdl->ReqService(pst->idUpper,PST_STARFORM,in,nIn);
         pstStarForm(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&fsStats,NULL);
+        pst->mdl->GetReply(rID,fsStats);
         out->nFormed += fsStats.nFormed;
         out->nDeleted += fsStats.nDeleted;
         out->dMassFormed += fsStats.dMassFormed;
@@ -207,7 +207,7 @@ void pkdStarForm(PKD pkd,
 #endif
 
                 // We just change the class of the particle to stellar one
-                p.set_class(mass, p.soft0(),0, FIO_SPECIES_STAR);
+                p.set_class(mass, p.soft0(),0,1.0, FIO_SPECIES_STAR);
                 auto &star = p.star();
 
                 // When changing the class, we have to take into account that

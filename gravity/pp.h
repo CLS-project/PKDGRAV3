@@ -103,10 +103,15 @@ struct ResultDensity {
 };
 template<class F,class M>
 PP_CUDA_BOTH ResultDensity<F> EvalDensity(
-    F Pdx, F Pdy, F Pdz, F fBall, F PiMat,     // Particle
-    F Idx, F Idy, F Idz, F Im, F IiMat,  // Interaction(s)
+    F Pdx, F Pdy, F Pdz, F fBall, F PiMat, F PisGas,    // Particle
+    F Idx, F Idy, F Idz, F Im, F IiMat, F IisGas, // Interaction(s)
     int kernelType, bool doInterfaceCorrection) {
     ResultDensity<F> result;
+    F isGasInteraction = PisGas * IisGas;
+    if (testz(isGasInteraction == 1.0f)) {
+        result.zero(); // No work to do
+        return result;
+    }
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -130,15 +135,15 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
         DSPHKERNEL_DFBALL(r, ifBall, w, dwdr, C, dWdfball, kernelType);
 
         // return the density
-        result.nden = C * w;
+        result.nden = C * w * isGasInteraction;
         result.rho = Im * result.nden;
 
         // return the density derivative
-        result.dndendfball = dWdfball;
+        result.dndendfball = dWdfball * isGasInteraction;
         result.drhodfball = Im * result.dndendfball;
 
         // return the number of particles used
-        result.nSmooth = maskz_mov(r_lt_one,F(1.0f));
+        result.nSmooth = maskz_mov(r_lt_one,F(1.0f)) * isGasInteraction;
 
         // Calculate the imbalance values
         if (doInterfaceCorrection) {
@@ -175,10 +180,15 @@ struct ResultDensityCorrection {
 };
 template<class F,class M>
 PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
-    F Pdx, F Pdy, F Pdz, F fBall,     // Particle
-    F Idx, F Idy, F Idz, F T, F P, F expImb2,  // Interaction(s)
+    F Pdx, F Pdy, F Pdz, F fBall, F PisGas,    // Particle
+    F Idx, F Idy, F Idz, F T, F P, F expImb2, F IisGas,  // Interaction(s)
     int kernelType) {
     ResultDensityCorrection<F> result;
+    F isGasInteraction = PisGas * IisGas;
+    if (testz(isGasInteraction == 1.0f)) {
+        result.zero(); // No work to do
+        return result;
+    }
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -199,7 +209,7 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
         SPHKERNEL_INIT(r, ifBall, C, t1, mask1, kernelType);
         SPHKERNEL(r, w, t1, t2, t3, r_lt_one, mask1, kernelType);
 
-        result.corr = expImb2 * C * w;
+        result.corr = expImb2 * C * w * isGasInteraction;
         result.corrT = T * result.corr;
         result.corrP = P * result.corr;
     }
@@ -209,11 +219,20 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
     return result;
 }
 
-template<class F=float>
+template<class F,bool doShearStrengthModel>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
-    PP_CUDA_BOTH void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=1e14f; }
-    PP_CUDA_BOTH ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
+    F dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, dvzdx, dvzdy, dvzdz;
+    F Cinvxx, Cinvxy, Cinvxz, Cinvyx, Cinvyy, Cinvyz, Cinvzx, Cinvzy, Cinvzz;
+    PP_CUDA_BOTH void zero() {
+        uDot=ax=ay=az=divv=maxRung=0.0f;
+        dtEst=1e14f;
+        if (doShearStrengthModel) {
+            dvxdx=dvxdy=dvxdz=dvydx=dvydy=dvydz=dvzdx=dvzdy=dvzdz=0.0f;
+            Cinvxx=Cinvxy=Cinvxz=Cinvyx=Cinvyy=Cinvyz=Cinvzx=Cinvzy=Cinvzz=0.0f;
+        }
+    }
+    PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> operator+=(const ResultSPHForces<F,doShearStrengthModel> rhs) {
         uDot += rhs.uDot;
         ax += rhs.ax;
         ay += rhs.ay;
@@ -221,18 +240,45 @@ struct ResultSPHForces {
         divv += rhs.divv;
         dtEst = min(dtEst,rhs.dtEst); // CAREFUL! We use "min" here
         maxRung = max(maxRung,rhs.maxRung);
+        if (doShearStrengthModel) {
+            dvxdx += rhs.dvxdx;
+            dvxdy += rhs.dvxdy;
+            dvxdz += rhs.dvxdz;
+            dvydx += rhs.dvydx;
+            dvydy += rhs.dvydy;
+            dvydz += rhs.dvydz;
+            dvzdx += rhs.dvzdx;
+            dvzdy += rhs.dvzdy;
+            dvzdz += rhs.dvzdz;
+            Cinvxx += rhs.Cinvxx;
+            Cinvxy += rhs.Cinvxy;
+            Cinvxz += rhs.Cinvxz;
+            Cinvyx += rhs.Cinvyx;
+            Cinvyy += rhs.Cinvyy;
+            Cinvyz += rhs.Cinvyz;
+            Cinvzx += rhs.Cinvzx;
+            Cinvzy += rhs.Cinvzy;
+            Cinvzz += rhs.Cinvzz;
+        }
         return *this;
     }
 };
-template<class F,class M>
-PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
+template<class F,class M, bool doShearStrengthModel>
+PP_CUDA_BOTH ResultSPHForces<F,doShearStrengthModel> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
-    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc,
+    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, F PiMat, F PisGas,
+    F PSxx, F PSyy, F PSxy, F PSxz, F PSyz,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
-    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung,
+    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung, F IiMat, F IisGas,
+    F ISxx, F ISyy, F ISxy, F ISxz, F ISyz,
     int kernelType, float epsilon, float alpha, float beta,
-    float EtaCourant,float a,float H,bool useIsentropic) {
-    ResultSPHForces<F> result;
+    float EtaCourant,float a,float H,bool useIsentropic, bool disableStressAtInterface, bool disableShockHeating) {
+    ResultSPHForces<F,doShearStrengthModel> result;
+    F isGasInteraction = PisGas * IisGas;
+    if (testz(isGasInteraction == 1.0f)) {
+        result.zero(); // No work to do
+        return result;
+    }
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -243,10 +289,13 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
 
     F d, Pr, Ir;
     F t1, t2, t3;
-    F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
+    F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr, scaledPdWdr;
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, hij, dvdotdx, muij, Piij;
-    F PPoverRho2, IPoverRho2, dtC, dtMu;
+    F POneOverRho2, IOneOverRho2, PminusPointFiveOverRho, IminusPointFiveOverRho;
+    F selectiveStrengthFactor;
+    F plus_one = 1.0f;
+
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
 
@@ -273,32 +322,34 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         // Kernel derivatives
         SPHKERNEL_INIT(Pr, PifBall, PC, t1, mask1, kernelType);
         DSPHKERNEL_DR(Pr, Pdwdr, t1, t2, t3, Pr_lt_one, mask1, kernelType);
-        PdWdr = PC * Pdwdr;
+        PdWdr = PC * Pdwdr * isGasInteraction;
         SPHKERNEL_INIT(Ir, IifBall, IC, t1, mask1, kernelType);
         DSPHKERNEL_DR(Ir, Idwdr, t1, t2, t3, Ir_lt_one, mask1, kernelType);
-        IdWdr = IC * Idwdr;
+        IdWdr = IC * Idwdr * isGasInteraction;
 
         // Kernel gradients, separate at the moment, as i am not sure if we need them separately
         // at some point. If we don't, can save some operations, by combining earlier.
-        t1 = PdWdr * PifBall / d;
+        t1 = PdWdr * PifBall / (d * POmega);
         mask1 = Pr > 0.0f;
         t1 = maskz_mov(mask1,t1);
+        scaledPdWdr = t1;
         PdWdx = t1 * dx;
         PdWdy = t1 * dy;
         PdWdz = t1 * dz;
-        t1 = IdWdr * IifBall / d;
+        t1 = IdWdr * IifBall / (d * IOmega);
         mask1 = Ir > 0.0f;
         t1 = maskz_mov(mask1,t1);
         IdWdx = t1 * dx;
         IdWdy = t1 * dy;
         IdWdz = t1 * dz;
-        dWdx = 0.5f * (PdWdx + IdWdx);
-        dWdy = 0.5f * (PdWdy + IdWdy);
-        dWdz = 0.5f * (PdWdz + IdWdz);
+        // The symmetrized kernel does for now not use the Omega correction, so we multiply it out again
+        dWdx = 0.5f * (PdWdx * POmega + IdWdx * IOmega);
+        dWdy = 0.5f * (PdWdy * POmega + IdWdy * IOmega);
+        dWdz = 0.5f * (PdWdz * POmega + IdWdz * IOmega);
 
-        // PoverRho2
-        PPoverRho2 = PP / (POmega * Prho * Prho);
-        IPoverRho2 = IP / (IOmega * Irho * Irho);
+        // OneOverRho2
+        POneOverRho2 = 1.0f / (Prho * Prho);
+        IOneOverRho2 = 1.0f / (Irho * Irho);
 
         // Artificial viscosity
         cij = 0.5f * (Pc + Ic);
@@ -311,26 +362,66 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         Piij = (-alpha * cij * muij + beta * muij * muij) / rhoij;
 
         // du/dt
-        if (useIsentropic) {
-            result.uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        result.uDot = 0.0f;
+        if (!disableShockHeating) {
+            result.uDot += 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
-        else {
-            result.uDot = Im * (PPoverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz) + 0.5f * Piij * (dvx * dWdx + dvy * dWdy + dvz * dWdz));
+        if (!useIsentropic) {
+            result.uDot += Im * PP * POneOverRho2 * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz);
         }
 
         // acceleration
-        result.ax = - Im * (PPoverRho2 * PdWdx + IPoverRho2 * IdWdx + Piij * dWdx) * aFac;
-        result.ay = - Im * (PPoverRho2 * PdWdy + IPoverRho2 * IdWdy + Piij * dWdy) * aFac;
-        result.az = - Im * (PPoverRho2 * PdWdz + IPoverRho2 * IdWdz + Piij * dWdz) * aFac;
+        result.ax = - Im * (PP * POneOverRho2 * PdWdx + IP * IOneOverRho2 * IdWdx + Piij * dWdx) * aFac;
+        result.ay = - Im * (PP * POneOverRho2 * PdWdy + IP * IOneOverRho2 * IdWdy + Piij * dWdy) * aFac;
+        result.az = - Im * (PP * POneOverRho2 * PdWdz + IP * IOneOverRho2 * IdWdz + Piij * dWdz) * aFac;
 
-        // divv
-        result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        // No transformation back into cosmology units, as strength makes no sense in cosmology. This saves multiplications.
+        if (doShearStrengthModel) {
+            if (disableStressAtInterface) {
+                // Disable the interaction of different materials via strength.
+                mask1 = PiMat == IiMat;
+                selectiveStrengthFactor = maskz_mov(mask1,plus_one);
+            }
+            else {
+                selectiveStrengthFactor = plus_one;
+            }
+
+            result.ax += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + IOneOverRho2 * (ISxx * IdWdx + ISxy * IdWdy + ISxz * IdWdz));
+            result.ay += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + IOneOverRho2 * (ISxy * IdWdx + ISyy * IdWdy + ISyz * IdWdz));
+            result.az += selectiveStrengthFactor * Im * (POneOverRho2 * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz) + IOneOverRho2 * (ISxz * IdWdx + ISyz * IdWdy - (ISxx + ISyy) * IdWdz));
+
+            result.uDot -= selectiveStrengthFactor * Im * POneOverRho2 * (dvx * (PSxx * PdWdx + PSxy * PdWdy + PSxz * PdWdz) + dvy * (PSxy * PdWdx + PSyy * PdWdy + PSyz * PdWdz) + dvz * (PSxz * PdWdx + PSyz * PdWdy - (PSxx + PSyy) * PdWdz));
+
+            PminusPointFiveOverRho = -0.5f / Prho * selectiveStrengthFactor;
+            IminusPointFiveOverRho = -0.5f / Irho * selectiveStrengthFactor;
+
+            result.dvxdx = Im * dvx * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.dvxdy = Im * dvx * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.dvxdz = Im * dvx * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+            result.dvydx = Im * dvy * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.dvydy = Im * dvy * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.dvydz = Im * dvy * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+            result.dvzdx = Im * dvz * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.dvzdy = Im * dvz * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.dvzdz = Im * dvz * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+
+            result.Cinvxx = Im * dx * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.Cinvxy = Im * dx * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.Cinvxz = Im * dx * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+            result.Cinvyx = Im * dy * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.Cinvyy = Im * dy * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.Cinvyz = Im * dy * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+            result.Cinvzx = Im * dz * (PminusPointFiveOverRho * PdWdx + IminusPointFiveOverRho * IdWdx);
+            result.Cinvzy = Im * dz * (PminusPointFiveOverRho * PdWdy + IminusPointFiveOverRho * IdWdy);
+            result.Cinvzz = Im * dz * (PminusPointFiveOverRho * PdWdz + IminusPointFiveOverRho * IdWdz);
+        }
+
+        // physical divv as used in gasoline
+        result.divv = - Im / Irho * (dvx * PdWdx + dvy * PdWdy + dvz * PdWdz + H * d2 * scaledPdWdr);
 
         // timestep
-        dtC = 1.0f + 0.6f * alpha;
-        dtMu = 0.6f * beta;
-        result.dtEst = aFac * EtaCourant * 0.5f * PfBall / (dtC * Pc - dtMu * muij);
-        mask1 = Pr_lt_one | Ir_lt_one;
+        result.dtEst = aFac * EtaCourant * 0.5f * PfBall / ((1.0f + 0.6f * alpha) * Pc - 0.6f * beta * muij);
+        mask1 = (Pr_lt_one | Ir_lt_one) & (isGasInteraction == 1.0f);
         result.dtEst = mask_mov(1e14f,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);
 

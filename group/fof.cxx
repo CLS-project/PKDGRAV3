@@ -95,8 +95,6 @@ NoIntersect:
     return (iTail);
 }
 
-
-
 static void iOpenRemoteFof(PKD pkd,treeStore::NodePointer k,clTile &tile,float dTau2) {
     float dx,minbnd2,kOpen;
     int i,iOpen;
@@ -137,7 +135,6 @@ static void iOpenRemoteFof(PKD pkd,treeStore::NodePointer k,clTile &tile,float d
     }
 }
 
-
 static void addChildFof(PKD pkd, remoteTree &tree, clList *cl, int iChild, int id, TinyVector<float,3> fOffset) {
     auto c = tree(iChild,id);
     auto c_r = c->position();
@@ -149,7 +146,6 @@ static void addChildFof(PKD pkd, remoteTree &tree, clList *cl, int iChild, int i
     cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,c->count(),cOpen,
                c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,SPHbob);
 }
-
 
 void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBucket) {
     double d2;
@@ -410,7 +406,6 @@ void updateInteriorBound(Bound &ibnd,const Bound &bnd) {
 #endif
 
 void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,int nBucket) {
-    MDL mdl = pkd->mdl;
     uint32_t iGroup;
     int pn,i,j;
     uint32_t iHead;
@@ -605,10 +600,8 @@ NextCell:
     ** Now lets go looking for local particles which have a remote neighbor that is part of
     ** a group.
     */
-    // mdlROcache(mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
     pkd->mdl->CacheInitialize(CID_PARTICLE,NULL,pkd->particles,pkd->Local(),pkd->particles.ParticleSize());
     pkdFofRemoteSearch(pkd,dTau2,bPeriodic,nReplicas,nBucket);
-    // mdlFinishCache(mdl,CID_PARTICLE);
     pkd->mdl->FinishCache(CID_PARTICLE);
 }
 
@@ -774,7 +767,6 @@ int pkdFofPhases(PKD pkd) {
     pkd->mdl->FinishCache(CID_GROUP);
     return (bMadeProgress);
 }
-
 
 uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize) {
     int i;

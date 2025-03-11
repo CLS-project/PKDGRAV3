@@ -44,13 +44,13 @@ template <int n> struct pcBlk {
 template <int n> struct denBlk {
     int width() const {return n;}
     fvector<n> dx, dy, dz;
-    fvector<n> m, iMat;
+    fvector<n> m, iMat, isGas;
 };
 
 template <int n> struct denCorrBlk {
     int width() const {return n;}
     fvector<n> dx, dy, dz;
-    fvector<n> T, P, expImb2;
+    fvector<n> T, P, expImb2, isGas;
 };
 
 template <int n> struct sphForceBlk {
@@ -58,7 +58,8 @@ template <int n> struct sphForceBlk {
     fvector<n> dx, dy, dz;
     fvector<n> m, fBall, Omega;
     fvector<n> vx, vy, vz;
-    fvector<n> rho, P, c, rung;
+    fvector<n> rho, P, c, rung, iMat, isGas;
+    fvector<n> Sxx, Syy, Sxy, Sxz, Syz;
 };
 
 typedef ppBlk<32> ppInteract;
@@ -96,7 +97,7 @@ static_assert(sizeof(ppResult)==32,"Check size of ppResult");
 
 struct alignas(32) denInput {
     float dx, dy, dz;
-    float fBall, iMat;
+    float fBall, iMat, isGas;
 };
 static_assert(sizeof(denInput)==32,"Check size of denInput");
 
@@ -110,11 +111,11 @@ struct alignas(32) denResult {
 };
 static_assert(sizeof(denResult)==32,"Check size of denResult");
 
-struct alignas(16) denCorrInput {
+struct alignas(32) denCorrInput {
     float dx, dy, dz;
-    float fBall;
+    float fBall, isGas;
 };
-static_assert(sizeof(denCorrInput)==16,"Check size of denCorrInput");
+static_assert(sizeof(denCorrInput)==32,"Check size of denCorrInput");
 
 struct alignas(16) denCorrResult {
     float corrT;
@@ -127,17 +128,21 @@ struct alignas(64) sphForceInput {
     float dx, dy, dz;
     float fBall, Omega;
     float vx, vy, vz;
-    float rho, P, c;
+    float rho, P, c, iMat, isGas;
+    float Sxx, Syy, Sxy, Sxz, Syz;
 };
-static_assert(sizeof(sphForceInput)==64,"Check size of sphForceInput");
+static_assert(sizeof(sphForceInput)==128,"Check size of sphForceInput");
+static_assert(sizeof(sphForceInput)/sizeof(float)<=32,"sphForceInput cannot exceed 32 floats");
 
-struct alignas(32) sphForceResult {
+struct alignas(128) sphForceResult {
     float uDot;
     float ax, ay, az;
     float divv;
     float dtEst;
     float maxRung;
+    float dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, dvzdx, dvzdy, dvzdz;
+    float Cinvxx, Cinvxy, Cinvxz, Cinvyx, Cinvyy, Cinvyz, Cinvzx, Cinvzy, Cinvzz;
 };
-static_assert(sizeof(sphForceResult)==32,"Check size of sphForceResult");
+static_assert(sizeof(sphForceResult)==128,"Check size of sphForceResult");
 }
 #endif

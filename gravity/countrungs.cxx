@@ -23,8 +23,10 @@ static_assert(std::is_void<ServiceCountRungs::output>() || std::is_standard_layo
 
 int ServiceCountRungs::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     static_assert(std::is_void<input>());
-    auto out = static_cast<output *>(vout);
+    auto &out = * static_cast<output *>(vout);
     auto pkd = pst->plcl->pkd;
-    pkdCountRungs(pkd, out->data());
+    out = 0;
+    for (auto &p : pkd->particles) ++out[p.rung()];
+    pkd->nRung = out;
     return sizeof(output);
 }

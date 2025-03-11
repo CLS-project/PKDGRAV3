@@ -76,6 +76,7 @@ protected:
     particleStore *pstore;
     typedef float vel_t;
 public:
+    using Integerize::set_factor;
     void initialize(particleStore *pstore,bool bIntegerPosition,int Lo, int Hi, uint64_t nData=0, void *pData=nullptr) {
         this->bIntegerPosition = bIntegerPosition;
         this->pstore = pstore;

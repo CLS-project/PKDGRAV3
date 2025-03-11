@@ -1,5 +1,10 @@
 #ifndef LIMITER_H
 #define LIMITER_H
+namespace messhless {
+template<typename T>
+int sign(T v) {return (v>0) - (v<0);}
+}
+
 #ifndef PASS
     #define PASS
     static int equal = 0;
@@ -35,7 +40,7 @@ static inline void genericPairwiseLimiter(dtype Lstate, dtype Rstate,
         phi_min = min(Lstate, Rstate);
         phi_max = max(Lstate, Rstate);
 
-        if (SIGN(phi_min - d1) == SIGN(phi_min) ) {
+        if (messhless::sign(phi_min - d1) == messhless::sign(phi_min) ) {
             phi_m = phi_min - d1;
             //pass1++;
         }
@@ -44,7 +49,7 @@ static inline void genericPairwiseLimiter(dtype Lstate, dtype Rstate,
             //pass2++;
         }
 
-        if (SIGN(phi_max + d1) == SIGN(phi_max) ) {
+        if (messhless::sign(phi_max + d1) == messhless::sign(phi_max) ) {
             phi_p = phi_max + d1;
             //pass3++;
         }
@@ -95,7 +100,7 @@ inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
         phi_m = mask_mov(phi_m, ncond, phi_min/(1. + d1/abs(phi_min)));
     }
     /*
-    if (SIGN(phi_min - d1) == SIGN(phi_min) ) {
+    if (meshless::sign(phi_min - d1) == meshless::sign(phi_min) ) {
         phi_m = phi_min - d1;
     }
     else {
@@ -110,7 +115,7 @@ inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
         phi_p = mask_mov(phi_p, ncond, phi_max/(1. + d1/abs(phi_max)));
     }
     /*
-    if (SIGN(phi_max + d1) == SIGN(phi_max) ) {
+    if (meshless::sign(phi_max + d1) == meshless::sign(phi_max) ) {
         phi_p = phi_max + d1;
     }
     else {

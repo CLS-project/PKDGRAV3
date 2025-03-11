@@ -190,7 +190,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     rID = mdl->ReqService(pst->idUpper,PST_FREESTORE);
     Traverse(PST_FREESTORE,pst->pstLower,NULL,0,&outFree,sizeof(outFree));
     nLowerStore = outFree;
-    mdl->GetReply(rID,&outFree);
+    mdl->GetReply(rID,outFree);
     nUpperStore = outFree;
 
     mdlprintf(pst->mdl,"_pstRootSplit: id %d Level %d\n",pst->idSelf,pst->iLvl);
@@ -234,7 +234,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         rID = mdl->ReqService(pst->idUpper,PST_WEIGHT,&inWt,sizeof(inWt));
         inWt.iSplitSide = 0;
         Traverse(PST_WEIGHT,pst->pstLower,&inWt,sizeof(inWt),&outWtLow,sizeof(outWtLow));
-        mdl->GetReply(rID,&outWtHigh);
+        mdl->GetReply(rID,outWtHigh);
         nTotalActive = outWtLow.nLow + outWtHigh.nLow
                        + outWtLow.nHigh + outWtHigh.nHigh;
         mdlassert(pst->mdl,nActiveOrder == nTotalActive);
@@ -244,7 +244,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
             rID = mdl->ReqService(pst->idUpper,PST_WEIGHT,&inWt,sizeof(inWt));
             inWt.iSplitSide = 0;
             Traverse(PST_WEIGHT,pst->pstLower,&inWt,sizeof(inWt),&outWtLow,sizeof(outWtLow));
-            mdl->GetReply(rID,&outWtHigh);
+            mdl->GetReply(rID,outWtHigh);
             nTotalActive = outWtLow.nLow + outWtHigh.nLow
                            + outWtLow.nHigh + outWtHigh.nHigh;
         }
@@ -264,7 +264,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
             rID = mdl->ReqService(pst->idUpper,PST_WEIGHT,&inWt,sizeof(inWt));
             inWt.iSplitSide = 0;
             Traverse(PST_WEIGHT,pst->pstLower,&inWt,sizeof(inWt),&outWtLow,sizeof(outWtLow));
-            mdl->GetReply(rID,&outWtHigh);
+            mdl->GetReply(rID,outWtHigh);
             /*
             ** Add lower and Upper subsets weights and numbers
             */
@@ -335,7 +335,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     rID = mdl->ReqService(pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
     inWtWrap.iSplitSide = 0;
     Traverse(PST_WEIGHTWRAP,pst->pstLower,&inWtWrap,sizeof(inWtWrap),&outWtWrLow,sizeof(outWtWrLow));
-    mdl->GetReply(rID,&outWtWrHigh);
+    mdl->GetReply(rID,outWtWrHigh);
     /*
     ** Add lower and Upper subsets numbers of particles
     */
@@ -357,7 +357,6 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 
     mdlprintf(pst->mdl,"id: %d  %d Low %" PRIu64 "/%" PRIu64 "   %d High %" PRIu64 "/%" PRIu64 "  NUM_SAFETY %d margin %d\n",
               pst->idSelf, pst->nLower,nLowTot, nLowerStore, pst->nUpper,nHighTot, nUpperStore,NUM_SAFETY,margin);
-
 
     if (nLowTot > nLowerStore-NUM_SAFETY*pst->nLower) {
         snprintf(ach,sizeof(ach),"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
@@ -384,7 +383,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
             rID = mdl->ReqService(pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
             inWtWrap.iSplitSide = 0;
             Traverse(PST_WEIGHTWRAP,pst->pstLower,&inWtWrap,sizeof(inWtWrap),&outWtWrLow,sizeof(outWtWrLow));
-            mdl->GetReply(rID,&outWtWrHigh);
+            mdl->GetReply(rID,outWtWrHigh);
             /*
             ** Add lower and Upper subsets numbers of particles
             */
@@ -451,7 +450,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
             rID = mdl->ReqService(pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
             inWtWrap.iSplitSide = 0;
             Traverse(PST_WEIGHTWRAP,pst->pstLower,&inWtWrap,sizeof(inWtWrap),&outWtWrLow,sizeof(outWtWrLow));
-            mdl->GetReply(rID,&outWtWrHigh);
+            mdl->GetReply(rID,outWtWrHigh);
             /*
             ** Add lower and Upper subsets numbers of particles
             */
@@ -511,7 +510,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
             rID = mdl->ReqService(pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
             inWtWrap.iSplitSide = 0;
             Traverse(PST_WEIGHTWRAP,pst->pstLower,&inWtWrap,sizeof(inWtWrap),&outWtWrLow,sizeof(outWtWrLow));
-            mdl->GetReply(rID,&outWtWrHigh);
+            mdl->GetReply(rID,outWtWrHigh);
             /*
             ** Add lower and Upper subsets numbers of particles
             */
@@ -570,7 +569,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
             rID = mdl->ReqService(pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
             inWtWrap.iSplitSide = 0;
             Traverse(PST_WEIGHTWRAP,pst->pstLower,&inWtWrap,sizeof(inWtWrap),&outWtWrLow,sizeof(outWtWrLow));
-            mdl->GetReply(rID,&outWtWrHigh);
+            mdl->GetReply(rID,outWtWrHigh);
             /*
             ** Add lower and Upper subsets numbers of particles
             */
@@ -622,13 +621,12 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     auto pidSwap = std::make_unique<int[]>(mdl->Threads());
 
     rID = mdl->ReqService(pst->idUpper,PST_COLREJECTS,NULL,0);
-    nOut = Traverse(PST_COLREJECTS,pst->pstLower,NULL,0,pLowerRej.get(),mdl->Threads()*sizeof(ServiceColRejects::output));
+    nOut = Traverse(PST_COLREJECTS,pst->pstLower,NULL,0,pLowerRej.get(),pst->nLower*sizeof(ServiceColRejects::output));
     assert(nOut/sizeof(ServiceColRejects::output) == pst->nLower);
-    nOut = mdl->GetReply(rID,pUpperRej.get());
+    nOut = mdl->GetReply(rID,pst->nUpper*sizeof(ServiceColRejects::output),pUpperRej.get());
     assert(nOut/sizeof(ServiceColRejects::output) == pst->nUpper);
 
     mdlPrintTimer(pst->mdl,"TIME Collected Rejects _pstRootSplit ",&t);
-
 
     ittr = 0;
     while (1) {
@@ -638,9 +636,9 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
                               mdl->Threads()*sizeof(int));
         nOut = Traverse(PST_SWAPREJECTS,pst->pstLower,
                         pidSwap.get(),mdl->Threads()*sizeof(int),
-                        pLowerRej.get(),mdl->Threads()*sizeof(ServiceSwapRejects::output));
+                        pLowerRej.get(),pst->nLower*sizeof(ServiceSwapRejects::output));
         assert(nOut/sizeof(ServiceSwapRejects::output) == pst->nLower);
-        nOut = mdl->GetReply(rID,pUpperRej.get());
+        nOut = mdl->GetReply(rID,pst->nUpper*sizeof(ServiceColRejects::output),pUpperRej.get());
         assert(nOut/sizeof(ServiceSwapRejects::output) == pst->nUpper);
 
         ++ittr;
@@ -758,7 +756,7 @@ int ServiceColRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto nLower = Traverse(pst->pstLower,vin,nIn,pOutRej,nOut);
     auto iUpper = nLower/sizeof(output);
     int nUpper;
-    nUpper = mdl->GetReply(rID,pOutRej+iUpper);
+    nUpper = mdl->GetReply(rID,nOut-nLower,pOutRej+iUpper);
     return nLower + nUpper;
 }
 
@@ -786,7 +784,7 @@ int ServiceSwapRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto nLower = Traverse(pst->pstLower,vin,nIn,pOutRej,nOut);
     auto iUpper = nLower/sizeof(ServiceSwapRejects::output);
     int nUpper;
-    nUpper = mdl->GetReply(rID,pOutRej+iUpper);
+    nUpper = mdl->GetReply(rID,nOut-nLower,pOutRej+iUpper);
     return nLower + nUpper;
 }
 
@@ -815,7 +813,7 @@ int ServiceColOrdRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut)
     auto nLower = Traverse(pst->pstLower,vin,nIn,&pOutRej[0],nOut);
     auto iUpper = nLower/sizeof(output);
     int nUpper;
-    mdlGetReply(pst->mdl,rID,&pOutRej[iUpper],&nUpper);
+    nUpper = pst->mdl->GetReply(rID,nOut-nLower,&pOutRej[iUpper]);
     return nLower + nUpper;
 }
 
@@ -882,7 +880,7 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOr
     rID = mdl->ReqService(pst->idUpper,PST_FREESTORE,NULL,0);
     Traverse(PST_FREESTORE,pst->pstLower,NULL,0,&outFree,sizeof(outFree));
     nLowerStore = outFree;
-    mdl->GetReply(rID,&outFree);
+    mdl->GetReply(rID,outFree);
     nUpperStore = outFree;
     /*
     ** Find the correct iOrdSplit, such that all processors will
@@ -904,7 +902,7 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOr
         rID = mdl->ReqService(pst->idUpper,PST_ORDWEIGHT,&inWt,sizeof(inWt));
         inWt.iSplitSide = 0;
         Traverse(PST_ORDWEIGHT,pst->pstLower,&inWt,sizeof(inWt),&outWtLow,sizeof(outWtLow));
-        mdl->GetReply(rID,&outWtHigh);
+        mdl->GetReply(rID,outWtHigh);
         /*
         ** Add lower and Upper subsets weights and numbers
         */
@@ -943,9 +941,9 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOr
     rID = mdl->ReqService(pst->idUpper,PST_COLORDREJECTS,&inCol,sizeof(inCol));
     inCol.iSplitSide = 0;
     nOut = Traverse(PST_COLORDREJECTS,pst->pstLower,&inCol,sizeof(inCol),pLowerRej.get(),
-                    mdl->Threads()*sizeof(ServiceColRejects::output));
+                    pst->nLower*sizeof(ServiceColRejects::output));
     mdlassert(pst->mdl,nOut/sizeof(ServiceColRejects::output) == pst->nLower);
-    nOut = mdl->GetReply(rID,pUpperRej.get());
+    nOut = mdl->GetReply(rID,pst->nUpper*sizeof(ServiceColRejects::output),pUpperRej.get());
     mdlassert(pst->mdl,nOut/sizeof(ServiceColRejects::output) == pst->nUpper);
     while (1) {
         iRet = RejMatch(pst,pst->nLower,pLowerRej.get(),pst->nUpper,pUpperRej.get(),pidSwap.get());
@@ -953,9 +951,9 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOr
         rID = mdl->ReqService(pst->idUpper,PST_SWAPREJECTS,pidSwap.get(),
                               mdl->Threads()*sizeof(int));
         nOut = Traverse(PST_SWAPREJECTS,pst->pstLower,pidSwap.get(),mdl->Threads()*sizeof(int),
-                        pLowerRej.get(),mdl->Threads()*sizeof(ServiceSwapRejects::output));
+                        pLowerRej.get(),pst->nLower*sizeof(ServiceSwapRejects::output));
         mdlassert(pst->mdl,nOut/sizeof(ServiceSwapRejects::output) == pst->nLower);
-        nOut = mdl->GetReply(rID,pUpperRej.get());
+        nOut = mdl->GetReply(rID,pst->nUpper*sizeof(ServiceColRejects::output),pUpperRej.get());
         mdlassert(pst->mdl,nOut/sizeof(ServiceSwapRejects::output) == pst->nUpper);
     }
     return pst->iOrdSplit;
@@ -1012,7 +1010,7 @@ int ServiceWeight::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto rID = mdl->ReqService(pst->idUpper,PST_WEIGHT,in,nIn);
     Traverse(pst->pstLower,in,nIn,out,nOut);
     output outWt;
-    mdl->GetReply(rID,&outWt);
+    mdl->GetReply(rID,outWt);
     out->nLow += outWt.nLow;
     out->nHigh += outWt.nHigh;
     out->fLow += outWt.fLow;
@@ -1114,7 +1112,7 @@ int ServiceWeightWrap::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto rID = mdl->ReqService(pst->idUpper,PST_WEIGHTWRAP,in,nIn);
     Traverse(pst->pstLower,in,nIn,out,nOut);
     output outWt;
-    mdl->GetReply(rID,&outWt);
+    mdl->GetReply(rID,outWt);
     out->nLow += outWt.nLow;
     out->nHigh += outWt.nHigh;
     return sizeof(output);
@@ -1175,7 +1173,7 @@ int ServiceOrdWeight::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto rID = mdl->ReqService(pst->idUpper,PST_ORDWEIGHT,in,nIn);
     Traverse(pst->pstLower,in,nIn,out,nOut);
     output outWt;
-    mdl->GetReply(rID,&outWt);
+    mdl->GetReply(rID,outWt);
     out->nLow += outWt.nLow;
     out->nHigh += outWt.nHigh;
     return sizeof(output);

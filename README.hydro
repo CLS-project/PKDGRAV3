@@ -12,7 +12,7 @@ CAUTION! If you first do `cmake -D<FLAG>=on ..` and then `cmake ..`, the `<FLAG>
 
 ### Numerical method
 
-  * `USE_MFM` (default=on):
+  * `hydro_model=MFV|MFM` (default=none):
       Use the Meshless finite mass method for the hydrodynamics. As today, this does not, for example, avoid the storage of the 
       mass flux (which is always zero), thus can be further optimized. [TODO]
 

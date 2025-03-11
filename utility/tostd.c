@@ -73,7 +73,7 @@ int main( int argc, char *argv[] ) {
     double dMass[6];
 
     FIO fioIn, fioOut;
-    FIO_SPECIES eSpecies;
+    enum FIO_SPECIES eSpecies;
     int inNameIndex = 0;
     int inNameCount = 0;
     const char *outName = 0;
@@ -207,7 +207,7 @@ int main( int argc, char *argv[] ) {
     nSph  = fioGetN(fioIn,FIO_SPECIES_SPH);
     nDark = fioGetN(fioIn,FIO_SPECIES_DARK);
     nStar = fioGetN(fioIn,FIO_SPECIES_STAR);
-    if (!fioGetAttr(fioIn,0,"dTime",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
+    if (!fioGetAttr(fioIn,0,"Time",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
 
     printf("dTime=%g\n",dTime);
 
@@ -244,32 +244,31 @@ int main( int argc, char *argv[] ) {
         perror(outName);
         exit(errno);
     }
-    fioSetAttr(fioOut,0,"dTime",FIO_TYPE_DOUBLE,1,&dTime);
+    fioSetAttr(fioOut,0,"Time",FIO_TYPE_DOUBLE,1,&dTime);
 
+    float otherData[10];
     for ( i=0; i<N; i++ ) {
         eSpecies = fioSpecies(fioIn);
-        /* IA: TODO: to be adapted to extended sph/star output (although this is just to convert between file types)
-        switch(eSpecies) {
+        switch (eSpecies) {
         case FIO_SPECIES_SPH:
-         fioReadSph(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&u,&fMetals);
-        wrap(r,dPeriod);
-        fioWriteSph(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho,u,fMetals);
-         break;
+            fioReadSph(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&u,&fMetals,otherData);
+            wrap(r,dPeriod);
+            fioWriteSph(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho,u,&fMetals,0.0,0.0,otherData);
+            break;
         case FIO_SPECIES_DARK:
-         fioReadDark(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho);
-        wrap(r,dPeriod);
-         fioWriteDark(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho);
-         break;
+            fioReadDark(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho);
+            wrap(r,dPeriod);
+            fioWriteDark(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho,otherData);
+            break;
         case FIO_SPECIES_STAR:
-         fioReadStar(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&fMetals,&fTimer);
-        wrap(r,dPeriod);
-         fioWriteStar(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho,fMetals,fTimer);
-         break;
+            fioReadStar(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&fMetals,otherData,otherData);
+            wrap(r,dPeriod);
+            fioWriteStar(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho,&fMetals,otherData);
+            break;
         default:
-         fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
-         abort();
-         }
-         */
+            fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
+            abort();
+        }
     }
 
     fioClose(fioOut);

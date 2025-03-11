@@ -36,7 +36,7 @@ class TestGravityB0Final(unittest.TestCase):
     @data([0.70,0.001],[0.60,0.0005],[0.55,0.0004],[0.40,8e-5],)
     @unpack
     def testGravityNonPeriodic(self,theta,target_rms):
-        msr.set_parameters(bPeriodic=False,bEwald=False,nReplicas=None,bEpsAccStep=True)
+        msr.set_parameters(bPeriodic=False,bEwald=False,nReplicas=None,bEpsAccStep=True,bMemIntegerPosition=True)
         msr.domain_decompose()
         msr.build_tree()
         msr.gravity(time=self.time,theta=theta) 
@@ -61,7 +61,7 @@ class TestGravityB0Periodic(unittest.TestCase):
     @data([0.70,0.0012],[0.60,0.00055],[0.55,0.0004],[0.40,0.0001],)
     @unpack
     def testGravityPeriodic(self,theta,target_rms):
-        msr.set_parameters(bPeriodic=True,bEwald=True,nReplicas=2,bEpsAccStep=True)
+        msr.set_parameters(bPeriodic=True,bEwald=True,nReplicas=2,bEpsAccStep=True,bMemIntegerPosition=True)
         msr.domain_decompose()
         msr.build_tree(ewald=True)
         msr.gravity(time=self.time,theta=theta) 
@@ -71,31 +71,6 @@ class TestGravityB0Periodic(unittest.TestCase):
         rms = np.std(relerr)
         print('rms',rms)
         self.assertLess(rms,target_rms)
-
-# @ddt
-# class TestGravityB1Final(unittest.TestCase):
-#     @classmethod
-#     def setUpClass(cls):
-#         cls.csm = CSM(dOmega0=0.32,dLambda=0.68,dSigma8=0.83,ns=0.96)
-#         cls.msr = MSR()
-#         cls.time = cls.msr.Load('b1-final-np-asym-k1.std')
-#         cls.a = np.load('b1-final-np-asym-k1.acc.npy')
-#         cls.maga = np.linalg.norm(cls.a,axis=1)
-#         cls.msr.setParameters(bPeriodic=False,bEwald=False,nReplicas=None)
-
-#     @data([0.70,0.001],)
-#     @unpack
-#     def testGravityBasic(self,theta,target_rms):
-#         #print(self.msr.parm)
-#         self.msr.DomainDecomp()
-#         self.msr.BuildTree()
-#         self.msr.Gravity(time=self.time,theta=theta) 
-#         self.msr.Reorder()
-#         a=self.msr.GetArray(field=2,time=self.time)
-#         relerr = np.linalg.norm(a-self.a,axis=1) / self.maga
-#         rms = np.std(relerr)
-#         print('rms',rms)
-#         self.assertLess(rms,target_rms)
 
 if __name__ == '__main__':
     print('Running test')

@@ -100,7 +100,7 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     layout.nCores = 1;
     layout.iCore = 0;
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-    nTicks = 0;
+    nTicks = getticks();
 #endif
 
     /*
@@ -298,7 +298,6 @@ void mdlPrintTimer(void *mdl, const char *message, mdlTimer *t0) {
 #endif
 }
 
-
 void mdlBASE::TimeReset() {
     std::fill(dTimer,dTimer+TIME_COUNT,0.0);
     //dWaiting = dComputing = dSynchronizing = 0.0;
@@ -349,4 +348,3 @@ double mdlBASE::TimeWaiting() const {
     return dTimer[TIME_WAITING] * TimeFraction();
 }
 #endif
-

@@ -52,7 +52,7 @@
 static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, blitz::TinyVector<float,3> fOffset) {
     auto c = (id == pkd->Self()) ? pkd->tree[iChild] :
              pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,iCache,iChild,id))];
-    auto nc = (c->is_remote()|c->is_top_tree()) ? 1000000000 : c->count();
+    auto nc = (c->is_remote()||c->is_top_tree()) ? 1000000000 : c->count();
     auto cOpen = c->bMax() * pkd->fiCritTheta;
     auto c_r = c->position();
     auto cbnd = c->bound();
@@ -216,19 +216,25 @@ found_it:
                                         }
                                         if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                                             const auto &NewSph = p.newsph();
-                                            float Omega = NewSph.Omega;
+                                            float Omega = pkdIsGas(pkd, &p) ? NewSph.Omega : 1.0f;
                                             float P = 0.0f;
                                             float cs = 0.0f;
                                             float T = 0.0f;
-                                            float expImb2 = NewSph.expImb2;
-                                            SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
+                                            float expImb2 = pkdIsGas(pkd, &p) ? NewSph.expImb2 : 1.0f;
+                                            float Sxx = 0.0f;
+                                            float Syy = 0.0f;
+                                            float Sxy = 0.0f;
+                                            float Sxz = 0.0f;
+                                            float Syz = 0.0f;
+                                            SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, &Sxx, &Syy, &Sxy, &Sxz, &Syz, SPHoptions);
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
                                                 r[1] + blk.yOffset[jTile],
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 vpred[0], vpred[1], vpred[2],
-                                                p.ball(), Omega, p.density(), P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2);
+                                                pkdIsGas(pkd, &p) ? p.ball() : 1.0f, Omega, pkdIsGas(pkd, &p) ? p.density() : 1.0f, P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2, pkdIsGas(pkd, &p) ? 1.0f : 0.0f,
+                                                Sxx, Syy, Sxy, Sxz, Syz);
                                         }
                                         else {
                                             auto v = p.velocity();
@@ -238,7 +244,7 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 v[0], v[1], v[2],
-                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f);
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
                                         }
                                     }
                                 }
@@ -270,19 +276,25 @@ found_it:
                                             r = p.position();
                                             if (p.have_newsph()) {
                                                 const auto &NewSph = p.newsph();
-                                                float Omega = NewSph.Omega;
+                                                float Omega = pkdIsGas(pkd, &p) ? NewSph.Omega : 1.0f;
                                                 float P = 0.0f;
                                                 float cs = 0.0f;
                                                 float T = 0.0f;
-                                                float expImb2 = NewSph.expImb2;
-                                                SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
+                                                float expImb2 = pkdIsGas(pkd, &p) ? NewSph.expImb2 : 1.0f;
+                                                float Sxx = 0.0f;
+                                                float Syy = 0.0f;
+                                                float Sxy = 0.0f;
+                                                float Sxz = 0.0f;
+                                                float Syz = 0.0f;
+                                                SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, &Sxx, &Syy, &Sxy, &Sxz, &Syz, SPHoptions);
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
                                                     r[1] + blk.yOffset[jTile],
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     vpred[0], vpred[1], vpred[2],
-                                                    p.ball(), Omega, p.density(), P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2);
+                                                    pkdIsGas(pkd, &p) ? p.ball() : 1.0f, Omega, pkdIsGas(pkd, &p) ? p.density() : 1.0f, P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2, pkdIsGas(pkd, &p) ? 1.0f : 0.0f,
+                                                    Sxx, Syy, Sxy, Sxz, Syz);
                                             }
                                             else {
                                                 auto v = p.velocity();
@@ -292,7 +304,7 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     v[0], v[1], v[2],
-                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f);
+                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
                                             }
                                         }
                                     }
@@ -709,7 +721,6 @@ int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double 
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
     return nActive;
 }
-
 
 /*
 ** Returns total number of active particles for which gravity was calculated.

@@ -27,9 +27,9 @@ int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         struct outStarForm fsStats;
 
-        rID = mdlReqService(pst->mdl,pst->idUpper,PST_STARFORMINIT,in,nIn);
+        rID = pst->mdl->ReqService(pst->idUpper,PST_STARFORMINIT,in,nIn);
         pstStarFormInit(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&fsStats,NULL);
+        pst->mdl->GetReply(rID,fsStats);
         out->nFormed += fsStats.nFormed;
     }
     else {
@@ -60,4 +60,3 @@ void pkdStarFormInit(PKD pkd, struct inStarFormInit in, int *nFormed) {
     }
 #endif
 }
-

@@ -39,9 +39,9 @@ template<int Order,typename F>
 static void assign(mass_array_t &masses, const F r[3], F mass) {
     AssignmentWeights<Order,F> Hx(r[0]),Hy(r[1]),Hz(r[2]);
 
-    for (int i=0; i<Order; ++i) {
-        for (int j=0; j<Order; ++j) {
-            for (int k=0; k<Order; ++k) {
+    for (int i=0; i<=Order; ++i) {
+        for (int j=0; j<=Order; ++j) {
+            for (int k=0; k<=Order; ++k) {
                 masses(Hx.i+i,Hy.i+j,Hz.i+k) += Hx.H[i]*Hy.H[j]*Hz.H[k] * mass;
             }
         }
@@ -49,18 +49,19 @@ static void assign(mass_array_t &masses, const F r[3], F mass) {
 }
 
 template<typename F>
-static void assign_mass(mass_array_t &masses, const F r[3], F mass,int iAssignment=4) {
+static void assign_mass(mass_array_t &masses, const F r[3], F mass,int iAssignment=3) {
     switch (iAssignment) {
+    case 0: assign<0,F>(masses,r,mass); break;
     case 1: assign<1,F>(masses,r,mass); break;
     case 2: assign<2,F>(masses,r,mass); break;
     case 3: assign<3,F>(masses,r,mass); break;
-    case 4: assign<4,F>(masses,r,mass); break;
-    default: assert(iAssignment>=1 && iAssignment<=4); abort();
+    default: assert(iAssignment>=0 && iAssignment<=3); abort();
     }
 }
 
-static void flush_masses(PKD pkd,int nGrid,const mass_array_t &masses, const shape_t &lower) {
-    auto wrap = [&nGrid](int i) { if (i>=nGrid) i-=nGrid; else if (i<0) i+=nGrid; return i; };
+static void flush_masses(PKD pkd,int nGrid,const mass_array_t &masses, const shape_t &lower,int fold) {
+    auto big_grid = nGrid * fold;
+    auto wrap = [nGrid,big_grid](int i) { if (i>=big_grid) i-=big_grid; else if (i<0) i+=big_grid; return i % nGrid; };
     for (auto i=masses.begin(); i!=masses.end(); ++i) {
         if ( *i > 0.0f) {
             shape_t loc = i.position() + lower;
@@ -83,7 +84,7 @@ static void combPk(void *vpkd, void *g1, const void *g2) {
     *r1 += *r2;
 }
 
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta) {
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta, int fold) {
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
     const std::size_t maxSize = 100000; // We would like this to remain in L2 cache
@@ -91,8 +92,10 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     data.reserve(maxSize); // Reserve maximum number
     shape_t index;
     position_t fPeriod(pkd->fPeriod), ifPeriod = 1.0 / fPeriod;
-
-    assert(iAssignment>=1 && iAssignment<=4);
+    auto grid_point = [ifPeriod,nGrid,fold,fDelta](auto r) {
+        return (r * ifPeriod + 0.5) * nGrid * fold + fDelta;
+    };
+    assert(iAssignment>=0 && iAssignment<=3);
 
     mdlGridCoord first, last;
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
@@ -101,14 +104,15 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     for ( int i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
     mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
 
+    auto pad = (iAssignment+1) / 2;
     std::vector<std::uint32_t> stack;
     stack.push_back(iLocalRoot);
     while ( !stack.empty()) {
         auto kdn = pkd->tree[stack.back()];
         stack.pop_back(); // Go to the next node in the tree
         auto bnd = kdn->bound();
-        shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid + fDelta)) - iAssignment/2;
-        shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid + fDelta)) + iAssignment/2;
+        shape_t ilower = shape_t(blitz::floor(grid_point(bnd.lower()))) - pad;
+        shape_t iupper = shape_t(blitz::floor(grid_point(bnd.upper()))) + pad;
         shape_t ishape = iupper - ilower + 1;
         float3_t flower = ilower;
         std::size_t size = blitz::product(ishape);
@@ -122,9 +126,9 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
             else {
                 for ( auto &p : *kdn) { // All particles in this tree cell
                     float3_t r(p.position());
-                    r = (r * ifPeriod + 0.5) * nGrid + fDelta;
-                    ilower = shape_t(r) - iAssignment/2;
-                    iupper = shape_t(r) + iAssignment/2;
+                    r = grid_point(r);
+                    ilower = shape_t(r) - pad;
+                    iupper = shape_t(r) + pad;
                     ishape = iupper - ilower + 1;
                     flower = ilower;
                     size = blitz::product(ishape);
@@ -133,7 +137,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
                     mass_array_t masses(data.data(),ishape,blitz::neverDeleteData,RegularArray());
                     masses = 0.0f;
                     assign_mass(masses, r.data(), p.mass(), iAssignment);
-                    flush_masses(pkd,nGrid,masses,ilower);
+                    flush_masses(pkd,nGrid,masses,ilower,fold);
                 }
             }
         }
@@ -144,10 +148,10 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
             //masses.dumpStructureInformation(std::cout);
             for ( auto &p : *kdn ) { // All particles in this tree cell
                 float3_t r(p.position());
-                r = (r * ifPeriod + 0.5) * nGrid + fDelta - flower; // Scale and shift to fit in subcube
+                r = grid_point(r) - flower; // Scale and shift to fit in subcube
                 assign_mass(masses, r.data(), p.mass(), iAssignment);
             }
-            flush_masses(pkd,nGrid,masses,ilower);
+            flush_masses(pkd,nGrid,masses,ilower,fold);
         }
     }
     mdlFinishCache(pkd->mdl,CID_PK);
@@ -158,27 +162,28 @@ int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inAssignMass *in = reinterpret_cast<struct inAssignMass *>(vin);
     assert (nIn==sizeof(struct inAssignMass) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ASSIGN_MASS, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_ASSIGN_MASS, vin, nIn);
         pstAssignMass(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
-        pkdAssignMass(plcl->pkd,ROOT,in->iAssignment,in->iGrid,in->fDelta);
+        pkdAssignMass(plcl->pkd,ROOT,in->iAssignment,in->iGrid,in->fDelta,in->fold);
     }
     return 0;
 }
 
-void MSR::AssignMass(int iAssignment,int iGrid,float fDelta) {
+void MSR::AssignMass(int iAssignment,int iGrid,float fDelta,int fold) {
     static const char *schemes[] = {
         "Nearest Grid Point (NGP)", "Cloud in Cell (CIC)",
         "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)"
     };
     struct inAssignMass mass;
-    assert(iAssignment>=1 && iAssignment<=4);
-    printf("Assigning mass using %s (order %d)\n",schemes[iAssignment-1],iAssignment);
+    assert(iAssignment>=0 && iAssignment<=3);
+    printf("Assigning mass using %s (order %d)\n",schemes[iAssignment],iAssignment);
     mass.iAssignment = iAssignment;
     mass.iGrid = iGrid;
     mass.fDelta = fDelta;
+    mass.fold = fold;
     auto sec = MSR::Time();
     pstAssignMass(pst, &mass, sizeof(mass), NULL, 0);
     printf("Mass assignment complete, Wallclock: %f secs\n",MSR::Time() - sec);
@@ -191,6 +196,7 @@ void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
 
     GridInfo G(pkd->mdl,fft);
     AssignmentWindow W(nGrid,iAssignment);
+    assert(iGrid == 0);
 
     complex_array_t K1;
     auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
@@ -210,9 +216,9 @@ int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = reinterpret_cast<struct inWindowCorrection *>(vin);
     assert (nIn==sizeof(struct inWindowCorrection) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_WINDOW_CORRECTION, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_WINDOW_CORRECTION, vin, nIn);
         pstWindowCorrection(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdWindowCorrection(plcl->pkd,in->iAssignment,in->iGrid);
@@ -222,7 +228,7 @@ int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 void MSR::WindowCorrection(int iAssignment,int iGrid) {
     struct inWindowCorrection in;
-    assert(iAssignment>=1 && iAssignment<=4);
+    assert(iAssignment>=0 && iAssignment<=3);
     in.iAssignment = iAssignment;
     in.iGrid = iGrid;
     pstWindowCorrection(pst, &in, sizeof(in), NULL, 0);

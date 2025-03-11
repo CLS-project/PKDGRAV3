@@ -81,14 +81,15 @@ struct inSetAdd {
 };
 
 int serviceSetAdd(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
     auto in = reinterpret_cast<struct inSetAdd *>(vin);
     assert(nIn == sizeof(struct inSetAdd));
     auto ctxNew = ctx->split(in->idUpper);
     if (ctxNew) {
-        auto rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),worker::SET_ADD,in,nIn);
+        auto rID = mdl->ReqService(ctx->getUpper(),worker::SET_ADD,in,nIn);
         in->idUpper = ctx->getUpper();
         serviceSetAdd(ctxNew,in,nIn,NULL,0);
-        mdlGetReply(ctx->getMDL(),rID,NULL,NULL);
+        mdl->GetReply(rID);
     }
     return 0;
 }
@@ -115,9 +116,9 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        int rID = mdl->ReqService(ctx->getUpper(),SERVICE,NULL,0);
         test(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+        nOut = mdl->GetReply(rID,nBAD);
         *pnBAD += nBAD;
     }
     else {
@@ -171,7 +172,6 @@ TEST_F(SwapLocalTest, SwapLocalBasic) {
     EXPECT_EQ(nBAD,0);
 }
 
-
 } // namespace swaplocal
 } // namespace test
 
@@ -197,7 +197,6 @@ void worker_done(MDL mdl, void *vctx) {
 }
 
 }  // namespace
-
 
 /*
 ** This is invoked for the "master" process after the worker has been setup.

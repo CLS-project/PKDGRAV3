@@ -8,7 +8,7 @@ if len(argv) != 2:
 
 with open(argv[1],'rb') as fp:
     version = load(fp)
-    if version != 1:
+    if not 1 <= version <= 2:
         print("Invalid checkpoint version")
         exit(1)
     print( f'species = {load(fp)}')

@@ -24,9 +24,13 @@
 #include <vector>
 #include <string_view>
 #include <Python.h>
+#include "fmt/format.h"  // This will be part of c++20
+#include "fmt/ostream.h"
+#include <fmt/color.h>
 
 #include "pst.h"
 #include "mdl.h"
+#include "core/memory.h"
 #include "pkd_parameters.h"
 #include "pkd_enumerations.h"
 #ifdef COOLING
@@ -80,49 +84,77 @@ class MSR {
 protected:
     const PST pst;
     mdl::mdlClass *mdl;
-    bool bVDetails;
-    bool bAnalysis = false;
     PyObject *parameter_overrides = nullptr;
 public:
     explicit MSR(MDL mdl,PST pst);
     ~MSR();
 public:
+    template<typename... Args>
+    void print(Args&&... args) const {
+        FMT_TRY {
+            fmt::print(std::forward<Args>(args)...);
+        }
+        FMT_CATCH(fmt::format_error &f) {
+            fmt::print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold,"ERROR in formatting string: {}\n",f.what());
+            mdl->show_backtrace_with_snippets(5,2);
+        }
+    }
+    template<typename... Args>
+    void print_error(const char *format, Args&&... args) const {
+        print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
+    }
+    template<typename... Args>
+    void print_warning(const char *format, Args&&... args) const {
+        if (parameters.get_bVWarnings()) {
+            print(stderr,fg(fmt::color::yellow) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
+        }
+    }
+    template<typename... Args>
+    void print_notice(const char *format, Args&&... args) const {
+        print(fg(fmt::color::green) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
+    }
+    template<typename... Args>
+    void print_detail(const char *format, Args&&... args) const {
+        if (parameters.get_bVDetails()) {
+            print(format, std::forward<Args>(args)...);
+        }
+    }
     int Python(int argc, char *argv[]);
     int ValidateParameters();
     void SetDerivedParameters(bool bRestart=false);
     void Hostname();
     void MemStatus();
     int GetLock();
+    void IgnoreSIGBUS();
     double LoadOrGenerateIC();
-    void Simulate(double dTime,double dDelta,int iStartStep,int nSteps, bool bRestart=false);
+    void Simulate(double dTime,int iStartStep,bool bRestart=false);
     void Simulate(double dTime);
-    void setAnalysisMode(bool b=true) {bAnalysis=b;}
-    void setAnalysisMode(PyObject *over) {
-        bAnalysis=true;
-        parameter_overrides = over;
-    }
 private:
     int64_t parallel_count(bool bParallel,int64_t nParallel);
     void persist(PyObject *file,PyObject *obj);
     void persist(PyObject *file,int n);
     void persist(PyObject *file,double d);
     template<typename T>
-    T restore(PyObject *file);
+    T restore(PyObject *file,PyObject *replace=Py_None);
 protected:
     int64_t parallel_read_count();
     int64_t parallel_write_count();
     void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
     void Restore(const std::string &filename,int nSizeParticle);
+    void PrintStat(const STAT &ps,char const *pszPrefix,int p);
 
 public:
     // I/O and IC Generation
     double GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm=nullptr);
-    void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
-                 size_t nDark, size_t nGas, size_t nStar, size_t nBH,
-                 double dEcosmo,double dUOld, double dTimeOld,
-                 std::vector<PARTCLASS> &aClasses,
-                 PyObject *arguments,PyObject *specified);
-    void Restart(const char *filename,PyObject *kwargs);
+    void Restart(
+        const char *filename,PyObject *kwargs,
+        PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
+        PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
+    std::tuple<double,double,int64_t,int64_t,int64_t,int64_t> // dTime,dDelta,iStep,nSteps,nSizeParticle,nSizeNode
+    ReadCheckpoint(
+        const char *filename,PyObject *kwargs,
+        PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
+        PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
@@ -165,15 +197,16 @@ public:
     void Hop(double dTime,double dDelta);
     void GroupStats();
     void HopWrite(const char *fname);
+    EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-    MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins);
-    void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
+            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,int fold=1);
+    void AssignMass(int iAssignment=3,int iGrid=0,float fDelta=0.0f,int fold=1);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
     void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-    GridBinK(int nBins, int iGrid);
+            GridBinK(int nBins, int iGrid);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
     void GridCreateFFT(int nGrid);
@@ -201,20 +234,16 @@ private:
 public:
     struct msr_analysis_callback {
         PyObject *callback;
-        struct MSRINSTANCE *msr;
-        PyObject *memory;
-        explicit msr_analysis_callback(PyObject *callback,MSRINSTANCE *msr,PyObject *memory) {
-            this->callback = callback;
-            this->msr = msr;
-            this->memory = memory;
+        EphemeralMemory memory;
+        explicit msr_analysis_callback(PyObject *callback,uint64_t per_particle,uint64_t per_process)
+            : callback(callback), memory(per_particle,per_process)  {
             Py_INCREF(callback);
-            Py_INCREF(memory);
         }
-//  ~msr_analysis_callback() {
-//      Py_DECREF(callback);
-//      }
+        ~msr_analysis_callback() {
+            Py_DECREF(callback);
+        }
     };
-    void addAnalysis(PyObject *callback,MSRINSTANCE *msr,PyObject *memory);
+    void addAnalysis(PyObject *callback,uint64_t per_particle, uint64_t per_process);
     void runAnalysis(int iStep,double dTime);
 protected:
     std::list<msr_analysis_callback> analysis_callbacks;
@@ -242,8 +271,6 @@ public:
     struct CALC calc;
 
 public:
-    bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
-
     LCL lcl;
 
     blitz::TinyVector<double,3> fCenter;
@@ -298,10 +325,10 @@ public:
     double dUOld;
     double dTimeOld;
     /*
-    ** Redshift output points.
+    ** Delta to use for each set of steps
     */
-    std::vector<double> dOutTimes;
-    int iOut;
+    std::vector<double> dDelta_list;
+    std::vector<uint64_t> iStep_list;
     // int nMaxOuts;
     // int nOuts;
     // double *pdOutTime;
@@ -330,7 +357,7 @@ public:
     double dCheckpointTime;
     int iCheckpointStep;
     int nCheckpointThreads;
-    char achCheckpointName[PST_FILENAME_SIZE];
+    char achCheckpointName[PATH_MAX];
 protected:
     static double Time();
     static void Leader();
@@ -339,7 +366,12 @@ protected:
 
     double getTime(double dExpansion); // Return simulation time
     double getVfactor(double dTime);
-    bool getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps);
+    bool getDeltaSteps(double dTime,int iStartStep);
+
+    auto NoSteps() const {
+        auto nSteps = parameters.get_nSteps();
+        return nSteps.size() == 1 && nSteps[0] == 0;
+    }
 
     auto OutName() const {
         return parameters.get_achOutName();
@@ -365,9 +397,16 @@ protected:
     int NewSPH()          const {
         return parameters.get_hydro_model() == HYDRO_MODEL::SPH;
     }
-    int MeshlessHydro()   const {
+    int MeshlessFiniteMass()   const {
         auto model = parameters.get_hydro_model();
-        return model == HYDRO_MODEL::MFM || model == HYDRO_MODEL::MFV;
+        return model == HYDRO_MODEL::MFM;
+    }
+    int MeshlessFiniteVolume() const {
+        auto model = parameters.get_hydro_model();
+        return model == HYDRO_MODEL::MFV;
+    }
+    int MeshlessHydro()   const {
+        return MeshlessFiniteMass() || MeshlessFiniteVolume();
     }
     int DoGravity()       const {
         return parameters.get_bDoGravity();
@@ -394,7 +433,6 @@ protected:
     std::string BuildCpName(int iStep,const char *type="");
 
     int ReadOuts(double dTime);
-    void msrprintf(const char *Format, ... ) const;
     void Exit(int status);
     uint64_t getMemoryModel();
     std::pair<int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
@@ -407,15 +445,15 @@ protected:
     uint64_t CalcWriteStart();
     void SwitchTheta(double);
     double getTheta(double dTime);
-    double SwitchDelta(double dTime,double dDelta,int iStep,int nSteps);
+    double SwitchDelta(double dTime,int iStep);
     void InitCosmology(CSM csm);
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
     void ActiveOrder();
     void CalcBound(Bound &bnd);
     void CalcBound();
-    void MoveDeletedParticles();
-    void GetNParts();
+    void CountSpecies();
+    void RemoveDeleted();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
     mdl::ServiceBuffer GetParticles(std::vector<std::int64_t> &particle_ids);
@@ -514,7 +552,7 @@ protected:
     void InitBall();
 
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-    MeasureLinPk(int nGridLin,double a,double dBoxSize);
+            MeasureLinPk(int nGridLin,double a,double dBoxSize);
     void OutputPk(int iStep,double dTime);
     void OutputLinPk(int iStep, double dTime);
 
@@ -575,13 +613,11 @@ public:
     uint64_t SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true);
 
 public:
-    void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &filename,bool bAppend=false);
-#ifdef HAVE_ROCKSTAR
-    void RsHaloLoadIds(const std::string &filename,bool bAppend=false);
-#endif
-    void RsLoadIds(const std::string &filename,bool bAppend=false);
-    void RsSaveIds(const std::string &filename);
+    void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string_view filename,bool bAppend=false);
+    void RsLoadIds(const std::string_view filename,bool bAppend=false);
+    void RsHaloLoadIds(const std::string_view filename,bool bAppend=false);
+    void RsSaveIds(const std::string_view filename);
     void RsReorderIds();
-    void RsExtract(const char *filename_template);
+    void RsExtract(std::string_view filename_template);
 };
 #endif

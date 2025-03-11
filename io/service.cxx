@@ -38,8 +38,8 @@ int ServiceFileSizes::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
         auto rID = ReqService(pst,vin,nIn);;
         hdr->nSimultaneous = nLower;
         hdr->iReaderWriter -= nLower;
-        nOut = Traverse(pst->pstLower,vin,nIn,vout,nOut);
-        nOut += mdl->GetReply(rID,out + nOut/sizeof(output));
+        auto nBytes = Traverse(pst->pstLower,vin,nIn,vout,nOut);
+        nOut = nBytes + mdl->GetReply(rID,nOut-nBytes,out + nBytes/sizeof(output));
     }
     // Now calculate the file sizes
     else {
@@ -68,7 +68,6 @@ uint64_t ServiceFileSizes::GetSize(const std::string &filename,uint64_t file_siz
     return file_size;
 }
 
-
 static_assert(std::is_void<ServiceIO::input>()  || std::is_standard_layout<ServiceIO::input>());
 
 int ServiceIO::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -88,14 +87,14 @@ int ServiceIO::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
         hdr->iReaderWriter -= nLower;
         hdr->iThread = mdl->Self();
         do_lower(pst,vin,nIn,vout,nOut);
-        return mdl->GetReply(rID,vout);
+        return mdl->GetReply(rID,nOut,vout);
     }
     // Now we go sequentially
     else {
         if (hdr->nSegment==0) hdr->nSegment = pst->nLeaves;
         do_lower(pst,vin,nIn,vout,nOut);
         auto rID = do_upper(pst,vin,nIn);
-        return mdl->GetReply(rID,vout);
+        return mdl->GetReply(rID,nOut,vout);
     }
 }
 
@@ -115,7 +114,6 @@ int ServiceIO::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     IO(pst,vin,nIn,hdr->iReaderWriter,iSegment,hdr->nSegment);
     return 0;
 }
-
 
 // Make sure that the communication structure is "standard" so that it
 // can be moved around with "memcpy" which is required for MDL.

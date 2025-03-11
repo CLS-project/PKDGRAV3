@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <cmath>
 #include <math.h>
 #include <assert.h>
 #include <cinttypes>
@@ -85,57 +86,49 @@ static int getType(int iType) {
 /* Write an integer */
 static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
     uint64_t v;
+    auto P = pkd->particles[p];
 
     switch (iType) {
     case OUT_IORDER_ARRAY:
-        v = p->iOrder;
+        v = P.order();
         break;
     case OUT_GROUP_ARRAY:
-        v = pkdGetGroup(pkd,p);
+        v = P.group();
         break;
     case OUT_GLOBALGID_ARRAY:
-        v = pkdGetGlobalGid(pkd,p);
+        v = P.global_gid();
         break;
     case OUT_MARKED_ARRAY:
-        v = p->bMarked;
+        v = P.is_marked();
         break;
     case OUT_PSGROUP_ARRAY:
         assert(0);
-        /*v = pkd->psGroupData[pkdGetGroup(pkd,p)].iGlobalId;*/
-        v = pkdGetGroup(pkd,p);
+        v = P.group();
         break;
 #ifdef DEBUG_CACHED_FLUXES
     case OUT_CACHEFLUX_ARRAY:
-        if (pkdIsGas(pkd,p)) {
-            v = pkdSph(pkd,p)->flux_cache;
+        if (P.is_gas()) {
+            v = P.sph().flux_cache;
         }
-        else {
-            v = 0;
-        }
+        else v = 0;
         break;
     case OUT_CACHECOLL_ARRAY:
-        if (pkdIsGas(pkd,p)) {
-            v = pkdSph(pkd,p)->coll_cache;
+        if (P.is_gas()) {
+            v = P.sph().coll_cache;
         }
-        else {
-            v = 0;
-        }
+        else v = 0;
         break;
     case OUT_AVOIDEDFLUXES_ARRAY:
-        if (pkdIsGas(pkd,p)) {
-            v = (uint64_t)(pkdSph(pkd,p)->avoided_fluxes);
+        if (P.is_gas()) {
+            v = P.sph().avoided_fluxes;
         }
-        else {
-            v = 0;
-        }
+        else v = 0;
         break;
     case OUT_COMPUTEDFLUXES_ARRAY:
-        if (pkdIsGas(pkd,p)) {
-            v = (uint64_t)(pkdSph(pkd,p)->computed_fluxes);
+        if (P.is_gas()) {
+            v = P.sph().computed_fluxes;
         }
-        else {
-            v = 0;
-        }
+        else v = 0;
         break;
 #endif
     default:
@@ -145,64 +138,64 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 }
 static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
     double v;
-//    VELSMOOTH *pvel;
+    auto P = pkd->particles[p];
     switch (iType) {
     case OUT_DENSITY_ARRAY:
-        v = pkd->particles.density(p);
+        v = P.density();
         break;
     case OUT_BALL_ARRAY:
-        v = pkd->particles.ball(p);
+        v = P.ball();
         break;
     case OUT_POT_ARRAY:
-        assert(pkd->particles.present(PKD_FIELD::oPotential));
-        v = pkd->particles.potential(p);
+        assert(P.have_potential());
+        v = P.potential();
         break;
     case OUT_AMAG_ARRAY:
-        assert(pkd->particles.present(PKD_FIELD::oAcceleration)); /* Validate memory model */
-        v = sqrt(blitz::dot(pkd->particles.acceleration(p),pkd->particles.acceleration(p)));
+        assert(P.have_acceleration()); /* Validate memory model */
+        v = sqrt(blitz::dot(P.acceleration(),P.acceleration()));
         break;
     case OUT_RUNG_ARRAY:
-        v = p->uRung;
+        v = P.rung();
         break;
     case OUT_SOFT_ARRAY:
-        v = pkd->particles.soft(p);
+        v = P.soft();
         break;
     case OUT_DIVV_ARRAY:
-        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        v = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).divv;
+        assert(P.have_vel_smooth()); /* Validate memory model */
+        v = P.VelSmooth().divv;
         break;
     case OUT_VELDISP2_ARRAY:
-        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        v = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).veldisp2;
+        assert(P.have_vel_smooth()); /* Validate memory model */
+        v = P.VelSmooth().veldisp2;
         break;
     case OUT_VELDISP_ARRAY:
-        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        v = sqrt(pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).veldisp2);
+        assert(P.have_vel_smooth()); /* Validate memory model */
+        v = sqrt(P.VelSmooth().veldisp2);
         break;
     case OUT_PHASEDENS_ARRAY:
-        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        v = pkd->particles.density(p)*pow(pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).veldisp2,-1.5);
+        assert(P.have_vel_smooth()); /* Validate memory model */
+        v = P.density()*pow(P.VelSmooth().veldisp2,-1.5);
         break;
     case OUT_C_ARRAY:
-        v = pkd->particles.sph(p).c;
+        v = P.sph().c;
         break;
     case OUT_HSPH_ARRAY:
-        v = pkd->particles.ball(p) * 0.5;
+        v = P.ball()*0.5;
         break;
     case OUT_POS_VECTOR:
-        v = pkd->particles.position(p)[iDim];
+        v = P.position(iDim);
         break;
     case OUT_VEL_VECTOR:
-        assert(pkd->particles.present(PKD_FIELD::oVelocity)); /* Validate memory model */
-        v = pkd->particles.velocity(p)[iDim];
+        assert(P.have_velocity()); /* Validate memory model */
+        v = P.velocity()[iDim];
         break;
     case OUT_MEANVEL_VECTOR:
-        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        v = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).vmean[iDim];
+        assert(P.have_vel_smooth()); /* Validate memory model */
+        v = P.VelSmooth().vmean[iDim];
         break;
     case OUT_ACCEL_VECTOR:
-        assert(pkd->particles.present(PKD_FIELD::oAcceleration)); /* Validate memory model */
-        v = pkd->particles.acceleration(p)[iDim];
+        assert(P.have_acceleration()); /* Validate memory model */
+        v = P.acceleration()[iDim];
         break;
     default:
         v = 0.0;
@@ -239,25 +232,15 @@ extern uint64_t hilbert2d(float x,float y);
 extern uint64_t hilbert3d(float x,float y,float z);
 static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     int iRung;
-    float x,y,z;
     int64_t lKey;
-    const auto &RungDest = pkd->particles.RungDest(p);
-
-
-    x = pkdPos(pkd,p,0) + 1.5;
-    if (x < 1.0) x = 1.0;
-    else if (x >= 2.0) x = 2.0;
-    y = pkdPos(pkd,p,1) + 1.5;
-    if (y < 1.0) y = 1.0;
-    else if (y >= 2.0) y = 2.0;
-    z = pkdPos(pkd,p,2) + 1.5;
-    if (z < 1.0) z = 1.0;
-    else if (z >= 2.0) z = 2.0;
+    auto P = pkd->particles[p];
+    const auto &RungDest = P.RungDest();
+    auto r = blitz::min(blitz::max(P.position() + 1.5,1.0),std::nextafter(2.0,0.0));
 
 #if PEANO_HILBERT_KEY_MAX > 0x3ffffffffffll
-    lKey = hilbert3d(x,y,z);
+    lKey = hilbert3d(r[0],r[1],r[2]);
 #else
-    lKey = hilbert2d(x,y);
+    lKey = hilbert2d(r[0],r[1]);
 #endif
     int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     if ( n < 100 ) {
@@ -289,12 +272,13 @@ static void finish(PKD pkd,PKDOUT ctx) {
 }
 
 static void storePsGroup(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    auto P = pkd->particles[p];
     int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     if ( n < 40 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
         n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     }
-    snprintf(ctx->inOffset,n,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
+    snprintf(ctx->inOffset,n,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, P.group());
     assert(strlen(ctx->inOffset) < 40 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
@@ -322,23 +306,14 @@ static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDi
     int iRung;
     float x,y,z;
     int64_t lKey;
-    const auto &RungDest = pkd->particles.RungDest(p);
-
-
-    x = pkdPos(pkd,p,0) + 1.5;
-    if (x < 1.0) x = 1.0;
-    else if (x >= 2.0) x = 2.0;
-    y = pkdPos(pkd,p,1) + 1.5;
-    if (y < 1.0) y = 1.0;
-    else if (y >= 2.0) y = 2.0;
-    z = pkdPos(pkd,p,2) + 1.5;
-    if (z < 1.0) z = 1.0;
-    else if (z >= 2.0) z = 2.0;
+    auto P = pkd->particles[p];
+    const auto &RungDest = P.RungDest();
+    auto r = blitz::min(blitz::max(P.position() + 1.5,1.0),std::nextafter(2.0,0.0));
 
 #if PEANO_HILBERT_KEY_MAX > 0x3ffffffffffll
-    lKey = hilbert3d(x,y,z);
+    lKey = hilbert3d(r[0],r[1],r[2]);
 #else
-    lKey = hilbert2d(x,y);
+    lKey = hilbert2d(r[0],r[1]);
 #endif
     int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     if ( n < 100 ) {
@@ -363,12 +338,13 @@ static void storeHdrBinary(PKD pkd,PKDOUT ctx,uint64_t N) {
 }
 static void storePsGroupBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     assert(0);
+    auto P = pkd->particles[p];
     int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     if ( n < 40 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
         n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     }
-    snprintf(ctx->inOffset,n,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
+    snprintf(ctx->inOffset,n,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, P.group());
     assert(strlen(ctx->inOffset) < 40 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }

@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "initlightcone.h"
+#include "core/abort_error.h"
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
@@ -24,7 +25,7 @@ static_assert(std::is_void<ServiceInitLightcone::output>() || std::is_standard_l
 int ServiceInitLightcone::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<input *>(vin);
     static_assert(std::is_void<output>());
-    assert(nIn==sizeof(input));
+    abort_assert(1002,nIn==sizeof(input));
     pkdInitLightcone(pst->plcl->pkd,in->bBowtie,in->bLightConeParticles,in->dBoxSize,in->dRedshiftLCP,in->alphaLCP,in->hLCP);
     return 0;
 }

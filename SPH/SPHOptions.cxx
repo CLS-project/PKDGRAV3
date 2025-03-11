@@ -25,26 +25,37 @@
 #include "pkd_parameters.h"
 #include <stdio.h>
 #include "basetype.h"
+#include "cosmo.h"
 
-SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTime) {
+SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double dTime, double dDelta) {
+    auto csm = static_cast<CSM>(vcsm);
     UNITS units(parameters,csm->val.h);
     SPHOptions SPHoptions;
-    SPHoptions.fKernelTarget = parameters.get_fKernelTarget();
+    SPHoptions.fKernelTarget = parameters.get_nSmooth();
     SPHoptions.epsilon = 0.01f;
     SPHoptions.alpha = parameters.get_dConstAlpha();
     SPHoptions.beta = parameters.get_dConstBeta();
     SPHoptions.EtaCourant = parameters.get_dEtaCourant();
     SPHoptions.EtauDot = parameters.get_dEtauDot();
+    SPHoptions.EtaSdot = parameters.get_dEtaSdot();
+    SPHoptions.timeStepSmin = parameters.get_dTimeStepSmin();
     SPHoptions.gamma = parameters.get_dConstGamma();
     SPHoptions.TuFac = units.dGasConst/(SPHoptions.gamma - 1)/parameters.get_dMeanMolWeight();
     SPHoptions.FastGasFraction = parameters.get_dFastGasFraction();
-    auto dDelta = parameters.get_dDelta();
+    SPHoptions.VelocityDamper = 0.0f;
     auto dVelocityDamper = parameters.get_dVelocityDamper();
+    auto dVelocityDamperEnd = parameters.get_dVelocityDamperEnd();
+    auto dVelocityDamperEndTime = parameters.get_dVelocityDamperEndTime();
     if (dDelta > 0.0 && dVelocityDamper > 0.0) {
-        SPHoptions.VelocityDamper = 2.0 / dDelta * dVelocityDamper;
-    }
-    else {
-        SPHoptions.VelocityDamper = 0.0f;
+        if ((dVelocityDamperEnd > 0.0) && (dVelocityDamperEndTime > 0.0)) {
+            if (dTime <= dVelocityDamperEndTime) {
+                SPHoptions.VelocityDamper = 2.0 / dDelta * pow(10.0, log10(dVelocityDamperEnd/dVelocityDamper)/dVelocityDamperEndTime*dTime + log10(dVelocityDamper));
+            }
+        }
+        else {
+            SPHoptions.VelocityDamper = 2.0 / dDelta * dVelocityDamper;
+        }
+        printf("Velocity Damper active, VelocityDamper = %g\n", SPHoptions.VelocityDamper * dDelta * 0.5);
     }
     SPHoptions.nSmooth = parameters.get_nSmooth();
     SPHoptions.ballSizeLimit = parameters.get_dBallSizeLimit();
@@ -62,6 +73,10 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
         SPHoptions.a = 1.0f;
         SPHoptions.H = 0.0f;
     }
+    auto externalAcceleration = parameters.get_dExternalAcceleration();
+    SPHoptions.externalAccelerationX = externalAcceleration[0];
+    SPHoptions.externalAccelerationY = externalAcceleration[1];
+    SPHoptions.externalAccelerationZ = externalAcceleration[2];
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
     SPHoptions.doDensityCorrection = 0;
@@ -69,7 +84,6 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     SPHoptions.doUConversion = 0;
     SPHoptions.doSetDensityFlags = 0;
     SPHoptions.dofBallFactor = 1;
-    SPHoptions.useNumDen = 1;
     SPHoptions.useIsentropic = parameters.get_bGasIsentropic();
     SPHoptions.useBuiltinIdeal = parameters.get_bGasBuiltinIdeal();
     SPHoptions.useDensityFlags = 0;
@@ -84,6 +98,11 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, CSM csm, double dTim
     SPHoptions.CentrifugalT1 = parameters.get_dCentrifT1();
     SPHoptions.CentrifugalOmega0 = parameters.get_dCentrifOmega0();
     SPHoptions.doExtensiveILPTest = parameters.get_bGasDoExtensiveILPTest();
+    SPHoptions.doShearStrengthModel = parameters.get_bShearStrengthModel();
+    SPHoptions.disableStressAtInterface = parameters.get_bDisableStressAtInterface();
+    SPHoptions.evolveDensity = parameters.get_bGasEvolveDensity();
+    SPHoptions.doExternalAcceleration = parameters.has_dExternalAcceleration();
+    SPHoptions.disableShockHeating = (parameters.get_bDisableShockHeatingWithVelocityDamper() && SPHoptions.VelocityDamper > 0.0);
     return SPHoptions;
 }
 
@@ -94,6 +113,8 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->beta = source->beta;
     target->EtaCourant = source->EtaCourant;
     target->EtauDot = source->EtauDot;
+    target->EtaSdot = source->EtaSdot;
+    target->timeStepSmin = source->timeStepSmin;
     target->gamma = source->gamma;
     target->TuFac = source->TuFac;
     target->FastGasFraction = source->FastGasFraction;
@@ -108,6 +129,9 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->nRungCorrection = source->nRungCorrection;
     target->a = source->a;
     target->H = source->H;
+    target->externalAccelerationX = source->externalAccelerationX;
+    target->externalAccelerationY = source->externalAccelerationY;
+    target->externalAccelerationZ = source->externalAccelerationZ;
     target->doGravity = 0;
     target->doDensity = 0;
     target->doDensityCorrection = 0;
@@ -115,7 +139,6 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doUConversion = 0;
     target->doSetDensityFlags = 0;
     target->dofBallFactor = 1;
-    target->useNumDen = source->useNumDen;
     target->useIsentropic = source->useIsentropic;
     target->useBuiltinIdeal = source->useBuiltinIdeal;
     target->useDensityFlags = 0;
@@ -130,12 +153,19 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->CentrifugalT1 = source->CentrifugalT1;
     target->CentrifugalOmega0 = source->CentrifugalOmega0;
     target->doExtensiveILPTest = source->doExtensiveILPTest;
+    target->doShearStrengthModel = source->doShearStrengthModel;
+    target->disableStressAtInterface = source->disableStressAtInterface;
+    target->evolveDensity = source->evolveDensity;
+    target->doExternalAcceleration = source->doExternalAcceleration;
+    target->disableShockHeating = source->disableShockHeating;
 }
 
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {
     target->kernelType = source->kernelType;
     target->doInterfaceCorrection = source->doInterfaceCorrection;
     target->useIsentropic = source->useIsentropic;
+    target->disableStressAtInterface = source->disableStressAtInterface;
+    target->disableShockHeating = source->disableShockHeating;
     target->epsilon = source->epsilon;
     target->alpha = source->alpha;
     target->beta = source->beta;

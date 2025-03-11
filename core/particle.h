@@ -36,10 +36,6 @@
 
 #define PKD_MAX_CLASSES 256
 
-#define INTEGER_FACTOR 0x80000000u
-#define pkdDblToIntPos(pkd,d) (int32_t)((d)*INTEGER_FACTOR)
-#define pkdIntPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
-
 #ifdef NN_FLAG_IN_PARTICLE
     #define IORDERBITS 42
 #else
@@ -52,11 +48,11 @@
 
 /* Regular particle with order and all the goodies */
 struct PARTICLE {
-    uint64_t  uRung      :  IRUNGBITS;
+uint64_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
+uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
 #ifdef NN_FLAG_IN_PARTICLE
     uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
 #endif
@@ -68,9 +64,9 @@ static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
 #define IGROUPMAX ((1<<IGROUPBITS)-1)
 
 typedef struct uparticle {
-    uint32_t  uRung      :  IRUNGBITS;
+uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
-    uint32_t  iGroup     :  IGROUPBITS;
+uint32_t  iGroup     :  IGROUPBITS;
 } UPARTICLE;
 static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 
@@ -78,6 +74,7 @@ struct PARTCLASS {
     float       fMass;    /* Particle mass */
     float       fSoft;    /* Current softening */
     int         iMat;     /* newSPH material id */
+    float       accFac;   /* Acceleration factor to facilitate fixed particles*/
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
 
     bool operator <(const PARTCLASS &b) const {
@@ -87,14 +84,16 @@ struct PARTCLASS {
         else if ( fSoft > b.fSoft ) return false;
         else if ( iMat  < b.iMat  ) return true;
         else if ( iMat  > b.iMat  ) return false;
+        else if ( accFac < b.accFac ) return true;
+        else if ( accFac > b.accFac ) return false;
         else return eSpecies < b.eSpecies;
     }
     bool operator==(const PARTCLASS &b) const {
-        return fMass==b.fMass && fSoft==b.fSoft && iMat==b.iMat && eSpecies==b.eSpecies;
+        return fMass==b.fMass && fSoft==b.fSoft && iMat==b.iMat && accFac==b.accFac && eSpecies==b.eSpecies;
     }
     PARTCLASS() = default;
-    PARTCLASS(FIO_SPECIES eSpecies,float fMass,float fSoft,int iMat)
-        : fMass(fMass), fSoft(fSoft), iMat(iMat), eSpecies(eSpecies) {}
+    PARTCLASS(FIO_SPECIES eSpecies,float fMass,float fSoft,int iMat,float accFac)
+        : fMass(fMass), fSoft(fSoft), iMat(iMat), accFac(accFac), eSpecies(eSpecies) {}
 };
 static_assert(std::is_trivial<PARTCLASS>());
 
@@ -111,6 +110,16 @@ struct  BH_ACCRETOR {
     );
 };
 #endif
+
+// These fields are required for meshless finite volume (MFV),
+// in addition to the meshless finate mass (MFM) fields (FIELDS).
+struct MFV {
+    BOOST_HANA_DEFINE_STRUCT(
+        MFV,
+        (blitz::TinyVector<myreal,3>, lastDrDotFrho),
+        (blitz::TinyVector<myreal,3>, drDotFrho)
+    );
+};
 
 struct FIELDS {
     BOOST_HANA_DEFINE_STRUCT(
@@ -133,9 +142,6 @@ struct FIELDS {
         (myreal, lastE),
         (myreal, lastUint),
         (myreal, lastHubble), // TODO: Maybe there is a more intelligent way to avoid saving this...
-#ifndef USE_MFM
-        (blitz::TinyVector<myreal,3>, lastDrDotFrho),
-#endif
         (float, c),        /* sound speed */
 
         (float, lastMass),
@@ -149,9 +155,6 @@ struct FIELDS {
         (blitz::TinyVector<myreal,3>,  Fmom),
         (myreal, Fene),
 
-#ifndef USE_MFM
-        (blitz::TinyVector<double,3>, drDotFrho),
-#endif
         /* IA: Conserved variables */
         (blitz::TinyVector<double,3>,  mom),
         (double, E),
@@ -292,6 +295,28 @@ struct FIELDS {
     );
 }; // FIELDS
 
+struct STRENGTHFIELDS {
+    BOOST_HANA_DEFINE_STRUCT(
+        STRENGTHFIELDS,
+        (float, Sxx),      // Deviatoric stress tensor (tracefree, symmetric)
+        (float, Syy),
+        (float, Sxy),
+        (float, Sxz),
+        (float, Syz),
+        (float, SDotxx),   // Time derivative of deviatoric stress tensor (tracefree, symmetric)
+        (float, SDotyy),
+        (float, SDotxy),
+        (float, SDotxz),
+        (float, SDotyz),
+        (float, Spredxx),  // Predicted deviatoric stress tensor (tracefree, symmetric)
+        (float, Spredyy),
+        (float, Spredxy),
+        (float, Spredxz),
+        (float, Spredyz),
+        (float, strainJ2) //J2 tensor invariant of the strain tensor
+    );
+}; // STRENGTHFIELDS
+
 } // sph
 
 struct VELSMOOTH {
@@ -318,7 +343,9 @@ enum PKD_FIELD {
     oDensity, /* One float */
     oBall, /* One float */
     oSph, /* Sph structure */
+    oMFV, /* MFV structure */
     oNewSph, /* NewSph structure */
+    oNewSphStr, /* NewSph strength structure */
     oStar, /* Star structure */
     oBH, /* BH structure */
     oVelSmooth,
@@ -348,6 +375,7 @@ protected:
 public:
     using coord = blitz::TinyVector<double,3>;
     using icoord= blitz::TinyVector<int32_t,3>;
+    using Integerize::set_factor;
     void PhysicalSoft(double dSoftMax,double dFac,int bSoftMaxMul) {
         fSoftFac = dFac;
         fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
@@ -446,9 +474,14 @@ public:
         if (bNoParticleOrder) return ParticleClasses[0].iMat;
         else return ParticleClasses[p->iClass].iMat;
     }
-    std::set<int> getMaterials() const {
+    float accFac( PARTICLE *p) const {
+        if (bNoParticleOrder) return ParticleClasses[0].accFac;
+        else return ParticleClasses[p->iClass].accFac;
+    }
+    std::set<int> getMaterials(bool onlySPH) const {
         std::set<int> materials;
         for (auto p : ParticleClasses) {
+            if (onlySPH && p.eSpecies != FIO_SPECIES_SPH) continue;
             materials.insert(p.iMat);
         }
         return materials;
@@ -473,12 +506,26 @@ public:
 #endif
         return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
     }
+    auto &mfv( PARTICLE *p ) const {
+        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+    }
+    const auto &mfv( const PARTICLE *p ) const {
+        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+    }
     /* NewSph variables */
     auto &newsph( PARTICLE *p ) const {
         return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
     }
     const auto &newsph( const PARTICLE *p ) const {
         return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
+    }
+
+    /* NewSphStrength variables */
+    auto &newsphstr( PARTICLE *p ) const {
+        return get<sph::STRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
+    }
+    const auto &newsphstr( const PARTICLE *p ) const {
+        return get<sph::STRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
     }
 
     auto &star( PARTICLE *p ) const {
@@ -550,8 +597,6 @@ public:
     public:
         using SingleElement::SingleElement;
     public:
-        static double IntPosToDbl(int32_t pos) {return pos*1.0/INTEGER_FACTOR;}
-    public:
         using coord = blitz::TinyVector<double,3>;
         using icoord= blitz::TinyVector<int32_t,3>;
         bool have_position()     const {return have(PKD_FIELD::oPosition);}
@@ -559,7 +604,9 @@ public:
         bool have_acceleration() const {return have(PKD_FIELD::oAcceleration);}
         bool have_potential()    const {return have(PKD_FIELD::oPotential);}
         bool have_sph()          const {return have(PKD_FIELD::oSph);}
+        bool have_mfv()          const {return have(PKD_FIELD::oMFV);}
         bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
+        bool have_newsphstr()    const {return have(PKD_FIELD::oNewSphStr);}
         bool have_star()         const {return have(PKD_FIELD::oStar);}
         bool have_ball()         const {return have(PKD_FIELD::oBall);}
         bool have_mass()         const {return have(PKD_FIELD::oMass);}
@@ -595,8 +642,8 @@ public:
         auto set_rung(uint8_t uRung)    const {return (p->uRung = uRung);}
         auto set_new_rung(uint8_t uRung)const {return (p->uNewRung = uRung);}
         auto set_class(uint8_t uClass)  const {return (p->iClass = uClass);}
-        void set_class( float fMass, float fSoft, int iMat, FIO_SPECIES eSpecies) {
-            store().setClass(fMass,fSoft,iMat,eSpecies,p);
+        void set_class( float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies) {
+            store().setClass(fMass,fSoft,iMat,accFac,eSpecies,p);
         }
         auto set_order(uint64_t uOrder) const {return (p->iOrder = uOrder);}
 
@@ -618,8 +665,11 @@ public:
         auto soft0()        const {return store().soft0(p);}
         auto species()      const {return store().species(p);}
         auto imaterial()    const {return store().iMat(p);}
+        auto accFac()       const {return store().accFac(p);}
         auto &sph()         const { return store().sph(p); }
+        auto &mfv()         const { return store().mfv(p); }
         auto &newsph()      const { return store().newsph(p); }
+        auto &newsphstr()   const { return store().newsphstr(p); }
         auto &star()        const { return store().star(p); }
         auto &BH()          const { return store().BH(p); }
         auto Timer()        const { return store().Timer(p); }
@@ -675,7 +725,8 @@ public:
     void initialize(bool bIntegerPosition,bool bNoParticleOrder) {
         this->bIntegerPosition = bIntegerPosition;
         this->bNoParticleOrder = bNoParticleOrder;
-        dataStore<PARTICLE,PKD_FIELD>::initialize(bNoParticleOrder ? sizeof(UPARTICLE) : sizeof(PARTICLE));
+        if (bNoParticleOrder) dataStore<PARTICLE,PKD_FIELD>::set_header<UPARTICLE>();
+        else dataStore<PARTICLE,PKD_FIELD>::set_header<PARTICLE>();
         ParticleClasses.reserve(PKD_MAX_CLASSES);
     }
     auto integerized() const {return bIntegerPosition;}
@@ -694,7 +745,7 @@ public:
     auto cend()   const noexcept { return const_iterator(*this,Element(Local())); }
 
 public:
-    void setClass( float fMass, float fSoft, int iMat, FIO_SPECIES eSpecies, PARTICLE *p ) {
+    void setClass( float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies, PARTICLE *p ) {
         if ( present(PKD_FIELD::oMass) ) {
             get<float>(p,PKD_FIELD::oMass) = fMass;
             fMass = 0.0;
@@ -705,7 +756,7 @@ public:
         }
         /* NOTE: The above can both be true, in which case a "zero" class is recorded */
         /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-        PARTCLASS newClass(eSpecies,fMass,fSoft,iMat);
+        PARTCLASS newClass(eSpecies,fMass,fSoft,iMat,accFac);
 
         /* TODO: This is a linear search which is fine for a small number of classes */
         auto iclass = std::find(ParticleClasses.begin(),ParticleClasses.end(),newClass);

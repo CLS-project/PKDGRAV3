@@ -197,7 +197,7 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
         // split on dimension given by d.
         int i; // Partition index.
         if (pkd->bIntegerPosition) {
-            int32_t split = pkdDblToIntPos(pkd, bnd.center(d));
+            int32_t split = pkd->convert(bnd.center(d));
             i = PartPart(pkd, pNode->lower(), pNode->upper(), d, split);
         }
         else {
@@ -334,7 +334,7 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
 
             // Partition the particles on either side of the split
             if (pkd->bIntegerPosition) {
-                int32_t Split = pkdDblToIntPos(pkd,dSplit);
+                int32_t Split = pkd->convert(dSplit);
                 i = PartPart(pkd,pNode->lower(),pNode->upper(),d,Split);
             }
             else i = PartPart(pkd,pNode->lower(),pNode->upper(),d,dSplit);
@@ -637,7 +637,6 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     }
 }
 
-
 void pkdCombineCells1(PKD pkd,treeStore::NodePointer pkdn,treeStore::NodePointer p1,treeStore::NodePointer p2) {
     auto p1bnd = p1->bound();
     auto p2bnd = p2->bound();
@@ -686,7 +685,6 @@ void pkdCombineCells1(PKD pkd,treeStore::NodePointer pkdn,treeStore::NodePointer
     pkdn->set_marked(p1->is_marked() || p2->is_marked());
     pkdn->set_NN(p1->is_NN() || p2->is_NN());
 }
-
 
 void pkdCombineCells2(PKD pkd,treeStore::NodePointer pkdn,treeStore::NodePointer p1,treeStore::NodePointer p2) {
     /*
@@ -797,7 +795,6 @@ void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
         }
     }
 }
-
 
 void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
     int i,k,n,iRoot;
@@ -927,7 +924,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
         }
     }
 
-
     for (auto gid=1; gid<pkd->nGroups; ++gid)
         if (pkd->hopGroups[gid].bNeedGrav)
             BuildTemp(pkd,pkd->hopGroups[gid].iTreeRoot,nBucket,nGroup,HUGE_VAL);
@@ -939,7 +935,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
     */
     mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
                pkd->NodeSize(),pkd->Nodes());
-
 
 }
 

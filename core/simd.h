@@ -40,7 +40,7 @@
         #ifdef __FMA4__
             #include <x86intrin.h>
         #endif
-    #elif defined(__ARM_NEON)
+    #elif defined(__ARM_NEON) && !defined(__CUDACC__)
         #include "sse2neon.h"
         #define __SSE__
         #define __SSE2__

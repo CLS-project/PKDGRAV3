@@ -11,9 +11,6 @@
 #define XZ 2
 #define YZ 4
 
-template<typename T>
-int sign(T v) {return (v>0) - (v<0);}
-
 /* -----------------
  * MAIN FUNCTIONS AND CLASSES
  * -----------------
@@ -148,15 +145,12 @@ struct hydroFluxesFlush {
     meshless::myreal Frho;
     blitz::TinyVector<meshless::myreal,3> Fmom;
     meshless::myreal Fene;
-#ifndef USE_MFM
-    blitz::TinyVector<double,3> drDotFrho;
-#endif
     blitz::TinyVector<double,3> mom;
     double E;
     double Uint;
-#ifndef USE_MFM
+    // Used for the MFV method, ignored otherwise
+    blitz::TinyVector<double,3> drDotFrho;
     float fMass;
-#endif
 };
 
 void packHydroFluxes(void *vpkd,void *dst,const void *src);
@@ -224,9 +218,6 @@ void hydroResetFluxes(meshless::FIELDS *psph);
  * HELPERS
  * -----------------
  */
-#define SIGN(x) (((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
-#define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
-#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
 void compute_Ustar(double rho_K, double S_K, double v_K,

@@ -78,7 +78,7 @@ void pstAddServices(PST pst,MDL mdl) {
     nThreads = mdlThreads(mdl);
 
     mdlAddService(mdl,PST_READFILE,pst,(fcnService_t *)pstReadFile,
-                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),0);
+                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),0);
     mdlAddService(mdl,PST_COMPRESSASCII,pst,(fcnService_t *)pstCompressASCII,
                   sizeof(struct inCompressASCII),sizeof(struct outCompressASCII));
     mdlAddService(mdl,PST_WRITEASCII,pst,(fcnService_t *)pstWriteASCII,
@@ -179,15 +179,10 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstBHAccretion,
                   sizeof(struct inBHAccretion), 0);
 #endif
-    mdlAddService(mdl,PST_MOVEDELETED,pst,
-                  (fcnService_t *)pstMoveDeletedParticles,
-                  0, sizeof(struct outGetNParts) );
     mdlAddService(mdl,PST_GETMINDT,pst,
                   (fcnService_t *) pstGetMinDt,
                   0, sizeof(struct outGetMinDt));
     //
-    mdlAddService(mdl,PST_CACHEBARRIER,pst,(fcnService_t *)pstCacheBarrier,
-                  0,0);
     mdlAddService(mdl,PST_ROPARTICLECACHE,pst,(fcnService_t *)pstROParticleCache,
                   0,0);
     mdlAddService(mdl,PST_PARTICLECACHEFINISH,pst,(fcnService_t *)pstParticleCacheFinish,
@@ -205,7 +200,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ADDWRITESTART,pst,(fcnService_t *)pstAddWriteStart,
                   sizeof(struct inAddWriteStart),0);
     mdlAddService(mdl,PST_ONENODEREADINIT,pst,(fcnService_t *)pstOneNodeReadInit,
-                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),
+                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),
                   nThreads*sizeof(int));
     mdlAddService(mdl,PST_ACTIVEORDER,pst,(fcnService_t *)pstActiveOrder,
                   0,sizeof(uint64_t));
@@ -240,14 +235,10 @@ void pstAddServices(PST pst,MDL mdl) {
                   (fcnService_t *) pstStellarEvolutionInit,
                   sizeof(struct inStellarEvolutionInit),0);
 #endif
-    mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t *)pstUpdateRung,
-                  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
     mdlAddService(mdl,PST_COLNPARTS,pst,(fcnService_t *)pstColNParts,
                   0,nThreads*sizeof(struct outColNParts));
     mdlAddService(mdl,PST_NEWORDER,pst,(fcnService_t *)pstNewOrder,
                   nThreads*sizeof(uint64_t),0);
-    mdlAddService(mdl,PST_GETNPARTS,pst,(fcnService_t *)pstGetNParts,
-                  0,sizeof(struct outGetNParts));
     mdlAddService(mdl,PST_SETNPARTS,pst,(fcnService_t *)pstSetNParts,
                   sizeof(struct inSetNParts),0);
     mdlAddService(mdl,PST_NEW_FOF,pst,(fcnService_t *)pstNewFof,
@@ -375,7 +366,7 @@ static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
         in->nTreeBitsLo,in->nTreeBitsHi,
         in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,in->fPeriod,
         in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
-        in->mMemoryModel);
+        in->mMemoryModel,in->nIntegerFactor);
 }
 
 int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -384,9 +375,9 @@ int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto out = static_cast<struct outInitializePStore *>(vout);
     mdlassert(pst->mdl,nIn == sizeof(struct inInitializePStore));
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITIALIZEPSTORE,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_INITIALIZEPSTORE,in,nIn);
         pstInitializePStore(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,vout,NULL);
+        pst->mdl->GetReply(rID,nOut,vout);
     }
     else {
         if (plcl->pkd) delete plcl->pkd;
@@ -411,12 +402,13 @@ int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
         int rID;
         nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
         in->nNodeStart = nFileSplit;
-        rID = mdlReqService(pst->mdl,pst->idUpper,PST_ONENODEREADINIT,in,nIn);
+        rID = pst->mdl->ReqService(pst->idUpper,PST_ONENODEREADINIT,in,nIn);
         in->nNodeStart = nFileStart;
         in->nNodeEnd = nFileSplit - 1;
         pstOneNodeReadInit(pst->pstLower,in,nIn,pout,nOut);
         in->nNodeEnd = nFileEnd;
-        mdlGetReply(pst->mdl,rID,pout+pst->nLower,NULL);
+        auto nBytesLower = pst->nLower * sizeof(*pout);
+        pst->mdl->GetReply(rID,nOut-nBytesLower,pout+pst->nLower);
     }
     else {
         /*
@@ -436,8 +428,8 @@ static void _SwapClasses(PKD pkd, int id) {
     assert(pClass!=NULL);
 
     n = pkd->particles.getClasses( PKD_MAX_CLASSES, pClass );
-    rID = mdlReqService(pkd->mdl,id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
-    mdlGetReply(pkd->mdl,rID,pClass,&n);
+    rID = pkd->mdl->ReqService(id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
+    n = pkd->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(*pClass),pClass);
     n = n / sizeof(PARTCLASS);
     pkd->particles.setClasses( n, pClass, 0 );
     delete [] pClass;
@@ -464,7 +456,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             in->nProcessors = nProcUpper;
             in->nNodeStart = nNodeSplit;
             in->nNodeEnd = nNodeEnd;
-            rID = mdlReqService(pst->mdl,pst->idUpper,PST_READFILE,in,nIn);
+            rID = pst->mdl->ReqService(pst->idUpper,PST_READFILE,in,nIn);
         }
 
         in->nProcessors = nProcLower;
@@ -476,10 +468,10 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             in->nProcessors = nProcUpper;
             in->nNodeStart = nNodeSplit;
             in->nNodeEnd = nNodeEnd;
-            rID = mdlReqService(pst->mdl,pst->idUpper,PST_READFILE,in,nIn);
+            rID = pst->mdl->ReqService(pst->idUpper,PST_READFILE,in,nIn);
         }
 
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         auto nParts = new int[pst->nLeaves];
@@ -511,9 +503,9 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             */
             _SwapClasses(pkd,id);
             inswap = mdlSelf(mdl);
-            rID = mdlReqService(mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+            rID = pst->mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
             pkdSwapAll(pkd, id);
-            mdlGetReply(mdl,rID,NULL,NULL);
+            pst->mdl->GetReply(rID);
         }
         pkdReadFIO(pkd, fio, nNodeStart, nParts[0], in->dvFac,in->dTuFac);
         delete [] nParts;
@@ -532,9 +524,9 @@ int pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int nOut) {
       pkdStartTimer(pst->plcl->pkd,5);
     */
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVEORDER,NULL,0);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_ACTIVEORDER,NULL,0);
         pstActiveOrder(pst->pstLower,NULL,0,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&nActiveLeaf,NULL);
+        pst->mdl->GetReply(rID,nActiveLeaf);
         *pnActive += nActiveLeaf;
     }
     else {
@@ -552,9 +544,9 @@ int pstAddWriteStart(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inAddWriteStart));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ADDWRITESTART,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_ADDWRITESTART,in,nIn);
         pstAddWriteStart(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         plcl->nWriteStart += in->nWriteStart;
@@ -573,13 +565,13 @@ int pstCompressASCII(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inCompressASCII));
     if (pst->nLeaves > 1) {
         /* Instruct all processors to compress their data, and count it */
-        rID = mdlReqService(pst->mdl,pst->idUpper,PST_COMPRESSASCII,in,nIn);
+        rID = pst->mdl->ReqService(pst->idUpper,PST_COMPRESSASCII,in,nIn);
         pstCompressASCII(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUp,NULL);
+        pst->mdl->GetReply(rID,outUp);
         /* Add the new offset from the left children to the right children */
         inAdd.nWriteStart = out->nBytes;
-        rID = mdlReqService(pst->mdl,pst->idUpper,PST_ADDWRITESTART,&inAdd,sizeof(inAdd));
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        rID = pst->mdl->ReqService(pst->idUpper,PST_ADDWRITESTART,&inAdd,sizeof(inAdd));
+        pst->mdl->GetReply(rID);
         out->nBytes += outUp.nBytes;
     }
     else {
@@ -602,9 +594,9 @@ int pstWriteASCII(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inWriteASCII));
     if (pst->nLeaves > 1) {
         /* Instruct all processors to compress their data, and count it */
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITEASCII,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_WRITEASCII,in,nIn);
         pstWriteASCII(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         FILE *fp = fopen (in->achOutFile,"r+");
@@ -653,20 +645,20 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
             if (nLower==0) nLower=1;
             nUpper = nProcessors - nLower;
             in->nProcessors = nUpper;
-            int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHECKPOINT,in,nIn);
+            int rID = pst->mdl->ReqService(pst->idUpper,PST_CHECKPOINT,in,nIn);
             in->nProcessors = nLower;
             pstCheckpoint(pst->pstLower,in,nIn,NULL,0);
-            mdlGetReply(pst->mdl,rID,NULL,NULL);
+            pst->mdl->GetReply(rID);
         }
         else { /* Serialize these processors now */
             pstCheckpoint(pst->pstLower,in,nIn,NULL,0);
-            int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHECKPOINT,in,nIn);
-            mdlGetReply(pst->mdl,rID,NULL,NULL);
+            int rID = pst->mdl->ReqService(pst->idUpper,PST_CHECKPOINT,in,nIn);
+            pst->mdl->GetReply(rID);
         }
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PST_FILENAME_SIZE];
+        char achOutFile[PATH_MAX];
         makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"");
         pkdCheckpoint(pkd,achOutFile);
     }
@@ -686,7 +678,7 @@ int pstSendArray(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
     auto in = static_cast<struct inWrite *>(vin);
     FIO fio;
     int i;
@@ -706,13 +698,13 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
             in->iLower = pst->idUpper;
             in->nProcessors -= nLeft;
             in->iIndex += nLeft;
-            int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
+            int rID = pst->mdl->ReqService(pst->idUpper,PST_WRITE,in,nIn);
             in->iLower = mdlSelf(pst->mdl);
             in->iUpper = pst->idUpper;
             in->iIndex -= nLeft;
             in->nProcessors = nLeft;
             pstWrite(pst->pstLower,in,nIn,NULL,0);
-            mdlGetReply(pst->mdl,rID,NULL,NULL);
+            pst->mdl->GetReply(rID);
         }
     }
     else {
@@ -758,9 +750,9 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
             pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,in->bnd);
             for (i=in->iLower+1; i<in->iUpper; ++i ) {
-                int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
+                int rID = pst->mdl->ReqService(i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
                 pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,in->bnd,nThisFile);
-                mdlGetReply(pst->mdl,rID,NULL,NULL);
+                pst->mdl->GetReply(rID);
             }
 
             pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, nTotal, nThisFile,
@@ -779,9 +771,9 @@ int pstSetSoft(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inSetSoft));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETSOFT,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_SETSOFT,in,nIn);
         pstSetSoft(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdSetSoft(plcl->pkd,in->dSoft);
@@ -795,9 +787,9 @@ int pstTreeInitMarked(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == 0);
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEINITMARKED,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_TREEINITMARKED,vin,nIn);
         pstTreeInitMarked(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdTreeInitMarked(pkd);
@@ -812,7 +804,6 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
     uint32_t uRoot = in->uRoot;
     auto pTop = pkd->tree[static_cast<KDN *>(vout)];
     // double minside;
-    int nOutUpper;
 
     /* We need to save our cells so we can update them later */
     if (pst->nLeaves > 1) {
@@ -820,10 +811,10 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
         auto pCell2 = pTop + pst->nLower*2;
 
         /* We will accumulate the top tree here */
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_BUILDTREE,vin,nIn);
         nOut = pstBuildTree(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->tree.ElementSize());
         assert(nOut == (pst->nLower*2-1) * pkd->tree.ElementSize());
-        mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
+        auto nOutUpper = pst->mdl->GetReply(rID,(pst->nUpper*2-1) * pkd->tree.ElementSize(),pCell2);
         assert(nOutUpper == (pst->nUpper*2-1) * pkd->tree.ElementSize());
         nOut += nOutUpper + pkd->tree.ElementSize();
 
@@ -859,9 +850,9 @@ int pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inPhysicalSoft));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_PHYSICALSOFT,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_PHYSICALSOFT,in,nIn);
         pstPhysicalSoft(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdPhysicalSoft(plcl->pkd,in->dSoftMax,in->dFac,in->bSoftMaxMul);
@@ -876,9 +867,9 @@ int pstHopLink(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inHopLink));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_LINK,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_HOP_LINK,in,nIn);
         pstHopLink(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&nOutUpper,NULL);
+        pst->mdl->GetReply(rID,nOutUpper);
         *nOutGroups += nOutUpper;
     }
     else {
@@ -900,9 +891,9 @@ int pstHopJoin(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inHopLink));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_JOIN,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_HOP_JOIN,in,nIn);
         pstHopJoin(pst->pstLower,in,nIn,&outLower,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        nOut = pst->mdl->GetReply(rID,outUpper);
         assert(nOut==sizeof(struct outHopJoin));
         out->bDone = outLower.bDone && outUpper.bDone;
         out->nGroups = outLower.nGroups + outUpper.nGroups;
@@ -926,10 +917,10 @@ int pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inHopFinishUp));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_FINISH_UP,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_HOP_FINISH_UP,vin,nIn);
         pstHopFinishUp(pst->pstLower,vin,nIn,vout,nOut);
         pst->nLowerGroups = *nOutGroups;
-        mdlGetReply(pst->mdl,rID,&nOutUpper,NULL);
+        pst->mdl->GetReply(rID,nOutUpper);
         *nOutGroups += nOutUpper;
     }
     else {
@@ -944,9 +935,9 @@ int pstHopTreeBuild(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inHopTreeBuild *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inHopTreeBuild));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_TREE_BUILD,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_HOP_TREE_BUILD,vin,nIn);
         pstHopTreeBuild(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -959,9 +950,9 @@ int pstHopGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inHopGravity *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inHopGravity));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_GRAVITY,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_HOP_GRAVITY,vin,nIn);
         pstHopGravity(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -978,9 +969,9 @@ int pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inHopUnbind));
     mdlassert(pst->mdl,nOut == sizeof(struct outHopUnbind));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_UNBIND,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_HOP_UNBIND,vin,nIn);
         pstHopUnbind(pst->pstLower,vin,nIn,&outLower,sizeof(outLower));
-        mdlGetReply(pst->mdl,rID,&outUpper,NULL);
+        pst->mdl->GetReply(rID,outUpper);
         out->nEvaporated = outLower.nEvaporated + outUpper.nEvaporated;
         out->nGroups = outLower.nGroups + outUpper.nGroups;
     }
@@ -994,9 +985,9 @@ int pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstGroupRelocate(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_RELOCATE,NULL,0);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_GROUP_RELOCATE,NULL,0);
         pstGroupRelocate(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -1011,10 +1002,10 @@ int pstGroupStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inGroupStats));
     if (pst->nLeaves > 1) {
         in->iGlobalStart += pst->nLowerGroups; /* for the upper subset the global id starting point is more by the number of lower groups */
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_STATS,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_GROUP_STATS,vin,nIn);
         in->iGlobalStart -= pst->nLowerGroups; /* set the value back for the lower subset traversal */
         pstGroupStats(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -1030,9 +1021,9 @@ int pstPlaceBHSeed(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct outPlaceBHSeed outUpper;
     mdlassert(pst->mdl,nIn == sizeof(struct inPlaceBHSeed));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_PLACESEED,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_BH_PLACESEED,in,nIn);
         pstPlaceBHSeed(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        nOut = pst->mdl->GetReply(rID,outUpper);
         assert(nOut==sizeof(struct outPlaceBHSeed));
         out->nBHs += outUpper.nBHs;
     }
@@ -1048,9 +1039,9 @@ int pstBHInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inPlaceBHSeed *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inPlaceBHSeed));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_INIT,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_BH_INIT,in,nIn);
         pstBHInit(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -1061,9 +1052,9 @@ int pstBHInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 int pstBHReposition(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_REPOSITION,NULL,0);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_BH_REPOSITION,NULL,0);
         pstBHReposition(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -1076,9 +1067,9 @@ int pstBHAccretion(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inBHAccretion *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inBHAccretion));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_ACCRETION,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_BH_ACCRETION,in,nIn);
         pstBHAccretion(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -1089,35 +1080,14 @@ int pstBHAccretion(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 #endif
 
-int pstMoveDeletedParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto out = static_cast<struct outGetNParts *>(vout);
-    struct outGetNParts outUpper;
-
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEDELETED,vin,nIn);
-        pstMoveDeletedParticles(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-        out->n += outUpper.n;
-        out->nGas += outUpper.nGas;
-        out->nDark += outUpper.nDark;
-        out->nStar += outUpper.nStar;
-        out->nBH += outUpper.nBH;
-    }
-    else {
-        pkdMoveDeletedParticles(plcl->pkd, &out->n, &out->nGas, &out->nDark, &out->nStar, &out->nBH);
-    }
-    return sizeof(struct outGetNParts);
-}
-
 int pstSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inSmooth *>(vin);
 
     mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SMOOTH,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_SMOOTH,in,nIn);
         pstSmooth(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -1138,9 +1108,9 @@ int pstReSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 //    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESMOOTH,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_RESMOOTH,in,nIn);
         pstReSmooth(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        nOut = pst->mdl->GetReply(rID,outUpper);
         assert(nOut==sizeof(struct outSmooth));
         out->nSmoothed += outUpper.nSmoothed;
     }
@@ -1164,9 +1134,9 @@ int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 //    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESMOOTHNODE,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_RESMOOTHNODE,in,nIn);
         pstReSmoothNode(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        pst->mdl->GetReply(rID,outUpper);
         assert(nOut==sizeof(struct outSmooth));
         out->nSmoothed += outUpper.nSmoothed;
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
@@ -1246,13 +1216,13 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_GRAVITY,in,nIn);
         pstGravity(pst->pstLower,in,nIn,vout,nOut);
         /*
         ** Make a temporary copy of the reduct part of the out buffer before setting it as the
         ** reply buffer. The reduct part follows at the end of all the outGravityPerProc entries.
         */
-        mdlGetReply(pst->mdl,rID,&tmp,NULL);
+        pst->mdl->GetReply(rID,tmp);
         /*
         ** Now combine in the tempory copy of the lower branch reduct part.
         */
@@ -1393,9 +1363,9 @@ int pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCEANDL,NULL,0);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_CALCEANDL,NULL,0);
         pstCalcEandL(pst->pstLower,NULL,0,out,nOut);
-        mdlGetReply(pst->mdl,rID,&outLcl,NULL);
+        pst->mdl->GetReply(rID,outLcl);
         out->T += outLcl.T;
         out->U += outLcl.U;
         out->Eth += outLcl.Eth;
@@ -1415,12 +1385,12 @@ int pstDrift(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DRIFT,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_DRIFT,in,nIn);
         pstDrift(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
-        pkdDrift(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->bDoGas);
+        pkdDrift(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->bDoGas,in->bGasEvolveDensity);
     }
     return 0;
 }
@@ -1431,9 +1401,9 @@ int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct outGetMinDt));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETGLOBALDT,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_SETGLOBALDT,in,nIn);
         pstSetGlobalDt(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdSetGlobalDt(plcl->pkd, in->uMinDt);
@@ -1446,9 +1416,9 @@ int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_REORDERINNODES,NULL,0);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_REORDERINNODES,NULL,0);
         pstReorderWithinNodes(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdReorderWithinNodes(plcl->pkd);
@@ -1463,9 +1433,9 @@ int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct outFluxStats outUpper;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FLUXSTATS,NULL,0);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_FLUXSTATS,NULL,0);
         pstFluxStats(pst->pstLower,NULL,0,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        nOut = pst->mdl->GetReply(rID,outUpper);
         assert(nOut==sizeof(struct outFluxStats));
         out->nAvoided += outUpper.nAvoided;
         out->nComputed += outUpper.nComputed;
@@ -1489,9 +1459,9 @@ int pstEndTimestepIntegration(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inEndTimestep));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COMPUTEPRIMVARS,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_COMPUTEPRIMVARS,in,nIn);
         pstEndTimestepIntegration(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdEndTimestepIntegration(plcl->pkd, *in);
@@ -1505,9 +1475,9 @@ int pstWakeParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WAKEPARTICLES,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_WAKEPARTICLES,in,nIn);
         pstWakeParticles(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdWakeParticles(plcl->pkd,in->iRoot, in->dTime, in->dDelta);
@@ -1522,9 +1492,9 @@ int pstGrackleInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inGrackleInit *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inGrackleInit));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRACKLEINIT,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_GRACKLEINIT,in,nIn);
         pstGrackleInit(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdGrackleInit(plcl->pkd, in->bComove, in->dScaleFactor, in->achCoolingTable,
@@ -1541,9 +1511,9 @@ int pstCoolingInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inCoolInit));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGINIT,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_COOLINGINIT,in,nIn);
         pstCoolingInit(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkd_cooling_init_backend(plcl->pkd, in->in_cooling_data,
@@ -1564,9 +1534,9 @@ int pstCoolingUpdate(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inCoolUpdate));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGUPDATE,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_COOLINGUPDATE,in,nIn);
         pstCoolingUpdate(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkd_cooling_update(plcl->pkd, in);
@@ -1578,9 +1548,9 @@ int pstCoolingUpdateZ(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<float *>(vin);
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGUPDATEZ,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_COOLINGUPDATEZ,in,nIn);
         pstCoolingUpdateZ(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         plcl->pkd->cooling->dz = *in;
@@ -1592,9 +1562,9 @@ int pstCoolingHydReion(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGHYDREION,NULL,0);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_COOLINGHYDREION,NULL,0);
         pstCoolingHydReion(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         cooling_Hydrogen_reionization(plcl->pkd);
@@ -1609,25 +1579,12 @@ int pstChemCompInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inChemCompInit));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHEMCOMPINIT,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_CHEMCOMPINIT,in,nIn);
         pstChemCompInit(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdChemCompInit(plcl->pkd, *in);
-    }
-    return 0;
-}
-
-int pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
-        pstCacheBarrier(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        mdlCacheBarrier(pst->mdl,CID_CELL);
     }
     return 0;
 }
@@ -1637,9 +1594,9 @@ int pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ROPARTICLECACHE,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_ROPARTICLECACHE,vin,nIn);
         pstROParticleCache(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         /*
@@ -1658,9 +1615,9 @@ int pstParticleCacheFinish(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_PARTICLECACHEFINISH,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_PARTICLECACHEFINISH,vin,nIn);
         pstParticleCacheFinish(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         /*
@@ -1679,9 +1636,9 @@ int pstKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inKick));
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_KICK,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_KICK,in,nIn);
         pstKick(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdKick(plcl->pkd,in->dTime,in->dDelta,in->bDoGas,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->uRungLo,in->uRungHi);
@@ -1696,9 +1653,9 @@ int pstKickTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inKick));
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_KICKTREE,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_KICKTREE,in,nIn);
         pstKickTree(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdKickTree(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->iRoot);
@@ -1713,9 +1670,9 @@ int pstSetTotal(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETTOTAL,NULL,0);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_SETTOTAL,NULL,0);
         pstSetTotal(pst->pstLower,NULL,0,out,nOut);
-        mdlGetReply(pst->mdl,rID,&oute,NULL);
+        pst->mdl->GetReply(rID,oute);
         out->nTotal += oute.nTotal;
         pst->nTotal = out->nTotal;
     }
@@ -1736,10 +1693,10 @@ int pstSetWriteStart(PST pst,void *vin,int nIn,void *vout,int nOut) {
     nWriteStart = in->nWriteStart;
     if (pst->nLeaves > 1) {
         in->nWriteStart = nWriteStart + pst->pstLower->nTotal;
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETWRITESTART,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_SETWRITESTART,in,nIn);
         in->nWriteStart = nWriteStart;
         pstSetWriteStart(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         plcl->nWriteStart = nWriteStart;
@@ -1753,9 +1710,9 @@ int pstAccelStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inAccelStep));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ACCELSTEP,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_ACCELSTEP,vin,nIn);
         pstAccelStep(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdAccelStep(plcl->pkd,in->uRungLo,in->uRungHi,
@@ -1772,9 +1729,9 @@ int pstDensityStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DENSITYSTEP,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_DENSITYSTEP,vin,nIn);
         pstDensityStep(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdDensityStep(plcl->pkd,in->uRungLo,in->uRungHi,in->iMaxRung,in->dDelta,in->dEta,in->dRhoFac);
@@ -1787,9 +1744,9 @@ int pstCorrectEnergy(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inCorrectEnergy *>(vin);
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CORRECTENERGY,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_CORRECTENERGY,vin,nIn);
         pstCorrectEnergy(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdCorrectEnergy(plcl->pkd,in->dTuFac,in->z,in->dTime,in->iDirection);
@@ -1797,38 +1754,17 @@ int pstCorrectEnergy(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 
-int pstUpdateRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct outUpdateRung outTemp;
-    auto in = static_cast<struct inUpdateRung *>(vin);
-    auto out = static_cast<struct outUpdateRung *>(vout);
-    int i;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_UPDATERUNG,vin,nIn);
-        pstUpdateRung(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outTemp,NULL);
-        for (i=0; i<in->uMaxRung; ++i) {
-            out->nRungCount[i] += outTemp.nRungCount[i];
-        }
-    }
-    else {
-        pkdUpdateRung(plcl->pkd,in->uRungLo,in->uRungHi,
-                      in->uMinRung,in->uMaxRung,out->nRungCount);
-    }
-    return sizeof(*out);
-}
-
 int pstColNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto out = static_cast<struct outColNParts *>(vout);
-    struct outColNParts *outUp = out + pst->idUpper-pst->idSelf;
+    auto iUpper = pst->idUpper - pst->idSelf;
+    auto nBytesLower = iUpper*sizeof(*out);
+    struct outColNParts *outUp = out + iUpper;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COLNPARTS,vin,nIn);
-        pstColNParts(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,outUp,NULL);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_COLNPARTS,vin,nIn);
+        pstColNParts(pst->pstLower,vin,nIn,vout,nBytesLower);
+        pst->mdl->GetReply(rID,nOut-nBytesLower,outUp);
     }
     else {
         pkdColNParts(plcl->pkd, &out->nNew,
@@ -1844,9 +1780,9 @@ int pstNewOrder(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<uint64_t *>(vin);
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_NEWORDER,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_NEWORDER,vin,nIn);
         pstNewOrder(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl, rID, NULL, NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdNewOrder(plcl->pkd, in[pst->idSelf]);
@@ -1854,35 +1790,13 @@ int pstNewOrder(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return  0;
 }
 
-int pstGetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto out = static_cast<struct outGetNParts *>(vout);
-
-    if (pst->nLeaves > 1) {
-        struct outGetNParts outtmp;
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETNPARTS,vin,nIn);
-        pstGetNParts(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,(void *) &outtmp,NULL);
-
-        out->n += outtmp.n;
-        out->nGas += outtmp.nGas;
-        out->nDark += outtmp.nDark;
-        out->nStar += outtmp.nStar;
-        out->nBH += outtmp.nBH;
-        if (outtmp.nMaxOrder > out->nMaxOrder) out->nMaxOrder = outtmp.nMaxOrder;
-    }
-    else {
-        pkdGetNParts(pst->plcl->pkd, out);
-    }
-    return sizeof(struct outGetNParts);
-}
-
 int pstSetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inSetNParts *>(vin);
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETNPARTS,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_SETNPARTS,vin,nIn);
         pstSetNParts(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl, rID, NULL, NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar, in->nBH);
@@ -1895,9 +1809,9 @@ int pstNewFof(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inNewFof));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_NEW_FOF,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_NEW_FOF,in,nIn);
         pstNewFof(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         LCL *plcl = pst->plcl;
@@ -1912,10 +1826,10 @@ int pstFofPhases(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FOF_PHASES,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_FOF_PHASES,vin,nIn);
         pstFofPhases(pst->pstLower,vin,nIn,out,nOut);
         bMadeProgress = out->bMadeProgress;
-        mdlGetReply(pst->mdl,rID,out,NULL);
+        pst->mdl->GetReply(rID,nOut,out);
         if (!out->bMadeProgress) out->bMadeProgress = bMadeProgress;
     }
     else {
@@ -1936,10 +1850,10 @@ int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inFofFinishUp));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FOF_FINISH_UP,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_FOF_FINISH_UP,vin,nIn);
         pstFofFinishUp(pst->pstLower,vin,nIn,vout,nOut);
         pst->nLowerGroups = *nOutGroups;
-        mdlGetReply(pst->mdl,rID,&nOutUpper,NULL);
+        pst->mdl->GetReply(rID,nOutUpper);
         *nOutGroups += nOutUpper;
     }
     else {
@@ -1953,13 +1867,15 @@ int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
 int pstMemStatus(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto out = static_cast<struct outMemStatus *>(vout);
-    struct outMemStatus *outUp = out + pst->idUpper-pst->idSelf;
+    auto iUpper = pst->idUpper - pst->idSelf;
+    auto nLower = iUpper * sizeof(struct outMemStatus);
+    struct outMemStatus *outUp = out + iUpper;
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEMSTATUS,vin,nIn);
-        pstMemStatus(pst->pstLower,vin,nIn,out,nOut);
-        mdlGetReply(pst->mdl,rID,outUp,NULL);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_MEMSTATUS,vin,nIn);
+        pstMemStatus(pst->pstLower,vin,nIn,out,nLower);
+        pst->mdl->GetReply(rID,nOut-nLower,outUp);
     }
     else {
 #ifdef __linux__
@@ -2017,9 +1933,9 @@ int pstGetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn==0);
     if (pst->nLeaves > 1) {
         auto outUp = new PARTCLASS[PKD_MAX_CLASSES];
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETCLASSES,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_GETCLASSES,vin,nIn);
         nOut = pstGetClasses(pst->pstLower,vin,nIn,out,nOut);
-        mdlGetReply(pst->mdl,rID,outUp,&nUp);
+        nUp = pst->mdl->GetReply(rID,PKD_MAX_CLASSES*(sizeof(*outUp)),outUp);
         n = nUp / sizeof(PARTCLASS);
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nUp);
         nUp = n;
@@ -2027,7 +1943,7 @@ int pstGetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)== nOut);
         for ( i=0; i<nUp; i++ ) {
             for ( j=0; j<n; j++ ) {
-                if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft && outUp[i].iMat==out[j].iMat && outUp[i].eSpecies==out[j].eSpecies)
+                if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft && outUp[i].iMat==out[j].iMat && outUp[i].accFac==out[j].accFac && outUp[i].eSpecies==out[j].eSpecies)
                     break;
             }
             if ( j == n ) {
@@ -2048,9 +1964,9 @@ int pstSetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
     int n;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETCLASSES,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_SETCLASSES,vin,nIn);
         pstSetClasses(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         n = nIn / sizeof(PARTCLASS);
@@ -2090,9 +2006,9 @@ int pstProfile(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inProfile *>(vin);
     /*assert( nIn==sizeof(struct inProfile) );*/
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_PROFILE,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_PROFILE,vin,nIn);
         pstProfile(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdProfile(plcl->pkd,in->uRungLo,in->uRungHi,
@@ -2108,9 +2024,9 @@ int pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     assert( nIn==sizeof(struct inCalcDistance) );
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCDISTANCE,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_CALCDISTANCE,vin,nIn);
         pstCalcDistance(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdCalcDistance(plcl->pkd,in->dCenter,in->bPeriodic);
@@ -2128,9 +2044,9 @@ int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut) {
     assert( nIn==sizeof(struct inCalcCOM) );
     assert( vout != NULL );
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCCOM,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_CALCCOM,vin,nIn);
         pstCalcCOM(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,NULL);
+        pst->mdl->GetReply(rID,outUpper);
         out->N += outUpper.N;
         out->M += outUpper.M;
         for (i=0; i<3; i++ ) {
@@ -2155,9 +2071,9 @@ int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut) {
     assert( nIn==sizeof(struct inCalcMtot) );
     assert( vout != NULL );
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCMTOT,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_CALCMTOT,vin,nIn);
         pstCalcMtot(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,NULL);
+        pst->mdl->GetReply(rID,outUpper);
         out->N += outUpper.N;
         out->M += outUpper.M;
     }
@@ -2173,9 +2089,9 @@ int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     assert( nIn==sizeof(struct inSetSPHoptions) );
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETSPHOPTIONS,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_SETSPHOPTIONS,vin,nIn);
         pstSetSPHoptions(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         copySPHOptions(&in->SPHoptions, &plcl->pkd->SPHoptions);
@@ -2189,9 +2105,9 @@ int pstResetCOM(PST pst,void *vin, int nIn, void *vout, int nOut) {
 
     assert( nIn==sizeof(struct inResetCOM) );
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESETCOM,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_RESETCOM,vin,nIn);
         pstResetCOM(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdResetCOM(plcl->pkd,in->r_com,in->v_com);
@@ -2202,9 +2118,9 @@ int pstResetCOM(PST pst,void *vin, int nIn, void *vout, int nOut) {
 int pstInitializeEOS(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITIALIZEEOS,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_INITIALIZEEOS,vin,nIn);
         pstInitializeEOS(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdInitializeEOS(plcl->pkd);
@@ -2218,9 +2134,9 @@ int pstUpdateGasValues(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     assert( nIn==sizeof(struct inUpdateGasValues) );
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_UPDATEGASVALUES,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_UPDATEGASVALUES,vin,nIn);
         pstUpdateGasValues(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdUpdateGasValues(plcl->pkd, &in->kick, &in->SPHoptions);
@@ -2234,20 +2150,20 @@ int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inTreeUpdateFlagBounds *>(vin);
     uint32_t uRoot = in->uRoot;
     auto pTop = pkd->tree[static_cast<KDN *>(vout)];
-    int nOutUpper;
 
     /* We need to save our cells so we can update them later */
     if (pst->nLeaves > 1) {
         auto pCell1 = pTop + 1;
         auto pCell2 = pTop + pst->nLower*2;
+        auto nRemoveLower = pst->nLower * 2 * pkd->tree.ElementSize();
 
         /* We will accumulate the top tree here */
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEUPDATEFLAGBOUNDS,vin,nIn);
-        nOut = pstTreeUpdateFlagBounds(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->tree.ElementSize());
-        assert(nOut == (pst->nLower*2-1) * pkd->tree.ElementSize());
-        mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_TREEUPDATEFLAGBOUNDS,vin,nIn);
+        auto nOutLower = pstTreeUpdateFlagBounds(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->tree.ElementSize());
+        assert(nOutLower == (pst->nLower*2-1) * pkd->tree.ElementSize());
+        auto nOutUpper = pst->mdl->GetReply(rID,nOut-nRemoveLower,pCell2);
         assert(nOutUpper == (pst->nUpper*2-1) * pkd->tree.ElementSize());
-        nOut += nOutUpper + pkd->tree.ElementSize();
+        nOut = nOutLower + nOutUpper + pkd->tree.ElementSize();
 
         /*
         ** Combine Cell1 and Cell2 into pCell
@@ -2284,9 +2200,9 @@ int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     assert( nIn==sizeof(struct inCountDistance) );
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COUNTDISTANCE,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_COUNTDISTANCE,vin,nIn);
         pstCountDistance(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        nOut = pst->mdl->GetReply(rID,outUpper);
         assert(nOut==sizeof(struct outCountDistance));
         out->nCount += outUpper.nCount;
     }
@@ -2302,9 +2218,9 @@ int pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inGridCreateFFT *>(vin);
     assert (nIn==sizeof(struct inGridCreateFFT) );
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_GRID_CREATE_FFT, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_GRID_CREATE_FFT, vin, nIn);
         pstGridCreateFFT(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         PKD pkd = plcl->pkd;
@@ -2317,9 +2233,9 @@ int pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int nOut) {
 int pstGridDeleteFFT(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     if (pstNotCore(pst)) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_GRID_DELETE_FFT, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_GRID_DELETE_FFT, vin, nIn);
         pstGridDeleteFFT(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         PKD pkd = plcl->pkd;
@@ -2337,9 +2253,9 @@ int pstTotalMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct outTotalMass outUpper;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TOTALMASS,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_TOTALMASS,vin,nIn);
         pstTotalMass(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        nOut = pst->mdl->GetReply(rID,outUpper);
         assert(nOut==sizeof(struct outTotalMass));
         out->dMass += outUpper.dMass;
     }
@@ -2355,9 +2271,9 @@ int pstGetMinDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct outGetMinDt outUpper;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETMINDT,vin,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_GETMINDT,vin,nIn);
         pstGetMinDt(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,NULL);
+        pst->mdl->GetReply(rID,outUpper);
         assert(nOut==sizeof(struct outGetMinDt));
         if (out->uMinDt < outUpper.uMinDt) out->uMinDt = outUpper.uMinDt;
     }
@@ -2371,13 +2287,13 @@ int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inLightConeOpen *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inLightConeOpen));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONE_OPEN,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_LIGHTCONE_OPEN,in,nIn);
         pstLightConeOpen(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PST_FILENAME_SIZE];
+        char achOutFile[PATH_MAX];
         if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"lcp.");
         else achOutFile[0] = 0;
         pkdLightConeOpen(pkd, achOutFile, in->nSideHealpix);
@@ -2389,13 +2305,13 @@ int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inLightConeClose *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inLightConeClose));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONE_CLOSE,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_LIGHTCONE_CLOSE,in,nIn);
         pstLightConeClose(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PST_FILENAME_SIZE];
+        char achOutFile[PATH_MAX];
         if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"hpb.");
         else achOutFile[0] = 0;
         pkdLightConeClose(pst->plcl->pkd,achOutFile);
@@ -2409,9 +2325,9 @@ int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONEVEL,in,nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_LIGHTCONEVEL,in,nIn);
         pstLightConeVel(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         pkdLightConeVel(plcl->pkd,in->dBoxSize);
@@ -2423,12 +2339,11 @@ int pstGetParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto out = static_cast<struct outGetParticles *>(vout);
     auto ID = static_cast<uint64_t *>(vin);
-    int nOutUpper;
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GET_PARTICLES,vin,nIn);
-        nOut = pstGetParticles(pst->pstLower,vin,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,out + (nOut / sizeof(struct outGetParticles)),&nOutUpper);
-        nOut += nOutUpper;
+        int rID = pst->mdl->ReqService(pst->idUpper,PST_GET_PARTICLES,vin,nIn);
+        auto nOutLower = pstGetParticles(pst->pstLower,vin,nIn,vout,nOut);
+        auto nOutUpper = pst->mdl->GetReply(rID,nOut-nOutLower,out + (nOutLower / sizeof(struct outGetParticles)));
+        nOut = nOutLower + nOutUpper;
     }
     else {
         int nParticles = nIn / sizeof(uint64_t);

@@ -43,7 +43,9 @@ cdef extern from "cosmo.h":
     double csmComoveDriftFac(csmContext *csm, double dTime, double dDelta);
     double csmComoveKickFac(csmContext *csm, double dTime, double dDelta);
     double csmComoveLookbackTime2Exp(csmContext *csm, double dComoveTime);
-    void csmComoveGrowth(csmContext *csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT);
+    void csmComoveGrowth(csmContext *csm, double a,
+                         double *D1LPT, double *D2LPT, double *D3aLPT, double *D3bLPT, double *D3cLPT,
+                         double *f1LPT, double *f2LPT, double *f3aLPT, double *f3bLPT, double *f3cLPT);
 
     double csmRhoBar_m    (csmContext *csm, double a)
     double csmRhoBar_lin  (csmContext *csm, double a)

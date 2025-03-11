@@ -5,3 +5,4 @@ unittest-xml-reporting
 ddt
 nose
 dill
+cmake >= 3.24

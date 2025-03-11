@@ -43,8 +43,14 @@ struct classDataBackgroundStruct {
     double H      [CLASS_BACKGROUND_SIZE];
     double D1     [CLASS_BACKGROUND_SIZE];
     double D2     [CLASS_BACKGROUND_SIZE];
+    double D3a    [CLASS_BACKGROUND_SIZE];
+    double D3b    [CLASS_BACKGROUND_SIZE];
+    double D3c    [CLASS_BACKGROUND_SIZE];
     double f1     [CLASS_BACKGROUND_SIZE];
     double f2     [CLASS_BACKGROUND_SIZE];
+    double f3a    [CLASS_BACKGROUND_SIZE];
+    double f3b    [CLASS_BACKGROUND_SIZE];
+    double f3c    [CLASS_BACKGROUND_SIZE];
     double rho_m  [CLASS_BACKGROUND_SIZE];
     double rho_lin[CLASS_BACKGROUND_SIZE];
     double rho_pk [CLASS_BACKGROUND_SIZE];
@@ -85,12 +91,24 @@ struct classGslBackgroundStruct {
     gsl_spline       *logTime2logExp_spline;
     gsl_interp_accel *logExp2logD1_acc;
     gsl_spline       *logExp2logD1_spline;
-    gsl_interp_accel *logExp2lognegD2_acc;
-    gsl_spline       *logExp2lognegD2_spline;
+    gsl_interp_accel *logExp2logD2_acc;
+    gsl_spline       *logExp2logD2_spline;
+    gsl_interp_accel *logExp2logD3a_acc;
+    gsl_spline       *logExp2logD3a_spline;
+    gsl_interp_accel *logExp2logD3b_acc;
+    gsl_spline       *logExp2logD3b_spline;
+    gsl_interp_accel *logExp2logD3c_acc;
+    gsl_spline       *logExp2logD3c_spline;
     gsl_interp_accel *logExp2logf1_acc;
     gsl_spline       *logExp2logf1_spline;
     gsl_interp_accel *logExp2logf2_acc;
     gsl_spline       *logExp2logf2_spline;
+    gsl_interp_accel *logExp2logf3a_acc;
+    gsl_spline       *logExp2logf3a_spline;
+    gsl_interp_accel *logExp2logf3b_acc;
+    gsl_spline       *logExp2logf3b_spline;
+    gsl_interp_accel *logExp2logf3c_acc;
+    gsl_spline       *logExp2logf3c_spline;
     gsl_interp_accel *logExp2logRho_m_acc;
     gsl_spline       *logExp2logRho_m_spline;
     gsl_interp_accel *logExp2logRho_lin_acc;
@@ -151,7 +169,7 @@ extern "C" {
 #endif
 
 /* This is the same as gsl_spline_eval, except that it will extrapolate beyond the end. */
-inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
+static inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
     if (v>spline->x[spline->size-1]) {
         double m = (spline->y[spline->size-1] - spline->y[spline->size-2])
                    / (spline->x[spline->size-1] - spline->x[spline->size-2]);
@@ -216,7 +234,9 @@ double csmComoveKickInt(CSM csm, double dIExp);
 double csmComoveDriftFac(CSM csm, double dTime, double dDelta);
 double csmComoveKickFac(CSM csm, double dTime, double dDelta);
 double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);
-void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT);
+void csmComoveGrowth(CSM csm, double a,
+                     double *D1LPT, double *D2LPT, double *D3aLPT, double *D3bLPT, double *D3cLPT,
+                     double *f1LPT, double *f2LPT, double *f3alPT, double *f3bLPT, double *f3cLPT);
 #ifdef __cplusplus
 }
 #endif

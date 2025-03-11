@@ -1,7 +1,6 @@
 from sys import argv,exit
-from MASTER import MSR # Once MSR is imported, simulation mode is no longer automatically entered
-from math import pi
-
+import PKDGRAV as msr
+from PKDGRAV import OUT_TYPE
 import numpy as np
 
 # Parse parameters. Name and grid size are required; box size is optional
@@ -12,19 +11,15 @@ name=argv[1]
 dTau = float(argv[2])
 nMinMembers = 10 if len(argv)<4 else int(argv[3])
 
-msr = MSR()
-msr.setParameters(bFindGroups = True,bMemGlobalGid = True)
-
 # Load the file and setup the tree, then measure the power
-time = msr.Load(name)
-msr.DomainDecomp()
-msr.BuildTree()
+time = msr.load(name,bFindGroups = True,bMemGlobalGid = True)
+msr.domain_decompose()
+msr.build_tree()
 
-msr.Fof(dTau,nMinMembers)
-msr.Reorder()
+msr.fof(dTau,nMinMembers)
+msr.reorder()
 
 # Compare group assignments to some standard reference.
-msr.WriteArray(f"{name}.fof",113)  # 113 = GLOBAL Group ids
+msr.write_array(f"{name}.fof",OUT_TYPE.OUT_GLOBALGID_ARRAY)
 
-#b = msr.GetArray(field=17,time=1) # 17 = GLOBAL Group id (oGlobalGid)
-
+#b = msr.GetArray(field=msr.FIELD_GLOBAL_GID,time=time)

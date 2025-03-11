@@ -22,18 +22,18 @@
 template<int Order,typename F>
 class AssignmentWeights {
     template <int A, typename B> struct identity {};
-    void weights(identity<1,F> d, F r) {		// NGP
+    void weights(identity<0,F> d, F r) {		// NGP
     	i = floorf(r);
     	H[0] = 1.0;
 	}
-    void weights(identity<2,F> d, F r) {		// CIC
+    void weights(identity<1,F> d, F r) {		// CIC
 	F rr = r - 0.5;
 	i = floorf(rr);
 	F h = rr - i;
 	H[0] = 1.0 - h;
 	H[1] = h;
 	}
-    void weights(identity<3,F> d, F r) {		// TSC
+    void weights(identity<2,F> d, F r) {		// TSC
 	auto K0 = [](F h) { return 0.75 - h*h; };
 	auto K1 = [](F h) { return 0.50 * h*h; };
 	i = floorf(r) - 1;
@@ -42,7 +42,7 @@ class AssignmentWeights {
 	H[1] = K0(h);
 	H[2] = K1(0.5 + h);
 	}
-    void weights(identity<4,F> d, F r) {		// PCS
+    void weights(identity<3,F> d, F r) {		// PCS
 	auto pow3 = [](F x) { return x*x*x; };
 	auto K0   = [](F h) { return 1.0/6.0 * ( 4.0 - 6.0*h*h + 3.0*h*h*h); };
 	auto K1   = [&pow3](F h) { return 1.0/6.0 * pow3(2.0 - h); };
@@ -54,7 +54,7 @@ class AssignmentWeights {
 	H[3] = K1(3-h);
         }
 public:
-    F H[Order];
+    F H[Order+1];
     int i;
     AssignmentWeights(F r) { weights(identity<Order,F>(),r); }
     };
@@ -67,7 +67,7 @@ public:
 	    float win = M_PI * i / nGrid;
 	    if(win>0.1) win = win / sinf(win);
 	    else win=1.0 / (1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0)));
-	    push_back(powf(win,iAssignment));
+	    push_back(powf(win,iAssignment+1));
 	    }
 	}
     };

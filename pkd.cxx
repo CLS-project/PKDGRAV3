@@ -303,17 +303,26 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
     pkd->nBoxLC[l] = nBox;
 }
 
+void pkdContext::set_factor(std::uint32_t factor) {
+    assert(particles.Local() == 0); // Must be called before any particles are allocated
+    assert(tree.Nodes() == 0); // Must be called before any nodes are allocated
+    Integerize::set_factor(factor);
+    particles.set_factor(factor);
+    tree.set_factor(factor);
+}
+
 pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
                        const TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
-                       uint64_t mMemoryModel) : mdl(mdl),
+                       uint64_t mMemoryModel, uint32_t nIntegerFactor) : mdl(mdl),
     pLightCone(nullptr), pHealpixData(nullptr), csm(nullptr) {
     PARTICLE *p;
     uint32_t pi;
     int j,ism;
 
+    set_factor(nIntegerFactor);
     io_init(&afiLightCone,0,0,IO_AIO|IO_LIBAIO);
 
 #define RANDOM_SEED 1
@@ -349,7 +358,13 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     particles.initialize(this->bIntegerPosition,this->bNoParticleOrder);
 
-    if (!this->bIntegerPosition) particles.add<double[3]>(PKD_FIELD::oPosition,"r");
+    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"r");
+    else                        particles.add<double[3]>(PKD_FIELD::oPosition,"r");
+    if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
+        if (sizeof(vel_t) == sizeof(double)) particles.add<double[3]>(PKD_FIELD::oVelocity,"v");
+        else                                 particles.add<float[3]>(PKD_FIELD::oVelocity,"v");
+    }
+
     if ( mMemoryModel & PKD_MODEL_PARTICLE_ID ) particles.add<int64_t>(PKD_FIELD::oParticleID,"id");
     /*
     ** Add a global group id. This is used when outputing an array of particles with
@@ -357,46 +372,30 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** 64 bit integer.
     */
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
-    if ( mMemoryModel & PKD_MODEL_VELOCITY && sizeof(vel_t) == sizeof(double))
-        particles.add<double[3]>(PKD_FIELD::oVelocity,"v");
-    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"r");
-    if ( mMemoryModel & PKD_MODEL_SPH )
-#ifdef OPTIM_UNION_EXTRAFIELDS
-        particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
-#else
-        particles.add<meshless::FIELDS>(PKD_FIELD::oSph,"hydro");
-#endif
+
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
+        auto gas = particles.overlay(PKD_FIELD::oSph);
+        gas.add<meshless::FIELDS>(PKD_FIELD::oSph,"hydro");
+        if ( mMemoryModel & PKD_MODEL_MFV )
+            gas.add<meshless::MFV>(PKD_FIELD::oMFV,"mfv");
+    }
 
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
+    if ( mMemoryModel & PKD_MODEL_STRENGTH ) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr,"strength");
     if ( mMemoryModel & PKD_MODEL_STAR ) {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
-        // The star field is overlaid on the sph field
-        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oStar,"star",particles.offset(PKD_FIELD::oSph));
-#else
-        particles.add<meshless::STAR>(PKD_FIELD::oStar,"star");
-#endif
+        auto star = particles.overlay(PKD_FIELD::oSph); // Overlay the star field on the sph field
+        star.add<meshless::STAR>(PKD_FIELD::oStar,"star");
     }
 
 #ifdef BLACKHOLES
     if ( mMemoryModel & PKD_MODEL_BH ) {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-        if (!particles.present(PKD_FIELD::oSph)) particles.add<meshless::FIELDS,meshless::EXTRAFIELDS>(PKD_FIELD::oSph,"hydro");
-        // The blackhole field is overlaid on the sph field
-        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh",particles.offset(PKD_FIELD::oSph));
-#else
-        particles.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh");
-#endif
+        auto bh = particles.overlay(PKD_FIELD::oSph); // Overlay the blackhole field on the sph field
+        bh.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh");
     }
 #endif // BLACKHOLES
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
         particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth,"vsmooth");
-    if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
-        if (sizeof(vel_t) == sizeof(float)) {
-            particles.add<float[3]>(PKD_FIELD::oVelocity,"v");
-        }
-    }
     if ( mMemoryModel & PKD_MODEL_ACCELERATION )
         particles.add<float[3]>(PKD_FIELD::oAcceleration,"a");
 
@@ -406,9 +405,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_SOFTENING )
         particles.add<float>(PKD_FIELD::oSoft,"soft");
 
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
         particles.add<float>(PKD_FIELD::oBall,"ball");
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
         particles.add<float>(PKD_FIELD::oDensity,"rho");
 
     if ( (mMemoryModel & PKD_MODEL_GROUPS) && !this->bNoParticleOrder) {
@@ -418,7 +417,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_POTENTIAL ) {
         particles.add<float>(PKD_FIELD::oPotential,"phi");
     }
-    particles.align();
+    particles.commit();
 
     /*
     ** Tree node memory models
@@ -433,7 +432,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
         tree.add<Bound>(KDN_FIELD::oNodeVBnd,"vbnd");
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
         tree.add<double[3]>(KDN_FIELD::oNodeVelocity,"v");
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_BH) ) {
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_BH) ) {
 #ifdef OPTIM_REORDER_IN_NODES
         tree.add<int32_t>(KDN_FIELD::oNodeNgas,"ngas");
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
@@ -453,7 +452,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     if ( mMemoryModel & PKD_MODEL_NODE_MOMENT ) {
         tree.add<FMOMR>(KDN_FIELD::oNodeMom,"mom");
-        tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass",tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
+        auto moment = tree.overlay(KDN_FIELD::oNodeMom);
+        moment.add<mass_t>(KDN_FIELD::oNodeMass,"mass",offsetof(FMOMR,m));
+        // tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass",tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
     }
     else tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass");
 
@@ -470,7 +471,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
                 (uint64_t)tree.ElementSize(), (uint64_t)MaxNodeSize());
     }
     assert(tree.ElementSize()<=MaxNodeSize());
-    tree.align();
+    tree.commit();
 
     /*
     ** We need to allocate one large chunk of memory for:
@@ -599,9 +600,6 @@ int pkdContext::AddLocal(int n) {
 }
 
 pkdContext::~pkdContext() {
-    PARTICLE *p;
-    char **ppCList;
-    uint32_t pi;
     int ism;
 
     /*
@@ -699,12 +697,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     if (pkd->particles.present(PKD_FIELD::oStar)) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         auto p = pkd->particles[pkd->Local()];
-        pkd->particles.setClass(0,0,0,FIO_SPECIES_STAR,&p);
+        pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_STAR,&p);
     }
 #ifdef BLACKHOLES
     assert(pkd->particles.present(PKD_FIELD::oMass));
     auto p = pkd->particles[pkd->Local()];
-    pkd->particles.setClass(0,0,0,FIO_SPECIES_BH,&p);
+    pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_BH,&p);
 #endif
 
     // Protect against uninitialized values
@@ -736,6 +734,14 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             NewSph.u = NewSph.uDot = NewSph.divv = NewSph.Omega = 0.0;
         }
 
+        if (p.have_newsphstr()) {
+            auto &NewSphStr = p.newsphstr();
+            NewSphStr.Sxx = NewSphStr.Syy = NewSphStr.Sxy = NewSphStr.Sxz = NewSphStr.Syz = 0.0f;
+            NewSphStr.SDotxx = NewSphStr.SDotyy = NewSphStr.SDotxy = NewSphStr.SDotxz = NewSphStr.SDotyz = 0.0f;
+            NewSphStr.Spredxx = NewSphStr.Spredyy = NewSphStr.Spredxy = NewSphStr.Spredxz = NewSphStr.Spredyz = 0.0f;
+            NewSphStr.strainJ2 = 0.0f;
+        }
+
         /* Initialize Star fields if present */
         if (p.have_star()) {
             auto &Star = p.star();
@@ -752,10 +758,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                        &fDensity,&u,metals.data(),afSphOtherData);
             if (p.have_newsph()) {
                 fSoft = 1.0f; // Dummy value, because the field in the file is used as hSmooth
-                pkd->particles.setClass(fMass,fSoft,metals[0],eSpecies,&p);
+                pkd->particles.setClass(fMass,fSoft,metals[0] >= 0.0 ? metals[0] : -metals[0], metals[0] >= 0.0 ? 1.0 : 0.0,eSpecies,&p);
             }
             else {
-                pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
+                pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             }
             p.set_density(fDensity);
             if (p.have_newsph()) {
@@ -793,10 +799,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     Sph.lastAcc = 0.;
                     Sph.omega = 0.;
                     Sph.spheom = 0.;
-#ifndef USE_MFM
-                    Sph.lastDrDotFrho = 0.;
-                    Sph.drDotFrho = 0.;
-#endif
+                    if (p.have_mfv()) {
+                        auto &mfv = p.mfv();
+                        mfv.lastDrDotFrho = 0.;
+                        mfv.drDotFrho = 0.;
+                    }
                     //Sph.fLastBall = 0.0;
                     Sph.lastUpdateTime = -1.;
                     // Sph.nLastNeighs = 100;
@@ -816,7 +823,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             break;
         case FIO_SPECIES_DARK:
             fioReadDark(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,&fDensity);
-            pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
+            pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             p.set_density(fDensity);
             break;
         case FIO_SPECIES_STAR:
@@ -824,7 +831,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afStarOtherData[4];
             fioReadStar(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,&fDensity,
                         metals.data(),&fTimer,afStarOtherData);
-            pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
+            pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             p.set_density(fDensity);
             if (p.have_star()) {
                 auto &Star = p.star();
@@ -849,7 +856,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float otherData[3];
             fioReadBH(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,
                       &fDensity,otherData,&fTimer);
-            pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
+            pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             if (p.have_bh()) {
                 auto &BH = p.BH();
                 BH.omega  = 0.;
@@ -892,35 +899,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 }
 
 void pkdEnforcePeriodic(PKD pkd,Bound bnd) {
-    int i;
-#if defined(USE_SIMD) && defined(__SSE2__)
-    if (pkd->bIntegerPosition) {
-        __m128i period = _mm_set1_epi32 (INTEGER_FACTOR);
-        __m128i top = _mm_setr_epi32 ( (INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,0x7fffffff );
-        __m128i bot = _mm_setr_epi32 (-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-0x80000000 );
-
-        auto pPos = &pkd->particles.get<char>(pkd->Particle(0),PKD_FIELD::oPosition);
-        const int iSize = pkd->particles.ParticleSize();
-        for (i=0; i<pkd->Local(); ++i) {
-            __m128i v = _mm_loadu_si128((__m128i *)pPos);
-            __m128i *r = (__m128i *)pPos;
-            pPos += iSize;
-            _mm_prefetch(pPos,_MM_HINT_T0);
-            v = _mm_sub_epi32(_mm_add_epi32(v,_mm_and_si128(_mm_cmplt_epi32(v,bot),period)),
-                              _mm_and_si128(_mm_cmpgt_epi32(v,top),period));
-            /* The fourth field (not part of position) is not modified because of bot/top */
-            _mm_storeu_si128(r,v);
-            //  r[0] = _mm_extract_epi32 (v,0);
-            //  r[1] = _mm_extract_epi32 (v,1);
-            //  r[2] = _mm_extract_epi32 (v,2);
-        }
-    }
-    else
-#endif
-    {
-        for (auto &p : pkd->particles) {
-            p.set_position(bnd.wrap(p.position()));
-        }
+    for (auto &p : pkd->particles) {
+        p.set_position(bnd.wrap(p.position()));
     }
 }
 
@@ -1659,7 +1639,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
     // However, we add this in the header so it can be parsed by other tools
     fioSetAttr(fio, HDF5_HEADER_G, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
 
-    float fSoft = pkdSoft(pkd,pkd->Particle(0)); // we take any particle
+    float fSoft = pkd->particles[0].soft(); // we take any particle
     fioSetAttr(fio, HDF5_HEADER_G, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
 
     /*
@@ -2119,10 +2099,11 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 }
 
 void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bParticleOutput) {
-    const auto &v = pkd->particles.velocity(p);
+    auto P = pkd->particles[p];
+    const auto &v = P.velocity();
     if (pkd->afiLightCone.fd>0 && bParticleOutput) {
         LIGHTCONEP *pLC = pkd->pLightCone;
-        pLC[pkd->nLightCone].id = p->iOrder;
+        pLC[pkd->nLightCone].id = P.order();
         pLC[pkd->nLightCone].pos[0] = r[0];
         pLC[pkd->nLightCone].pos[1] = r[1];
         pLC[pkd->nLightCone].pos[2] = r[2];
@@ -2144,7 +2125,7 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
         assert(id<mdlThreads(pkd->mdl));
         assert(idx < pkd->nHealpixPerDomain);
         auto m = static_cast<healpixData *>(mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id));
-        if (pkdGetGroup(pkd,p)) {
+        if (P.group()) {
             if (m->nGrouped < 0xffffffffu) ++m->nGrouped; /* Increment with saturate */
         }
         else {
@@ -2161,7 +2142,7 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas) {
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas,int bGasEvolveDensity) {
     int i;
     TinyVector<double,3> rfinal,r0,dr;
     int pLower, pUpper;
@@ -2223,13 +2204,18 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
             for (i=pLower; i<=pUpper; ++i) {
                 auto p = pkd->particles[i];
                 const auto &v = p.velocity();
-                // if (p.is_gas()) {
-                // auto &NewSph = p.newsph();
-                // float dfBalldt = 1.0f / 3.0f * p.ball() * p.density() * NewSph.divv;
-                // p.set_ball(p.ball() + dDelta * dfBalldt);
-                // }
+                if (bGasEvolveDensity && p.is_gas()) {
+                    auto &NewSph = p.newsph();
+                    // float dfBalldt = 1.0f / 3.0f * p.ball() * p.density() * NewSph.divv;
+                    // p.set_ball(p.ball() + dDelta * dfBalldt);
+                    p.set_density(p.density() - dDelta * p.density() * NewSph.divv);
+                }
+
                 r0 = p.position();
                 p.set_position(rfinal = r0 + dDelta*v);
+                assert(isfinite(rfinal[0]));
+                assert(isfinite(rfinal[1]));
+                assert(isfinite(rfinal[2]));
                 dMin = min(dMin,rfinal);
                 dMax = max(dMax,rfinal);
             }
@@ -2285,9 +2271,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
     assert(pkd->particles.present(PKD_FIELD::oVelocity));
-#ifndef USE_MFM
-    assert(pkd->particles.present(PKD_FIELD::oMass));
-#endif
+    assert(pkd->particles.present(PKD_FIELD::oMass) || !pkd->particles.present(PKD_FIELD::oMFV));
 
     if (bComove) {
         dScaleFactor = csmTime2Exp(pkd->csm,in.dTime);
@@ -2562,14 +2546,6 @@ void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {  
     }
 }
 
-void pkdCountRungs(PKD pkd,uint64_t *nRungs) {
-    for (auto i=0; i<=MAX_RUNG; ++i) nRungs[i] = 0;
-    for (auto &p : pkd->particles) {
-        ++nRungs[p.rung()];
-    }
-    for (auto i=0; i<=MAX_RUNG; ++i) pkd->nRung[i] = nRungs[i];
-}
-
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                   double dDelta, int iMaxRung,
                   double dEta,double dVelFac,double dAccFac,
@@ -2744,7 +2720,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
     /* p.iOrder = -2 - p.iOrder; JW: Not needed -- just preserve iOrder */
     int pSpecies = p.species();
-    p.set_class(0.0,0.0,0,FIO_SPECIES_UNKNOWN); /* Special "DELETED" class == FIO_SPECIES_UNKNOWN */
+    p.set_class(0.0,0.0,0,1.0,FIO_SPECIES_UNKNOWN); /* Special "DELETED" class == FIO_SPECIES_UNKNOWN */
 
     // IA: We copy the last particle into this position, the tree will no longer be valid!!!
     //
@@ -2785,21 +2761,6 @@ void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
     p.set_marked(false);
     p.set_rung(0);
     p.set_new_rung(0);
-}
-
-/* IA: We replace the deleted particles with those at the end of the particle array (which are still valid), making the tree
- *  no longer usable, unless *extreme* care is taken.
- *
- *  We also update the number of particles in the master level, assuming that the values in PKD are correct (i.e., pkdDeleteParticle was called correctly)
- */
-void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH) {
-    auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return !p.is_deleted();});
-    pkd->SetLocal(i - pkd->particles.begin());
-    *n  = pkd->Local();
-    *nGas = pkd->nGas;
-    *nDark = pkd->nDark;
-    *nStar = pkd->nStar;
-    *nBH = pkd->nBH;
 }
 
 void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
@@ -2872,28 +2833,6 @@ void pkdNewOrder(PKD pkd,int nStart) {
             p->iOrder = nStart++;
         }
     }
-}
-
-/// @brief Count the number of each species of particle
-void pkdGetNParts(PKD pkd, struct outGetNParts *out ) {
-    TinyVector<int,FIO_SPECIES_LAST> counts = 0;
-    total_t iMaxOrder = 0;
-    // Loop over all particles and accumulate counts for each species.
-    // Also keep track of the maximum iOrder found.
-    std::for_each(pkd->particles.begin(),pkd->particles.end(),
-    [&counts,&iMaxOrder](auto &p) {
-        iMaxOrder = std::max(iMaxOrder,p.order());
-        ++counts[p.species()];
-    });
-
-    out->n     = blitz::sum(counts);
-    out->nGas  = counts[FIO_SPECIES_SPH];
-    out->nDark = counts[FIO_SPECIES_DARK];
-    out->nStar = counts[FIO_SPECIES_STAR];
-    out->nBH   = counts[FIO_SPECIES_BH];
-    out->nMaxOrder = iMaxOrder;
-
-    pkdSetNParts(pkd, out->nGas, out->nDark, out->nStar, out->nBH);
 }
 
 void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar, int nBH) {
@@ -2999,6 +2938,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
     int doUConversion = SPHoptions->doUConversion;
     if (SPHoptions->doUConversion) {
         for (auto &p : pkd->particles) {
+            if (!pkdIsGas(pkd, &p)) continue;
             auto &NewSph = p.newsph();
             NewSph.u = SPHEOSUofRhoT(pkd,p.density(),NewSph.u,p.imaterial(),SPHoptions);
             NewSph.oldRho = p.density();
@@ -3007,8 +2947,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
     if (doUConversion) SPHoptions->doUConversion = 0;
     for (auto &p : pkd->particles) {
         if (SPHoptions->useDensityFlags && p.rung() < SPHoptions->nPredictRung && !p.marked()) continue;
-        auto &NewSph = p.newsph();
-        SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, &NewSph.P, &NewSph.cs, &NewSph.T, SPHoptions);
+        SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, SPHoptions);
     }
     if (doUConversion) SPHoptions->doUConversion = 1;
 }
@@ -3017,7 +2956,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
 ** Initialize the EOS tables
 */
 void pkdInitializeEOS(PKD pkd) {
-    auto materials = pkd->particles.getMaterials();
+    auto materials = pkd->particles.getMaterials(true);
     for (auto iMat : materials) {
         if (iMat == 0 && pkd->SPHoptions.useBuiltinIdeal) {
             // Nothing to do
@@ -3030,15 +2969,21 @@ void pkdInitializeEOS(PKD pkd) {
                     param.dConstGamma = pkd->SPHoptions.gamma;
                     param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
                     pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, &param);
-                    if (pkd->SPHoptions.useIsentropic) {
-                        EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
-                    }
                 }
                 else {
                     pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, NULL);
-                    if (pkd->SPHoptions.useIsentropic) {
-                        EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
+                }
+                if (pkd->SPHoptions.useIsentropic) {
+                    EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
+                }
+                if (pkd->SPHoptions.doShearStrengthModel && (EOSYieldModel(pkd->materials[iMat]) < 0)) {
+                    if (EOSYieldModel(pkd->materials[iMat]) == -1) {
+                        printf("Yield strength was requested but material %d has no or faulty parameters.",iMat);
                     }
+                    else if (EOSYieldModel(pkd->materials[iMat]) == -2) {
+                        printf("Yield strength was requested but for material %d this is not implemented yet.",iMat);
+                    }
+                    assert(0);
                 }
             }
 #else

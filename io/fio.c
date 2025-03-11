@@ -86,7 +86,6 @@ typedef struct xdr_struct {
 #define xdr_float(xdr,d)(((xdr)->fn_float)((xdr),(d)))
 #define xdr_u_int(xdr,d)(((xdr)->fn_u_int)((xdr),(d)))
 
-
 #define XDR_WRITE(N,T)              \
     static int xdr_write_##N(XDR *xdr, T *v) {  \
     int n = sizeof(T);          \
@@ -207,7 +206,6 @@ static int safe_fseek(FILE *fp,uint64_t lStart) {
     return 0;
 #endif
 }
-
 
 static void fileScanFree(fioFileList *list) {
     if (list->fileInfo) {
@@ -800,7 +798,6 @@ static uint64_t tipsyParticle(uint64_t iByte,uint64_t nHdrSize,
     return iPart;
 }
 
-
 /*
 ** Calculate the absolute offset of a given particle in a Tipsy file.
 */
@@ -1058,7 +1055,6 @@ static int tipsyReadNativeSph(
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
 }
-
 
 static int tipsyWriteNativeSph(
     struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
@@ -1447,7 +1443,6 @@ static void tipsySussHeader(
     }
     *dTime = h->dTime;
 }
-
 
 /*
 ** Read the header and detect native or standard
@@ -1842,7 +1837,6 @@ typedef union {
     char padding[256];
 } gadgetHdrBlk;
 
-
 typedef struct {
     struct fioInfo fio;
     gadgetHdr hdr;
@@ -1866,16 +1860,18 @@ static int gadgetGetAttr(FIO fio, const int headerType,
 
     assert(fio->eFormat == FIO_FORMAT_GADGET2 && fio->eMode==FIO_MODE_READING);
 
-    if ( strcmp(attr,"dTime")==0 ) v = gio->hdr.Time;
-    else if ( strcmp(attr,"dOmega0")==0 ) v = gio->hdr.Omega0;
-    else if ( strcmp(attr,"dLambda")==0 ) v = gio->hdr.OmegaLambda;
-    else if ( strcmp(attr,"dBoxSize")==0 ) v = gio->hdr.BoxSize;
-    else if ( strcmp(attr,"h")==0 ) v = gio->hdr.HubbleParam;
+    if ( strcmp(attr,"Time")==0 ) v = gio->hdr.Time;
+    else if ( strcmp(attr,"Omega_m")==0 ) v = gio->hdr.Omega0;
+    else if ( strcmp(attr,"Omega_Lambda")==0 ) v = gio->hdr.OmegaLambda;
+    else if ( strcmp(attr,"BoxSize")==0 ) v = gio->hdr.BoxSize;
+    else if ( strcmp(attr,"HubbleParam")==0 ) v = gio->hdr.HubbleParam;
+    else if ( strcmp(attr,"NumFilesPerSnapshot")==0 ) v = gio->hdr.NumFiles;
     else return 0;
 
     switch (dataType) {
     case FIO_TYPE_FLOAT: *(float *)(data) = v; break;
     case FIO_TYPE_DOUBLE:*(double *)(data) = v; break;
+    case FIO_TYPE_UINT32:*(uint32_t *)(data) = (uint32_t)v; break;
     default: return 0;
     }
 
@@ -1888,7 +1884,7 @@ static enum FIO_SPECIES gadgetSpecies(struct fioInfo *fio) {
 }
 
 static void byteSwap(void *pvData,size_t size, size_t nmemb) {
-    char c,*pData = (char *)pvData;
+    char c, *pData = (char *)pvData;
     size_t n = size >> 1;
     int i,j;
 
@@ -2401,7 +2397,6 @@ static FIO gadgetOpenOne(const char *fname,int iFile) {
     if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return NULL;
     if (w2 != w1) return NULL;
 
-
     if (w1==256) gio->hdr = blk.hdr;
     else {
         for (i=0; i<GADGET2_NTYPES; ++i) {
@@ -2532,7 +2527,6 @@ static FIO gadgetOpenOne(const char *fname,int iFile) {
     gio->fio.fcnGetAttr  = gadgetGetAttr;
     gio->fio.fcnSpecies  = gadgetSpecies;
 
-
     return &gio->fio;
 }
 
@@ -2602,7 +2596,6 @@ static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
         rc = H5Pset_fletcher32( dataProperties ); assert(rc>=0);
     }
 
-
     /* And the dataspace */
     iDims[0] = count;
     iDims[1] = nDims;
@@ -2647,7 +2640,6 @@ static void readSet(
     rc = H5Sclose(memSpace); assert(rc>=0);
     rc = H5Sclose(diskSpace); assert(rc>=0);
 }
-
 
 /* Add an attribute to a group */
 static int writeAttribute( hid_t groupID, const char *name,
@@ -2766,7 +2758,6 @@ static void writeSet(
 #define FIELD_ENRICHTIME  "LastEnrichTime"
 #define FIELD_SNEFFICIENCY "FeedbackEfficiency"
 
-
 #define FIELD_ORDER      "ParticleIDs"
 #define FIELD_CLASS      "class"
 #define FIELD_CLASSES    "classes"
@@ -2846,7 +2837,6 @@ enum BH_FIEDS {
     BH_N,
 };
 
-
 typedef struct {
     double v[3];
 } ioHDF5V3;
@@ -2911,7 +2901,6 @@ typedef struct {
     IOBASE base[FIO_SPECIES_LAST];
 } fioHDF5;
 
-
 const char *fioSpeciesName(enum FIO_SPECIES eSpecies) {
     switch (eSpecies) {
     case FIO_SPECIES_DARK: return "PartType1";
@@ -2923,8 +2912,6 @@ const char *fioSpeciesName(enum FIO_SPECIES eSpecies) {
     }
     return NULL;
 }
-
-
 
 static hid_t fio2hdf(FIO_TYPE dataType,fioHDF5 *hio) {
     switch (dataType) {
@@ -3082,7 +3069,6 @@ static hid_t makeClassType(hid_t floatType, int bStart) {
     return tid;
 }
 
-
 static void class_flush(IOCLASS *ioClass,hid_t group_id) {
     hid_t tid, set;
 
@@ -3239,7 +3225,6 @@ static void class_close(IOCLASS *ioClass) {
     field_close(&ioClass->fldMass);
     field_close(&ioClass->fldSoft);
 }
-
 
 static void class_get(float *pfMass,float *pfSoft,IOCLASS *ioClass,PINDEX iOrder,uint_fast32_t iIndex) {
     uint8_t iClass;
@@ -3402,7 +3387,6 @@ static int hdf5GetAttr(
         abort();
     }
 
-
     H5Eget_auto(&save_func,&save_data);
     H5Eset_auto(0,0);
 
@@ -3442,7 +3426,6 @@ static int hdf5SetAttr(
         printf("Not valid headerType\n");
         abort();
     }
-
 
     rc = writeAttribute(*groupID,attr,fio2hdf(dataType,hio), size, data);
 
@@ -3491,7 +3474,6 @@ static void hdf5Close(FIO fio) {
     H5Tclose(hio->fp16leType);
     free(hio);
 }
-
 
 static int hdf5Seek(FIO fio,uint64_t iPart,enum FIO_SPECIES eSpecies) {
     fioHDF5 *hio = (fioHDF5 *)fio;
@@ -3553,7 +3535,6 @@ static int base_write(IOBASE *base) {
     base->iIndex = base->nBuffered = 0;
     return 1;
 }
-
 
 static void base_create(fioHDF5 *hio,IOBASE *base,int iSpecies,int nFields,uint64_t iOrder) {
     hid_t posType, velType;
@@ -3925,7 +3906,6 @@ static int hdf5WriteSph(
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_WRITING);
 
-
 #ifdef STAR_FORMATION
     float fSFR = pfOtherData[0];
 #endif
@@ -4068,7 +4048,6 @@ static int hdf5WriteStar(
         field_add_float(&fSNEfficiency,&base->fldFields[STAR_SNEFFICIENCY],base->iIndex);
     }
 #endif
-
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {
@@ -4370,7 +4349,6 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
     hio->fio.fcnGetAttr  = hdf5GetAttr;
     hio->fio.fcnSetAttr  = hdf5SetAttr;
     hio->fio.fcnSpecies  = hdf5Species;
-
 
     return &hio->fio;
 }
@@ -4715,7 +4693,6 @@ int graficOpenFiles(fioGrafic *gio, char *fileName, const char *dirName) {
 
     return 1;
 }
-
 
 static void graficCloseFile(graficFile *gf) {
     if ( gf->fp!=NULL ) fclose(gf->fp);
@@ -5172,7 +5149,6 @@ static double getOmega(double a,double H0,double omegam,double omegav) {
     return omegam * H0*H0 / ( pow(getH(a,H0,omegam,omegav),2.0) * a * a * a );
 }
 
-
 static enum FIO_SPECIES graficSpecies(FIO fio) {
     fioGrafic *gio = (fioGrafic *)fio;
     assert(fio->eFormat == FIO_FORMAT_GRAFIC && fio->eMode==FIO_MODE_READING);
@@ -5234,7 +5210,6 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
     gio->level[0].fp_velbx.data.pFloat = gio->level[0].fp_velby.data.pFloat = gio->level[0].fp_velbz.data.pFloat = NULL;
     gio->level[0].fp_velbx2.data.pFloat = gio->level[0].fp_velby2.data.pFloat = gio->level[0].fp_velbz2.data.pFloat = NULL;
     gio->level[0].fp_posbx.data.pFloat = gio->level[0].fp_posby.data.pFloat = gio->level[0].fp_posbz.data.pFloat = NULL;
-
 
     for ( i=0; i<=FIO_SPECIES_LAST; i++)
         gio->fio.nSpecies[i] = 0;
@@ -5380,9 +5355,6 @@ static FIO openMany(fioFileList *fileList, double dOmega0,double dOmegab, int bR
     return fio;
 }
 
-
-
-
 /* Attempt to determinate the file type by examining it */
 FIO fioOpenMany(int nFiles, const char *const *fileNames,
                 double dOmega0,double dOmegab) {
@@ -5455,5 +5427,3 @@ FIO fioLoad(void *pBuffer,double dOmega0,double dOmegab) {
 
     return openMany(&fileList,dOmega0,dOmegab,1);
 }
-
-

@@ -83,6 +83,76 @@ static inline float rsqrtf(float v) {
     }
 
 static void reQueueDensity( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU);
+
+static void calcSDot(PINFOIN pInfoIn, PINFOOUT pInfoOut, float Gamma, float *SDotxx, float *SDotyy, float *SDotxy, float *SDotxz, float *SDotyz, float *strainJ2Dot) {
+    // This is all done in double precision
+    double Cxx, Cxy, Cxz, Cyx, Cyy, Cyz, Czx, Czy, Czz;
+
+    double Dxx = double(pInfoOut.Cinvxx);
+    double Dxy = double(pInfoOut.Cinvxy);
+    double Dxz = double(pInfoOut.Cinvxz);
+    double Dyx = double(pInfoOut.Cinvyx);
+    double Dyy = double(pInfoOut.Cinvyy);
+    double Dyz = double(pInfoOut.Cinvyz);
+    double Dzx = double(pInfoOut.Cinvzx);
+    double Dzy = double(pInfoOut.Cinvzy);
+    double Dzz = double(pInfoOut.Cinvzz);
+
+    double det = Dxx * Dyy * Dzz - Dxx * Dyz * Dzy - Dxy * Dyx * Dzz + Dxy * Dyz * Dzx + Dxz * Dyx * Dzy - Dxz * Dyy * Dzx;
+
+    if (det != 0.0) {
+        det = 1.0 / det;
+        Cxx = det * (Dyy * Dzz - Dyz * Dzy);
+        Cxy = det * (Dxz * Dzy - Dxy * Dzz);
+        Cxz = det * (Dxy * Dyz - Dxz * Dyy);
+        Cyx = det * (Dyz * Dzx - Dyx * Dzz);
+        Cyy = det * (Dxx * Dzz - Dxz * Dzx);
+        Cyz = det * (Dxz * Dyx - Dxx * Dyz);
+        Czx = det * (Dyx * Dzy - Dyy * Dzx);
+        Czy = det * (Dxy * Dzx - Dxx * Dzy);
+        Czz = det * (Dxx * Dyy - Dxy * Dyx);
+    }
+    else {
+        Cxx = 1.0;
+        Cyy = 1.0;
+        Czz = 1.0;
+        Cxy = Cxz = Cyx = Cyz = Czx = Czy = 0.0;
+    }
+
+    double Fxx = double(pInfoOut.dvxdx);
+    double Fxy = double(pInfoOut.dvxdy);
+    double Fxz = double(pInfoOut.dvxdz);
+    double Fyx = double(pInfoOut.dvydx);
+    double Fyy = double(pInfoOut.dvydy);
+    double Fyz = double(pInfoOut.dvydz);
+    double Fzx = double(pInfoOut.dvzdx);
+    double Fzy = double(pInfoOut.dvzdy);
+    double Fzz = double(pInfoOut.dvzdz);
+
+    double Gxx = Fxx * Cxx + Fxy * Cyx + Fxz * Czx;
+    double Gxy = Fxx * Cxy + Fxy * Cyy + Fxz * Czy;
+    double Gxz = Fxx * Cxz + Fxy * Cyz + Fxz * Czz;
+    double Gyx = Fyx * Cxx + Fyy * Cyx + Fyz * Czx;
+    double Gyy = Fyx * Cxy + Fyy * Cyy + Fyz * Czy;
+    double Gyz = Fyx * Cxz + Fyy * Cyz + Fyz * Czz;
+    double Gzx = Fzx * Cxx + Fzy * Cyx + Fzz * Czx;
+    double Gzy = Fzx * Cxy + Fzy * Cyy + Fzz * Czy;
+    double Gzz = Fzx * Cxz + Fzy * Cyz + Fzz * Czz;
+
+    double Sxx = double(pInfoIn.Sxx);
+    double Syy = double(pInfoIn.Syy);
+    double Sxy = double(pInfoIn.Sxy);
+    double Sxz = double(pInfoIn.Sxz);
+    double Syz = double(pInfoIn.Syz);
+
+    *SDotxx = float(Sxy * (Gyx - Gxy) + Sxz * (Gzx - Gxz) - 2.0 / 3.0 * Gamma * (Gyy + Gzz - 2.0 * Gxx));
+    *SDotyy = float(Sxy * (Gxy - Gyx) + Syz * (Gzy - Gyz) - 2.0 / 3.0 * Gamma * (Gxx + Gzz - 2.0 * Gyy));
+    *SDotxy = float(Gamma * (Gxy + Gyx) + 0.5 * (Sxx * (Gxy - Gyx) + Syy * (Gyx - Gxy) + Syz * (Gzx - Gxz) + Sxz * (Gzy - Gyz)));
+    *SDotxz = float(Gamma * (Gxz + Gzx) + 0.5 * ((Sxx + Syy) * (Gxz - Gzx) + Sxx * (Gxz - Gzx) + Syz * (Gyx - Gxy) + Sxy * (Gyz - Gzy)));
+    *SDotyz = float(Gamma * (Gyz + Gzy) + 0.5 * ((Sxx + Syy) * (Gyz - Gzy) + Sxz * (Gxy - Gyx) + Sxy * (Gxz - Gzx) + Syy * (Gyz - Gzy)));
+    *strainJ2Dot = float(0.5 * (Gxx * Gxx + Gyy * Gyy + Gzz * Gzz) + 0.25 * ((Gxy + Gyx) * (Gxy + Gyx) + (Gxz + Gzx) * (Gxz + Gzx) + (Gyz + Gzy) * (Gyz + Gzy)));
+};
+
 /*
 ** This is called after work has been done for this particle group.
 ** If everyone has finished, then the particle is updated.
@@ -99,13 +169,8 @@ void pkdParticleWorkDone(workParticle *wp) {
             float maxkerneldeviation = 0.0f;
             // calculate maximum kernel mass deviation
             for (int i=0; i<wp->nP; i++) {
-                float kerneldeviation = 0.0f;
-                if (wp->SPHoptions->useNumDen) {
-                    kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
-                }
-                else {
-                    kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
-                }
+                if (!pkdIsGas(pkd, wp->pPart[i])) continue;
+                float kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
                 if (wp->pInfoIn[i].isTooLarge) {
                     kerneldeviation = 0.0f;
                 }
@@ -120,17 +185,11 @@ void pkdParticleWorkDone(workParticle *wp) {
             if (maxkerneldeviation/wp->SPHoptions->fKernelTarget > 1e-4f) {
                 // do another loop
                 for (int i=0; i<wp->nP; i++) {
+                    if (!pkdIsGas(pkd, wp->pPart[i])) continue;
                     float prefac = 4.0f/3.0f*M_PI;
                     float fBall = wp->pInfoIn[i].fBall;
-                    float fx, dfdx;
-                    if (wp->SPHoptions->useNumDen) {
-                        fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
-                        dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].nden + prefac * fBall * fBall * fBall * wp->pInfoOut[i].dndendfball;
-                    }
-                    else {
-                        fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
-                        dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
-                    }
+                    float fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
+                    float dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].nden + prefac * fBall * fBall * fBall * wp->pInfoOut[i].dndendfball;
                     float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
                     if (fabsf(newfBall) >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
                         wp->pInfoIn[i].fBall = wp->SPHoptions->ballSizeLimit;
@@ -153,8 +212,7 @@ void pkdParticleWorkDone(workParticle *wp) {
             }
             for ( int i=0; i<wp->nP; i++ ) {
                 // save the new fBall for each particle
-                wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
-                // wp->pInfoOut[i].fBall = wp->pInfoOut[i].nSmooth;
+                if (pkdIsGas(pkd, wp->pPart[i])) wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
             }
         }
 
@@ -174,10 +232,12 @@ void pkdParticleWorkDone(workParticle *wp) {
             p = pkd->particles[wp->pPart[i]];
             // pkd->CopyParticle(p,wp->pPart[i]);
 
-            if (p.have_newsph()) {
+            if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                 auto &NewSph = p.newsph();
                 if (wp->SPHoptions->doDensity) {
-                    p.set_density(wp->pInfoOut[i].rho);
+                    if (!wp->SPHoptions->evolveDensity) {
+                        p.set_density(wp->pInfoOut[i].rho);
+                    }
                     p.set_ball(wp->pInfoOut[i].fBall);
                     if (wp->pInfoIn[i].fBall < wp->SPHoptions->ballSizeLimit) {
                         NewSph.Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
@@ -195,7 +255,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         NewSph.oldRho = p.density();
                     }
                     if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &NewSph.P, &NewSph.cs, &NewSph.T, wp->SPHoptions);
+                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, wp->SPHoptions);
                     }
                 }
                 if (wp->SPHoptions->doDensityCorrection) {
@@ -213,6 +273,16 @@ void pkdParticleWorkDone(workParticle *wp) {
                     }
                     else {
                         NewSph.uDot = wp->pInfoOut[i].uDot;
+                    }
+                    if (wp->SPHoptions->doShearStrengthModel) {
+                        auto &NewSphStr = p.newsphstr();
+                        float vpred[3];
+                        float P;
+                        float cs;
+                        float T;
+                        SPHpredictOnTheFly(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, vpred, &P, &cs, &T, NULL, NULL, NULL, NULL, NULL, wp->SPHoptions);
+                        float Gamma = SPHEOSGammaofRhoT(pkd, wp->pInfoIn[i].rho, T, p.imaterial(), wp->SPHoptions);
+                        calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz, &wp->pInfoOut[i].strainJ2Dot);
                     }
                 }
             }
@@ -287,22 +357,42 @@ void pkdParticleWorkDone(workParticle *wp) {
                         if (wp->SPHoptions->doGravity) {
                             dT = std::min(dT, fEta*asqrtf(p.soft()*imaga));
                         }
-                        else if (p.have_newsph()) {
+                        else if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                             dT = std::min(dT, fEta*asqrtf(0.5f * p.ball() * imaga));
                         }
                     }
                 }
 
                 // Courant criterium
-                if (p.have_newsph()) {
+                if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                     dT = std::min(dT, wp->pInfoOut[i].dtEst);
                 }
 
                 // Timestep criterion on the internal energy
-                if (wp->SPHoptions->EtauDot > 0.0f && p.have_newsph()) {
+                if (wp->SPHoptions->EtauDot > 0.0f && p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                     auto &NewSph = p.newsph();
                     if (fabsf(NewSph.u) > 0.0f && fabsf(NewSph.uDot) > 0.0f) {
                         dT = std::min(dT, wp->SPHoptions->EtauDot * fabsf(NewSph.u/NewSph.uDot));
+                    }
+                }
+
+                // Timestep criterion on the deviatoric stress
+                if (wp->SPHoptions->EtaSdot > 0.0f && p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
+                    auto &NewSphStr = p.newsphstr();
+                    if (fabsf(NewSphStr.Sxx) > 0.0f && fabsf(NewSphStr.SDotxx) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Sxx) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotxx));
+                    }
+                    if (fabsf(NewSphStr.Syy) > 0.0f && fabsf(NewSphStr.SDotyy) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Syy) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotyy));
+                    }
+                    if (fabsf(NewSphStr.Sxy) > 0.0f && fabsf(NewSphStr.SDotxy) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Sxy) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotxy));
+                    }
+                    if (fabsf(NewSphStr.Sxz) > 0.0f && fabsf(NewSphStr.SDotxz) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Sxz) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotxz));
+                    }
+                    if (fabsf(NewSphStr.Syz) > 0.0f && fabsf(NewSphStr.SDotyz) > 0.0f) {
+                        dT = std::min(dT, wp->SPHoptions->EtaSdot * (fabsf(NewSphStr.Syz) + wp->SPHoptions->timeStepSmin)/fabsf(NewSphStr.SDotyz));
                     }
                 }
 
@@ -313,7 +403,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 
                 // Limit rung such that it only differs by a maximum of nRungCorrection from those it is interacting with
                 // See doi:10.1088/0004-637X/697/2/L99 for an explanation
-                if (p.have_newsph()) {
+                if (p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
                     uNewRung = std::max(std::max((int)uNewRung, (int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection), 0);
                 }
 
@@ -342,10 +432,10 @@ void pkdParticleWorkDone(workParticle *wp) {
                 if (pkd->particles.present(PKD_FIELD::oVelocity)) {
                     auto &v = p.velocity();
                     if (wp->kick && wp->kick->bKickClose) {
-                        v[0] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[0];
-                        v[1] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[1];
-                        v[2] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[2];
-                        if (wp->SPHoptions->doSPHForces) {
+                        v[0] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[0] * p.accFac();
+                        v[1] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[1] * p.accFac();
+                        v[2] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[2] * p.accFac();
+                        if (wp->SPHoptions->doSPHForces && pkdIsGas(pkd, wp->pPart[i])) {
                             auto &NewSph = p.newsph();
                             if (wp->SPHoptions->useIsentropic) {
                                 NewSph.u = SPHEOSIsentropic(pkd,NewSph.oldRho,NewSph.u,p.density(),p.imaterial(),wp->SPHoptions);
@@ -354,6 +444,16 @@ void pkdParticleWorkDone(workParticle *wp) {
                             NewSph.u += wp->kick->dtClose[p.rung()] * NewSph.uDot;
                             if (!wp->SPHoptions->doOnTheFlyPrediction && !wp->SPHoptions->doConsistentPrediction) {
                                 NewSph.P = SPHEOSPCTofRhoU(pkd,p.density(),NewSph.u,&NewSph.cs,&NewSph.T,p.imaterial(),wp->SPHoptions);
+                            }
+                            if (wp->SPHoptions->doShearStrengthModel) {
+                                auto &NewSphStr = p.newsphstr();
+                                NewSphStr.Sxx += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxx;
+                                NewSphStr.Syy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyy;
+                                NewSphStr.Sxy += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxy;
+                                NewSphStr.Sxz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotxz;
+                                NewSphStr.Syz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyz;
+                                SPHEOSApplyStrengthLimiter(pkd, p.density(), NewSph.u, p.imaterial(), &NewSphStr.Sxx, &NewSphStr.Syy, &NewSphStr.Sxy, &NewSphStr.Sxz, &NewSphStr.Syz, wp->SPHoptions);
+                                NewSphStr.strainJ2 += wp->kick->dtClose[p.rung()] * wp->pInfoOut[i].strainJ2Dot;
                             }
                         }
                     }
@@ -375,12 +475,21 @@ void pkdParticleWorkDone(workParticle *wp) {
                             v[1] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
                             v[2] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
                         }
-                        v[0] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[0];
-                        v[1] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[1];
-                        v[2] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[2];
-                        if (wp->SPHoptions->doSPHForces) {
+                        v[0] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[0] * p.accFac();
+                        v[1] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[1] * p.accFac();
+                        v[2] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[2] * p.accFac();
+                        if (wp->SPHoptions->doSPHForces && pkdIsGas(pkd, wp->pPart[i])) {
                             auto &NewSph = p.newsph();
                             NewSph.u += wp->kick->dtOpen[p.rung()] * NewSph.uDot;
+                            if (wp->SPHoptions->doShearStrengthModel) {
+                                auto &NewSphStr = p.newsphstr();
+                                NewSphStr.Sxx += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxx;
+                                NewSphStr.Syy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyy;
+                                NewSphStr.Sxy += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxy;
+                                NewSphStr.Sxz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxz;
+                                NewSphStr.Syz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyz;
+                                NewSphStr.strainJ2 += wp->kick->dtOpen[p.rung()] * wp->pInfoOut[i].strainJ2Dot;
+                            }
                         }
                         /*
                         ** On KickOpen we also always check for intersection with the lightcone
@@ -503,7 +612,6 @@ static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU=t
 
 static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
     double dOmega, f;
-    double r[3];
 
     if (wp->ts->dTime < wp->SPHoptions->CentrifugalT0) {
         return;
@@ -517,7 +625,8 @@ static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
 
     f = dOmega * dOmega;
     for (int i=0; i< wp->nP; i++) {
-        pkdGetPos1(pkd,wp->pPart[i],r);
+        auto P = pkd->particles[wp->pPart[i]];
+        auto r = P.position();
         wp->pInfoOut[i].a[0] += f * r[0];
         wp->pInfoOut[i].a[1] += f * r[1];
     }
@@ -726,13 +835,13 @@ int pkdGravInteract(PKD pkd,
 
         if (p.have_newsph()) {
             const auto &NewSph = p.newsph();
-            wp->pInfoIn[nP].fBall = p.ball();
+            wp->pInfoIn[nP].fBall = pkdIsGas(pkd, &p) ? p.ball() : 1.0f;
             wp->pInfoIn[nP].isTooLarge = 0;
-            wp->pInfoIn[nP].Omega = NewSph.Omega;
+            wp->pInfoIn[nP].Omega = pkdIsGas(pkd, &p) ? NewSph.Omega : 1.0f;
             wp->pInfoIn[nP].iMat = p.imaterial();
-            SPHpredictOnTheFly(pkd, p, kick, wp->SPHoptions->nPredictRung, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, SPHoptions);
-            wp->pInfoIn[nP].rho = p.density();
-            wp->pInfoIn[nP].species = p.species();
+            SPHpredictOnTheFly(pkd, p, kick, wp->SPHoptions->nPredictRung, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, &wp->pInfoIn[nP].Sxx, &wp->pInfoIn[nP].Syy, &wp->pInfoIn[nP].Sxy, &wp->pInfoIn[nP].Sxz, &wp->pInfoIn[nP].Syz, SPHoptions);
+            wp->pInfoIn[nP].rho = pkdIsGas(pkd, &p) ? p.density() : 1.0f;
+            wp->pInfoIn[nP].isGas = pkdIsGas(pkd, &p) ? 1.0f : 0.0f;
 
             wp->pInfoOut[nP].rho = 0.0f;
             wp->pInfoOut[nP].drhodfball = 0.0f;
@@ -750,6 +859,26 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].corrT = 0.0f;
             wp->pInfoOut[nP].corrP = 0.0f;
             wp->pInfoOut[nP].corr = 0.0f;
+            if (SPHoptions->doShearStrengthModel) {
+                wp->pInfoOut[nP].dvxdx = 0.0f;
+                wp->pInfoOut[nP].dvxdy = 0.0f;
+                wp->pInfoOut[nP].dvxdz = 0.0f;
+                wp->pInfoOut[nP].dvydx = 0.0f;
+                wp->pInfoOut[nP].dvydy = 0.0f;
+                wp->pInfoOut[nP].dvydz = 0.0f;
+                wp->pInfoOut[nP].dvzdx = 0.0f;
+                wp->pInfoOut[nP].dvzdy = 0.0f;
+                wp->pInfoOut[nP].dvzdz = 0.0f;
+                wp->pInfoOut[nP].Cinvxx = 0.0f;
+                wp->pInfoOut[nP].Cinvxy = 0.0f;
+                wp->pInfoOut[nP].Cinvxz = 0.0f;
+                wp->pInfoOut[nP].Cinvyx = 0.0f;
+                wp->pInfoOut[nP].Cinvyy = 0.0f;
+                wp->pInfoOut[nP].Cinvyz = 0.0f;
+                wp->pInfoOut[nP].Cinvzx = 0.0f;
+                wp->pInfoOut[nP].Cinvzy = 0.0f;
+                wp->pInfoOut[nP].Cinvzz = 0.0f;
+            }
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;
@@ -866,6 +995,13 @@ int pkdGravInteract(PKD pkd,
         if (SPHoptions->doCentrifugal) {
             addCentrifugalAcceleration(pkd, wp);
         }
+        if (wp->SPHoptions->doExternalAcceleration) {
+            for (int i=0; i< wp->nP; i++) {
+                wp->pInfoOut[i].a[0] += wp->SPHoptions->externalAccelerationX;
+                wp->pInfoOut[i].a[1] += wp->SPHoptions->externalAccelerationY;
+                wp->pInfoOut[i].a[2] += wp->SPHoptions->externalAccelerationZ;
+            }
+        }
     }
 
     if (SPHoptions->doGravity) {
@@ -885,8 +1021,6 @@ int pkdGravInteract(PKD pkd,
             r[0] = c[0] + in[0];
             r[1] = c[1] + in[1];
             r[2] = c[2] + in[2];
-            //p = wp->pPart[i];
-            //pkdGetPos1(p.r,r);
             float fMass = p.mass();
             float fSoft = p.soft();
             const auto &v = p.velocity();

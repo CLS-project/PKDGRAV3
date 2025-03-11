@@ -45,7 +45,7 @@ int TraversePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = reinterpret_cast<mdl::mdlClass *>(pst->mdl);
     auto rID = mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
     Traverse(pst->pstLower,vin,nIn,vout,nOut);
-    return mdl->GetReply(rID,vout);
+    return mdl->GetReply(rID,nOut,vout);
 }
 
 int TraversePST::ReqService(PST pst,void *vin,int nIn) {
@@ -59,8 +59,7 @@ int TraverseCombinePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto rID = mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
     Traverse(pst->pstLower,vin,nIn,vout,nOut);
     void *vout2 = alloca(nOut);
-    nOut = mdl->GetReply(rID,vout2);
+    nOut = mdl->GetReply(rID,nOut,vout2);
     Combine(vout,vout2);
     return nOut;
 }
-

@@ -253,11 +253,11 @@ ppy_csmComoveKickFac(CSMINSTANCE *self, PyObject *args, PyObject *kwobj) {
 static PyObject *
 ppy_csmComoveGrowth(CSMINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]= {"a",NULL};
-    double a, D1LPT, D2LPT, f1LPT, f2LPT;
+    double a, D1LPT, D2LPT, D3aLPT, D3bLPT, D3cLPT, f1LPT, f2LPT, f3aLPT, f3bLPT, f3cLPT;
     if ( !PyArg_ParseTupleAndKeywords(args, kwobj, "d:ComoveGrowth", kwlist, &a) ) return NULL;
     if (self->csm->val.classData.bClass) csmClassGslInitialize(self->csm);
-    csmComoveGrowth(self->csm, a, &D1LPT, &D2LPT, &f1LPT, &f2LPT);
-    return Py_BuildValue("(dddd)", D1LPT, D2LPT, f1LPT, f2LPT );
+    csmComoveGrowth(self->csm, a, &D1LPT, &D2LPT, &D3aLPT, &D3bLPT, &D3cLPT, &f1LPT, &f2LPT, &f3aLPT, &f3bLPT, &f3cLPT);
+    return Py_BuildValue("(dddddddddd)", D1LPT, D2LPT, D3aLPT, D3bLPT, D3cLPT, f1LPT, f2LPT, f3aLPT, f3bLPT, f3cLPT);
 }
 
 /**********************************************************************\

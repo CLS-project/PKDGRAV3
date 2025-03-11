@@ -49,22 +49,23 @@ def emit_proto(section,parameters_h,parameters_pxi,enumerations_pxi,enumerations
           item_type = get_types(default[0])[0]
           c_type = f'blitz::TinyVector<{item_type},{len(default)}>'
           i_type = f'TinyVector[{item_type},BLITZ{len(default)}]'
+      type_name = v['name'] if 'name' in v else k.upper()
       if 'enum' in v:
-        print(f'    auto get_{k:{w}}() const {{ return {k.upper()}(get<{c_type}>({name})); }}',file=parameters_h)
+        print(f'    auto get_{k:{w}}() const {{ return {type_name}(get<{c_type}>({name})); }}',file=parameters_h)
       else:
         print(f'    auto get_{k:{w}}() const {{ return get<{c_type}>({name}); }}',file=parameters_h)
       print(f'        {i_type:<7} get_{k}()',file=parameters_pxi)
       print(f'    bool has_{k:{w}}() const {{ return has(str_{k}); }}',file=parameters_h)
       print(f'        bool    has_{k}()',file=parameters_pxi)
       if 'enum' in v:
-        print(f'    auto set_{k:{w}}(const {k.upper()} &value) {{ set<{c_type}>({name},{c_type}(value)); return value; }}',file=parameters_h)
+        print(f'    auto set_{k:{w}}(const {type_name} &value) {{ set<{c_type}>({name},{c_type}(value)); return value; }}',file=parameters_h)
       else:
         print(f'    auto set_{k:{w}}(const {c_type} &value) {{ set<{c_type}>({name},value); return value; }}',file=parameters_h)
       print(f'        {i_type:<7} set_{k}({i_type} value)',file=parameters_pxi)
       if 'enum' in v:
         have_enum = True
-        print('  cpdef enum class {}(int):'.format(k.upper()),file=enumerations_pxi)
-        print('enum class {} : int {{'.format(k.upper()),file=enumerations_h)
+        print('  cpdef enum class {}(int):'.format(type_name),file=enumerations_pxi)
+        print('enum class {} : int {{'.format(type_name),file=enumerations_h)
         for enum_key, enum_value in v['enum'].items():
           print('    {}'.format(enum_key), file=enumerations_pxi)
           print('  {} = {},'.format(enum_key, enum_value), file=enumerations_h)

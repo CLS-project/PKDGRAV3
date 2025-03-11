@@ -45,7 +45,7 @@ template <typename dtype=dvec, typename mtype=dmask>
 class RiemannSolverExact {
 public:
 
-    RiemannSolverExact(dtype gamma, mtype mask) : gamma(gamma), mask(mask) {
+    explicit RiemannSolverExact(dtype gamma, mtype mask,bool bMFV) : gamma(gamma), mask(mask), bMFV(bMFV) {
         G1 = (gamma-1.0)/(2.0*gamma);
         G2 = (gamma+1.0)/(2.0*gamma);
         G3 = (2.0*gamma/(gamma-1.0));
@@ -60,6 +60,7 @@ public:
 private:
     mtype mask;
     dtype gamma;
+    bool bMFV;
 
     dtype G1;
     dtype G2;
@@ -170,156 +171,148 @@ private:
     /*  This is the "normal" Riemann fan, with no vacuum on L or R state! */
     /*  (written by V. Springel for AREPO) */
     /* --------------------------------------------------------------------------------- */
-#ifndef USE_MFM
-
     inline void sample_reimann_standard( dtype S,
                                          dtype R_rho,dtype R_p, dtype R_v[3],dtype L_rho,dtype L_p, dtype L_v[3],
                                          dtype P_M, dtype S_M, dtype *rho_f_out, dtype *p_f_out, dtype *v_f_out,
                                          dtype n_unit[3], dtype v_line_L, dtype v_line_R, dtype cs_L, dtype cs_R) {
-        // This is a very inefficient simd implementation until someone bothers to
-        // write it properly (including testing for all the branches!)
-        typename dtype::scalar_t rho_f[dtype::width()];
-        typename dtype::scalar_t p_f[dtype::width()];
-        typename dtype::scalar_t v_f[3][dtype::width()];
-        for (auto v=0; v < dtype::width(); v++) {
-            typename dtype::scalar_t C_eff,S_eff;
-            if (S[v] <= S_M[v]) { /* sample point is left of contact discontinuity */
-                if (P_M[v] <= L_p[v]) { /* left fan (rarefaction) */
-                    typename dtype::scalar_t S_check_L = v_line_L[v] - cs_L[v];
-                    if (S[v] <= S_check_L) { /* left data state */
-                        p_f[v] = L_p[v];
-                        rho_f[v] = L_rho[v];
-                        for (auto k=0; k<3; k++)
-                            v_f[k][v] = L_v[k][v];
-                        continue;
-                    }
-                    else {
-                        typename dtype::scalar_t C_eff_L = cs_L[v] * pow(P_M[v] / L_p[v], G1[v]);
-                        typename dtype::scalar_t S_tmp_L = S_M[v] - C_eff_L;
-
-                        if (S[v] > S_tmp_L) { /* middle left state */
-                            rho_f[v] = L_rho[v] * pow(P_M[v] / L_p[v], G8[v]);
-                            p_f[v] = P_M[v];
-                            for (auto k=0; k<3; k++)
-                                v_f[k][v] = L_v[k][v] + (S_M[v]-v_line_L[v])*n_unit[k][v];
-                            continue;
-                        }
-                        else {      /* left state inside fan */
-                            S_eff = G5[v] * (cs_L[v] + G7[v] * v_line_L[v] + S[v]);
-                            C_eff = G5[v] * (cs_L[v] + G7[v] * (v_line_L[v] - S[v]));
-                            rho_f[v] = L_rho[v] * pow(C_eff / cs_L[v], G4[v]);
-                            p_f[v] = L_p[v] * pow(C_eff / cs_L[v], G3[v]);
-                            for (auto k=0; k<3; k++)
-                                v_f[k][v] = L_v[k][v] + (S_eff-v_line_L[v])*n_unit[k][v];
-                            continue;
-                        }
-                    }
-                }
-                else {          /* left shock */
-                    if (L_p[v] > 0) {
-                        typename dtype::scalar_t pml = P_M[v] / L_p[v];
-                        typename dtype::scalar_t S_L = v_line_L[v] - cs_L[v] * sqrt(G2[v] * pml + G1[v]);
-
-                        if (S[v] <= S_L) { /* left data state */
+        if (bMFV) {
+            // This is a very inefficient simd implementation until someone bothers to
+            // write it properly (including testing for all the branches!)
+            typename dtype::scalar_t rho_f[dtype::width()];
+            typename dtype::scalar_t p_f[dtype::width()];
+            typename dtype::scalar_t v_f[3][dtype::width()];
+            for (auto v=0; v < dtype::width(); v++) {
+                typename dtype::scalar_t C_eff,S_eff;
+                if (S[v] <= S_M[v]) { /* sample point is left of contact discontinuity */
+                    if (P_M[v] <= L_p[v]) { /* left fan (rarefaction) */
+                        typename dtype::scalar_t S_check_L = v_line_L[v] - cs_L[v];
+                        if (S[v] <= S_check_L) { /* left data state */
                             p_f[v] = L_p[v];
                             rho_f[v] = L_rho[v];
                             for (auto k=0; k<3; k++)
                                 v_f[k][v] = L_v[k][v];
                             continue;
                         }
-                        else {      /* middle left state behind shock */
-                            rho_f[v] = L_rho[v] * (pml + G6[v]) / (pml * G6[v] + 1.0);
+                        else {
+                            typename dtype::scalar_t C_eff_L = cs_L[v] * pow(P_M[v] / L_p[v], G1[v]);
+                            typename dtype::scalar_t S_tmp_L = S_M[v] - C_eff_L;
+
+                            if (S[v] > S_tmp_L) { /* middle left state */
+                                rho_f[v] = L_rho[v] * pow(P_M[v] / L_p[v], G8[v]);
+                                p_f[v] = P_M[v];
+                                for (auto k=0; k<3; k++)
+                                    v_f[k][v] = L_v[k][v] + (S_M[v]-v_line_L[v])*n_unit[k][v];
+                                continue;
+                            }
+                            else {      /* left state inside fan */
+                                S_eff = G5[v] * (cs_L[v] + G7[v] * v_line_L[v] + S[v]);
+                                C_eff = G5[v] * (cs_L[v] + G7[v] * (v_line_L[v] - S[v]));
+                                rho_f[v] = L_rho[v] * pow(C_eff / cs_L[v], G4[v]);
+                                p_f[v] = L_p[v] * pow(C_eff / cs_L[v], G3[v]);
+                                for (auto k=0; k<3; k++)
+                                    v_f[k][v] = L_v[k][v] + (S_eff-v_line_L[v])*n_unit[k][v];
+                                continue;
+                            }
+                        }
+                    }
+                    else {          /* left shock */
+                        if (L_p[v] > 0) {
+                            typename dtype::scalar_t pml = P_M[v] / L_p[v];
+                            typename dtype::scalar_t S_L = v_line_L[v] - cs_L[v] * sqrt(G2[v] * pml + G1[v]);
+
+                            if (S[v] <= S_L) { /* left data state */
+                                p_f[v] = L_p[v];
+                                rho_f[v] = L_rho[v];
+                                for (auto k=0; k<3; k++)
+                                    v_f[k][v] = L_v[k][v];
+                                continue;
+                            }
+                            else {      /* middle left state behind shock */
+                                rho_f[v] = L_rho[v] * (pml + G6[v]) / (pml * G6[v] + 1.0);
+                                p_f[v] = P_M[v];
+                                for (auto k=0; k<3; k++)
+                                    v_f[k][v] = L_v[k][v] + (S_M[v]-v_line_L[v])*n_unit[k][v];
+                                continue;
+                            }
+                        }
+                        else {
+                            rho_f[v] = L_rho[v] / G6[v];
                             p_f[v] = P_M[v];
                             for (auto k=0; k<3; k++)
                                 v_f[k][v] = L_v[k][v] + (S_M[v]-v_line_L[v])*n_unit[k][v];
                             continue;
                         }
                     }
-                    else {
-                        rho_f[v] = L_rho[v] / G6[v];
-                        p_f[v] = P_M[v];
-                        for (auto k=0; k<3; k++)
-                            v_f[k][v] = L_v[k][v] + (S_M[v]-v_line_L[v])*n_unit[k][v];
-                        continue;
-                    }
                 }
-            }
-            else {  /* sample point is right of contact discontinuity */
-                if (P_M[v] > R_p[v]) { /* right shock */
-                    if (R_p[v] > 0) {
-                        typename dtype::scalar_t pmr = P_M[v] / R_p[v];
-                        typename dtype::scalar_t S_R = v_line_R[v] + cs_R[v] * sqrt(G2[v] * pmr + G1[v]);
+                else {  /* sample point is right of contact discontinuity */
+                    if (P_M[v] > R_p[v]) { /* right shock */
+                        if (R_p[v] > 0) {
+                            typename dtype::scalar_t pmr = P_M[v] / R_p[v];
+                            typename dtype::scalar_t S_R = v_line_R[v] + cs_R[v] * sqrt(G2[v] * pmr + G1[v]);
 
-                        if (S[v] >= S_R) { /* right data state */
+                            if (S[v] >= S_R) { /* right data state */
+                                p_f[v] = R_p[v];
+                                rho_f[v] = R_rho[v];
+                                for (auto k=0; k<3; k++)
+                                    v_f[k][v] = R_v[k][v];
+                                continue;
+                            }
+                            else {      /* middle right state behind shock */
+                                rho_f[v] = R_rho[v] * (pmr + G6[v]) / (pmr * G6[v] + 1.0);
+                                p_f[v] = P_M[v];
+                                for (auto k=0; k<3; k++)
+                                    v_f[k][v] = R_v[k][v] + (S_M[v]-v_line_R[v])*n_unit[k][v];
+                                continue;
+                            }
+                        }
+                        else {
+                            rho_f[v] = R_rho[v] / G6[v];
+                            p_f[v] = P_M[v];
+                            for (auto k=0; k<3; k++)
+                                v_f[k][v] = R_v[k][v] + (S_M[v]-v_line_R[v])*n_unit[k][v];
+                            continue;
+                        }
+                    }
+                    else {          /* right fan */
+                        typename dtype::scalar_t S_check_R = v_line_R[v] + cs_R[v];
+                        if (S[v] >= S_check_R) {   /* right data state */
                             p_f[v] = R_p[v];
                             rho_f[v] = R_rho[v];
                             for (auto k=0; k<3; k++)
                                 v_f[k][v] = R_v[k][v];
                             continue;
                         }
-                        else {      /* middle right state behind shock */
-                            rho_f[v] = R_rho[v] * (pmr + G6[v]) / (pmr * G6[v] + 1.0);
-                            p_f[v] = P_M[v];
-                            for (auto k=0; k<3; k++)
-                                v_f[k][v] = R_v[k][v] + (S_M[v]-v_line_R[v])*n_unit[k][v];
-                            continue;
-                        }
-                    }
-                    else {
-                        rho_f[v] = R_rho[v] / G6[v];
-                        p_f[v] = P_M[v];
-                        for (auto k=0; k<3; k++)
-                            v_f[k][v] = R_v[k][v] + (S_M[v]-v_line_R[v])*n_unit[k][v];
-                        continue;
-                    }
-                }
-                else {          /* right fan */
-                    typename dtype::scalar_t S_check_R = v_line_R[v] + cs_R[v];
-                    if (S[v] >= S_check_R) {   /* right data state */
-                        p_f[v] = R_p[v];
-                        rho_f[v] = R_rho[v];
-                        for (auto k=0; k<3; k++)
-                            v_f[k][v] = R_v[k][v];
-                        continue;
-                    }
-                    else {
-                        typename dtype::scalar_t C_eff_R = cs_R[v] * pow(P_M[v] / R_p[v], G1[v]);
-                        typename dtype::scalar_t S_tmp_R = S_M[v] + C_eff_R;
+                        else {
+                            typename dtype::scalar_t C_eff_R = cs_R[v] * pow(P_M[v] / R_p[v], G1[v]);
+                            typename dtype::scalar_t S_tmp_R = S_M[v] + C_eff_R;
 
-                        if (S[v] <= S_tmp_R) { /* middle right state */
-                            rho_f[v] = R_rho[v] * pow(P_M[v] / R_p[v], G8[v]);
-                            p_f[v] = P_M[v];
-                            for (auto k=0; k<3; k++)
-                                v_f[k][v] = R_v[k][v] + (S_M[v]-v_line_R[v])*n_unit[k][v];
-                            continue;
-                        }
-                        else {      /* fan right state */
-                            S_eff = G5[v] * (-cs_R[v] + G7[v] * v_line_R[v] + S[v]);
-                            C_eff = G5[v] * (cs_R[v] - G7[v] * (v_line_R [v]- S[v]));
-                            rho_f[v] = R_rho[v] * pow(C_eff / cs_R[v], G4[v]);
-                            p_f[v] = R_p[v] * pow(C_eff / cs_R[v], G3[v]);
-                            for (auto k=0; k<3; k++)
-                                v_f[k][v] = R_v[k][v] + (S_eff-v_line_R[v])*n_unit[k][v];
-                            continue;
+                            if (S[v] <= S_tmp_R) { /* middle right state */
+                                rho_f[v] = R_rho[v] * pow(P_M[v] / R_p[v], G8[v]);
+                                p_f[v] = P_M[v];
+                                for (auto k=0; k<3; k++)
+                                    v_f[k][v] = R_v[k][v] + (S_M[v]-v_line_R[v])*n_unit[k][v];
+                                continue;
+                            }
+                            else {      /* fan right state */
+                                S_eff = G5[v] * (-cs_R[v] + G7[v] * v_line_R[v] + S[v]);
+                                C_eff = G5[v] * (cs_R[v] - G7[v] * (v_line_R [v]- S[v]));
+                                rho_f[v] = R_rho[v] * pow(C_eff / cs_R[v], G4[v]);
+                                p_f[v] = R_p[v] * pow(C_eff / cs_R[v], G3[v]);
+                                for (auto k=0; k<3; k++)
+                                    v_f[k][v] = R_v[k][v] + (S_eff-v_line_R[v])*n_unit[k][v];
+                                continue;
+                            }
                         }
                     }
                 }
             }
+            rho_f_out->load(rho_f);
+            p_f_out->load(p_f);
+            for (auto k=0; k<3; k++)
+                v_f_out[k].load(v_f[k]);
         }
-        rho_f_out->load(rho_f);
-        p_f_out->load(p_f);
-        for (auto k=0; k<3; k++)
-            v_f_out[k].load(v_f[k]);
 
     }
-
-#else
-
-    inline void sample_reimann_standard( dtype S,
-                                         dtype R_rho,dtype R_p, dtype R_v[3],dtype L_rho,dtype L_p, dtype L_v[3],
-                                         dtype P_M, dtype S_M, dtype *rho_f, dtype *p_f, dtype *v_f,
-                                         dtype n_unit[3], dtype v_line_L, dtype v_line_R, dtype cs_L, dtype cs_R) {}
-#endif //!USE_MFM
 
     /* --------------------------------------------------------------------------------- */
     /* Part of exact Riemann solver: */
@@ -334,13 +327,13 @@ private:
         //dtype S_L = v_line_L - G4 * cs_L;
         dtype S_L = v_line_L + G4 * cs_L; // above line was a sign error, caught by Bert Vandenbroucke
         //printf("Vaccuum right\n");
-#ifdef USE_MFM
-        /* in this code mode, we are -always- moving with the contact discontinuity so density flux = 0;
-         this constrains where we reside in the solution fan */
-        P_M = 0;
-        S_M = S_L;
-        return;
-#endif
+        if (!bMFV) {
+            /* in this code mode, we are -always- moving with the contact discontinuity so density flux = 0;
+            this constrains where we reside in the solution fan */
+            P_M = 0;
+            S_M = S_L;
+            return;
+        }
 
         if (S_L < S) {
             /* vacuum */
@@ -382,13 +375,13 @@ private:
                                             dtype n_unit[3], dtype v_line_L, dtype v_line_R, dtype cs_L, dtype cs_R) {
         //printf("Vaccuum left\n");
         dtype S_R = v_line_R - G4 * cs_R;
-#ifdef USE_MFM
-        /* in this code mode, we are -always- moving with the contact discontinuity so density flux = 0;
-         this constrains where we reside in the solution fan */
-        P_M = 0;
-        S_M = S_R;
-        return;
-#endif
+        if (!bMFV) {
+            /* in this code mode, we are -always- moving with the contact discontinuity so density flux = 0;
+            this constrains where we reside in the solution fan */
+            P_M = 0;
+            S_M = S_R;
+            return;
+        }
 
         if (S_R > S) {
             /* vacuum */
@@ -520,9 +513,6 @@ private:
             dtype R_rho,dtype R_p, dtype R_v[3],dtype L_rho,dtype L_p, dtype L_v[3],
             dtype &P_M, dtype &S_M, dtype *rho_f, dtype *p_f, dtype *v_f,
             dtype n_unit[3], dtype v_line_L, dtype v_line_R, dtype cs_L, dtype cs_R) {
-#ifndef USE_MFM
-        //assert(0);
-#endif
         mtype not_converged = static_cast<mtype>(niter_v >= NMAX_ITER) & mask;
         dtype dvel = v_line_R - v_line_L;
         dtype check_vel = G4 * (cs_R + cs_L) - dvel;
@@ -540,23 +530,23 @@ private:
             S_M = mask_mov(S_M, vac, S);
             S_M = mask_mov(S_M, lfan, S_L);
             S_M = mask_mov(S_M, rfan, S_R);
-#ifndef USE_MFM
-            *rho_f = mask_mov(*rho_f, vac, 0.0);
-            *p_f = mask_mov(*p_f, vac, P_M);
-            dtype v_f_internal;
-            dtype v_f_right;
-            dtype v_f_left;
-            for (auto k=0; k<3; k++) {
-                v_f_internal = (L_v[k] + (R_v[k]-L_v[k]) * (S-S_L)/(S_R-S_L)) *
-                               (1-n_unit[k]) + S * n_unit[k];
-                v_f_left  = R_v[k] + (S_M - v_line_R) * n_unit[k];
-                v_f_right = L_v[k] + (S_M - v_line_L) * n_unit[k];
+            if (bMFV) {
+                *rho_f = mask_mov(*rho_f, vac, 0.0);
+                *p_f = mask_mov(*p_f, vac, P_M);
+                dtype v_f_internal;
+                dtype v_f_right;
+                dtype v_f_left;
+                for (auto k=0; k<3; k++) {
+                    v_f_internal = (L_v[k] + (R_v[k]-L_v[k]) * (S-S_L)/(S_R-S_L)) *
+                                   (1-n_unit[k]) + S * n_unit[k];
+                    v_f_left  = R_v[k] + (S_M - v_line_R) * n_unit[k];
+                    v_f_right = L_v[k] + (S_M - v_line_L) * n_unit[k];
 
-                v_f[k] = mask_mov(v_f[k], vac, v_f_internal);
-                v_f[k] = mask_mov(v_f[k], lfan, v_f_right);
-                v_f[k] = mask_mov(v_f[k], rfan, v_f_left);
+                    v_f[k] = mask_mov(v_f[k], vac, v_f_internal);
+                    v_f[k] = mask_mov(v_f[k], lfan, v_f_right);
+                    v_f[k] = mask_mov(v_f[k], rfan, v_f_left);
+                }
             }
-#endif
         }
     }
 
@@ -598,13 +588,13 @@ private:
         P_M = mask_mov(P_M, vac, zeros);
         S_M = mask_mov(S_M, vac, zeros);
 
-#ifndef USE_MFM
-        *rho_f = mask_mov(*rho_f, vac, 0.0);
-        *p_f = mask_mov(*p_f, vac, 0.0);
-        for (auto k=0; k<3; k++) {
-            v_f[k] = mask_mov(v_f[k], vac, 0.);
+        if (bMFV) {
+            *rho_f = mask_mov(*rho_f, vac, 0.0);
+            *p_f = mask_mov(*p_f, vac, 0.0);
+            for (auto k=0; k<3; k++) {
+                v_f[k] = mask_mov(v_f[k], vac, 0.);
+            }
         }
-#endif
         /*
         if (movemask(vac)) {
             dump(P_M);
@@ -641,21 +631,21 @@ public:
                          R_v[2]*n_unit[2];
         mtype vac = mask & ( (R_rho < 0.) | (L_rho < 0.) );
         niter=iterative_Riemann_solver( niter_v, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
-#ifndef USE_MFM
-        dtype S = 0;
-        sample_reimann_standard( S,
-                                 R_rho, R_p, R_v,
-                                 L_rho, L_p, L_v,
-                                 P_M, S_M,
-                                 rho_f, p_f, v_f,
-                                 n_unit,v_line_L,v_line_R,cs_L,cs_R);
-#endif
+        if (bMFV) {
+            dtype S = 0;
+            sample_reimann_standard( S,
+                                     R_rho, R_p, R_v,
+                                     L_rho, L_p, L_v,
+                                     P_M, S_M,
+                                     rho_f, p_f, v_f,
+                                     n_unit,v_line_L,v_line_R,cs_L,cs_R);
+        }
         dtype zero = 0.;
         sample_reimann_vaccum_internal( niter_v, zero, R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
         handle_input_vacuum(R_rho, R_p, L_rho, L_p, P_M, S_M, rho_f, p_f, v_f);
-#ifndef USE_MFM
-        convert_face_to_flux( rho_f, p_f, v_f, n_unit);
-#endif
+        if (bMFV) {
+            convert_face_to_flux( rho_f, p_f, v_f, n_unit);
+        }
         return niter;
     }
 

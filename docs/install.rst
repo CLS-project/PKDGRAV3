@@ -6,12 +6,14 @@ The pkdgrav3 code requires the following packages:
 
 CMake_ - cmake build system
     Most modern systems already have cmake installed. Pkdgrav3 requires
-    version 3.1 or newer of cmake. You can check with "cmake --version"::
+    version 3.24 or newer of cmake. You can check with "cmake --version"::
 
         pkdgrav3:~> cmake --version
         cmake version 3.26.0
 
     .. _CMake: https://cmake.org/
+
+    The CMake package will be installed in the Python virtul environment (see below).
 
 Message Passing Interface (MPI)
   Most distributions or Supercomputer centers provide an MPI implementation.
@@ -182,11 +184,128 @@ You can compile for the GPU partition and run on the multi-core partition, thus 
 
     module load daint-gpu cudatoolkit cray-hdf5 GSL Boost cray-fftw CMake cray-python
 
----------------
-Python Packages
----------------
+Be aware that the default CUDA Toolkit on Piz Daint may be 11.0.2. This version has a problem where compiler
+options are not properly passed to the GNU compiler when using nvcc. You may need to load a more recent
+version of the toolkit which you can check with ``module available cudatoolkit``. For example, you might
+substitute ``cudatoolkit/11.2.0_3.39-2.1__gf93aa1c`` for ``cudatoolkit`` above.
 
-Some additional Python package are required to compile the code. **After** you load the
+Tödi / ALPS
+-----------
+
+If you want "make" to use all available cores for faster compilation, add this to $HOME/.bashrc::
+
+    test -f /usr/bin/nproc && export MAKEFLAGS="-j $(nproc)"
+
+You need to tell the CUDA compiler which architecture to use. The easiest way is to add this to $HOME/.bashrc::
+
+    export CUDAARCHS=90
+
+Now you need to setup a user environment. The system is still being deployed as of when this was written,
+so keep an eye open for changes. First create a user environment and pull the image::
+
+    $ uenv repo create
+    The repository $SCRATCH/.uenv-images has been created.
+    $ uenv image pull prgenv-gnu/24.7:v3
+    downloading image 464292168a66fe7e7bf6ed28b0a1ab9f16fb4e24abb7ea7eca6fdf9aeafa177c 3.8GB
+      [≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡] 100% 3859/3859 MB
+    updating local reference prgenv-gnu/24.7:v3
+    uenv prgenv-gnu/24.7:v3 downloaded
+
+Start the environment and load the necessary modules (you need to repeat this each time you want to compile)::
+
+    $ uenv start --view=spack,modules prgenv-gnu/24.7:v3
+    loading the views prgenv-gnu:spack prgenv-gnu:modules
+    $ module load gcc cray-mpich python hdf5 fftw cmake cuda
+
+Create the Python virtual environment and install the required modules as usual::
+
+    $ cd /path/to/pkdgrav3
+    $ python3 -m venv .venv
+    $ source .venv/bin/activate
+    $ python -m pip install --upgrade pip
+    $ python -m pip install -r requirements.txt
+
+You will also need to install GSL, hwloc and Boost. The easiest way is to use spack.
+Setup spack by following the instructions here (follow the "git clone" tip):
+
+https://eth-cscs.github.io/alps-uenv/uenv-compilation-spack/
+
+You need to enable spack each time you activate the module::
+
+    $ source $SCRATCH/spack/share/spack/setup-env.sh
+
+You can install the packages with::
+
+    $ spack install gsl hwloc boost
+
+Make them available by loading them::
+
+    $ spack load gsl hwloc boost
+
+Configure and compile pkdgrav3 in the usual way::
+
+    $ cmake -S . -B build
+    $ cmake --build build
+
+In the future when you use this uenv, you will need to load the necessary modules
+and activate the python virtual environment. You can do this automatically by
+putting the following in your $HOME/.bashrc::
+
+    if test -n "$UENV_MOUNT_LIST" ; then
+        module load gcc cray-mpich python hdf5 fftw cmake cuda
+        source $SCRATCH/spack/share/spack/setup-env.sh
+        spack load gsl hwloc boost
+        source $HOME/code/pkdgrav3/.venv/bin/activate
+    fi
+    alias pkdenv='uenv start --view=spack,modules prgenv-gnu/24.7:v3'
+
+Running on Tödi requires a wrapper script, and setting environment variables.
+The following is subject to change. Sample job script::
+
+    #!/bin/bash -l
+    #SBATCH -J "test"
+    #SBATCH --account=youraccount
+    #SBATCH --time=01:00:00 --no-requeue
+    #SBATCH --nodes=1
+    #SBATCH --cpus-per-task=18 --ntasks-per-node=4
+    #SBATCH --ntasks-per-core=1
+    #SBATCH --kill-on-invalid-dep=yes
+    #SBATCH --uenv=prgenv-gnu/24.7:v3
+
+    uenv view spack,modules
+
+    export FI_CXI_RX_MATCH_MODE=software
+    export FI_CXI_RDZV_THRESHOLD=$((2*1048576))
+    export FI_CXI_REQ_BUF_SIZE=$((2*2097152))
+    export FI_CXI_REQ_BUF_MIN_POSTED=60
+    export FI_CXI_REQ_BUF_MAX_CACHED=200
+
+    srun --cpu-bind=none --cpus-per-task=$SLURM_CPUS_PER_TASK ./pkdgrav3.sh ./pkdgrav3 cosmology.par
+
+
+Sample wrapper script "pkdgrav3.sh"::
+
+    #!/bin/bash
+    export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
+    export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
+    export CUDA_VISIBLE_DEVICES=$(( SLURM_LOCALID % 4 ))
+
+    # Launch MPS from a single rank per node
+    if [ $SLURM_LOCALID -eq 0 ]; then
+        CUDA_VISIBLE_DEVICES=0,1,2,3 nvidia-cuda-mps-control -d
+    fi
+    # Wait for MPS to start
+    sleep 5
+
+    "$@"
+
+
+-----------------------------
+Python Packages (Daint/Eiger)
+-----------------------------
+
+For daint and eiger
+some additional Python package are required to compile the code. **After** you load the
 system modules above, use the following to install the necessary packages::
 
     cd /path/to/pkdgrav3
@@ -240,3 +359,14 @@ Then install the following packages::
 
     brew install cmake boost fftw git gsl open-mpi hdf5-mpi python pyenv pyenv-virtualenv
 
++++++++++++++++++++++
+OpenMPI Based Systems
++++++++++++++++++++++
+
+The code uses a Hybrid MPI/threads mechanism for parallization. Some versions of OpenMPI
+will bind each MPI rank to a single core in an effort to be helpful. This will result
+in very poor performance. To disable this "feature", define ``OMPI_MCA_hwloc_base_binding_policy``
+to be ``none`` when running::
+
+    export OMPI_MCA_hwloc_base_binding_policy=none
+    srun ./pkdgrav3 cosmology.par

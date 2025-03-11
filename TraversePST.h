@@ -83,7 +83,7 @@ protected:
         nOut = nBytesLower + nBytesUpper;
         auto rID = mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
         Traverse(pst->pstLower,vin,nIn,out1,nBytesLower);
-        nBytesUpper = mdl->GetReply(rID,out2);
+        nBytesUpper = mdl->GetReply(rID,nBytesUpper,out2);
         assert(nBytesLower + nBytesUpper == nOut);
         return nOut;
     }
@@ -110,7 +110,5 @@ protected:
     }
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override = 0;
 };
-
-
 
 #endif

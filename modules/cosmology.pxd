@@ -20,9 +20,11 @@ cdef class Cosmology:
         return self._csm
 
     cdef inline _comoving_growth(self,a):
-        cdef double D1LPT, D2LPT, f1LPT, f2LPT
-        cosmo.csmComoveGrowth(self._csm, a, &D1LPT, &D2LPT, &f1LPT, &f2LPT)
-        return (D1LPT, D2LPT, f1LPT, f2LPT)
+        cdef double D1LPT, D2LPT, D3aLPT, D3bLPT, D3cLPT, f1LPT, f2LPT, f3aLPT, f3bLPT, f3cLPT
+        cosmo.csmComoveGrowth(self._csm, a,
+                              &D1LPT, &D2LPT, &D3aLPT, &D3bLPT, &D3cLPT,
+                              &f1LPT, &f2LPT, &f3aLPT, &f3bLPT, &f3cLPT)
+        return (D1LPT, D2LPT, D3aLPT, D3bLPT, D3cLPT, f1LPT, f2LPT, f3aLPT, f3bLPT, f3cLPT)
 
 
 

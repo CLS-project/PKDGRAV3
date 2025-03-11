@@ -138,9 +138,9 @@ void MSR::StellarEvolutionInit(double dTime) {
 int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
     mdlassert(pst->mdl, nIn == sizeof(struct inStellarEvolutionInit));
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_STELLAREVOLUTIONINIT, vin, nIn);
+        int rID = pst->mdl->ReqService(pst->idUpper, PST_STELLAREVOLUTIONINIT, vin, nIn);
         pstStellarEvolutionInit(pst->pstLower, vin, nIn, NULL, 0);
-        mdlGetReply(pst->mdl, rID, NULL, NULL);
+        pst->mdl->GetReply(rID);
     }
     else {
         struct inStellarEvolutionInit *in = (struct inStellarEvolutionInit *) vin;

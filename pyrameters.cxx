@@ -45,6 +45,7 @@ bool pyrameters::verify(PyObject *kwobj) {
     PyObject *key, *value;
     Py_ssize_t pos = 0;
     while (PyDict_Next(kwobj, &pos, &key, &value)) {
+        if (PyType_Check(value)) continue;
         const char *keyString;
         if (PyUnicode_Check(key)) {
             PyObject *ascii = PyUnicode_AsASCIIString(key);
@@ -98,18 +99,31 @@ bool pyrameters::update(PyObject *kwobj,bool bIgnoreUnknown) {
     return bSuccess;
 }
 
+PyObject *pyrameters::call_dynamic(PyObject *callback) const {
+    auto call_args = PyTuple_New(0);
+    auto result = PyObject_Call(callback,call_args,dynamic_);
+    Py_DECREF(call_args);
+    return result;
+}
+
 template<> PyObject *pyrameters::get<PyObject *>(const char *name) const {
     auto v = PyObject_GetAttrString(arguments_, name);
     if (!v) throw std::domain_error(name);
     if (PyCallable_Check(v)) {
         auto callback = v;
-        auto call_args = PyTuple_New(0);
-        v = PyObject_Call(callback,call_args,dynamic_);
-        Py_DECREF(call_args);
+        v = call_dynamic(callback);
         Py_DECREF(callback);
     }
     if (PyErr_Occurred()) PyErr_Print();
     return v;
+}
+
+template<> void pyrameters::set_dynamic(const char *name, PyObject *value) {
+    PyDict_SetItemString(dynamic_,name,value);
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
 }
 
 template<> void pyrameters::set_dynamic(const char *name, double value) {

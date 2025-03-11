@@ -11,6 +11,8 @@ import numpy as np
 cimport numpy as cnp
 cimport cosmo
 from cosmology cimport Cosmology
+from ephemeral cimport EphemeralMemory
+import ephemeral
 
 cdef extern from "blitz/array.h" namespace "blitz" nogil:
     cdef cppclass BLITZ1 "1":
@@ -123,12 +125,16 @@ cdef extern from "master.h":
         uint64_t N
         # MSR() except +
         void testv(vector[PARTCLASS] &v)
+        #tuple[double,double,int64_t,int64_t,int64_t,int64_t]
+        void *ReadCheckpoint(const char *filename, object kwargs,
+                 object species, object classes, object step, object steps,
+                 object time, object delta, object E, object U, object Utime)
         void Restart(const char *filename,object kwargs)
-        void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
-                    size_t nDark, size_t nGas, size_t nStar, size_t nBH,
-                    double dEcosmo,double dUOld, double dTimeOld,
-                    vector[PARTCLASS] &aClasses,object arguments,object specified)
+        void Restart(const char *filename, object kwargs,
+                 object species, object classes, object step, object steps,
+                 object time, object delta, object E, object U, object Utime)
         double GenerateIC(int nGrid,int iSeed,double z,double L,cosmo.csmContext * csm)
+        void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed, float fPhase)
         double Read(string achInFile)
         void Write(string pszFileName,double dTime,bool bCheckpoint)
         void DomainDecomp(int iRung)
@@ -136,22 +142,44 @@ cdef extern from "master.h":
         void Reorder()
         void Hostname()
         double LoadOrGenerateIC()
-        void Simulate(double dTime,double dDelta,int iStartStep,int nSteps)
+        int ValidateParameters()
+        void Simulate(double dTime,int iStartStep)
         void Simulate(double dTime)
         uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                         double dTime,double dDelta,double dStep,double dTheta,
                         bool bKickClose,bool bKickOpen,bool bEwald,bool bGravStep,
                         int nPartRhoLoc,bool iTimeStepCrit)
+        EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
+        void addAnalysis(object callback,uint64_t per_particle, uint64_t per_process)
+        # std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
         void *MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins)
+        # std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
+        void *GridBinK(int nBins, int iGrid)
+        void GridCreateFFT(int nGrid)
+        void GridDeleteFFT()
+        void AssignMass(int iAssignment,int iGrid,float fDelta,int fold)
+        void DensityContrast(int nGrid,bool k)
+        void WindowCorrection(int iAssignment,int iGrid);
+        void Interlace(int iGridTarget,int iGridSource);
+        void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
+        double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
+        void OutputGrid(const char *filename, bool k, int iGrid, bool nParaWrite)
         void NewFof(double dTau,int nMinMembers)
         void GroupStats()
         void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth)
+        int ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric)
         void OutASCII(const char *pszFile,int iType,int nDims,int iFileType)
         uint64_t CountSelected()
         void RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,bool bMarked)
         uint64_t SelBox(TinyVector[double,BLITZ3] center, TinyVector[double,BLITZ3] size,int setIfTrue,int clearIfFalse)
         uint64_t SelSphere(TinyVector[double,BLITZ3] r, double dRadius,int setIfTrue,int clearIfFalse)
         uint64_t SelCylinder(TinyVector[double,BLITZ3] dP1, TinyVector[double,BLITZ3] dP2, double dRadius, int setIfTrue, int clearIfFalse)
+        uint64_t SelSpecies(uint64_t mSpecies,int setIfTrue,int clearIfFalse)
+        void RsLoadIds(string filename,bool bAppend)
+        void RsHaloLoadIds(string filename,bool bAppend)
+        void RsSaveIds(string filename)
+        void RsReorderIds()
+        void RsExtract(string filename_template)
 
 cdef public MSR *msr0 "PKDGRAV_msr0"
 
@@ -172,6 +200,35 @@ cdef extern from *:
                 std::move(std::get<3>(t))};
     }
 
+    struct GridBinKStruct {
+        std::vector<std::uint64_t> nPk;
+        std::vector<float>    fK;
+        std::vector<float>    fPk;
+    };
+
+    template<typename T>
+    inline GridBinKStruct UnpackGridBinK(T t) {
+        return {std::move(std::get<0>(t)), 
+                std::move(std::get<1>(t)), 
+                std::move(std::get<2>(t))};
+    }
+    struct ReadCheckpointStruct {
+        double dTime;
+        double dDelta;
+        int64_t iStep;
+        int64_t nSteps;
+        int64_t nSizeParticle;
+        int64_t nSizeNode;
+    };
+    template<typename T>
+    inline ReadCheckpointStruct UnpackReadCheckpoint(T t) {
+        return {std::move(std::get<0>(t)), 
+                std::move(std::get<1>(t)), 
+                std::move(std::get<2>(t)), 
+                std::move(std::get<3>(t)), 
+                std::move(std::get<4>(t)), 
+                std::move(std::get<5>(t))};
+    }
     """
 
     ctypedef struct MeasurePkStruct:
@@ -182,6 +239,22 @@ cdef extern from *:
 
     MeasurePkStruct UnpackMeasurePk(void *)
 
+    ctypedef struct GridBinKStruct:
+        vector[uint64_t]  nPk
+        vector[float]     fK
+        vector[float]     fPk
+
+    GridBinKStruct UnpackGridBinK(void *)
+
+    ctypedef struct ReadCheckpointStruct:
+        double dTime
+        double dDelta
+        int64_t iStep
+        int64_t nSteps
+        int64_t nSizeParticle
+        int64_t nSizeNode
+
+    ReadCheckpointStruct UnpackReadCheckpoint(void *)
 
 cdef inline tuple MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins):
     cdef MeasurePkStruct result = UnpackMeasurePk(msr0.MeasurePk(iAssignment,bInterlace,nGrid,a,nBins))
@@ -192,17 +265,27 @@ cdef inline tuple MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,in
         cnp.float32_t[:] fPkAll = <cnp.float32_t[:result.fPkAll.size()]>result.fPkAll.data()
     return np.array(nPk), np.array(fK), np.array(fPk), np.array(fPkAll)
 
-cpdef restart(object arguments,object specified,list species,list classes,int n,str name,
-    int step,int steps,double time,double delta,double E,double U,double Utime)
+cdef inline tuple GridBinK(int nBins, iGrid):
+    cdef GridBinKStruct result = UnpackGridBinK(msr0.GridBinK(nBins,iGrid))
+    cdef:
+        cnp.uint64_t[:]  nPk    = <cnp.uint64_t[:result.nPk.size()]>result.nPk.data()
+        cnp.float32_t[:] fK     = <cnp.float32_t[:result.fK.size()]>result.fK.data()
+        cnp.float32_t[:] fPk    = <cnp.float32_t[:result.fPk.size()]>result.fPk.data()
+    return np.array(nPk), np.array(fK), np.array(fPk)
+
+cdef inline read_checkpoint(filename: str,kwargs,species=None,classes=None,step=None,steps=None,time=None,delta=None,E=None,U=None,Utime=None):
+    cdef ReadCheckpointStruct result = UnpackReadCheckpoint(msr0.ReadCheckpoint(filename.encode('utf-8'),kwargs,species,classes,step,steps,time,delta,E,U,Utime))
+    return result.dTime,result.dDelta,result.iStep,result.nSteps,result.nSizeParticle,result.nSizeNode
+
 # cpdef load(str filename)
 cpdef save(str filename,double time=*)
 cpdef domain_decompose(int rung=*)
-cpdef build_tree(bool ewald=*)
+# cpdef build_tree(bool ewald=*)
 cpdef reorder()
 #cpdef simulate()
 cpdef measure_pk(int grid,int bins=*,double a=*,bool interlace=*,int order=*,double L=*)
 cpdef fof(double tau,int minmembers=*)
-cpdef smooth(SMOOTH_TYPE type,n=*,time=*,delta=*,symmetric=*)
+cpdef smooth(SMOOTH_TYPE type,n=*,time=*,delta=*,symmetric=*,resmooth=*)
 cpdef get_array(PKD_FIELD field,double time=*,bool marked=*)
 cpdef write_array(filename,OUT_TYPE field)
 

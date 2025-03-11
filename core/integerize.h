@@ -21,14 +21,19 @@
 #include "blitz/array.h"
 
 class Integerize {
-    static constexpr std::uint32_t factor = 0x80000000u;
+    double d_to_i = 0x80000000u;
+    double i_to_d = 1.0 / d_to_i;
 public:
-    double  convert(std::int32_t i) const {return i * 1.0/factor; }
+    void set_factor(std::uint32_t factor) {
+        d_to_i = factor;
+        i_to_d = 1.0 / d_to_i;
+    }
+    double  convert(std::int32_t i) const {return i * i_to_d; }
     template<int n>
-    blitz::TinyVector<double,n>  convert(blitz::TinyVector<std::int32_t,n> i) const {return i * 1.0/factor; }
-    std::int32_t convert(double d) const {return d * factor; }
+    blitz::TinyVector<double,n>  convert(blitz::TinyVector<std::int32_t,n> i) const {return i * i_to_d; }
+    std::int32_t convert(double d) const {return d * d_to_i; }
     template<int n>
-    blitz::TinyVector<std::int32_t,n> convert(blitz::TinyVector<double,n> d) const {return d * factor; }
+    blitz::TinyVector<std::int32_t,n> convert(blitz::TinyVector<double,n> d) const {return d * d_to_i; }
 };
 
 #endif

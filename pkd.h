@@ -37,6 +37,7 @@
 #include "units.h"
 #include "io/fio.h"
 #include "basetype.h"
+#include "core/integerize.h"
 #include "core/treenode.h"
 #include "io/iomodule.h"
 #include "SPH/SPHOptions.h"
@@ -100,13 +101,14 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_BALL         (1<<8)  /* Ball for each particle */
 #define PKD_MODEL_SOFTENING    (1<<9)  /* Softening for each particle */
 #define PKD_MODEL_VELSMOOTH    (1<<10) /* Velocity Smoothing */
-#define PKD_MODEL_SPH          (1<<11) /* Sph Fields */
-#define PKD_MODEL_STAR         (1<<12) /* Star Fields */
-#define PKD_MODEL_PARTICLE_ID  (1<<13) /* Particles have a unique ID */
-#define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
-#define PKD_MODEL_INTEGER_POS  (1<<15) /* Particles do not have an order */
-#define PKD_MODEL_BH           (1<<16) /* BH fields */
-#define PKD_MODEL_GLOBALGID    (1<<17) /* Global group identifier per particle */
+#define PKD_MODEL_MFM          (1<<11) /* Sph Fields */
+#define PKD_MODEL_MFV          (1<<12) /* Sph Fields */
+#define PKD_MODEL_STAR         (1<<13) /* Star Fields */
+#define PKD_MODEL_PARTICLE_ID  (1<<14) /* Particles have a unique ID */
+#define PKD_MODEL_UNORDERED    (1<<15) /* Particles do not have an order */
+#define PKD_MODEL_INTEGER_POS  (1<<16) /* Particles do not have an order */
+#define PKD_MODEL_BH           (1<<17) /* BH fields */
+#define PKD_MODEL_GLOBALGID    (1<<18) /* Global group identifier per particle */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -118,6 +120,13 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_NODE_BOB     (1<<30) /* Ball of Balls, or Box of Balls */
 
 #define PKD_MODEL_NEW_SPH      (1ULL<<32) /* New Sph Fields */
+/* P and c if not doing onthefly prediction */
+/* oldRho if doing ISPH */
+/* expImb2 if doing interface correction */
+/* T if doing interface correction and not onthefly prediction*/
+/* vpred if doing consistent prediction */
+#define PKD_MODEL_STRENGTH     (1ULL<<38) /* New Sph Fields */
+/* Spred if doing consistent prediction */
 
 #define MAX_RUNG     63
 
@@ -354,14 +363,15 @@ typedef struct {
     float fPotential;
 } healpixData;
 
-class pkdContext {
+class pkdContext : public Integerize {
 public:
     explicit pkdContext(
         mdl::mdlClass *mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
         int nTreeBitsLo, int nTreeBitsHi,
         int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
-        uint64_t mMemoryModel);
+        uint64_t mMemoryModel, uint32_t nIntegerFactor);
     virtual ~pkdContext();
+    void set_factor(std::uint32_t factor);
 
 protected:  // Support for memory models
     int NodeAddStruct    (int n);   // Add a NODE structure: assume double alignment
@@ -451,7 +461,7 @@ public:
 public:
     int nRejects;
     int nActive;
-    uint64_t nRung[IRUNGMAX+1];
+    blitz::TinyVector<uint64_t,MAX_RUNG+1> nRung;
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
@@ -637,62 +647,12 @@ static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, 
 ** code should care about sizes of the particle structure.
 */
 
-static inline int32_t pkdGetGroup( PKD pkd, const PARTICLE *p ) {
-    return pkd->particles.group(p);
-}
-static inline int64_t pkdGetGlobalGid( PKD pkd, const PARTICLE *p ) {
-    return pkd->particles.global_gid(p);
-}
-static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
-    pkd->particles.set_group(p,gid);
-}
-static inline void pkdSetGlobalGid( PKD pkd, PARTICLE *p, uint64_t gid ) {
-    pkd->particles.global_gid(p) = gid;
-}
-
-static inline float pkdDensity( PKD pkd, const PARTICLE *p ) {
-    return pkd->particles.density(p);
-}
-static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
-    pkd->particles.set_density(p,fDensity);
-}
-
-/* Here is the new way of getting mass and softening */
-static inline float pkdMass( PKD pkd, PARTICLE *p ) {
-    return pkd->particles.mass(p);
-}
-static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
-    return pkd->particles.soft0(p);
-}
-static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
-    return pkd->particles.soft(p);
-}
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->particles.species(p);
 }
 static inline int pkdiMat( PKD pkd, PARTICLE *p ) {
     return pkd->particles.iMat(p);
 }
-
-static inline double pkdPos(PKD pkd,PARTICLE *p,int d) {
-    if (pkd->bIntegerPosition) return pkdIntPosToDbl(pkd,pkd->particles.get<int32_t[3]>(p,PKD_FIELD::oPosition)[d]);
-    else return pkd->particles.get<double[3]>(p,PKD_FIELD::oPosition)[d];
-}
-static inline void pkdSetPos(PKD pkd,PARTICLE *p,int d,double v) {
-    if (pkd->bIntegerPosition) pkd->particles.get<int32_t[3]>(p,PKD_FIELD::oPosition)[d] = pkdDblToIntPos(pkd,v);
-    else pkd->particles.get<double[3]>(p,PKD_FIELD::oPosition)[d] = v;
-}
-#define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
-#define pkdGetPos1(pkd,p,d) pkdGetPos3(pkd,p,(d)[0],(d)[1],(d)[2])
-
-#if defined(__AVX__) && defined(USE_SIMD)
-static inline __m128i pkdGetPosRaw(PKD pkd,PARTICLE *p) {
-    return _mm_loadu_si128(&pkd->particles.get<__m128i>(p,PKD_FIELD::oPosition));
-}
-static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
-    return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
-}
-#endif
 
 static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
     return (pkdSpecies(pkd,p) == FIO_SPECIES_UNKNOWN);
@@ -787,7 +747,7 @@ void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptio
 void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdGravEvalPC(const PINFOIN &pPart, ilcTile &tile, PINFOOUT &pOut );
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas,int bGasEvolveDensity);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
 #ifdef OPTIM_REORDER_IN_NODES
     void pkdReorderWithinNodes(PKD pkd);
@@ -800,7 +760,6 @@ void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo);
 void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
-void pkdCountRungs(PKD pkd,uint64_t *nRungs);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                   double dDelta, int iMaxRung,
                   double dEta,double dVelFac,double dAccFac,
@@ -843,17 +802,6 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
                   int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);
 
-struct outGetNParts {
-    total_t n;
-    total_t nGas;
-    total_t nDark;
-    total_t nStar;
-    total_t nBH;
-    total_t nMaxOrder;
-};
-
-void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH);
-void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
@@ -875,7 +823,7 @@ void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions *SPHoptions, int bGPU);
 void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPHoptions);
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta, int fold);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
 float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
 void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,

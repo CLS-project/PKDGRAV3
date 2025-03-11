@@ -71,7 +71,6 @@ typedef struct pstContext {
 } *PST;
 
 #define PST_SERVICES        100
-#define PST_FILENAME_SIZE   512
 #define PST_MAX_FILES           16384
 
 enum pst_service {
@@ -133,8 +132,6 @@ enum pst_service {
     PST_BH_INIT,
     PST_BH_ACCRETION,
 #endif
-    PST_MOVEDELETED,
-    PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
     PST_KICK,
@@ -169,9 +166,10 @@ enum pst_service {
     PST_ORDWEIGHT,
     PST_SETWRITESTART,
     PST_ADDWRITESTART,
+    PST_COUNTSPECIES,
+    PST_REMOVEDELETED,
     PST_COLNPARTS,
     PST_NEWORDER,
-    PST_GETNPARTS,
     PST_SETNPARTS,
     PST_NEW_FOF,
     PST_FOF_PHASES,
@@ -245,6 +243,7 @@ enum pst_service {
     PST_RS_LOAD_IDS,
     PST_RS_SAVE_IDS,
     PST_RS_EXTRACT,
+    PST_IGNORE_SIGBUS,
 };
 
 void pstAddServices(PST,MDL);
@@ -259,6 +258,7 @@ struct inInitializePStore {
     blitz::TinyVector<double,3> fPeriod;
     uint64_t nMinEphemeral;
     uint64_t nMinTotalStore;
+    uint32_t nIntegerFactor;
     int nEphemeralBytes;
     int nTreeBitsLo;
     int nTreeBitsHi;
@@ -281,9 +281,9 @@ struct inReadFile {
     double dOmega0;
     double dOmegab;
     int nProcessors;
-    /*char achFilename[PST_FILENAME_SIZE];*/
+    /*char achFilename[PATH_MAX];*/
 };
-typedef char inReadFileFilename[PST_FILENAME_SIZE];
+typedef char inReadFileFilename[PATH_MAX];
 int pstReadFile(PST,void *,int,void *,int);
 
 /* PST_COMPRESSASCII */
@@ -301,7 +301,7 @@ int pstCompressASCII(PST,void *,int,void *,int);
 /* PST_WRITEASCII */
 struct inWriteASCII {
     uint64_t nFileOffset;
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 int pstWriteASCII(PST,void *,int,void *,int);
 
@@ -331,7 +331,7 @@ struct inWrite {
     int iLower, iUpper;
     int bHDF5;
     int mFlags;
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 int pstWrite(PST,void *,int,void *,int);
 
@@ -358,7 +358,7 @@ struct inOutput {
     int nPartner;     /* How many partners there are */
     outType eOutputType;  /* What kind of output */
     int iGrid;        /* Which grid (for grid output) */
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 
 /* PST_OUTPUT */
@@ -494,7 +494,7 @@ int pstCoolingHydReion(PST,void *,int,void *,int);
 #endif
 #ifdef GRACKLE
 struct inGrackleInit {
-    char achCoolingTable[256];
+    char achCoolingTable[PATH_MAX];
     UNITS units;
     int bComove;
     double dScaleFactor;
@@ -612,6 +612,7 @@ struct inDrift {
     double dDeltaUPred;
     int iRoot;
     int bDoGas;
+    int bGasEvolveDensity;
 };
 int pstDrift(PST,void *,int,void *,int);
 int pstEndTimestepIntegration(PST,void *,int,void *,int);
@@ -631,9 +632,6 @@ int pstROParticleCache(PST, void *, int, void *, int);
 /* PST_PARTICLECACHEFINISH */
 
 int pstParticleCacheFinish(PST, void *, int, void *, int);
-
-/* PST_CACHEBARRIER */
-int pstCacheBarrier(PST, void *, int, void *, int);
 
 /* PST_KICK */
 struct inKick {
@@ -734,18 +732,6 @@ struct inCorrectEnergy {
 };
 int pstCorrectEnergy(PST, void *,int,void *,int);
 
-/* PST_UPDATERUNG */
-struct inUpdateRung {
-    uint8_t uRungLo;  /* Minimum Rung to modify */
-    uint8_t uRungHi;  /* Maximum Rung to modify */
-    uint8_t uMinRung; /* Minimum it can be set to */
-    uint8_t uMaxRung; /* Maximum it can be set to */
-};
-struct outUpdateRung {
-    uint64_t nRungCount[MAX_RUNG];
-};
-int pstUpdateRung(PST,void *,int,void *,int);
-
 /* PST_SETWRITESTART */
 struct inSetWriteStart {
     uint64_t nWriteStart;
@@ -770,18 +756,6 @@ int pstColNParts(PST, void *, int, void *, int);
 
 /* PST_NEWORDER */
 int pstNewOrder(PST, void *, int, void *, int);
-
-/* PST_GETNPARTS */
-/* see pkd.h
- struct outGetNParts {
-    int n;
-    int nGas;
-    int nDark;
-    int nStar;
-    };
-*/
-int pstMoveDeletedParticles(PST,void *,int,void *,int );
-int pstGetNParts(PST, void *, int, void *, int);
 
 /* PST_SETNPARTS */
 struct inSetNParts {
@@ -827,7 +801,7 @@ struct inGenerateIC {
     int bFixed;
     float fPhase;
     int nGrid;
-    int b2LPT;
+    int iLPT;
     int bICgas;
     int nBucket;
     double dInitialT;
@@ -1070,6 +1044,7 @@ struct inAssignMass {
     int iAssignment;
     int iGrid;
     float fDelta;
+    int fold;
 };
 int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_DENSITY_CONTRAST */
@@ -1154,11 +1129,11 @@ int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 struct inLightConeOpen {
     int nSideHealpix;
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inLightConeClose {
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutFile[PATH_MAX];
 };
 int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut);
 

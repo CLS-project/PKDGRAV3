@@ -23,7 +23,25 @@
     #include "mdl_config.h"
 #endif
 #ifdef INSTRUMENT
-    #include "cycle.h"
+#include "cycle.h"
+
+/* Last effort to find a clock */
+#if defined(HAVE_CLOCK_GETTIME) && !defined(HAVE_TICK_COUNTER)
+typedef struct timespec ticks;
+
+static inline ticks getticks(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t;
+}
+
+static inline double elapsed(ticks t1, ticks t0) {
+    return ((double)t1.tv_sec - (double)t0.tv_sec) * 1.0E9 +
+           ((double)t1.tv_nsec - (double)t0.tv_nsec);
+}
+#define HAVE_TICK_COUNTER
+#endif
+
 #endif
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,12 +104,12 @@ public:
     ServiceBuffer &operator=(const ServiceBuffer &) = delete;
 
     // Move constructor
-    ServiceBuffer(ServiceBuffer&& other) noexcept
+    ServiceBuffer(ServiceBuffer &&other) noexcept
         : offsets(std::move(other.offsets)), buffer(std::move(other.buffer))
     {}
 
     // Move assignment
-    ServiceBuffer &operator=(ServiceBuffer&& other) noexcept {
+    ServiceBuffer &operator=(ServiceBuffer &&other) noexcept {
         if (&other != this) {
             offsets = std::move(other.offsets);
             buffer = std::move(other.buffer);
@@ -137,6 +155,11 @@ protected:
 
 class mdlBASE : protected mdlbt {
 public:
+#ifdef USE_BT
+    using mdlbt::ignore_SIGBUS;
+    using mdlbt::show_backtrace;
+    using mdlbt::show_backtrace_with_snippets;
+#endif
     struct {
         int32_t nThreads; /* Global number of threads (total) */
         int32_t idSelf;   /* Global index of this thread */

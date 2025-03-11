@@ -1,7 +1,33 @@
 cmake_minimum_required(VERSION 3.12)
 cmake_policy(VERSION 3.12...3.22)
+if(POLICY CMP0144)
+    cmake_policy(SET CMP0144 NEW)
+endif()
+# Find Boost in the old way for now
+# Not sure how the new way can work with spack
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 OLD)
+endif()
 include(CheckLanguage)
 include(FindPkgConfig)
+
+# Option to enable or disable cpptrace
+option(USE_CPPTRACE "Enable cpptrace for backtrace support" ON)
+if (USE_CPPTRACE)
+  include(FetchContent)
+  FetchContent_Declare(
+    cpptrace
+    GIT_REPOSITORY https://github.com/jdpotter/cpptrace.git
+    GIT_TAG        v0.7.2 # <HASH or TAG>
+  )
+  FetchContent_GetProperties(cpptrace)
+  if (NOT cpptrace_POPULATED)
+    message(STATUS "Fetching cpptrace...")
+    FetchContent_MakeAvailable(cpptrace)
+  endif()
+else()
+  message(STATUS "cpptrace support disabled.")
+endif()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Release build with debug info selected")
@@ -24,6 +50,11 @@ INCLUDE (CheckIncludeFiles)
 CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
 CHECK_INCLUDE_FILES (time.h HAVE_TIME_H)
 CHECK_INCLUDE_FILES (sys/time.h HAVE_SYS_TIME_H)
+if(HAVE_TIME_H AND HAVE_SYS_TIME_H)
+    set(TIME_WITH_SYS_TIME 1)
+else()
+    set(TIME_WITH_SYS_TIME 0)
+endif()
 CHECK_INCLUDE_FILES (unistd.h HAVE_UNISTD_H)
 CHECK_INCLUDE_FILES (signal.h HAVE_SIGNAL_H)
 CHECK_INCLUDE_FILES (inttypes.h HAVE_INTTYPES_H)
@@ -34,15 +65,12 @@ CHECK_FUNCTION_EXISTS(sched_yield HAVE_SCHED_YIELD)
 INCLUDE(CheckLibraryExists)
 CHECK_LIBRARY_EXISTS(memkind hbw_posix_memalign "" HAVE_MEMKIND)
 
-CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)
-if (HAVE_NUMA_H)
-  CHECK_LIBRARY_EXISTS(numa numa_setlocal_memory "" HAVE_NUMA)
-endif()
 CHECK_INCLUDE_FILES(mach/mach_time.h HAVE_MACH_MACH_TIME_H)
 
 INCLUDE(CheckSymbolExists)
 check_symbol_exists(backtrace execinfo.h USE_BT)
 check_symbol_exists(mach_absolute_time mach/mach_time.h HAVE_MACH_ABSOLUTE_TIME)
+check_symbol_exists(clock_gettime time.h HAVE_CLOCK_GETTIME)
 
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
@@ -93,6 +121,13 @@ if (elfutils_FOUND)
    target_link_libraries(${PROJECT_NAME} elfutils::dw elfutils::elf)
 endif()
 
+# Link cpptrace if available
+if (cpptrace_POPULATED)
+  target_link_libraries(${PROJECT_NAME} cpptrace::cpptrace)
+else()
+  message(WARNING "cpptrace not available. Skipping backtrace support.")
+endif()
+
 if (APPLE)
   target_sources(${PROJECT_NAME}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mac/pthread_barrier.c
@@ -133,10 +168,6 @@ endif()
 if(HAVE_MEMKIND)
 find_library(MEMKIND_LIBRARY memkind)
 target_link_libraries(${PROJECT_NAME} ${MEMKIND_LIBRARY})
-endif()
-if(HAVE_NUMA)
-  find_library(NUMA_LIBRARY numa)
-  target_link_libraries(${PROJECT_NAME} ${NUMA_LIBRARY})
 endif()
 target_link_libraries(${PROJECT_NAME} Boost::boost)
 
