@@ -738,17 +738,13 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 mdlassert(pst->mdl,fio!=NULL);
             }
 
-            fioSpeciesList nTotal, nThisFile;
+            fioSpeciesList nTotal, nThisFile{0};
             nTotal[FIO_SPECIES_DARK] = in->nDark;
             nTotal[FIO_SPECIES_SPH]  = in->nGas;
             nTotal[FIO_SPECIES_STAR] = in->nStar;
             nTotal[FIO_SPECIES_BH]   = in->nBH;
-            nThisFile[FIO_SPECIES_DARK] = plcl->pkd->nDark;
-            nThisFile[FIO_SPECIES_SPH]  = plcl->pkd->nGas;
-            nThisFile[FIO_SPECIES_STAR] = plcl->pkd->nStar;
-            nThisFile[FIO_SPECIES_BH]   = plcl->pkd->nBH;
 
-            pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,in->bnd);
+            pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,in->bnd,nThisFile);
             for (i=in->iLower+1; i<in->iUpper; ++i ) {
                 int rID = pst->mdl->ReqService(i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
                 pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,in->bnd,nThisFile);

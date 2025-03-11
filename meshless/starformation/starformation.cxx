@@ -252,9 +252,6 @@ void pkdStarForm(PKD pkd,
 
                 (*nFormed)++;
                 *dMassFormed += mass;
-
-                pkd->nGas -= 1;
-                pkd->nStar += 1;
             }
         }
     }

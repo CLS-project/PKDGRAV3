@@ -723,7 +723,7 @@ void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
                        fioSpeciesList nTotal, fioSpeciesList nThisFile,
                        double dBoxSize, double h, int nProcessors, UNITS units);
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd);
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten);
 void pkdWriteViaNode(PKD pkd, int iNode);
 char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,PKD_FIELD field,int iUnitSize,double dvFac,int bMarked);

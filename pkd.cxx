@@ -1769,10 +1769,11 @@ void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize) {
 *
 \*****************************************************************************/
 
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd) {
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten) {
     double dvFacGas = sqrt(dvFac);
     for (auto &p : pkd->particles) {
         writeParticle(pkd,fio,dvFac,dvFacGas,bnd,p);
+        ++nWritten[p.species()];
     }
     return pkd->particles.Local();
 }
@@ -2741,23 +2742,6 @@ void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
     //pkd->CopyParticle(p, lastp);
     //pkd->Local() -= 1;
     //pkd->TreeNode(ROOT)->pUpper -= 1;
-    switch (pSpecies) {
-    case FIO_SPECIES_DARK:
-        pkd->nDark -= 1;
-        break;
-    case FIO_SPECIES_SPH:
-        pkd->nGas -= 1;
-        break;
-    case FIO_SPECIES_STAR:
-        pkd->nStar -= 1;
-        break;
-    case FIO_SPECIES_BH:
-        pkd->nBH -= 1;
-        break;
-    default:
-        printf("Deleting particle with unknown type");
-        abort();
-    }
     p.set_marked(false);
     p.set_rung(0);
     p.set_new_rung(0);

@@ -118,8 +118,6 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             // this is not required
             pLowPot.set_new_rung(uRungMax);
 
-            ++pkd->nBH;
-            --pkd->nGas;
             ++newBHs;
 
             for (int i = 0; i < smx->nnListSize; ++i) {
