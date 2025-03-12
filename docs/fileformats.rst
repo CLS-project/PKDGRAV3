@@ -99,3 +99,97 @@ Information on this format can be found in the Gadget2 documentation.
 
 See: https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf
 
+
+--------------
+HDF5 Format
+--------------
+
+The HDF5 format has a structure similar to what is found in codes such as
+Gadget2 and its descendants. Following is a description of each group that
+is stored and their contents.
+
+The ``Header`` group contains general information about the simulation and
+the snapshot.
+
+.. code-block:: none
+
+    Header {
+        BoxSize                // Size of the box in Mpc/h
+        Cosmological run       // Whether or not this is a cosmological run
+        Flag_Cooling           // Whether or not the code was compiled with the COOLING flag
+        Flag_DoublePrecision   // Whether or not position and velocities are stored in double precision
+        Flag_Feedback          // Whether or not the code was compiled with the FEEDBACK flag
+        Flag_Metals            // Whether or not gas and star particles contain a metallicity dataset
+        Flag_Sfr               // Whether or not the code was compiled with the STAR_FORMATION flag
+        Flag_StellarAge        // Same as Flag_Sfr above
+        Hubble0                // Hubble constant in code units
+        HubbleParam            // Dimensionless Hubble constant, h, in units of 100 km/(s Mpc)
+        MassTable              // UNUSED. It is just an array of zeros
+        NumFilesPerSnapshot    // The number of files the snapshot has been split into
+        NumPart_ThisFile       // Number of particles of each PartType in the present file
+        NumPart_Total          // Total number of particles of each PartType
+        Omega0                 // Present-day total-matter parameter
+        OmegaB                 // Present-day baryonic-matter parameter
+        OmegaLambda            // Present-day dark-energy parameter
+        PKDGRAV version        // Code's version
+        Redshift               // The snapshot's redshift
+        Softening              // Comoving softening length in code units
+        Time                   // The snapshot's cosmic time in code units
+    }
+
+The ``Cosmology`` group contains the cosmological parameters. They are the same as
+those included in the ``Header`` group. This is done for compatibility reasons
+with existing simulation analysis libraries.
+
+.. code-block:: none
+
+    Cosmology {
+        Cosmological run       // Whether or not this is a cosmological run
+        Hubble0                // Hubble constant in code units
+        HubbleParam            // Dimensionless Hubble constant, h, in units of 100 km/(s Mpc)
+        Omega_b                // Present-day baryonic-matter parameter
+        Omega_lambda           // Present-day dark-energy parameter
+        Omega_m                // Present-day total-matter parameter
+    }
+
+The ``Units`` group contains unit conversion factors from code units to any of the
+units below. These factors should be multiplied to values read from the snapshot to
+obtain the desired units.
+
+.. code-block:: none
+
+    Units {
+        ErgPerGmUnit           // Energy per unit mass to erg/g
+        ErgUnit                // Energy to erg
+        GasConst               // Boltzmann constant over hydrogen mass in code units
+        GmPerCcUnit            // Mass density to g/cm^3
+        KmPerSecUnit           // Velocity to km/s
+        KpcUnit                // Length to kpc
+        MsolUnit               // Mass to solar mass
+        SecUnit                // Time to seconds
+    }
+
+Following the Gadget convention, six particle types are allowed in the snapshots.
+They map to pkdgrav3 particle species as follows.
+
+* ``PartType0``: Gas
+* ``PartType1``: Dark matter
+* ``PartType2``: UNUSED
+* ``PartType3``: UNUSED
+* ``PartType4``: Star
+* ``PartType5``: Black hole
+
+A group is created for every particle type present in the simulation. In general,
+the datasets contained in each of them will depend on the compile- and run-time
+parameters that were used in running the simulation. Following is the minimum
+contents each particle group has.
+
+.. code-block:: none
+
+    PartType0 {
+        Coordinates            // Coordinates (comoving in cosmological runs)
+        ParticleIDs            // Particle ID
+        Potential              // Gravitational potential
+        Velocities             // Velocity (comoving in cosmological runs; i.e., dx/dt)
+    }
+
