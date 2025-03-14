@@ -250,7 +250,7 @@ public:
     }
     auto &clone(const list_type &rhs) {
         this->clear_and_dispose(move_disposer(*freeList));
-        for (auto tile : rhs) {
+        for (auto const &tile : rhs) {
             newTile();
             memcpy(this->back().data(),tile.data(),sizeof(block_type) * tile_type::num_blocks);
             this->back().nInTile = tile.nInTile;
