@@ -22,7 +22,7 @@ def get_types(default):
   elif isinstance(default,int):
     return 'int64_t','int64_t'
   elif isinstance(default,str):
-    return 'std::string_view','string'
+    return 'std::string','string'
   else:
     return None, None
 
@@ -50,10 +50,11 @@ def emit_proto(section,parameters_h,parameters_pxi,enumerations_pxi,enumerations
           c_type = f'blitz::TinyVector<{item_type},{len(default)}>'
           i_type = f'TinyVector[{item_type},BLITZ{len(default)}]'
       type_name = v['name'] if 'name' in v else k.upper()
+      print("    template <typename... Args>",file=parameters_h)
       if 'enum' in v:
-        print(f'    auto get_{k:{w}}() const {{ return {type_name}(get<{c_type}>({name})); }}',file=parameters_h)
+        print(f'    auto get_{k:{w}}(Args... rest) const {{ return {type_name}(get<{c_type}>({name},rest...)); }}',file=parameters_h)
       else:
-        print(f'    auto get_{k:{w}}() const {{ return get<{c_type}>({name}); }}',file=parameters_h)
+        print(f'    auto get_{k:{w}}(Args... rest) const {{ return get<{c_type}>({name},rest...); }}',file=parameters_h)
       print(f'        {i_type:<7} get_{k}()',file=parameters_pxi)
       print(f'    bool has_{k:{w}}() const {{ return has(str_{k}); }}',file=parameters_h)
       print(f'        bool    has_{k}()',file=parameters_pxi)
@@ -93,7 +94,7 @@ with open(argv[2], 'w') as parameters_h,open(argv[3], 'w') as parameters_pxi,ope
 #define PKD_PARAMETERS_H 1
 #include "pyrameters.h"''',file=parameters_h)
   print(f'#include "{basename(enumerations_h_name)}"',file=parameters_h)
-  print('''class pkd_parameters : public pyrameters {
+  print('''class pkd_parameters : public pyrameters::pyrameters {
 public:
     pkd_parameters() = default;
     pkd_parameters(PyObject *arguments, PyObject *specified) : pyrameters(arguments,specified) {}''',file=parameters_h)
