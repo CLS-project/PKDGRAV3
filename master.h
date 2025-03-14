@@ -199,14 +199,14 @@ public:
     void HopWrite(const char *fname);
     EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,int fold=1);
+    MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,int fold=1);
     void AssignMass(int iAssignment=3,int iGrid=0,float fDelta=0.0f,int fold=1);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
     void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-            GridBinK(int nBins, int iGrid);
+    GridBinK(int nBins, int iGrid);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
     void GridCreateFFT(int nGrid);
@@ -427,10 +427,10 @@ protected:
         return iCurrMaxRung;
     }
 
-    std::string BuildName(std::string_view path,int iStep,const char *type="");
-    std::string BuildName(int iStep,const char *type=""); // With achOutPath
-    std::string BuildIoName(int iStep,const char *type="");
-    std::string BuildCpName(int iStep,const char *type="");
+    std::string BuildName(std::string_view path,int iStep,std::string_view type = {});
+    std::string BuildName(  int iStep,std::string_view type = {}); // With achOutPath
+    std::string BuildIoName(int iStep,std::string_view type = {}); // With achIoPath
+    std::string BuildCpName(int iStep,std::string_view type = {}); // With achCpPath
 
     int ReadOuts(double dTime);
     void Exit(int status);
@@ -552,7 +552,7 @@ protected:
     void InitBall();
 
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-            MeasureLinPk(int nGridLin,double a,double dBoxSize);
+    MeasureLinPk(int nGridLin,double a,double dBoxSize);
     void OutputPk(int iStep,double dTime);
     void OutputLinPk(int iStep, double dTime);
 
