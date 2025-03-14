@@ -66,10 +66,6 @@ void GridInfo::setupArray(real_t *dataFirst,real_array_t &rspace) {
     }
 }
 
-//pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-//pthread_mutex_lock(&mutex);
-//pthread_mutex_unlock(&mutex);
-
 void GridInfo::setupArray(complex_t *dataFirst,complex_array_t &kspace) {
     // The complex array shares the storage of the real array, but:
     // - The x dimension is 1 greater than half the grid size

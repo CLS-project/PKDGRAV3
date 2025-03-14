@@ -17,11 +17,10 @@
 
 #ifndef MDL_HINCLUDED
 #define MDL_HINCLUDED
+#include <boost/circular_buffer.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/barrier.hpp>
 #include "mdlbase.h"
-#include <pthread.h>
-#ifdef __APPLE__
-    #include "pthread_barrier.h"
-#endif
 #include <stdio.h>
 #include <assert.h>
 #ifdef HAVE_INTTYPES_H
@@ -30,24 +29,22 @@
 #include <stdint.h>
 #include "mpi.h"
 #include "mdlfft.h"
-#ifdef __cplusplus
-    #include "arc.h"
-    #include "mpimessages.h"
-    #include "gpu/mdlgpu.h"
-    #ifdef USE_CUDA
-        #include "mdlcuda.h"
-    #endif
-    #ifdef USE_METAL
-        #include "metal/mdlmetal.h"
-    #endif
-    #include "rwlock.h"
-    #include <memory>
-    #include <tuple>
-    #include <vector>
-    #include <list>
-    #include <map>
-    #include <boost/circular_buffer.hpp>
+#include "arc.h"
+#include "mpimessages.h"
+#include "gpu/mdlgpu.h"
+#ifdef USE_CUDA
+    #include "mdlcuda.h"
 #endif
+#ifdef USE_METAL
+    #include "metal/mdlmetal.h"
+#endif
+#include "rwlock.h"
+#include <memory>
+#include <tuple>
+#include <vector>
+#include <list>
+#include <map>
+#include <optional>
 
 #ifndef MPI_VERSION
     #define MPI_VERSION 1
@@ -264,7 +261,6 @@ protected:
     int mdl_MPI_Recv(void *buf, int count, int source, int tag, int *nBytes);
     virtual int checkMPI();
     void drainMPI();
-    static void *mdlWorkerThread(void *vmdl); // Called by pthread_create with an mdlClass *
     void *WorkerThread();
     void combine_all_incoming();
 
@@ -371,8 +367,8 @@ public:
 #endif
 protected:
     MPI_Comm commMDL;             /* Current active communicator */
-    pthread_barrier_t barrier;
-    std::vector<pthread_t> threadid;
+    std::optional<boost::barrier> barrier;
+    boost::thread_group worker_threads; // Worker threads
     mdlMessageQueue queueMPInew;     // Queue of work sent to MPI task
     std::vector<mdlMessageCacheRequest *> CacheRequestMessages;
     std::vector<bool> CacheRequestRendezvous;
@@ -509,7 +505,6 @@ public:
     virtual ~mpiClass();
     void SetCacheMaxInflight(int iMax) {iCacheMaxInflight = iMax;}
     int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
-    void KillAll(int signo);
 #ifdef USE_CUDA
     bool isCudaActive() {return cuda.isActive(); }
     int numGPUs() {return cuda.numDevices();}
@@ -525,7 +520,7 @@ public:
 #endif
     void enqueue(mdlMessage &M);
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
-    void pthreadBarrierWait();
+    void ThreadBarrierWait();
 };
 } // namespace mdl
 #endif

@@ -114,11 +114,9 @@ typedef struct srvHeader {
 /*****************************************************************************\
 * State retrieval
 \*****************************************************************************/
-pthread_key_t mdl_key; // One MDL per thread
-pthread_key_t worker_key; // One worker context per thread
-
-MDL   mdlMDL(void)    { return pthread_getspecific(mdl_key); }
-void *mdlWORKER(void) { return pthread_getspecific(worker_key); }
+thread_local mdlClass *mdl_context;
+MDL   mdlMDL(void)    { return mdl_context; }
+void *mdlWORKER(void) { return mdl_context->worker_ctx; }
 
 /*****************************************************************************\
 * Class/Thread overview
@@ -1310,8 +1308,8 @@ mpiClass::~mpiClass() {
 }
 
 // While FFTW does its thing we need to wait without spinning. This function does that.
-void mpiClass::pthreadBarrierWait() {
-    pthread_barrier_wait(&barrier);
+void mpiClass::ThreadBarrierWait() {
+    barrier->wait();
 }
 
 /// @brief Swap elements between MPI ranks
@@ -1660,13 +1658,13 @@ void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
 // MPI thread: initiate a real to complex transform
 void mpiClass::MessageDFT_R2C(mdlMessageDFT_R2C *message) {
     FFTW3(execute_dft_r2c)(message->fft->fplan,message->data,message->kdata);
-    pthreadBarrierWait();
+    ThreadBarrierWait();
 }
 
 // MPI thread: initiate a complex to real transform
 void mpiClass::MessageDFT_C2R(mdlMessageDFT_C2R *message) {
     FFTW3(execute_dft_c2r)(message->fft->iplan,message->kdata,message->data);
-    pthreadBarrierWait();
+    ThreadBarrierWait();
 }
 
 void mpiClass::MessageFFT_Sizes(mdlMessageFFT_Sizes *sizes) {
@@ -1685,10 +1683,10 @@ void mpiClass::MessageFFT_Plans(mdlMessageFFT_Plans *plans) {
                        &info.nz, &info.sz, &info.ny, &info.sy);
         info.fplan = FFTW3(mpi_plan_dft_r2c_3d)(
                          plans->n3,plans->n2,plans->n1,plans->data,plans->kdata,
-        commMDL,FFTW_MPI_TRANSPOSED_OUT | (plans->data==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
+                         commMDL,FFTW_MPI_TRANSPOSED_OUT | (plans->data==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
         info.iplan = FFTW3(mpi_plan_dft_c2r_3d)(
                          plans->n3,plans->n2,plans->n1,plans->kdata,plans->data,
-        commMDL,FFTW_MPI_TRANSPOSED_IN  | (plans->kdata==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
+                         commMDL,FFTW_MPI_TRANSPOSED_IN  | (plans->kdata==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
     }
     plans->nLocal = info.nLocal;
     plans->nz = info.nz;
@@ -1884,11 +1882,6 @@ static void TERM_handler(int signo) {
     MPI_Abort(MPI_COMM_WORLD,130);
 }
 
-void mpiClass::KillAll(int signo) {
-    for (auto i = 0; i < Cores(); ++i)
-        if (i!=Core()) pthread_kill(threadid[i], signo);
-}
-
 extern "C"
 int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     mpiClass mdl(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
@@ -1914,9 +1907,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
 
-    pthread_key_create(&mdl_key,NULL);
-    pthread_key_create(&worker_key,NULL);
-    pthread_setspecific(mdl_key, static_cast<class mdlClass *>(this));
+    mdl_context = this;
 
 #ifdef _SC_NPROCESSORS_CONF /* from unistd.h */
     layout.nCores = sysconf(_SC_NPROCESSORS_CONF);
@@ -2107,11 +2098,9 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     __itt_thread_set_name("MPI");
 #endif
 
-    threadid.resize(Cores());
-
     /* Launch threads: if dedicated MPI thread then launch all worker threads. */
 #ifdef USE_ITT
-    __itt_string_handle *shPthreadTask = __itt_string_handle_create("pthread");
+    __itt_string_handle *shPthreadTask = __itt_string_handle_create("thread");
     __itt_task_begin(domain, __itt_null, __itt_null, shPthreadTask);
 #endif
     nActiveCores = 0;
@@ -2119,24 +2108,19 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 #ifdef USE_HWLOC
         int icpu = -1;
 #endif
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setstacksize(&attr,8*1024*1024);
-        pthread_barrier_init(&barrier,NULL,Cores()+(bDedicated?1:0));
+
+        barrier.emplace(Cores()+(bDedicated?1:0));
         for (i = iCoreMPI+1; i < Cores(); ++i) {
-            pthread_create(&threadid[i], &attr,
-                           mdlWorkerThread,
-                           pmdl[i]);
+            auto thread = worker_threads.create_thread([this,i]() { pmdl[i]->WorkerThread();});
 #ifdef USE_HWLOC
             if (t) { // If requested, bind the new thread to the specific core
                 icpu = hwloc_bitmap_next(set_proc,icpu);
                 hwloc_bitmap_only(set_thread,icpu);
-                hwloc_set_thread_cpubind(topology,threadid[i],set_thread,HWLOC_CPUBIND_THREAD);
+                hwloc_set_thread_cpubind(topology,thread->native_handle(),set_thread,HWLOC_CPUBIND_THREAD);
             }
 #endif
             ++nActiveCores;
         }
-        pthread_attr_destroy(&attr);
     }
 #ifdef USE_ITT
     __itt_task_end(domain);
@@ -2153,7 +2137,6 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         delete queueReceive.release();
         queueReceive = std::make_unique<mdlMessageQueue[]>(Cores());
         worker_ctx = (*fcnWorkerInit)(static_cast<MDL>(static_cast<mdlClass *>(this)));
-        pthread_setspecific(worker_key, worker_ctx);
         CommitServices();
         if (Self()) Handler();
         else exit_code = run_master();
@@ -2161,15 +2144,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     }
     drainMPI();
 
-    if (Cores() > 1 || bDedicated) {
-        pthread_barrier_destroy(&barrier);
-    }
-    for (i = iCoreMPI+1; i < Cores(); ++i) {
-        int *result = NULL;
-        pthread_join(threadid[i],reinterpret_cast<void **>(&result));
-        if (result) exit_code = *result;
-        delete pmdl[i];
-    }
+    worker_threads.join_all();
     delete[] (pmdl-1);
 
     // Deallocate cache reply buffers
@@ -2464,9 +2439,8 @@ void *mdlClass::WorkerThread() {
     sprintf(szName,"ID %d", Core());
     __itt_thread_set_name(szName);
 #endif
-    pthread_setspecific(mdl_key, this);
+    mdl_context = this;
     worker_ctx = (*fcnWorkerInit)(static_cast<MDL>(this));
-    pthread_setspecific(worker_key, worker_ctx);
     CommitServices();
 
     CPPTRACE_TRY {
@@ -2491,10 +2465,6 @@ void *mdlClass::WorkerThread() {
         drainMPI();
     }
     return result;
-}
-void *mdlClass::mdlWorkerThread(void *vmdl) {
-    mdlClass *mdl = static_cast<mdlClass *>(vmdl);
-    return mdl->WorkerThread();
 }
 
 /*
@@ -3103,7 +3073,7 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
         // and the FFTW threads can make full use of the CPU.
         enqueue(trans);
     }
-    if (Cores()>1) mpi->pthreadBarrierWait();
+    if (Cores()>1) mpi->ThreadBarrierWait();
 }
 
 void mdlIFFT( MDL cmdl, MDLFFT fft, FFTW3(complex) *kdata ) { static_cast<mdlClass *>(cmdl)->IFFT(fft,kdata); }
@@ -3119,7 +3089,7 @@ void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
         // and the FFTW threads can make full use of the CPU.
         enqueue(trans);
     }
-    if (Cores()>1) mpi->pthreadBarrierWait();
+    if (Cores()>1) mpi->ThreadBarrierWait();
 }
 #endif
 
