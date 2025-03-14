@@ -3635,7 +3635,8 @@ void MSR::GroupStats() {
 
 #ifdef MDL_FFTW
 double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
-    struct inGenerateIC in;
+    auto inptr = std::make_unique<inGenerateIC>(); // This has largish tables
+    auto &in = *inptr;
     struct outGenerateIC out;
     ServiceFftSizes::input inFFTSizes;
     ServiceFftSizes::output outFFTSizes;
