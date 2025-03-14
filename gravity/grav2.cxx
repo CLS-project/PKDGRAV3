@@ -50,7 +50,7 @@
 #include <stack>
 
 #if 1
-#if defined(USE_SIMD) && defined(__SSE2__)
+#if defined(USE_SIMD) && (defined(__SSE2__)||defined(__ARM_NEON))
 /* Caution: This uses v/sqrt(v) so v cannot be zero! */
 static inline float asqrtf(float v) {
     __m128 r2 = _mm_max_ss(_mm_set_ss(v),_mm_set_ss(FLT_MIN));
