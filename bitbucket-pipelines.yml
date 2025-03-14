@@ -2,7 +2,7 @@ image: dpotter/pkdgrav3-build
 pipelines:
   default:
     - step:
-        size: 2x
+        size: 8x
         script:
           - cmake -S . -B build
           - cmake --build build -- -j 8
@@ -10,7 +10,7 @@ pipelines:
     develop:
       - parallel:
           - step:
-              size: 2x
+              size: 8x
               runs-on:
                 - self.hosted
                 - gpu
@@ -24,7 +24,7 @@ pipelines:
                   env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8
                   ctest -V --test-dir build
           - step:
-              size: 2x
+              size: 8x
               runs-on:
                 - self.hosted
                 - avx512
@@ -39,7 +39,7 @@ pipelines:
                   ctest -V --test-dir build
     iac-hydro:
       - step:
-          size: 2x
+          size: 8x
           script:
             - >
               cmake -DCOOLING=on -DSTAR_FORMATION=on -DFEEDBACK=on
