@@ -63,6 +63,8 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep) {
     iStep_list.clear();     // to this step number
 
     auto nSteps = parameters.get_nSteps();
+    if (nSteps.size() == 1 && nSteps[0]==0) return true;
+
     auto dDelta = parameters.get_dDelta();
     auto dRedTo = parameters.get_dRedTo();
 
@@ -349,7 +351,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
 
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
-    auto nSteps = iStep_list.back();
+    auto nSteps = iStep_list.empty() ? 0 : iStep_list.back();
     for (auto iStep=iStartStep+1; iStep<=nSteps&&!iStop; ++iStep) {
         dTheta = set_dynamic(iStep,dTime);
         dDelta = SwitchDelta(dTime,iStep-1);

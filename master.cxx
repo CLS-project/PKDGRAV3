@@ -1040,6 +1040,7 @@ double MSR::SwitchDelta(double dTime,int iStep) {
         iStep_list.erase(iStep_list.begin());
         dDelta_list.erase(dDelta_list.begin());
     }
+    if (dDelta_list.size() == 0) return 0.0;
     return dDelta_list.front();
 }
 
