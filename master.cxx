@@ -3931,8 +3931,6 @@ double MSR::Read(std::string_view achInFile) {
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     if (nStar) mMemoryModel |= PKD_MODEL_STAR;
 
-    read->nNodeStart = 0;
-    read->nNodeEnd = N - 1;
 
     for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
         nSpecies[s] = fioGetN(fio,s);
@@ -3949,6 +3947,14 @@ double MSR::Read(std::string_view achInFile) {
 
     if (read->nProcessors > 1) {
         fioClose(fio);
+        // NB: For the parallel read, the nSpeciesEnd is the index of the last
+        // element to be read, whereas for the serial read (OneNodeRead) it holds
+        // the number of elements to read (always per-species)
+        for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            if (nSpecies[s] > 0) {
+                read->nSpeciesEnd[s] -= 1;
+            }
+        }
         pstReadFile(pst,read,sizeof(struct inReadFile)+nBytes,NULL,0);
     }
     else {
