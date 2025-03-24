@@ -27,7 +27,7 @@
 ** We are about to renumber the groups locally. Each group has the new ID in iNewGid.
 */
 static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bIndexIsGID) {
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int pi, gid;
 
     /* Update the group for all local particles */
@@ -46,11 +46,11 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bI
                 ga[gid].id.iIndex = ga[gid].iNewGid;
             }
             else {
-                auto g = static_cast<struct smGroupArray *>(mdlFetch(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid));
+                auto g = mdl->Fetch<smGroupArray>(CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
                 ga[gid].id.iIndex = g->iNewGid;
             }
         }
-        mdlFinishCache(mdl,CID_GROUP);
+        mdl->FinishCache(CID_GROUP);
     }
 }
 
@@ -171,7 +171,7 @@ static void combMaxnGroup(void *vctx, void *v1, const void *v2) {
 ** and make that processor that master for that group.
 */
 int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int i, gid, nLocalGroups;
 
     /* Count local members of all groups */
@@ -190,23 +190,23 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
                NULL,initMaxnGroup,combMaxnGroup);
     for (i=1+nLocalGroups; i<nGroups; ++i) {
         assert(ga[i].id.iPid != pkd->Self());
-        auto g = static_cast<struct smGroupArray *>(mdlVirtualFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
+        auto g = mdl->VirtualFetch<smGroupArray>(CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
         g->id.iPid = pkd->Self();
         g->id.iIndex = i;
         g->nTotal = ga[i].nTotal;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Now the local groups are not at the start of the table!
     */
     /* Now update the new group location */
     mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray), pkd->nGroups);
     for (i=1+nLocalGroups; i<nGroups; ++i) {
-        auto g = static_cast<struct smGroupArray *>(mdlFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
+        auto g = mdl->Fetch<smGroupArray>(CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
         ga[i].id.iPid = g->id.iPid;
         ga[i].id.iIndex = g->id.iIndex;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Get local groups back at the begining of the table.
     */
@@ -229,7 +229,7 @@ static void combTotalnGroup(void *vctx, void *v1, const void *v2) {
 ** Returns the number of local groups in the smGroupArray table.
 */
 int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int i, gid;
     int nLocalGroups;
 
@@ -253,19 +253,19 @@ int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
                NULL,initTotalnGroup,combTotalnGroup);
     for (i=1+nLocalGroups; i<nGroups; ++i) {
         assert(ga[i].id.iPid != pkd->Self());   /* assumes local groups come first, then remotes */
-        auto g = static_cast<struct smGroupArray *>(mdlVirtualFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
+        auto g = mdl->VirtualFetch<smGroupArray>(CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
         g->nTotal += ga[i].nTotal;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Finally update remote group counts.
     */
     mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray),nGroups);
     for (i=1+nLocalGroups; i<nGroups; ++i) {
-        auto g = static_cast<struct smGroupArray *>(mdlFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
+        auto g = mdl->Fetch<smGroupArray>(CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
         ga[i].nTotal = g->nTotal;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
 
     return (nLocalGroups);
 }

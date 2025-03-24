@@ -83,7 +83,7 @@ void pkdAddLinearSignal(PKD pkd, int iGrid, int iSeed, bool bFixed, float fPhase
     GridInfo G(pkd->mdl,fft);
 
     complex_array_t K1;
-    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
+    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGrid;
     G.setupArray(data1,K1);
 
     LinearSignal ng(pkd->csm,a,Lbox,iSeed,bFixed,fPhase);
@@ -124,7 +124,7 @@ void pkdGridBinK(PKD pkd,int nBins, int iGrid, double *fK, double *fPower, uint6
     GridInfo G(pkd->mdl,fft);
 
     complex_array_t K1;
-    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
+    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGrid;
     G.setupArray(data1,K1);
 
     for ( auto i=0; i<nBins; i++ ) {

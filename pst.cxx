@@ -72,262 +72,262 @@
 
 #define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
 
-void pstAddServices(PST pst,MDL mdl) {
+void pstAddServices(PST pst,mdl::mdlClass * mdl) {
     int nThreads;
 
-    nThreads = mdlThreads(mdl);
+    nThreads = mdl->Threads();
 
-    mdlAddService(mdl,PST_READFILE,pst,(fcnService_t *)pstReadFile,
-                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),0);
-    mdlAddService(mdl,PST_COMPRESSASCII,pst,(fcnService_t *)pstCompressASCII,
-                  sizeof(struct inCompressASCII),sizeof(struct outCompressASCII));
-    mdlAddService(mdl,PST_WRITEASCII,pst,(fcnService_t *)pstWriteASCII,
-                  sizeof(struct inWriteASCII),0);
-    mdlAddService(mdl,PST_WRITE,pst,(fcnService_t *)pstWrite,
-                  sizeof(struct inWrite),0);
-    mdlAddService(mdl,PST_SENDPARTICLES,pst,(fcnService_t *)pstSendParticles,
-                  sizeof(int),0);
-    mdlAddService(mdl,PST_SENDARRAY,pst,(fcnService_t *)pstSendArray,
-                  sizeof(struct inSendArray),0);
-    mdlAddService(mdl,PST_CHECKPOINT,pst,(fcnService_t *)pstCheckpoint,
-                  sizeof(struct inWrite),0);
-    mdlAddService(mdl,PST_OUTPUT,pst,(fcnService_t *)pstOutput,
-                  sizeof(struct inOutput),0);
-    mdlAddService(mdl,PST_OUTPUT_SEND,pst,(fcnService_t *)pstOutputSend,
-                  sizeof(struct inOutputSend),0);
+    mdl->AddService(PST_READFILE,pst,(fcnService_t *)pstReadFile,
+                    sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),0);
+    mdl->AddService(PST_COMPRESSASCII,pst,(fcnService_t *)pstCompressASCII,
+                    sizeof(struct inCompressASCII),sizeof(struct outCompressASCII));
+    mdl->AddService(PST_WRITEASCII,pst,(fcnService_t *)pstWriteASCII,
+                    sizeof(struct inWriteASCII),0);
+    mdl->AddService(PST_WRITE,pst,(fcnService_t *)pstWrite,
+                    sizeof(struct inWrite),0);
+    mdl->AddService(PST_SENDPARTICLES,pst,(fcnService_t *)pstSendParticles,
+                    sizeof(int),0);
+    mdl->AddService(PST_SENDARRAY,pst,(fcnService_t *)pstSendArray,
+                    sizeof(struct inSendArray),0);
+    mdl->AddService(PST_CHECKPOINT,pst,(fcnService_t *)pstCheckpoint,
+                    sizeof(struct inWrite),0);
+    mdl->AddService(PST_OUTPUT,pst,(fcnService_t *)pstOutput,
+                    sizeof(struct inOutput),0);
+    mdl->AddService(PST_OUTPUT_SEND,pst,(fcnService_t *)pstOutputSend,
+                    sizeof(struct inOutputSend),0);
     /*
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
-    mdlAddService(mdl,PST_BUILDTREE,pst,(fcnService_t *)pstBuildTree,
-                  sizeof(struct inBuildTree),
-                  (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
-    mdlAddService(mdl,PST_TREEINITMARKED,pst,(fcnService_t *)pstTreeInitMarked,
-                  0,0);
-    mdlAddService(mdl,PST_HOP_LINK,pst,(fcnService_t *)pstHopLink,
-                  sizeof(struct inHopLink),sizeof(uint64_t));
-    mdlAddService(mdl,PST_HOP_JOIN,pst,(fcnService_t *)pstHopJoin,
-                  sizeof(struct inHopLink),sizeof(struct outHopJoin));
-    mdlAddService(mdl,PST_HOP_FINISH_UP,pst,(fcnService_t *)pstHopFinishUp,
-                  sizeof(struct inHopFinishUp),sizeof(uint64_t));
-    mdlAddService(mdl,PST_HOP_TREE_BUILD,pst,(fcnService_t *)pstHopTreeBuild,
-                  sizeof(struct inHopTreeBuild),0);
-    mdlAddService(mdl,PST_HOP_GRAVITY,pst,(fcnService_t *)pstHopGravity,
-                  sizeof(struct inHopGravity),0);
-    mdlAddService(mdl,PST_HOP_UNBIND,pst,(fcnService_t *)pstHopUnbind,
-                  sizeof(struct inHopUnbind),sizeof(struct outHopUnbind));
-    mdlAddService(mdl,PST_GROUP_RELOCATE,pst,(fcnService_t *)pstGroupRelocate,
-                  0,0);
-    mdlAddService(mdl,PST_GROUP_STATS,pst,(fcnService_t *)pstGroupStats,
-                  sizeof(struct inGroupStats),0);
-    mdlAddService(mdl,PST_SMOOTH,pst,(fcnService_t *)pstSmooth,
-                  sizeof(struct inSmooth),0);
-    mdlAddService(mdl,PST_GRAVITY,pst,(fcnService_t *)pstGravity,
-                  sizeof(struct inGravity),
-                  sizeof(struct outGravityReduct));
-    mdlAddService(mdl,PST_CALCEANDL,pst,(fcnService_t *)pstCalcEandL,
-                  0,sizeof(struct outCalcEandL));
-    mdlAddService(mdl,PST_DRIFT,pst,(fcnService_t *)pstDrift,
-                  sizeof(struct inDrift),0);
-    mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
-                  (fcnService_t *) pstEndTimestepIntegration,
-                  sizeof(struct inEndTimestep),0);
-    mdlAddService(mdl,PST_WAKEPARTICLES,pst,
-                  (fcnService_t *) pstWakeParticles,
-                  sizeof(struct inDrift),0);
+    mdl->AddService(PST_BUILDTREE,pst,(fcnService_t *)pstBuildTree,
+                    sizeof(struct inBuildTree),
+                    (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
+    mdl->AddService(PST_TREEINITMARKED,pst,(fcnService_t *)pstTreeInitMarked,
+                    0,0);
+    mdl->AddService(PST_HOP_LINK,pst,(fcnService_t *)pstHopLink,
+                    sizeof(struct inHopLink),sizeof(uint64_t));
+    mdl->AddService(PST_HOP_JOIN,pst,(fcnService_t *)pstHopJoin,
+                    sizeof(struct inHopLink),sizeof(struct outHopJoin));
+    mdl->AddService(PST_HOP_FINISH_UP,pst,(fcnService_t *)pstHopFinishUp,
+                    sizeof(struct inHopFinishUp),sizeof(uint64_t));
+    mdl->AddService(PST_HOP_TREE_BUILD,pst,(fcnService_t *)pstHopTreeBuild,
+                    sizeof(struct inHopTreeBuild),0);
+    mdl->AddService(PST_HOP_GRAVITY,pst,(fcnService_t *)pstHopGravity,
+                    sizeof(struct inHopGravity),0);
+    mdl->AddService(PST_HOP_UNBIND,pst,(fcnService_t *)pstHopUnbind,
+                    sizeof(struct inHopUnbind),sizeof(struct outHopUnbind));
+    mdl->AddService(PST_GROUP_RELOCATE,pst,(fcnService_t *)pstGroupRelocate,
+                    0,0);
+    mdl->AddService(PST_GROUP_STATS,pst,(fcnService_t *)pstGroupStats,
+                    sizeof(struct inGroupStats),0);
+    mdl->AddService(PST_SMOOTH,pst,(fcnService_t *)pstSmooth,
+                    sizeof(struct inSmooth),0);
+    mdl->AddService(PST_GRAVITY,pst,(fcnService_t *)pstGravity,
+                    sizeof(struct inGravity),
+                    sizeof(struct outGravityReduct));
+    mdl->AddService(PST_CALCEANDL,pst,(fcnService_t *)pstCalcEandL,
+                    0,sizeof(struct outCalcEandL));
+    mdl->AddService(PST_DRIFT,pst,(fcnService_t *)pstDrift,
+                    sizeof(struct inDrift),0);
+    mdl->AddService(PST_COMPUTEPRIMVARS,pst,
+                    (fcnService_t *) pstEndTimestepIntegration,
+                    sizeof(struct inEndTimestep),0);
+    mdl->AddService(PST_WAKEPARTICLES,pst,
+                    (fcnService_t *) pstWakeParticles,
+                    sizeof(struct inDrift),0);
 #ifdef DEBUG_CACHED_FLUXES
-    mdlAddService(mdl,PST_FLUXSTATS,pst,
-                  (fcnService_t *) pstFluxStats,
-                  0, sizeof(struct outFluxStats));
+    mdl->AddService(PST_FLUXSTATS,pst,
+                    (fcnService_t *) pstFluxStats,
+                    0, sizeof(struct outFluxStats));
 #endif
-    mdlAddService(mdl,PST_SETGLOBALDT,pst,
-                  (fcnService_t *) pstSetGlobalDt,
-                  sizeof(struct outGetMinDt),0);
+    mdl->AddService(PST_SETGLOBALDT,pst,
+                    (fcnService_t *) pstSetGlobalDt,
+                    sizeof(struct outGetMinDt),0);
 #ifdef COOLING
-    mdlAddService(mdl,PST_COOLINGUPDATE,pst,
-                  (fcnService_t *) pstCoolingUpdate,
-                  sizeof(struct inCoolUpdate),0);
-    mdlAddService(mdl,PST_COOLINGUPDATEZ,pst,
-                  (fcnService_t *) pstCoolingUpdateZ,
-                  sizeof(float),0);
-    mdlAddService(mdl,PST_COOLINGINIT,pst,
-                  (fcnService_t *) pstCoolingInit,
-                  sizeof(struct inCoolInit),0);
-    mdlAddService(mdl,PST_COOLINGHYDREION,pst,
-                  (fcnService_t *) pstCoolingHydReion,
-                  0,0);
+    mdl->AddService(PST_COOLINGUPDATE,pst,
+                    (fcnService_t *) pstCoolingUpdate,
+                    sizeof(struct inCoolUpdate),0);
+    mdl->AddService(PST_COOLINGUPDATEZ,pst,
+                    (fcnService_t *) pstCoolingUpdateZ,
+                    sizeof(float),0);
+    mdl->AddService(PST_COOLINGINIT,pst,
+                    (fcnService_t *) pstCoolingInit,
+                    sizeof(struct inCoolInit),0);
+    mdl->AddService(PST_COOLINGHYDREION,pst,
+                    (fcnService_t *) pstCoolingHydReion,
+                    0,0);
 #endif
 #ifdef GRACKLE
-    mdlAddService(mdl,PST_GRACKLEINIT,pst,
-                  (fcnService_t *) pstGrackleInit,
-                  sizeof(struct inGrackleInit),0);
+    mdl->AddService(PST_GRACKLEINIT,pst,
+                    (fcnService_t *) pstGrackleInit,
+                    sizeof(struct inGrackleInit),0);
 #endif
-    mdlAddService(mdl,PST_CHEMCOMPINIT,pst,
-                  (fcnService_t *) pstChemCompInit,
-                  sizeof(struct inChemCompInit),0);
+    mdl->AddService(PST_CHEMCOMPINIT,pst,
+                    (fcnService_t *) pstChemCompInit,
+                    sizeof(struct inChemCompInit),0);
 #ifdef BLACKHOLES
-    mdlAddService(mdl,PST_BH_PLACESEED,pst,
-                  (fcnService_t *) pstPlaceBHSeed,
-                  sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed));
-    mdlAddService(mdl,PST_BH_INIT,pst,
-                  (fcnService_t *) pstBHInit,
-                  sizeof(struct inPlaceBHSeed), 0);
-    mdlAddService(mdl,PST_BH_REPOSITION,pst,
-                  (fcnService_t *) pstBHReposition,
-                  0, 0);
-    mdlAddService(mdl,PST_BH_ACCRETION,pst,
-                  (fcnService_t *) pstBHAccretion,
-                  sizeof(struct inBHAccretion), 0);
+    mdl->AddService(PST_BH_PLACESEED,pst,
+                    (fcnService_t *) pstPlaceBHSeed,
+                    sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed));
+    mdl->AddService(PST_BH_INIT,pst,
+                    (fcnService_t *) pstBHInit,
+                    sizeof(struct inPlaceBHSeed), 0);
+    mdl->AddService(PST_BH_REPOSITION,pst,
+                    (fcnService_t *) pstBHReposition,
+                    0, 0);
+    mdl->AddService(PST_BH_ACCRETION,pst,
+                    (fcnService_t *) pstBHAccretion,
+                    sizeof(struct inBHAccretion), 0);
 #endif
-    mdlAddService(mdl,PST_GETMINDT,pst,
-                  (fcnService_t *) pstGetMinDt,
-                  0, sizeof(struct outGetMinDt));
+    mdl->AddService(PST_GETMINDT,pst,
+                    (fcnService_t *) pstGetMinDt,
+                    0, sizeof(struct outGetMinDt));
     //
-    mdlAddService(mdl,PST_ROPARTICLECACHE,pst,(fcnService_t *)pstROParticleCache,
-                  0,0);
-    mdlAddService(mdl,PST_PARTICLECACHEFINISH,pst,(fcnService_t *)pstParticleCacheFinish,
-                  0,0);
-    mdlAddService(mdl,PST_KICK,pst,(fcnService_t *)pstKick,
-                  sizeof(struct inKick),0);
-    mdlAddService(mdl,PST_KICKTREE,pst,(fcnService_t *)pstKickTree,
-                  sizeof(struct inKickTree),0);
-    mdlAddService(mdl,PST_PHYSICALSOFT,pst,(fcnService_t *)pstPhysicalSoft,
-                  sizeof(struct inPhysicalSoft),0);
-    mdlAddService(mdl,PST_SETTOTAL,pst,(fcnService_t *)pstSetTotal,
-                  0,sizeof(struct outSetTotal));
-    mdlAddService(mdl,PST_SETWRITESTART,pst,(fcnService_t *)pstSetWriteStart,
-                  sizeof(struct inSetWriteStart),0);
-    mdlAddService(mdl,PST_ADDWRITESTART,pst,(fcnService_t *)pstAddWriteStart,
-                  sizeof(struct inAddWriteStart),0);
-    mdlAddService(mdl,PST_ONENODEREADINIT,pst,(fcnService_t *)pstOneNodeReadInit,
-                  sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),
-                  nThreads*sizeof(int));
-    mdlAddService(mdl,PST_ACTIVEORDER,pst,(fcnService_t *)pstActiveOrder,
-                  0,sizeof(uint64_t));
-    mdlAddService(mdl,PST_DENSITYSTEP,pst,(fcnService_t *)pstDensityStep,
-                  sizeof(struct inDensityStep),0);
-    mdlAddService(mdl,PST_CORRECTENERGY,pst,(fcnService_t *)pstCorrectEnergy,
-                  sizeof(struct inCorrectEnergy),0);
-    mdlAddService(mdl,PST_ACCELSTEP,pst,(fcnService_t *)pstAccelStep,
-                  sizeof(struct inAccelStep), 0);
+    mdl->AddService(PST_ROPARTICLECACHE,pst,(fcnService_t *)pstROParticleCache,
+                    0,0);
+    mdl->AddService(PST_PARTICLECACHEFINISH,pst,(fcnService_t *)pstParticleCacheFinish,
+                    0,0);
+    mdl->AddService(PST_KICK,pst,(fcnService_t *)pstKick,
+                    sizeof(struct inKick),0);
+    mdl->AddService(PST_KICKTREE,pst,(fcnService_t *)pstKickTree,
+                    sizeof(struct inKickTree),0);
+    mdl->AddService(PST_PHYSICALSOFT,pst,(fcnService_t *)pstPhysicalSoft,
+                    sizeof(struct inPhysicalSoft),0);
+    mdl->AddService(PST_SETTOTAL,pst,(fcnService_t *)pstSetTotal,
+                    0,sizeof(struct outSetTotal));
+    mdl->AddService(PST_SETWRITESTART,pst,(fcnService_t *)pstSetWriteStart,
+                    sizeof(struct inSetWriteStart),0);
+    mdl->AddService(PST_ADDWRITESTART,pst,(fcnService_t *)pstAddWriteStart,
+                    sizeof(struct inAddWriteStart),0);
+    mdl->AddService(PST_ONENODEREADINIT,pst,(fcnService_t *)pstOneNodeReadInit,
+                    sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),
+                    nThreads*sizeof(int));
+    mdl->AddService(PST_ACTIVEORDER,pst,(fcnService_t *)pstActiveOrder,
+                    0,sizeof(uint64_t));
+    mdl->AddService(PST_DENSITYSTEP,pst,(fcnService_t *)pstDensityStep,
+                    sizeof(struct inDensityStep),0);
+    mdl->AddService(PST_CORRECTENERGY,pst,(fcnService_t *)pstCorrectEnergy,
+                    sizeof(struct inCorrectEnergy),0);
+    mdl->AddService(PST_ACCELSTEP,pst,(fcnService_t *)pstAccelStep,
+                    sizeof(struct inAccelStep), 0);
 #ifdef STAR_FORMATION
-    mdlAddService(mdl,PST_STARFORM,pst,
-                  (fcnService_t *) pstStarForm,
-                  sizeof(struct inStarForm),sizeof(struct outStarForm));
+    mdl->AddService(PST_STARFORM,pst,
+                    (fcnService_t *) pstStarForm,
+                    sizeof(struct inStarForm),sizeof(struct outStarForm));
 #endif
 #if defined(STAR_FORMATION) || defined(FEEDBACK)
-    mdlAddService(mdl,PST_STARFORMINIT,pst,
-                  (fcnService_t *) pstStarFormInit,
-                  sizeof(struct inStarFormInit),sizeof(struct outStarForm));
+    mdl->AddService(PST_STARFORMINIT,pst,
+                    (fcnService_t *) pstStarFormInit,
+                    sizeof(struct inStarFormInit),sizeof(struct outStarForm));
 #endif
-    mdlAddService(mdl,PST_RESMOOTH,pst,(fcnService_t *) pstReSmooth,
-                  sizeof(struct inSmooth),sizeof(struct outSmooth));
+    mdl->AddService(PST_RESMOOTH,pst,(fcnService_t *) pstReSmooth,
+                    sizeof(struct inSmooth),sizeof(struct outSmooth));
 #ifdef OPTIM_SMOOTH_NODE
-    mdlAddService(mdl,PST_RESMOOTHNODE,pst,(fcnService_t *) pstReSmoothNode,
-                  sizeof(struct inSmooth),sizeof(struct outSmooth));
+    mdl->AddService(PST_RESMOOTHNODE,pst,(fcnService_t *) pstReSmoothNode,
+                    sizeof(struct inSmooth),sizeof(struct outSmooth));
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
-    mdlAddService(mdl,PST_REORDERINNODES,pst,(fcnService_t *) pstReorderWithinNodes,
-                  0,0);
+    mdl->AddService(PST_REORDERINNODES,pst,(fcnService_t *) pstReorderWithinNodes,
+                    0,0);
 #endif
 #ifdef STELLAR_EVOLUTION
-    mdlAddService(mdl,PST_STELLAREVOLUTIONINIT,pst,
-                  (fcnService_t *) pstStellarEvolutionInit,
-                  sizeof(struct inStellarEvolutionInit),0);
+    mdl->AddService(PST_STELLAREVOLUTIONINIT,pst,
+                    (fcnService_t *) pstStellarEvolutionInit,
+                    sizeof(struct inStellarEvolutionInit),0);
 #endif
-    mdlAddService(mdl,PST_COLNPARTS,pst,(fcnService_t *)pstColNParts,
-                  0,nThreads*sizeof(struct outColNParts));
-    mdlAddService(mdl,PST_NEWORDER,pst,(fcnService_t *)pstNewOrder,
-                  nThreads*sizeof(uint64_t),0);
-    mdlAddService(mdl,PST_SETNPARTS,pst,(fcnService_t *)pstSetNParts,
-                  sizeof(struct inSetNParts),0);
-    mdlAddService(mdl,PST_NEW_FOF,pst,(fcnService_t *)pstNewFof,
-                  sizeof(struct inNewFof),0);
-    mdlAddService(mdl,PST_FOF_PHASES,pst,(fcnService_t *)pstFofPhases,
-                  0,sizeof(struct outFofPhases));
-    mdlAddService(mdl,PST_FOF_FINISH_UP,pst,(fcnService_t *)pstFofFinishUp,
-                  sizeof(struct inFofFinishUp),sizeof(uint64_t));
-    mdlAddService(mdl,PST_INITIALIZEPSTORE,pst,(fcnService_t *)pstInitializePStore,
-                  sizeof(struct inInitializePStore),sizeof(struct outInitializePStore));
+    mdl->AddService(PST_COLNPARTS,pst,(fcnService_t *)pstColNParts,
+                    0,nThreads*sizeof(struct outColNParts));
+    mdl->AddService(PST_NEWORDER,pst,(fcnService_t *)pstNewOrder,
+                    nThreads*sizeof(uint64_t),0);
+    mdl->AddService(PST_SETNPARTS,pst,(fcnService_t *)pstSetNParts,
+                    sizeof(struct inSetNParts),0);
+    mdl->AddService(PST_NEW_FOF,pst,(fcnService_t *)pstNewFof,
+                    sizeof(struct inNewFof),0);
+    mdl->AddService(PST_FOF_PHASES,pst,(fcnService_t *)pstFofPhases,
+                    0,sizeof(struct outFofPhases));
+    mdl->AddService(PST_FOF_FINISH_UP,pst,(fcnService_t *)pstFofFinishUp,
+                    sizeof(struct inFofFinishUp),sizeof(uint64_t));
+    mdl->AddService(PST_INITIALIZEPSTORE,pst,(fcnService_t *)pstInitializePStore,
+                    sizeof(struct inInitializePStore),sizeof(struct outInitializePStore));
 #ifdef MDL_FFTW
-    mdlAddService(mdl,PST_GENERATEIC,pst,(fcnService_t *)pstGenerateIC,
-                  sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
-    mdlAddService(mdl,PLT_GENERATEIC,pst,(fcnService_t *)pltGenerateIC,
-                  sizeof(struct inGenerateICthread),sizeof(struct outGenerateIC));
-    mdlAddService(mdl,PLT_MOVEIC,pst,(fcnService_t *)pltMoveIC,
-                  sizeof(struct inMoveIC),0);
-    mdlAddService(mdl,PST_MOVEIC,pst,(fcnService_t *)pstMoveIC,
-                  sizeof(struct inGenerateIC),0);
+    mdl->AddService(PST_GENERATEIC,pst,(fcnService_t *)pstGenerateIC,
+                    sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
+    mdl->AddService(PLT_GENERATEIC,pst,(fcnService_t *)pltGenerateIC,
+                    sizeof(struct inGenerateICthread),sizeof(struct outGenerateIC));
+    mdl->AddService(PLT_MOVEIC,pst,(fcnService_t *)pltMoveIC,
+                    sizeof(struct inMoveIC),0);
+    mdl->AddService(PST_MOVEIC,pst,(fcnService_t *)pstMoveIC,
+                    sizeof(struct inGenerateIC),0);
 #endif
-    mdlAddService(mdl,PST_MEMSTATUS,pst,(fcnService_t *)pstMemStatus,
-                  0,nThreads*sizeof(struct outMemStatus));
-    mdlAddService(mdl,PST_GETCLASSES,pst,(fcnService_t *)pstGetClasses,
-                  0, PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    mdlAddService(mdl,PST_SETCLASSES,pst,(fcnService_t *)pstSetClasses,
-                  PKD_MAX_CLASSES*sizeof(PARTCLASS), 0);
-    mdlAddService(mdl,PST_SWAPCLASSES,pst,(fcnService_t *)pstSwapClasses,
-                  PKD_MAX_CLASSES*sizeof(PARTCLASS),
-                  PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    mdlAddService(mdl,PST_PROFILE,pst,(fcnService_t *)pstProfile,
-                  sizeof(struct inProfile), 0);
-    mdlAddService(mdl,PST_CALCDISTANCE,pst,(fcnService_t *)pstCalcDistance,
-                  sizeof(struct inCalcDistance), 0);
-    mdlAddService(mdl,PST_CALCCOM,pst,(fcnService_t *)pstCalcCOM,
-                  sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
-    mdlAddService(mdl,PST_CALCMTOT,pst,(fcnService_t *)pstCalcMtot,
-                  sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
-    mdlAddService(mdl,PST_SETSPHOPTIONS,pst,(fcnService_t *)pstSetSPHoptions,
-                  sizeof(struct inSetSPHoptions), 0);
-    mdlAddService(mdl,PST_RESETCOM,pst,(fcnService_t *)pstResetCOM,
-                  sizeof(struct inResetCOM), 0);
-    mdlAddService(mdl,PST_INITIALIZEEOS,pst,(fcnService_t *)pstInitializeEOS,
-                  0, 0);
-    mdlAddService(mdl,PST_UPDATEGASVALUES,pst,(fcnService_t *)pstUpdateGasValues,
-                  sizeof(struct inUpdateGasValues), 0);
-    mdlAddService(mdl,PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
-                  sizeof(struct inTreeUpdateFlagBounds),
-                  (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
-    mdlAddService(mdl,PST_COUNTDISTANCE,pst,(fcnService_t *)pstCountDistance,
-                  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
+    mdl->AddService(PST_MEMSTATUS,pst,(fcnService_t *)pstMemStatus,
+                    0,nThreads*sizeof(struct outMemStatus));
+    mdl->AddService(PST_GETCLASSES,pst,(fcnService_t *)pstGetClasses,
+                    0, PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    mdl->AddService(PST_SETCLASSES,pst,(fcnService_t *)pstSetClasses,
+                    PKD_MAX_CLASSES*sizeof(PARTCLASS), 0);
+    mdl->AddService(PST_SWAPCLASSES,pst,(fcnService_t *)pstSwapClasses,
+                    PKD_MAX_CLASSES*sizeof(PARTCLASS),
+                    PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    mdl->AddService(PST_PROFILE,pst,(fcnService_t *)pstProfile,
+                    sizeof(struct inProfile), 0);
+    mdl->AddService(PST_CALCDISTANCE,pst,(fcnService_t *)pstCalcDistance,
+                    sizeof(struct inCalcDistance), 0);
+    mdl->AddService(PST_CALCCOM,pst,(fcnService_t *)pstCalcCOM,
+                    sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
+    mdl->AddService(PST_CALCMTOT,pst,(fcnService_t *)pstCalcMtot,
+                    sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
+    mdl->AddService(PST_SETSPHOPTIONS,pst,(fcnService_t *)pstSetSPHoptions,
+                    sizeof(struct inSetSPHoptions), 0);
+    mdl->AddService(PST_RESETCOM,pst,(fcnService_t *)pstResetCOM,
+                    sizeof(struct inResetCOM), 0);
+    mdl->AddService(PST_INITIALIZEEOS,pst,(fcnService_t *)pstInitializeEOS,
+                    0, 0);
+    mdl->AddService(PST_UPDATEGASVALUES,pst,(fcnService_t *)pstUpdateGasValues,
+                    sizeof(struct inUpdateGasValues), 0);
+    mdl->AddService(PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
+                    sizeof(struct inTreeUpdateFlagBounds),
+                    (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
+    mdl->AddService(PST_COUNTDISTANCE,pst,(fcnService_t *)pstCountDistance,
+                    sizeof(struct inCountDistance), sizeof(struct outCountDistance));
 #ifdef MDL_FFTW
-    mdlAddService(mdl,PST_GRID_CREATE_FFT,pst,(fcnService_t *)pstGridCreateFFT,
-                  sizeof(struct inGridCreateFFT), 0);
-    mdlAddService(mdl,PST_GRID_DELETE_FFT,pst,(fcnService_t *)pstGridDeleteFFT,
-                  0, 0);
-    mdlAddService(mdl,PST_ADD_LINEAR_SIGNAL,pst,(fcnService_t *)pstAddLinearSignal,
-                  sizeof(struct inAddLinearSignal), 0);
-    mdlAddService(mdl,PST_ASSIGN_MASS,pst,(fcnService_t *)pstAssignMass,
-                  sizeof(struct inAssignMass), 0);
-    mdlAddService(mdl,PST_DENSITY_CONTRAST,pst,(fcnService_t *)pstDensityContrast,
-                  sizeof(struct inDensityContrast), 0);
-    mdlAddService(mdl,PST_WINDOW_CORRECTION,pst,(fcnService_t *)pstWindowCorrection,
-                  sizeof(struct inWindowCorrection), 0);
-    mdlAddService(mdl,PST_INTERLACE,pst,(fcnService_t *)pstInterlace,
-                  sizeof(struct inInterlace), 0);
-    mdlAddService(mdl,PST_GRID_BIN_K,pst,(fcnService_t *)pstGridBinK,
-                  sizeof(struct inGridBinK), sizeof(struct outGridBinK));
-    mdlAddService(mdl,PST_BISPECTRUM_SELECT,pst,(fcnService_t *)pstBispectrumSelect,
-                  sizeof(struct inBispectrumSelect), 0);
-    mdlAddService(mdl,PST_BISPECTRUM_CALCULATE,pst,(fcnService_t *)pstBispectrumCalculate,
-                  sizeof(struct inBispectrumCalculate), sizeof(double));
-    mdlAddService(mdl,PST_LINEARKICK, pst,(fcnService_t *)pstLinearKick,
-                  sizeof(struct inLinearKick), 0);
-    mdlAddService(mdl,PST_SETLINGRID, pst,(fcnService_t *)pstSetLinGrid,
-                  sizeof(struct inSetLinGrid), 0);
-    mdlAddService(mdl,PST_MEASURELINPK,pst,(fcnService_t *)pstMeasureLinPk,
-                  sizeof(struct inMeasureLinPk), sizeof(struct outMeasureLinPk));
+    mdl->AddService(PST_GRID_CREATE_FFT,pst,(fcnService_t *)pstGridCreateFFT,
+                    sizeof(struct inGridCreateFFT), 0);
+    mdl->AddService(PST_GRID_DELETE_FFT,pst,(fcnService_t *)pstGridDeleteFFT,
+                    0, 0);
+    mdl->AddService(PST_ADD_LINEAR_SIGNAL,pst,(fcnService_t *)pstAddLinearSignal,
+                    sizeof(struct inAddLinearSignal), 0);
+    mdl->AddService(PST_ASSIGN_MASS,pst,(fcnService_t *)pstAssignMass,
+                    sizeof(struct inAssignMass), 0);
+    mdl->AddService(PST_DENSITY_CONTRAST,pst,(fcnService_t *)pstDensityContrast,
+                    sizeof(struct inDensityContrast), 0);
+    mdl->AddService(PST_WINDOW_CORRECTION,pst,(fcnService_t *)pstWindowCorrection,
+                    sizeof(struct inWindowCorrection), 0);
+    mdl->AddService(PST_INTERLACE,pst,(fcnService_t *)pstInterlace,
+                    sizeof(struct inInterlace), 0);
+    mdl->AddService(PST_GRID_BIN_K,pst,(fcnService_t *)pstGridBinK,
+                    sizeof(struct inGridBinK), sizeof(struct outGridBinK));
+    mdl->AddService(PST_BISPECTRUM_SELECT,pst,(fcnService_t *)pstBispectrumSelect,
+                    sizeof(struct inBispectrumSelect), 0);
+    mdl->AddService(PST_BISPECTRUM_CALCULATE,pst,(fcnService_t *)pstBispectrumCalculate,
+                    sizeof(struct inBispectrumCalculate), sizeof(double));
+    mdl->AddService(PST_LINEARKICK, pst,(fcnService_t *)pstLinearKick,
+                    sizeof(struct inLinearKick), 0);
+    mdl->AddService(PST_SETLINGRID, pst,(fcnService_t *)pstSetLinGrid,
+                    sizeof(struct inSetLinGrid), 0);
+    mdl->AddService(PST_MEASURELINPK,pst,(fcnService_t *)pstMeasureLinPk,
+                    sizeof(struct inMeasureLinPk), sizeof(struct outMeasureLinPk));
 #endif
-    mdlAddService(mdl,PST_TOTALMASS,pst,(fcnService_t *)pstTotalMass,
-                  0, sizeof(struct outTotalMass));
-    mdlAddService(mdl,PST_LIGHTCONE_OPEN,pst,(fcnService_t *)pstLightConeOpen,
-                  sizeof(struct inLightConeOpen), 0);
-    mdlAddService(mdl,PST_LIGHTCONE_CLOSE,pst,(fcnService_t *)pstLightConeClose,
-                  sizeof(struct inLightConeClose), 0);
-    mdlAddService(mdl,PST_LIGHTCONEVEL,pst,(fcnService_t *)pstLightConeVel,
-                  sizeof(struct inLightConeVel),0);
-    mdlAddService(mdl,PST_GET_PARTICLES,pst,(fcnService_t *)pstGetParticles,
-                  sizeof(uint64_t)*GET_PARTICLES_MAX,
-                  sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
+    mdl->AddService(PST_TOTALMASS,pst,(fcnService_t *)pstTotalMass,
+                    0, sizeof(struct outTotalMass));
+    mdl->AddService(PST_LIGHTCONE_OPEN,pst,(fcnService_t *)pstLightConeOpen,
+                    sizeof(struct inLightConeOpen), 0);
+    mdl->AddService(PST_LIGHTCONE_CLOSE,pst,(fcnService_t *)pstLightConeClose,
+                    sizeof(struct inLightConeClose), 0);
+    mdl->AddService(PST_LIGHTCONEVEL,pst,(fcnService_t *)pstLightConeVel,
+                    sizeof(struct inLightConeVel),0);
+    mdl->AddService(PST_GET_PARTICLES,pst,(fcnService_t *)pstGetParticles,
+                    sizeof(uint64_t)*GET_PARTICLES_MAX,
+                    sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
 }
 
 void pstInitialize(PST *ppst,mdl::mdlClass *mdl,LCL *plcl) {
@@ -338,7 +338,7 @@ void pstInitialize(PST *ppst,mdl::mdlClass *mdl,LCL *plcl) {
     *ppst = pst;
     pst->plcl = plcl;
     pst->mdl = mdl;
-    pst->idSelf = mdlSelf(mdl);
+    pst->idSelf = mdl->Self();
     pst->pstLower = NULL;
     pst->idUpper = -1;  /* invalidate upper 'id' */
     pst->nLeaves = 1;
@@ -477,20 +477,17 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
         auto nParts = new int[pst->nLeaves];
         int i;
         uint64_t nStart;
-        PKD pkd;
-        MDL mdl;
-
+        PKD pkd = plcl->pkd;
+        auto mdl = pkd->mdl;
         assert(nParts!=NULL);
         pstOneNodeReadInit(pst,in,sizeof(*in),nParts,pst->nLeaves * sizeof(nParts));
-        pkd = plcl->pkd;
-        mdl = pkd->mdl;
 
         fio = fioLoad(in+1,in->dOmega0,in->dOmegab);
         assert(fio!=NULL);
 
         nStart = nNodeStart + nParts[0];
         for (i=1; i<pst->nLeaves; ++i) {
-            int id = mdlSelf(mdl) + i;
+            int id = mdl->Self() + i;
             int inswap;
             /*
              * Read particles into the local storage.
@@ -502,7 +499,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
              * Now shove them over to the remote processor.
             */
             _SwapClasses(pkd,id);
-            inswap = mdlSelf(mdl);
+            inswap = mdl->Self();
             rID = pst->mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
             pkdSwapAll(pkd, id);
             pst->mdl->GetReply(rID);
@@ -659,7 +656,7 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         char achOutFile[PATH_MAX];
-        makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"");
+        makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"");
         pkdCheckpoint(pkd,achOutFile);
     }
     return 0;
@@ -694,12 +691,12 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
         /* Split writing tasks between child nodes */
         else {
             int nLeft = nProcessors / 2;
-            assert(in->iLower == mdlSelf(pst->mdl));
+            assert(in->iLower == pst->mdl->Self());
             in->iLower = pst->idUpper;
             in->nProcessors -= nLeft;
             in->iIndex += nLeft;
             int rID = pst->mdl->ReqService(pst->idUpper,PST_WRITE,in,nIn);
-            in->iLower = mdlSelf(pst->mdl);
+            in->iLower = pst->mdl->Self();
             in->iUpper = pst->idUpper;
             in->iIndex -= nLeft;
             in->nProcessors = nLeft;
@@ -1163,9 +1160,9 @@ int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
         }
         out->sCellMissRatio.dSum = 100.0*mdlMissRatio(pst->mdl,CID_CELL);      /* as a percentage */
         out->sPartMissRatio.dSum = 100.0*mdlMissRatio(pst->mdl,CID_PARTICLE);  /* as a percentage */
-        out->sComputing.dSum     = mdlTimeComputing(pst->mdl);
-        out->sWaiting.dSum       = mdlTimeWaiting(pst->mdl);
-        out->sSynchronizing.dSum = mdlTimeSynchronizing(pst->mdl);
+        out->sComputing.dSum     = pst->mdl->TimeComputing();
+        out->sWaiting.dSum       = pst->mdl->TimeWaiting();
+        out->sSynchronizing.dSum = pst->mdl->TimeSynchronizing();
         pstInitStat(&out->sComputing,pst->idSelf);
         pstInitStat(&out->sWaiting,pst->idSelf);
         pstInitStat(&out->sSynchronizing,pst->idSelf);
@@ -1321,9 +1318,9 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pstInitStat(&outr->sCellMissRatio,pst->idSelf);
         pstInitStat(&outr->sFlop,pst->idSelf);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-        outr->sComputing.dSum     = mdlTimeComputing(pst->mdl);
-        outr->sWaiting.dSum       = mdlTimeWaiting(pst->mdl);
-        outr->sSynchronizing.dSum = mdlTimeSynchronizing(pst->mdl);
+        outr->sComputing.dSum     = pst->mdl->TimeComputing();
+        outr->sWaiting.dSum       = pst->mdl->TimeWaiting();
+        outr->sSynchronizing.dSum = pst->mdl->TimeSynchronizing();
         pstInitStat(&outr->sComputing,pst->idSelf);
         pstInitStat(&outr->sWaiting,pst->idSelf);
         pstInitStat(&outr->sSynchronizing,pst->idSelf);
@@ -1613,7 +1610,7 @@ int pstParticleCacheFinish(PST pst,void *vin,int nIn,void *vout,int nOut) {
         ** Start particle caching space.
         */
         PKD pkd = plcl->pkd;
-        mdlFinishCache(pkd->mdl,CID_PARTICLE);
+        pkd->mdl->FinishCache(CID_PARTICLE);
     }
     return 0;
 }
@@ -2214,7 +2211,7 @@ int pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = plcl->pkd;
         assert(pkd->fft == NULL);
-        pkd->fft = mdlFFTInitialize(pst->mdl, in->nGrid, in->nGrid, in->nGrid, 0, 0);
+        pkd->fft = pst->mdl->FFTInitialize(in->nGrid, in->nGrid, in->nGrid, 0, 0);
     }
     return 0;
 }
@@ -2229,7 +2226,7 @@ int pstGridDeleteFFT(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = plcl->pkd;
         assert(pkd->fft != NULL);
-        mdlFFTFinish(pst->mdl,plcl->pkd->fft);
+        pst->mdl->FFTFinish(plcl->pkd->fft);
         pkd->fft = NULL;
     }
     return 0;
@@ -2283,7 +2280,7 @@ int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         char achOutFile[PATH_MAX];
-        if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"lcp.");
+        if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"lcp.");
         else achOutFile[0] = 0;
         pkdLightConeOpen(pkd, achOutFile, in->nSideHealpix);
     }
@@ -2301,7 +2298,7 @@ int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         char achOutFile[PATH_MAX];
-        if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,mdlSelf(pkd->mdl),"hpb.");
+        if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"hpb.");
         else achOutFile[0] = 0;
         pkdLightConeClose(pst->plcl->pkd,achOutFile);
     }

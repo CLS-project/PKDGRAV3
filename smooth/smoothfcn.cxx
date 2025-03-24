@@ -219,7 +219,7 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     auto P = pkd->particles[p];
     int i, gid1, gid2;
     GHtmpGroupTable *g1, *g2, g;
@@ -231,7 +231,7 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         if (nnList[i].iPid==pkd->Self() && gid1==gid2) continue;
         g.iPid = nnList[i].iPid;
         g.iIndex = gid2;
-        g2 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid));
+        g2 = mdl->Acquire<GHtmpGroupTable>(CID_GROUP,g.iIndex,g.iPid);
 
         /* Remote is authoratative. Update myself, but also what I currently link to. */
         if (g1->iPid > g2->iPid || (g1->iPid == g2->iPid && g1->iIndex > g2->iIndex)) {
@@ -239,8 +239,8 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             g = *g1;
             g1->iPid = g2->iPid;
             g1->iIndex = g2->iIndex;
-            mdlRelease(mdl,CID_GROUP,g2);
-            g2 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid));
+            mdl->Release(CID_GROUP,g2);
+            g2 = mdl->Acquire<GHtmpGroupTable>(CID_GROUP,g.iIndex,g.iPid);
         }
 
         /* Update remote (or what we were pointing to) and what it points to if necessary. */
@@ -249,10 +249,10 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             g = *g2;
             g2->iPid = g1->iPid;
             g2->iIndex = g1->iIndex;
-            mdlRelease(mdl,CID_GROUP,g2);
-            g2 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid));
+            mdl->Release(CID_GROUP,g2);
+            g2 = mdl->Acquire<GHtmpGroupTable>(CID_GROUP,g.iIndex,g.iPid);
         }
-        mdlRelease(mdl,CID_GROUP,g2);
+        mdl->Release(CID_GROUP,g2);
     }
 }
 

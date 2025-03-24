@@ -112,13 +112,6 @@ typedef struct srvHeader {
 } SRVHEAD;
 
 /*****************************************************************************\
-* State retrieval
-\*****************************************************************************/
-thread_local mdlClass *mdl_context;
-MDL   mdlMDL(void)    { return mdl_context; }
-void *mdlWORKER(void) { return mdl_context->worker_ctx; }
-
-/*****************************************************************************\
 * Class/Thread overview
 *   mpiClass - A single instance that handles MPI communication.
 *              Derived from mdlClass, and may also be a worker in non-deticated
@@ -537,66 +530,8 @@ void CACHE::close() {
 }
 
 /*****************************************************************************\
-* Functions to allow writing to a local element when the cache is active
-\*****************************************************************************/
-
-extern "C"
-void *mdlAcquireWrite(MDL cmdl,int cid,int iIndex) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    return mdl->AcquireWrite(cid, iIndex);
-}
-
-void mdlReleaseWrite(MDL cmdl,int cid,void *p) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdl->ReleaseWrite(cid,p);
-}
-
-/*****************************************************************************\
 * Here we follow a Cache Request
 \*****************************************************************************/
-
-/* Does not lock the element */
-extern "C"
-void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
-    const bool lock   = false; // we never lock in fetch
-    const bool modify = false; // fetch can never modify
-    const bool virt   = false; // really fetch the element
-    return static_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
-}
-
-extern "C"
-const void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey,int lock,int modify,int virt) {
-    return static_cast<mdlClass *>(mdl)->Access(cid, uHash, pKey, lock, modify, virt);
-}
-
-/* Locks, so mdlRelease must be called eventually */
-extern "C"
-void *mdlAcquire(MDL cmdl,int cid,int iIndex,int id) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    const bool lock   = true;  // we always lock in acquire
-    const bool modify = mdl->cache[cid]->modify();
-    const bool virt   = false; // really fetch the element
-    return mdl->Access(cid, iIndex, id, lock, modify, virt);
-}
-
-/* Locks, so mdlRelease must be called eventually */
-extern "C"
-void *mdlKeyAcquire(MDL cmdl,int cid,uint32_t uHash, void *pKey) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    const bool lock   = true;  // we always lock in acquire
-    const bool modify = mdl->cache[cid]->modify();
-    const bool virt   = false; // really fetch the element
-    return static_cast<mdlClass *>(mdl)->Access(cid, uHash, pKey, lock, modify, virt);
-}
-
-/* Locks the element, but does not fetch or initialize */
-extern "C"
-void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
-    const int lock   = false; // fetch never locks
-    const int modify = true;  // virtual always modifies
-    const bool virt  = true;  // do not fetch the element
-    return static_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
-}
 
 // main routine to perform an immediate cache request. Does not return until the cache element is present
 void *mdlClass::Access(int cid, uint32_t uIndex, int uId, bool bLock,bool bModify,bool bVirtual) {
@@ -911,7 +846,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
 // When we need to evict an element (especially at the end) this routine is called by the ARC cache.
 void CACHE::flushElement( uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, const void *data) {
     if (!mdl->coreFlushBuffer->canBuffer(getLineElementCount()*cache_helper->flush_size()+size)) mdl->flush_core_buffer();
-    mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),uId,uLine);
+    mdl->coreFlushBuffer->addBuffer(iCID,mdl->Self(),uId,uLine);
     mdl->coreFlushBuffer->addBuffer(size,pKey);
     auto pData = static_cast<const char *>(data);
     for (auto i=0; i<getLineElementCount(); ++i) {
@@ -1189,14 +1124,12 @@ void CACHE::combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const vo
 \*****************************************************************************/
 
 // Continues to process incoming cache requests until all threads on all nodes reach this point
-extern "C" void mdlCacheBarrier(MDL mdl,int cid) { static_cast<mdlClass *>(mdl)->CacheBarrier(cid); }
 void mdlClass::CacheBarrier(int cid) {
     ThreadBarrier(true);
 }
 
 // This does the same thing as a CacheBarrier(), but in addition all data from all caches will have been
 // fully flushed and synchonized between all threads on all nodes before it returns.
-extern "C" void mdlFlushCache(MDL mdl,int cid) { static_cast<mdlClass *>(mdl)->FlushCache(cid); }
 void mdlClass::FlushCache(int cid) {
     auto c = cache[cid].get();
 
@@ -1241,7 +1174,6 @@ void mpiClass::MessageCacheFlushLocal(mdlMessageCacheFlushLocal *message) {
     message->sendBack();
 }
 
-extern "C" void mdlFinishCache(MDL mdl,int cid) { static_cast<mdlClass *>(mdl)->FinishCache(cid); }
 void mdlClass::FinishCache(int cid) {
     auto c = cache[cid].get();
 
@@ -1882,12 +1814,14 @@ static void TERM_handler(int signo) {
     MPI_Abort(MPI_COMM_WORLD,130);
 }
 
-extern "C"
-int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
+namespace mdl {
+int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc,char **argv) {
     mpiClass mdl(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
-    return mdl.Launch(fcnMaster,fcnWorkerInit,fcnWorkerDone);
+    return mdl.Launch();
 }
-int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
+}
+
+int mpiClass::Launch() {
 #ifdef USE_BT
     register_backtrace();
 #endif
@@ -1906,8 +1840,6 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     __itt_string_handle *shMyTask = __itt_string_handle_create("MDL Startup");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-
-    mdl_context = this;
 
 #ifdef _SC_NPROCESSORS_CONF /* from unistd.h */
     layout.nCores = sysconf(_SC_NPROCESSORS_CONF);
@@ -2218,7 +2150,6 @@ void mdlClass::bookkeeping() {
     combine_all_incoming();
 }
 
-extern "C" void mdlCompleteAllWork(MDL mdl) { static_cast<mdlClass *>(mdl)->CompleteAllWork(); }
 void mdlClass::CompleteAllWork() {
     while (gpu.flushCompleted()) {} // Wait for any/all GPU operations to return/completed
 }
@@ -2265,7 +2196,6 @@ void mdlClass::enqueueAndWait(const mdlMessage &M) {
 }
 
 /* Synchronize threads */
-extern "C" void mdlThreadBarrier(MDL mdl) { static_cast<mdlClass *>(mdl)->ThreadBarrier(); }
 int mdlClass::ThreadBarrier(bool bGlobal,int iVote) {
     mdlMessageVote barrier(iVote);
     int i;
@@ -2439,7 +2369,6 @@ void *mdlClass::WorkerThread() {
     sprintf(szName,"ID %d", Core());
     __itt_thread_set_name(szName);
 #endif
-    mdl_context = this;
     worker_ctx = (*fcnWorkerInit)(static_cast<MDL>(this));
     CommitServices();
 
@@ -2667,29 +2596,6 @@ void mdlClass::Handler() {
     } while (sid != SRV_STOP);
 }
 
-/*
- ** Special MDL memory allocation functions for allocating memory
- ** which must be visible to other processors thru the MDL cache
- ** functions.
- ** mdlMalloc() is defined to return a pointer to AT LEAST iSize bytes
- ** of memory. This pointer will be passed to either mdlROcache or
- ** mdlCOcache as the pData parameter.
- ** For PVM and most machines these functions are trivial, but on the
- ** T3D and perhaps some future machines these functions are required.
- */
-void *mdlMalloc(MDL mdl,size_t iSize) {
-    /*    void *ptr;
-        int rc = MPI_Alloc_mem(iSize,MPI_INFO_NULL,&ptr);
-        if (rc) return NULL;
-        return ptr;*/
-    return (malloc(iSize));
-}
-
-void mdlFree(MDL mdl,void *p) {
-    /*    MPI_Free_mem(p);*/
-    free(p);
-}
-
 void mdlClass::delete_shared_array(void *p,uint64_t nBytes) {
     if (Core()==0) munmap(p,nBytes);
 }
@@ -2771,95 +2677,31 @@ uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements
     return nTotalBytes;
 }
 
-/* This is a "thread collective" call. */
-void *mdlSetArray(MDL cmdl,size_t nmemb,size_t size,void *vdata) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    char *data = CAST(char *,vdata);
-    mdl->nMessageData = nmemb * size;
-    mdl->ThreadBarrier();
-    if (mdlCore(mdl)==0) {
+void *mdlClass::exchangeArray(void *vdata) {
+    // nMessageData must be setup before calling this function (see SetArray)
+    auto data = static_cast<char *>(vdata);
+    ThreadBarrier();
+    if (Core()==0) {
         int i;
-        for (i=0; i<mdlCores(mdl); ++i) {
-            mdl->pmdl[i]->pvMessageData = data;
-            data += mdl->pmdl[i]->nMessageData;
+        for (i=0; i<Cores(); ++i) {
+            pmdl[i]->pvMessageData = data;
+            data += pmdl[i]->nMessageData;
         }
     }
-    mdl->ThreadBarrier();
-    return mdl->pvMessageData;
+    ThreadBarrier();
+    return pvMessageData;
 }
 
-/*
-** New collective form. All cores must call this at the same time.
-** Normally "size" is identical on all cores, while nmemb may differ
-** but this is not strictly a requirement.
-*/
-void *mdlMallocArray(MDL cmdl,size_t nmemb,size_t size,size_t minSize) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    char *data;
-    size_t iSize;
-    mdl->nMessageData = nmemb * size;
-    mdl->ThreadBarrier();
-    if (mdlCore(mdl)==0) {
-        int i;
-        iSize = 0;
-        for (i=0; i<mdlCores(mdl); ++i) iSize += mdl->pmdl[i]->nMessageData;
-        if (iSize < minSize) iSize = minSize;
-        data = CAST(char *,mdlMalloc(cmdl,iSize));
-        for (i=0; i<mdlCores(mdl); ++i) {
-            mdl->pmdl[i]->pvMessageData = data;
-            data += mdl->pmdl[i]->nMessageData;
-        }
-    }
-    mdl->ThreadBarrier();
-    data = CAST(char *,mdl->pvMessageData);
-    iSize = nmemb * size;
-    if (iSize > 4096) iSize -= 4096; /* Cheesy page hack */
-    memset(data,0,iSize); /* First touch */
-    mdl->ThreadBarrier();
-    return data;
-}
-void mdlFreeArray(MDL mdl,void *p) {
-    if (mdlCore(mdl)==0) free(p);
-}
-
-void mdlSetCacheSize(MDL cmdl,int cacheSize) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdl->cacheSize = cacheSize;
-}
-
-extern "C" void mdlCacheCheck(MDL mdl) { static_cast<mdlClass *>(mdl)->CacheCheck(); }
 void mdlClass::CacheCheck() {
     checkMPI(); // Only does something on the MPI thread
     bookkeeping();
 }
 
-int mdlCacheStatus(MDL cmdl,int cid) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
+int mdlClass::CacheStatus(int cid) {
     assert(cid >= 0);
-    if (cid >= mdl->cache.size()) return false;
-    auto c = mdl->cache[cid].get();
+    if (cid >= cache.size()) return false;
+    auto c = cache[cid].get();
     return c->isActive();
-}
-
-void mdlRelease(MDL cmdl,int cid,void *p) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    auto c = mdl->cache[cid].get();
-    c->release(p);
-}
-
-double mdlNumAccess(MDL cmdl,int cid) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    auto c = mdl->cache[cid].get();
-    return (c->nAccess);
-}
-
-double mdlMissRatio(MDL cmdl,int cid) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    auto c = mdl->cache[cid].get();
-    double dAccess = c->nAccess;
-
-    if (dAccess > 0.0) return (c->nMiss/dAccess);
-    else return (0.0);
 }
 
 /*
@@ -2883,9 +2725,9 @@ void mdlGridInitialize(MDL cmdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1) {
     grid->a1 = a1;
 
     /* This will be shared later (see mdlGridShare) */
-    grid->id = CAST(uint32_t *,malloc(sizeof(*grid->id)*(grid->n3)));    assert(grid->id!=NULL);
-    grid->rs = CAST(uint32_t *,mdlMalloc(cmdl,sizeof(*grid->rs)*mdl->Procs())); assert(grid->rs!=NULL);
-    grid->rn = CAST(uint32_t *,mdlMalloc(cmdl,sizeof(*grid->rn)*mdl->Procs())); assert(grid->rn!=NULL);
+    grid->id = new uint32_t[grid->n3]; assert(grid->id!=NULL);
+    grid->rs = mdl->Malloc<uint32_t>(sizeof(*grid->rs)*mdl->Procs()); assert(grid->rs!=NULL);
+    grid->rn = mdl->Malloc<uint32_t>(sizeof(*grid->rn)*mdl->Procs()); assert(grid->rn!=NULL);
 
     /* The following need to be set to appropriate values still. */
     grid->sSlab = grid->nSlab = 0;
@@ -2896,7 +2738,7 @@ void mdlGridFinish(MDL cmdl, MDLGRID grid) {
     //mdlClass *mdl = static_cast<mdlClass *>(cmdl);
     if (grid->rs) free(grid->rs);
     if (grid->rn) free(grid->rn);
-    if (grid->id) free(grid->id);
+    if (grid->id) delete [] grid->id;
     free(grid);
 }
 
@@ -2940,17 +2782,17 @@ void mdlGridCoordFirstLast(MDL cmdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l
     if (bCacheAlign) nAlign = 1 << (int)(log2(MDL_CACHE_DATA_SIZE / sizeof(float)));
     else nAlign = grid->a1;
 
-    /*nPerCore = nLocal / mdlCores(mdl) + nAlign - 1;*/
-    nPerCore = (nLocal-1) / mdlCores(mdl) + nAlign;
+    /*nPerCore = nLocal / mdl->Cores() + nAlign - 1;*/
+    nPerCore = (nLocal-1) / mdl->Cores() + nAlign;
     nPerCore -= nPerCore % nAlign;
 
-    if ( mdlCore(mdl)*nPerCore >= nLocal) nThisCore = 0;
-    else if (mdlCore(mdl) == mdlCores(mdl)-1) nThisCore = nLocal - (mdlCores(mdl)-1)*nPerCore;
-    else if ((1+mdlCore(mdl))*nPerCore < nLocal) nThisCore = nPerCore;
-    else nThisCore = nLocal - mdlCore(mdl)*nPerCore;
+    if ( mdl->Core()*nPerCore >= nLocal) nThisCore = 0;
+    else if (mdl->Core() == mdl->Cores()-1) nThisCore = nLocal - (mdl->Cores()-1)*nPerCore;
+    else if ((1+mdl->Core())*nPerCore < nLocal) nThisCore = nPerCore;
+    else nThisCore = nLocal - mdl->Core()*nPerCore;
 
     /* Calculate global x,y,z coordinates, and local "i" coordinate. */
-    f->II = nPerCore * mdlCore(mdl);
+    f->II = nPerCore * mdl->Core();
     if (f->II > nLocal) f->II = nLocal;
     l->II = f->II + nThisCore;
     f->i = 0;
@@ -2970,24 +2812,8 @@ void mdlGridCoordFirstLast(MDL cmdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l
     l->grid = grid;
 }
 
-/*
-** Allocate the local elements.  The size of a single element is
-** given and the local GRID information is consulted to determine
-** how many to allocate.
-*/
-void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize) {
-    return mdlMallocArray(mdl,mdlCore(mdl)?0:grid->nLocal,nEntrySize,0);
-}
-
-void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
-    mdlFree(mdl,p);
-}
-
 #ifdef MDL_FFTW
 
-extern "C" size_t mdlFFTlocalCount(MDL cmdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int *sy) {
-    return static_cast<mdlClass *>(cmdl)->FFTlocalCount(n1,n2,n3,nz,sz,ny,sy);
-}
 size_t mdlClass::FFTlocalCount(int n1,int n2,int n3,int *nz,int *sz,int *ny,int *sy) {
     mdlMessageFFT_Sizes sizes(n1,n2,n3);
     enqueueAndWait(sizes);
@@ -2998,9 +2824,6 @@ size_t mdlClass::FFTlocalCount(int n1,int n2,int n3,int *nz,int *sz,int *ny,int 
     return sizes.nLocal;
 }
 
-extern "C" MDLFFT mdlFFTNodeInitialize(MDL cmdl,int n1,int n2,int n3,int bMeasure,FFTW3(real) *data) {
-    return static_cast<mdlClass *>(cmdl)->FFTNodeInitialize(n1,n2,n3,bMeasure,data);
-}
 MDLFFT mdlClass::FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real) *data) {
     MDLFFT fft = CAST(mdlFFTContext *,malloc(sizeof(struct mdlFFTContext)));
     assert( fft != NULL);
@@ -3026,41 +2849,28 @@ MDLFFT mdlClass::FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real)
     return fft;
 }
 
-MDLFFT mdlFFTInitialize(MDL cmdl,int n1,int n2,int n3,int bMeasure,FFTW3(real) *data) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    MDLFFT fft;
-    if (mdlCore(mdl) == 0) {
-        mdl->pvMessageData = mdlFFTNodeInitialize(cmdl,n1,n2,n3,bMeasure,data);
+MDLFFT mdlClass::FFTInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real) *data) {
+    if (Core() == 0) {
+        pvMessageData = FFTNodeInitialize(n1,n2,n3,bMeasure,data);
     }
-    mdl->ThreadBarrier(); /* To synchronize pvMessageData */
-    fft = CAST(MDLFFT,mdl->pmdl[0]->pvMessageData);
-    mdl->ThreadBarrier(); /* In case we reuse pvMessageData */
+    ThreadBarrier(); /* To synchronize pvMessageData */
+    auto fft = static_cast<MDLFFT>(pmdl[0]->pvMessageData);
+    ThreadBarrier(); /* In case we reuse pvMessageData */
     return fft;
 }
 
-void mdlFFTNodeFinish( MDL cmdl, MDLFFT fft ) {
-    //mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdlGridFinish(cmdl,fft->kgrid);
-    mdlGridFinish(cmdl,fft->rgrid);
+void mdlClass::FFTNodeFinish( MDLFFT fft ) {
+    mdlGridFinish(this,fft->kgrid);
+    mdlGridFinish(this,fft->rgrid);
     free(fft);
 }
-void mdlFFTFinish( MDL cmdl, MDLFFT fft ) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdl->ThreadBarrier();
-    if (mdlCore(mdl) == 0) {
-        mdlFFTNodeFinish(cmdl,fft);
+void mdlClass::FFTFinish( MDLFFT fft ) {
+    ThreadBarrier();
+    if (Core() == 0) {
+        FFTNodeFinish(fft);
     }
 }
 
-FFTW3(real) *mdlFFTMalloc( MDL mdl, MDLFFT fft ) {
-    return CAST(FFTW3(real) *,mdlGridMalloc(mdl,fft->rgrid,sizeof(FFTW3(real))));
-}
-
-void mdlFFTFree( MDL mdl, MDLFFT fft, void *p ) {
-    mdlGridFree(mdl,fft->rgrid,p);
-}
-
-void mdlFFT( MDL cmdl, MDLFFT fft, FFTW3(real) *data ) { static_cast<mdlClass *>(cmdl)->FFT(fft,data); }
 void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
     mdlMessageDFT_R2C trans(fft,data, (FFTW3(complex) *)data);
     ThreadBarrier();
@@ -3076,7 +2886,6 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
     if (Cores()>1) mpi->ThreadBarrierWait();
 }
 
-void mdlIFFT( MDL cmdl, MDLFFT fft, FFTW3(complex) *kdata ) { static_cast<mdlClass *>(cmdl)->IFFT(fft,kdata); }
 void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
     mdlMessageDFT_C2R trans(fft, (FFTW3(real) *)kdata,kdata);
     ThreadBarrier();
@@ -3093,61 +2902,9 @@ void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
 }
 #endif
 
-void mdlAlltoallv(MDL cmdl,int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdl->Alltoallv(dataSize,sbuff,scount,sdisps,rbuff,rcount,rdisps);
-}
-
 void mdlClass::Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps) {
     enqueueAndWait(mdlMessageAlltoallv(dataSize,sbuff,scount,sdisps,rbuff,rcount,rdisps));
 }
-#if defined(USE_CUDA)
-void mdlSetCudaBufferSize(MDL cmdl,int inBufSize, int outBufSize) {
-//    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-//    if (mdl->inCudaBufSize < inBufSize) mdl->inCudaBufSize = inBufSize;
-//    if (mdl->outCudaBufSize < outBufSize) mdl->outCudaBufSize = outBufSize;
-}
-#endif
-
-int mdlProcToThread(MDL cmdl, int iProc) {
-    return static_cast<mdlClass *>(cmdl)->ProcToThread(iProc);
-}
-int mdlThreadToProc(MDL cmdl, int iThread) {
-    return static_cast<mdlClass *>(cmdl)->ThreadToProc(iThread);
-}
-
-int mdlThreads(void *mdl) {  return static_cast<mdlClass *>(mdl)->Threads(); }
-int mdlSelf(void *mdl)    {  return static_cast<mdlClass *>(mdl)->Self(); }
-int mdlCore(void *mdl)    {  return static_cast<mdlClass *>(mdl)->Core(); }
-int mdlCores(void *mdl)   {  return static_cast<mdlClass *>(mdl)->Cores(); }
-int mdlProc(void *mdl)    {  return static_cast<mdlClass *>(mdl)->Proc(); }
-int mdlProcs(void *mdl)   {  return static_cast<mdlClass *>(mdl)->Procs(); }
-int mdlGetArgc(void *mdl) {  return static_cast<mdlClass *>(mdl)->argc; }
-char **mdlGetArgv(void *mdl) {  return static_cast<mdlClass *>(mdl)->argv; }
-
-void mdlTimeReset(MDL mdl)             {        static_cast<mdlClass *>(mdl)->TimeReset(); }
-double mdlTimeComputing(MDL mdl)       { return static_cast<mdlClass *>(mdl)->TimeComputing(); }
-double mdlTimeSynchronizing(MDL mdl)   { return static_cast<mdlClass *>(mdl)->TimeSynchronizing(); }
-double mdlTimeWaiting(MDL mdl)         { return static_cast<mdlClass *>(mdl)->TimeWaiting(); }
-
-#ifdef _MSC_VER
-double mdlWallTime(void *mdl) {
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    return clock / 10000000.0;
-}
-#else
-double mdlWallTime(void *mdl) {
-    struct timeval tv;
-    gettimeofday(&tv,NULL);
-    return (tv.tv_sec+(tv.tv_usec*1e-6));
-}
-#endif
 
 void mdlprintf(MDL cmdl, const char *format, ...) {
     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
@@ -3159,11 +2916,4 @@ void mdlprintf(MDL cmdl, const char *format, ...) {
 
 int mdlClass::numGPUs() {return mpi->numGPUs(); }
 bool mdlClass::isMetalActive() {return mpi->isMetalActive(); }
-bool mdlClass::isCudaActive() {return mpi->isCudaActive(); }
-int mdlCudaActive(MDL mdl) {
-#ifdef USE_CUDA
-    return static_cast<mdlClass *>(mdl)->isCudaActive();
-#else
-    return 0;
-#endif
-}
+bool mdlClass::CudaActive() {return mpi->CudaActive(); }

@@ -353,7 +353,7 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
         while ( pl[i].d2<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
         while ( pl[i].d2>dRadii[iBin]*dRadii[iBin] ) --iBin;
 
-        pShape = static_cast<SHAPESBIN *>(mdlAcquire(pkd->mdl,CID_SHAPES,iBin,0));
+        pShape = pkd->mdl->Acquire<SHAPESBIN>(CID_SHAPES,iBin,0);
         pShape->dMassEnclosed += m;
         for (j=0; j<3; j++) {
             pShape->com[j] += m * r[j];
@@ -361,10 +361,10 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
                 pShape->dInertia[j][k] += m * r[j] * r[k];
             }
         }
-        mdlRelease(pkd->mdl,CID_SHAPES,pShape);
+        pkd->mdl->Release(CID_SHAPES,pShape);
 
     }
-    mdlFinishCache(pkd->mdl,CID_SHAPES);
+    pkd->mdl->FinishCache(CID_SHAPES);
 
     if (pkd->Self() == 0) {
         double inertia_cm[4][4];
@@ -472,7 +472,7 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
     int i, j, k;
 
     if (pkd->Self() == 0) {
-        shapesBins = static_cast<SHAPESBIN *>(mdlMalloc(pkd->mdl,nBins*sizeof(SHAPESBIN)));
+        shapesBins = pkd->mdl->Malloc<SHAPESBIN>(nBins*sizeof(SHAPESBIN));
         assert( shapesBins != NULL );
         /* Start with the given center for every bin */
         for ( i=0; i<nBins; i++ ) {
@@ -488,10 +488,10 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
 
     mdlROcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->Self()?0:nBins);
     CalculateInertia(pkd,nBins,dRadii,shapesBins);
-    mdlFinishCache(pkd->mdl,CID_BIN);
+    pkd->mdl->FinishCache(CID_BIN);
 
     if (pkd->Self() == 0) {
-        mdlFree(pkd->mdl,shapesBins);
+        pkd->mdl->Free(shapesBins);
     }
 
 
@@ -515,8 +515,8 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     PROFILEBIN *pBin;
 
     if (pkd->Self() == 0) {
-        if ( pkd->profileBins != NULL ) mdlFree(pkd->mdl,pkd->profileBins);
-        pkd->profileBins = static_cast<PROFILEBIN *>(mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN)));
+        if ( pkd->profileBins != NULL ) pkd->mdl->Free(pkd->profileBins);
+        pkd->profileBins = pkd->mdl->Malloc<PROFILEBIN>(nBins*sizeof(PROFILEBIN));
         assert( pkd->profileBins != NULL );
         r0 = 0.0;
         for (iBin=0; iBin<nBins; iBin++) {
@@ -543,7 +543,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r0 = 0.0;
     i = 0;
     for (iBin=0; iBin<nBins; iBin++) {
-        pBin = static_cast<PROFILEBIN *>(mdlAcquire(pkd->mdl,CID_BIN,iBin,0));
+        pBin = pkd->mdl->Acquire<PROFILEBIN>(CID_BIN,iBin,0);
         r = pBin->dRadius;
         r = dRadii[iBin];
         r2 = r*r;
@@ -573,16 +573,16 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
             i++;
         }
         r0 = r;
-        mdlRelease(pkd->mdl,CID_BIN,pBin);
+        pkd->mdl->Release(CID_BIN,pBin);
     }
-    mdlFinishCache(pkd->mdl,CID_BIN);
+    pkd->mdl->FinishCache(CID_BIN);
 
     /* We need angular momentum to calculate tangental velocity sigma, so we reopen the cache */
     mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->Self()?0:nBins,pkd,initProfileBins2,combProfileBins2);
     r0 = 0.0;
     i = 0;
     for (iBin=0; iBin<nBins; iBin++) {
-        pBin = static_cast<PROFILEBIN *>(mdlAcquire(pkd->mdl,CID_BIN,iBin,0));
+        pBin = pkd->mdl->Acquire<PROFILEBIN>(CID_BIN,iBin,0);
         r = dRadii[iBin];
         r2 = r*r;
         assert( r > r0 );
@@ -607,7 +607,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
             i++;
         }
         r0 = r;
-        mdlRelease(pkd->mdl,CID_BIN,pBin);
+        pkd->mdl->Release(CID_BIN,pBin);
     }
-    mdlFinishCache(pkd->mdl,CID_BIN);
+    pkd->mdl->FinishCache(CID_BIN);
 }

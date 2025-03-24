@@ -123,7 +123,7 @@ void pkdBHReposition(PKD pkd) {
             if (iPid != NOT_PINNED) {
                 particleStore::ParticlePointer pin(pkd->particles);
                 if (iPid != pkd->Self()) {
-                    pin = &pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,iIndex,iPid))];
+                    pin = &pkd->particles[pkd->mdl->Fetch<PARTICLE>(CID_PARTICLE,iIndex,iPid)];
                 }
                 else {
                     pin = &pkd->particles[iIndex];
@@ -133,6 +133,6 @@ void pkdBHReposition(PKD pkd) {
             }
         }
     }
-    mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    pkd->mdl->FinishCache(CID_PARTICLE);
 }
 

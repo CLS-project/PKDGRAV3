@@ -225,11 +225,11 @@ static void combRoot(void *vpkd, void *v1, const void *v2) {
 
 static auto getCell(PKD pkd, int iCell, int id) {
     return (id==pkd->Self()) ? pkd->tree[iCell]
-           : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+           : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL,iCell,id)];
 }
 
 static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2,TinyVector<double,3> r) {
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     double min2,max2;
     int iCell,id;
     int sp = 0;
@@ -277,7 +277,7 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
             else {
                 pEnd = kdn->upper();
                 for (pj=kdn->lower(); pj<=pEnd; ++pj) {
-                    auto p = pkd->particles[static_cast<PARTICLE *>(mdlFetch(mdl,CID_PARTICLE,pj,id))];
+                    auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE,pj,id)];
                     auto p_r = p.position();
                     dx = r[0] - p_r[0];
                     dy = r[1] - p_r[1];
@@ -383,7 +383,7 @@ typedef struct {
 
 void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,double rEnvironment[2],uint64_t iGlobalStart) {
     const int bDoShrinkingSphere = 0;
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     double fMass;
     TinyVector<double,3> r;
     double v2;
@@ -486,7 +486,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
                NULL,initMinPot,combMinPot);
     for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
         assert(pkd->ga[gid].id.iPid != pkd->Self());
-        auto g = static_cast<TinyGroupTable *>(mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
         /*
         ** We update the remote center, the combiner makes sure the minimum minPot is set.
         ** We don't have to check the virtual fetch value in this case since we fetch each
@@ -498,10 +498,10 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
             g->rPot[j] = pkd->tinyGroupTable[gid].rPot[j];
         }
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     mdlROcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1);
     for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
-        auto g = static_cast<TinyGroupTable *>(mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
         /*
         ** We update the local version of the remote center, here we can just copy it.
         */
@@ -514,7 +514,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
         */
         pkd->tinyGroupTable[gid].iGlobalGid = g->iGlobalGid;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Now we can set the GlobalGid of every particle (if this field is present)!
     */
@@ -580,7 +580,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1,
                NULL,initTinyGroup,combTinyGroup);
     for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
-        auto g = static_cast<TinyGroupTable *>(mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
         g->fMass += pkd->tinyGroupTable[gid].fMass;
         g->nBH += pkd->tinyGroupTable[gid].nBH;
         g->nDM += pkd->tinyGroupTable[gid].nDM;
@@ -594,10 +594,10 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
         }
         if (pkd->tinyGroupTable[gid].rMax > g->rMax) g->rMax = pkd->tinyGroupTable[gid].rMax;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     mdlROcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1);
     for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
-        auto g = static_cast<TinyGroupTable *>(mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
         pkd->tinyGroupTable[gid].fMass = g->fMass;
         pkd->tinyGroupTable[gid].nBH = g->nBH;
         pkd->tinyGroupTable[gid].nDM = g->nDM;
@@ -610,7 +610,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
         }
         pkd->tinyGroupTable[gid].rMax = g->rMax;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
 
     for (gid=1; gid<pkd->nGroups; ++gid) {
         v2 = 0;
@@ -666,16 +666,16 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
         mdlCOcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1,
                    NULL,initTinyRmax,combTinyRmax);
         for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
-            auto g = static_cast<TinyGroupTable *>(mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+            auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
             g->rMax = pkd->tinyGroupTable[gid].rMax;
         }
-        mdlFinishCache(mdl,CID_GROUP);
+        mdl->FinishCache(CID_GROUP);
         mdlROcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1);
         for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
-            auto g = static_cast<TinyGroupTable *>(mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+            auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
             pkd->tinyGroupTable[gid].rMax = g->rMax;
         }
-        mdlFinishCache(mdl,CID_GROUP);
+        mdl->FinishCache(CID_GROUP);
 
         shrink = (ShrinkStruct *)dAccumulate; /* overlay the shrink structure on the accumulators */
         for (gid=0; gid<pkd->nGroups; ++gid) shrink[gid].nEnclosed = pkd->ga[gid].nTotal; /* all particles in the group */
@@ -740,25 +740,25 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
             mdlCOcache(mdl,CID_GROUP,NULL,shrink,sizeof(ShrinkStruct),nLocalGroups+1,NULL,initShrink,combShrink);
             for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
                 if (shrink[gid].nEnclosed < 0) continue;
-                auto g = static_cast<ShrinkStruct *>(mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+                auto g = mdl->VirtualFetch<ShrinkStruct>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
                 for (j=0; j<3; j++) {
                     g->rcom[j] = shrink[gid].rcom[j];
                 }
                 g->fMass = shrink[gid].fMass;
                 g->nEnclosed = shrink[gid].nEnclosed;
             }
-            mdlFinishCache(mdl,CID_GROUP);
+            mdl->FinishCache(CID_GROUP);
             mdlROcache(mdl,CID_GROUP,NULL,shrink,sizeof(ShrinkStruct),nLocalGroups+1);
             for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
                 if (shrink[gid].nEnclosed < 0) continue;
-                auto g = static_cast<ShrinkStruct *>(mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+                auto g = mdl->Fetch<ShrinkStruct>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
                 for (j=0; j<3; j++) {
                     shrink[gid].rcom[j] = g->rcom[j];
                 }
                 shrink[gid].fMass = g->fMass;
                 shrink[gid].nEnclosed = g->nEnclosed;
             }
-            mdlFinishCache(mdl,CID_GROUP);
+            mdl->FinishCache(CID_GROUP);
             for (gid=1; gid<pkd->nGroups; ++gid) {
                 if (shrink[gid].nEnclosed > 0) {
                     assert(shrink[gid].fMass > 0.0);
@@ -849,7 +849,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1,
                NULL,initAngular,combAngular);
     for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
-        auto g = static_cast<TinyGroupTable *>(mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
         for (j=0; j<3; j++) {
             g->angular[j] += pkd->tinyGroupTable[gid].angular[j];
         }
@@ -857,7 +857,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
             g->inertia[j] += pkd->tinyGroupTable[gid].inertia[j];
         }
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Scoop environment mass (note the full tree must be present).
     ** At the very least we need to have masses in the cells, either as part of the FMOMR structure
@@ -880,13 +880,13 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
         }
         else pkd->tinyGroupTable[gid].fEnvironDensity1 = 0.0;
     }
-    mdlFinishCache(mdl,CID_PARTICLE);
+    mdl->FinishCache(CID_PARTICLE);
     /*
     ** Fetch remote group properties (we probably only need rMax to be fetched here).
     */
     mdlROcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1);
     for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
-        auto g = static_cast<TinyGroupTable *>(mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
         pkd->tinyGroupTable[gid].fMass = g->fMass;
         for (j=0; j<3; ++j) {
             pkd->tinyGroupTable[gid].rcom[j] = g->rcom[j];
@@ -901,13 +901,13 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
         pkd->tinyGroupTable[gid].fEnvironDensity0 = g->fEnvironDensity0;
         pkd->tinyGroupTable[gid].fEnvironDensity1 = g->fEnvironDensity1;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Now find the half mass radii of the groups.
     ** Start by reordering particles into group order.
     ** Note that we must not access tree cells until the next tree build!
     */
-    mdlFinishCache(mdl,CID_CELL);
+    mdl->FinishCache(CID_CELL);
     iGrpOffset = (uint32_t *)(&pkd->tinyGroupTable[pkd->nGroups]);
     mrIndex = (int *)(&iGrpOffset[2*pkd->nGroups]);    /* this stores the ending index of each group in the mr below */
     mr = (MassRadius *)(&mrIndex[pkd->nGroups]);  /* we must be careful how much of this we use! */
@@ -1069,7 +1069,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
                    NULL,initRoot,combRoot);
         for (gid=nLocalGroups+1; gid<pkd->nGroups; ++gid) {
             if (bRemoteDone[gid-(nLocalGroups+1)]) continue;
-            auto pmr = static_cast<MassRadius *>(mdlAcquire(mdl,CID_RM,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
+            auto pmr = mdl->Acquire<MassRadius>(CID_RM,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
             if (pmr->dr > 0) {
                 /*
                 ** Binary search for pmr->dr!
@@ -1087,9 +1087,9 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
             else {
                 bRemoteDone[gid-(nLocalGroups+1)] = 1;  /* This will even bypass the mdlAcquire in the next iteration. */
             }
-            mdlRelease(mdl,CID_RM,pmr);
+            mdl->Release(CID_RM,pmr);
         }
-        mdlFinishCache(mdl,CID_RM);
+        mdl->FinishCache(CID_RM);
         /*
         ** Now the root functions are complete.
         */

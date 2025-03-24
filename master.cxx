@@ -351,7 +351,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     double dStorageAmount = (1.0+parameters.get_dExtraStore());
     int i;
     for ( i=0; i<=FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
-    ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(mdl));
+    ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdl->Threads());
     ps.nTreeBitsLo = parameters.get_nTreeBitsLo();
     ps.nTreeBitsHi = parameters.get_nTreeBitsHi();
     ps.iCacheSize  = parameters.get_iCacheSize();
@@ -882,7 +882,7 @@ void MSR::SetDerivedParameters(bool bRestart) {
 
 void MSR::Initialize() {
     lcl.pkd = NULL;
-    nThreads = mdlThreads(mdl);
+    nThreads = mdl->Threads();
     lStart=time(0);
     fCenter = 0; // Center is at (0,0,0)
     /* Storage for output times*/
@@ -3988,7 +3988,7 @@ void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {
     out.iPartner = -1;
     out.nPartner = -1;
     out.iProcessor = 0;
-    out.nProcessor = nParaWrite > mdlProcs(mdl) ? mdlProcs(mdl) : nParaWrite;
+    out.nProcessor = nParaWrite > mdl->Procs() ? mdl->Procs() : nParaWrite;
     strcpy(out.achOutFile,filename);
     print("Writing grid to {}\n", filename);
     pstOutput(pst,&out,sizeof(out),NULL,0);
