@@ -92,42 +92,46 @@ using blitz::dot;
 #endif
 #endif
 
-void NullSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void NullSmooth(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 }
 
-void initBall(void *vpkd, void *pIn) {
-    auto pkd = static_cast<PKD>(vpkd);
+SmoothHelperBallSmooth::SmoothHelperBallSmooth(pkdContext *pkd) : SmoothHelper(pkd) {
+    assert(pkd->particles.present(PKD_FIELD::oBall));
+}
+void SmoothHelperBallSmooth::init(void *pIn) {
     auto p = pkd->particles[static_cast<PARTICLE *>(pIn)];
     p.set_ball(0.0);
 }
-
-void BallSmooth(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
-    PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
-    if (pkdIsGas(pkd, &p)) {
-        p.set_ball(fBall);
-    }
-    else {
-        p.set_ball(0.0f);
+void SmoothHelperBallSmooth::initialize_local() {
+    auto pRoot = pkd->tree[ROOT];
+    for (auto &p : *pRoot) {
+        if (p.is_active()) init(&p);
     }
 }
-
-void initDensity(void *vpkd, void *p) {
-    auto pkd = static_cast<PKD>(vpkd);
-    auto P = pkd->particles[reinterpret_cast<PARTICLE *>(p)];
-    P.set_density(0.0);
+void BallSmooth(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+    p.set_ball(p.is_gas() ? fBall : 0);
 }
 
-void combDensity(void *vpkd, void *p1,const void *p2) {
-    auto pkd = static_cast<PKD>(vpkd);
-    auto P1 = pkd->particles[reinterpret_cast<PARTICLE *>(p1)];
-    auto P2 = pkd->particles[reinterpret_cast<const PARTICLE *>(p2)];
+SmoothHelperDensity::SmoothHelperDensity(pkdContext *pkd,bool bSymmetric) : SmoothHelper(pkd,bSymmetric) {
+}
+void SmoothHelperDensity::init(void *pIn) {
+    auto p = pkd->particles[static_cast<PARTICLE *>(pIn)];
+    p.set_density(0.0);
+}
+void SmoothHelperDensity::combine(void *dst, const void *src, const void *key) {
+    auto P1 = pkd->particles[reinterpret_cast<PARTICLE *>(dst)];
+    auto P2 = pkd->particles[reinterpret_cast<const PARTICLE *>(src)];
     P1.set_density(P1.density() + P2.density());
 }
+void SmoothHelperDensity::initialize_local() {
+    auto pRoot = pkd->tree[ROOT];
+    for (auto &p : *pRoot) {
+        if (p.is_active()) init(&p);
+    }
+}
 
-void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void DensityF1(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto P = pkd->particles[p];
     double ih2,r2,rs,fDensity,fMass;
     int i;
 
@@ -143,12 +147,11 @@ void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
     fDensity *= 1.875f*M_1_PI*sqrtf(ih2)*ih2; /* F1 Kernel (15/8) */
     if (smf->pfDensity) *smf->pfDensity = fDensity;
-    else P.set_density(fDensity);
+    else p.set_density(fDensity);
 }
 
-void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void DensityM3(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto P = pkd->particles[p];
     double ih2,r2,rs,fDensity,fMass;
     int i;
     ih2 = 1.0f/BALL2(fBall);
@@ -170,12 +173,11 @@ void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         else rs = 0.0;
         fDensity += rs*fMass;
     }
-    P.set_density(16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity);
+    p.set_density(16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity);
 }
 
-void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void LinkGradientM3(particleStore::ParticleReference &P,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto P = pkd->particles[p];
     double ih2,r2,rs,fMass,fNorm, idrho, r2min;
     int i, j;
     ih2 = 1.0/BALL2(fBall);
@@ -217,10 +219,9 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 }
 
-void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void LinkHopChains(particleStore::ParticleReference &P,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     auto mdl = pkd->mdl;
-    auto P = pkd->particles[p];
     int i, gid1, gid2;
     GHtmpGroupTable *g1, *g2, g;
     gid1 = P.group();
@@ -256,9 +257,8 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 }
 
-void Density(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void Density(particleStore::ParticleReference &P,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto P = pkd->particles[p];
     double ih2,r2,rs,fDensity;
     int i;
 
@@ -273,9 +273,8 @@ void Density(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     P.set_density(M_1_PI*sqrt(ih2)*ih2*fDensity);
 }
 
-void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void DensitySym(particleStore::ParticleReference &P,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto P = pkd->particles[p];
     double fNorm,ih2,r2,rs,fMassP;
     int i;
     fMassP = P.mass();
@@ -291,11 +290,11 @@ void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 }
 
-void PrintNN(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void PrintNN(particleStore::ParticleReference &P,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     int i;
 
-    printf("%" PRIu64 ":",(uint64_t)p->iOrder);
+    printf("%" PRIu64 ":",P.order());
     for (i=0; i<nSmooth; ++i) {
         if (pkdIsActive(pkd,nnList[i].pPart))
             printf("%" PRIu64 " ",(uint64_t)nnList[i].pPart->iOrder);

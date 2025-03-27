@@ -97,22 +97,52 @@ class CACHEhelper {
     friend class mpiClass;
     friend class CACHE;
 protected:
-    uint32_t nData;   // Size of a data element in bytes
-    bool     bModify; // If this cache will be modified (and thus flushed)
-    virtual void    pack(void *dst, const void *src) { memcpy(dst,src,nData); }
-    virtual void  unpack(void *dst, const void *src, const void *key) { memcpy(dst,src,nData); }
-    virtual void    init(void *dst) {}
-    virtual void   flush(void *dst, const void *src)                  { memcpy(dst,src,nData); }
-    virtual void combine(void *dst, const void *src, const void *key) { memcpy(dst,src,nData); }
+    uint32_t nElements; // Total number of elements in the cache
+    uint32_t nDataSize; // Size of a data element in bytes
+    bool     bModify;   // If this cache will be modified (and thus flushed)
+    virtual void    pack(void *dst, const void *src)                  { memcpy(dst,src,nDataSize); }
+    virtual void  unpack(void *dst, const void *src, const void *key) { memcpy(dst,src,nDataSize); }
+    virtual void    init(void *dst)                                   {}
+    virtual void   flush(void *dst, const void *src)                  { memcpy(dst,src,nDataSize); }
+    virtual void combine(void *dst, const void *src, const void *key) {}
     virtual void *create(uint32_t size, const void *pKey) { return nullptr; }
     virtual uint32_t getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return uId;}
     virtual bool  modify() {return bModify; }
-    virtual uint32_t pack_size() {return nData;}
-    virtual uint32_t flush_size() {return nData;}
+    virtual uint32_t pack_size() {return nDataSize;}
+    virtual uint32_t flush_size() {return nDataSize;}
+    virtual void *get_element(uint32_t i) {return nullptr;}
+    virtual void *get_element(uint32_t uHash, void *pKey) {return nullptr;}
 public:
-    explicit CACHEhelper(uint32_t nData, bool bModify=false) : nData(nData), bModify(bModify) {}
+    explicit CACHEhelper(uint32_t nDataSize, uint32_t nElements, bool bModify=false) : nElements(nElements), nDataSize(nDataSize), bModify(bModify) {}
     virtual ~CACHEhelper() = default;
-    uint32_t data_size() {return nData;}
+    auto data_size() {return nDataSize;}
+    auto elements() {return nElements;}
+};
+
+class arrayCACHEhelper : public CACHEhelper {
+protected:
+    char *pArray;
+public:
+    explicit arrayCACHEhelper(uint32_t nDataSize, void *pArray, uint32_t nArray, bool bModify=false)
+        : CACHEhelper(nDataSize,nArray,bModify), pArray(static_cast<char *>(pArray)) {}
+    template<typename T>
+    explicit arrayCACHEhelper(T *pArray, uint32_t nArray, bool bModify=false)
+        : CACHEhelper(sizeof(T),nArray,bModify), pArray(reinterpret_cast<char *>(pArray)) {}
+
+    virtual void *get_element(uint32_t i) override {
+        return pArray + static_cast<size_t>(i) * nDataSize;
+    }
+};
+
+class hashCACHEhelper : public CACHEhelper {
+protected:
+    hash::GHASH *hash_table;
+public:
+    explicit hashCACHEhelper(hash::GHASH *hash_table, uint32_t nDataSize, bool bModify=false)
+        : CACHEhelper(nDataSize,0,bModify), hash_table(hash_table) {}
+    virtual void *get_element(uint32_t uHash, void *pKey) override final {
+        return hash_table->lookup(uHash,pKey);
+    }
 };
 
 class CACHE : private ARChelper {
@@ -142,15 +172,10 @@ class CACHE : private ARChelper {
     void clear() {arc_cache->clear();}
     static void *getArrayElement(void *vData,int i,int iDataSize);
 
-    void initialize(uint32_t cacheSize,
-                    void *(*getElt)(void *pData,int i,int iDataSize),
-                    void *pData,int nData,
-                    std::shared_ptr<CACHEhelper> helper);
+    void initialize(uint32_t cacheSize,std::shared_ptr<CACHEhelper> helper);
 
     void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
-    void *(*getElt)(void *pData,int i,int iDataSize);
-    void *pData;
     uint16_t iCID;
     // Fast lock to allow local updates while cache is active
     RWLock rwlock;
@@ -171,7 +196,7 @@ class CACHE : private ARChelper {
     bool isActive() {return cache_helper.get() != nullptr; }
     bool modify() {assert(cache_helper); return cache_helper->modify();}
     uint32_t key_size() {return arc_cache->key_size();}
-    void *getElement(int i) {return (*getElt)(pData,i,iDataSize);}
+    void *getElement(int i) {return cache_helper->get_element(i);}
     void *WriteLock(int iIndex) {rwlock.lock_write(); return getElement(iIndex);}
     void WriteUnlock(const void *p) {rwlock.unlock_write();}
     void *ReadLock(int iIndex) {rwlock.lock_read(); return getElement(iIndex);}
@@ -314,13 +339,7 @@ public:
     void SetCacheSize(int cacheSize) {
         this->cacheSize = cacheSize;
     }
-    CACHE *CacheInitialize(int cid,
-                           void *(*getElt)(void *pData,int i,int iDataSize),
-                           void *pData,int nData,
-                           std::shared_ptr<CACHEhelper> helper);
-    CACHE *CacheInitialize(int cid,
-                           void *(*getElt)(void *pData,int i,int iDataSize),
-                           void *pData,int nData,int iDataSize);
+    CACHE *CacheInitialize(int cid,std::shared_ptr<CACHEhelper> helper);
     CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
     // Cache access
@@ -672,36 +691,6 @@ static inline int mdlGridIdx(MDL mdl,MDLGRID grid, uint32_t x, uint32_t y, uint3
 #define mdlFFTkIdx(mdl,fft,x,y,z) mdlGridIdx(mdl,(fft)->kgrid,x,z,y)
 
 #endif
-
-/*
- ** Caching functions.
- */
-void mdlROcache(MDL mdl,int cid,
-                void *(*getElt)(void *pData,int i,int iDataSize),
-                void *pData,int iDataSize,int nData);
-void mdlCOcache(MDL mdl,int cid,
-                void *(*getElt)(void *pData,int i,int iDataSize),
-                void *pData,int iDataSize,int nData,
-                void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));
-void mdlPackedCacheRO(MDL mdl,int cid,
-                      void *(*getElt)(void *pData,int i,int iDataSize),
-                      void *pData,int nData,uint32_t iDataSize,
-                      void *ctx,uint32_t iPackSize,
-                      void (*pack)   (void *,void *,const void *),
-                      void (*unpack) (void *,void *,const void *));
-void mdlPackedCacheCO(MDL mdl,int cid,
-                      void *(*getElt)(void *pData,int i,int iDataSize),
-                      void *pData,int nData,uint32_t iDataSize,
-                      void *ctx,uint32_t iPackSize,
-                      void (*pack)   (void *,void *,const void *),
-                      void (*unpack) (void *,void *,const void *),
-                      uint32_t iFlushSize,
-                      void (*init)   (void *,void *),
-                      void (*flush)  (void *,void *,const void *),
-                      void (*combine)(void *,void *,const void *));
-void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize);
-void mdlAdvancedCacheCO(MDL mdl,int cid,void *pHash,int iDataSize,
-                        void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));
 
 void mdlprintf(MDL mdl, const char *format, ...);
 

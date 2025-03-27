@@ -224,18 +224,9 @@ int smHashPresent(SMX smx,void *p) {
 
 static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType,int bMakeCache) {
     SMX smx;
-    void (*initParticle)(void *,void *) = NULL;
-    void (*pack)(void *,void *,const void *) = NULL;
-    void (*unpack)(void *,void *,const void *) = NULL;
-    void (*init)(void *,void *) = NULL;
-    void (*flush)(void *,void *,const void *) = NULL;
-    void (*comb)(void *,void *,const void *) = NULL;
-    bool bPacked = false;
-    uint32_t iPackSize = 0;
-    uint32_t iFlushSize = 0;
     int i;
 
-    smx = new struct smContext;
+    smx = new smContext;
     assert(smx != NULL);
     smx->pSentinel = static_cast<PARTICLE *>(malloc(pkd->particles.ParticleSize()));
     assert(smx->pSentinel != NULL);
@@ -247,94 +238,62 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     if (smf != NULL) smf->pkd = pkd;
     smx->nSmooth = nSmooth;
     smx->bPeriodic = bPeriodic;
-    smx->bSymmetric  = bSymmetric;
     smx->bSearchGasOnly = 0;
     smx->iSmoothType = iSmoothType;
     /*
     ** Initialize the context for compressed nearest neighbor lists.
     */
-    smx->lcmp = lcodeInit(pkd->Threads(),pkd->Self(),pkd->Local(),nSmooth);
+    // smx->lcmp = lcodeInit(pkd->Threads(),pkd->Self(),pkd->Local(),nSmooth);
 
+    std::shared_ptr<SmoothHelper> helper;
     switch (iSmoothType) {
     case SMX_NULL:
         smx->fcnSmooth = NullSmooth;
-        initParticle = NULL; /* Original Particle */
-        init = NULL; /* Cached copies */
-        comb = NULL;
+        helper = std::make_shared<SmoothHelperNull>(pkd);
         break;
     case SMX_DENSITY:
         smx->fcnSmooth = bSymmetric?DensitySym:Density;
-        initParticle = initDensity; /* Original Particle */
-        init = initDensity; /* Cached copies */
-        comb = combDensity;
+        helper = std::make_shared<SmoothHelperDensity>(pkd,bSymmetric);
         break;
     case SMX_DENSITY_F1:
         assert(!bSymmetric);
         smx->fcnSmooth = DensityF1;
-        initParticle = NULL;
-        init = NULL;
-        comb = NULL;
+        helper = std::make_shared<SmoothHelperDensityF1>(pkd,bSymmetric);
         break;
     case SMX_DENSITY_M3:
         assert(!bSymmetric);
         assert(pkd->particles.present(PKD_FIELD::oGroup));
         smx->fcnSmooth = DensityM3;
-        initParticle = NULL;
-        init = NULL;
-        comb = NULL;
+        helper = std::make_shared<SmoothHelperDensityM3>(pkd,bSymmetric);
         break;
     case SMX_GRADIENT_M3:
         assert(!bSymmetric);
         smx->fcnSmooth = LinkGradientM3;
-        initParticle = NULL;
-        init = NULL;
-        comb = NULL;
+        helper = std::make_shared<SmoothHelperGradientM3>(pkd,bSymmetric);
         break;
     case SMX_HOP_LINK:
         assert(!bSymmetric);
         smx->fcnSmooth = LinkHopChains;
-        initParticle = NULL;
-        init = NULL;
-        comb = NULL;
+        helper = std::make_shared<SmoothHelperHopChains>(pkd,bSymmetric);
         break;
     case SMX_PRINTNN:
         smx->fcnSmooth = PrintNN;
-        initParticle = NULL; /* Original Particle */
-        init = NULL; /* Cached copies */
-        comb = NULL;
+        helper = std::make_shared<SmoothHelperNull>(pkd);
         break;
     case SMX_HYDRO_DENSITY:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensity;
-        initParticle = NULL; /* Original Particle */
-        pack = packHydroDensity;
-        unpack = unpackHydroDensity;
-        init = NULL; /* Cached copies */
-        comb = NULL;
-        bPacked = true;
-        iPackSize = sizeof(hydroDensityPack);
+        helper = std::make_shared<SmoothHelperHydroDensity>(pkd);
         break;
     case SMX_HYDRO_DENSITY_FINAL:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensityFinal;
-        initParticle = NULL; /* Original Particle */
-        pack = packHydroDensity;
-        unpack = unpackHydroDensity;
-        init = NULL; /* Cached copies */
-        comb = NULL;
-        bPacked = true;
-        iPackSize = sizeof(hydroDensityPack);
+        helper = std::make_shared<SmoothHelperHydroDensity>(pkd);
         break;
     case SMX_HYDRO_GRADIENT:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroGradients;
-        initParticle = NULL; /* Original Particle */
-        pack = packHydroGradients;
-        unpack = unpackHydroGradients;
-        init = NULL; /* Cached copies */
-        comb = NULL;
-        bPacked = true;
-        iPackSize = sizeof(hydroGradientsPack);
+        helper = std::make_shared<SmoothHelperHydroGradients>(pkd);
         break;
 #ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
@@ -343,114 +302,59 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnSmoothGetBufferInfo = hydroFluxGetBufferInfo;
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
         smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
-        initParticle = initHydroFluxes; /* Original Particle */
-        pack = packHydroFluxes;
-        unpack = unpackHydroFluxes;
-        init = initHydroFluxesCached; /* Cached copies */
-        flush = flushHydroFluxes;
-        comb = combHydroFluxes;
-        bPacked = true;
-        iPackSize = sizeof(hydroFluxesPack);
-        iFlushSize = sizeof(hydroFluxesFlush);
+        helper = std::make_shared<SmoothHelperHydroFluxes>(pkd);
         break;
 #endif
     case SMX_HYDRO_STEP:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroStep;
-        initParticle = NULL; /* Original Particle */
-        pack = packHydroStep;
-        unpack = unpackHydroStep;
-        init = initHydroStep; /* Cached copies */
-        flush = flushHydroStep;
-        comb = combHydroStep;
-        bPacked = true;
-        iPackSize = sizeof(hydroStepPack);
-        iFlushSize = sizeof(hydroStepFlush);
+        helper = std::make_shared<SmoothHelperHydroStep>(pkd);
         break;
 #ifdef FEEDBACK
     case SMX_SN_FEEDBACK:
         smx->fcnSmooth = smSNFeedback;
-        initParticle = NULL; /* Original Particle */
-        pack = packSNFeedback;
-        unpack = unpackSNFeedback;
-        init = initSNFeedback; /* Cached copies */
-        flush = flushSNFeedback;
-        comb = combSNFeedback;
         smx->bSearchGasOnly = 1;
-        bPacked = true;
-        iPackSize = sizeof(snFeedbackPack);
-        iFlushSize = sizeof(snFeedbackFlush);
+        helper = std::make_shared<SmoothHelperSNFeedback>(pkd);
         break;
 #endif
 #ifdef BLACKHOLES
     case SMX_BH_MERGER:
         smx->fcnSmooth = smBHmerger;
-        initParticle = NULL; /* Original Particle */
-        init = NULL; /* Cached copies */
-        comb = combBHmerger;
+        helper = std::make_shared<SmoothHelperBHmerger>(pkd);
         break;
     case SMX_BH_STEP:
         smx->fcnSmooth = smBHstep;
-        initParticle = NULL; /* Original Particle */
-        pack = packBHstep;
-        unpack = unpackBHstep;
-        init = NULL; /* Cached copies */
-        comb = NULL;
         smx->bSearchGasOnly = 1;
-        bPacked = true;
-        iPackSize = sizeof(bhStepPack);
+        helper = std::make_shared<SmoothHelperBHstep>(pkd);
         break;
     case SMX_BH_EVOLVE:
         smx->fcnSmooth = smBHEvolve;
-        initParticle = NULL; /* Original Particle */
-        pack = packBHEvolve;
-        unpack = unpackBHEvolve;
-        init = initBHEvolve; /* Cached copies */
-        flush = flushBHEvolve;
-        comb = combBHEvolve;
         smx->bSearchGasOnly = 1;
-        bPacked = true;
-        iPackSize = sizeof(bhEvolvePack);
-        iFlushSize = sizeof(bhEvolveFlush);
+        helper = std::make_shared<SmoothHelperBHEvolve>(pkd);
         break;
     case SMX_BH_GASPIN:
         smx->fcnSmooth = smBHGasPin;
-        initParticle = NULL; /* Original Particle */
-        pack = packBHGasPin;
-        unpack = unpackBHGasPin;
-        init = NULL; /* Cached copies */
-        comb = NULL;
         smx->bSearchGasOnly = 1;
-        bPacked = true;
-        iPackSize = sizeof(bhGasPinPack);
+        helper = std::make_shared<SmoothHelperBHGasPin>(pkd);
         break;
 #endif
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
         smx->fcnSmooth = smChemEnrich;
-        initParticle = NULL;
-        pack = packChemEnrich;
-        unpack = unpackChemEnrich;
-        init = initChemEnrich;
-        flush = flushChemEnrich;
-        comb = combChemEnrich;
         smx->bSearchGasOnly = 1;
-        bPacked = true;
-        iPackSize = sizeof(stevPack);
-        iFlushSize = sizeof(stevFlush);
+        helper = std::make_shared<SmoothHelperChemEnrich>(pkd);
         break;
 #endif
     case SMX_BALL:
         assert(pkd->particles.present(PKD_FIELD::oBall));
         smx->fcnSmooth = BallSmooth;
-        initParticle = initBall; /* Original Particle */
-        init = initBall; /* Cached copies */
-        comb = NULL;
+        helper = std::make_shared<SmoothHelperBallSmooth>(pkd);
         break;
 
     default:
         assert(0);
     }
+    assert(helper);
 
     if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetBufferInfo == NULL) ||
                                            (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL) ) ) {
@@ -464,38 +368,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     */
     auto pRoot = pkd->tree[ROOT];
     auto nTree = pRoot->count();
-    if (initParticle != NULL) {
-        for (auto &p : *pRoot) {
-            if (p.is_active()) initParticle(pkd,&p);
-        }
-    }
+    helper->initialize_local();
     /*
     ** Start particle caching space (cell cache is already active).
     */
     if (bMakeCache) {
         smx->bOwnCache = 1;
-        if (bPacked) {
-            if (bSymmetric) {
-                mdlPackedCacheCO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
-                                 pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 pack,unpack,iFlushSize,init,flush,comb);
-            }
-            else {
-                mdlPackedCacheRO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
-                                 pkd->particles.ParticleSize(),pkd,iPackSize,
-                                 pack,unpack);
-            }
-        }
-        else if (bSymmetric) {
-            mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
-                       pkd->particles,pkd->particles.ParticleSize(),
-                       nTree,pkd,init,comb);
-        }
-        else {
-            mdlROcache(pkd->mdl,CID_PARTICLE,NULL,
-                       pkd->particles,pkd->particles.ParticleSize(),
-                       nTree);
-        }
+        pkd->mdl->CacheInitialize(CID_PARTICLE,std::move(helper));
     }
     else smx->bOwnCache = 0;
     /*
@@ -600,7 +479,7 @@ void smFinish(SMX smx,SMF *smf) {
     /*
     ** Finish compressed lists.
     */
-    lcodeFinish(smx->lcmp);
+    // lcodeFinish(smx->lcmp);
     /*
     ** Free up context storage.
     */
@@ -839,7 +718,7 @@ float smSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,int iR
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(&p,fBall,smx->nSmooth,smx->pq,smf);
+    smx->fcnSmooth(p,fBall,smx->nSmooth,smx->pq,smf);
     return fBall;
 }
 
@@ -1071,7 +950,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,doubl
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(&p,fBall,smx->nnListSize,smx->nnList,smf);
+    smx->fcnSmooth(p,fBall,smx->nnListSize,smx->nnList,smf);
     /*
     ** Release acquired pointers.
     */
@@ -1418,7 +1297,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                         }
                     }
                     else {
-                        smx->fcnSmooth(&partj,partj.ball(),nCnt_p,nnList_p,smf);
+                        smx->fcnSmooth(partj,partj.ball(),nCnt_p,nnList_p,smf);
                     }
 
                     for (auto pk = 0; pk < nCnt_p; ++pk) {

@@ -98,3 +98,48 @@ MDL_STUB(FinishCache, int)
 MDL_STUB(CudaActive)
 MDL_STUB(NumAccess, int)
 MDL_STUB(MissRatio, int)
+
+class legacyCACHEhelper : public arrayCACHEhelper {
+    static void *getArrayElement(void *vData,int i,int iDataSize) {
+        char *pData = static_cast<char *>(vData);
+        return pData + (size_t)i*(size_t)iDataSize;
+    }
+protected:
+    void *ctx;
+    void *(*get_function)(void *pData,int i,int iDataSize);
+    void (*init_function)(void *,void *);
+    void (*combine_function)(void *,void *,const void *);
+    virtual void *get_element(uint32_t i)                                 override { return (*get_function)(pArray,i,nDataSize); }
+    virtual void         init(void *dst)                                  override {if (init_function) (*init_function)(ctx,dst);}
+    virtual void      combine(void *dst, const void *src,const void *key) override {if (combine_function) (*combine_function)(ctx,dst,src); }
+public:
+    explicit legacyCACHEhelper( void *pArray,uint32_t nArray, uint32_t nDataSize,void *ctx,
+                                void *(*get_function)(void *,int,int),
+                                void (*init_function)(void *,void *) = nullptr,
+                                void (*combine_function)(void *,void *,const void *)=nullptr)
+        : arrayCACHEhelper(nDataSize,pArray,nArray,combine_function != nullptr), ctx(ctx),
+          get_function(get_function==NULL ? getArrayElement : get_function),
+          init_function(init_function),combine_function(combine_function) {}
+};
+
+
+// This opens a read-only cache. Called from a worker outside of MDL
+extern "C"
+void mdlROcache(MDL mdl,int cid,
+                void *(*getElt)(void *pData,int i,int iDataSize),
+                void *pData,int iDataSize,int nDataSize) {
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,
+            std::make_shared<legacyCACHEhelper>(pData,nDataSize,iDataSize,nullptr,getElt,nullptr,nullptr));
+}
+
+// This opens a combiner (read/write) cache. Called from a worker outside of MDL
+extern "C"
+void mdlCOcache(MDL mdl,int cid,
+                void *(*getElt)(void *pData,int i,int iDataSize),
+                void *pData,int iDataSize,int nData,
+                void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *)) {
+    assert(init);
+    assert(combine);
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,
+            std::make_shared<legacyCACHEhelper>(pData,nData,iDataSize,ctx,getElt,init,combine));
+}

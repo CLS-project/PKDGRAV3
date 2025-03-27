@@ -74,15 +74,21 @@ static void flush_masses(PKD pkd,int nGrid,const mass_array_t &masses, const sha
     }
 }
 
-static void initPk(void *vpkd, void *g) {
-    FFTW3(real) * r = (FFTW3(real) *)g;
-    *r = 0.0;
-}
-static void combPk(void *vpkd, void *g1, const void *g2) {
-    auto r1 = (FFTW3(real) *)g1;
-    auto r2 = (const FFTW3(real) *)g2;
-    *r1 += *r2;
-}
+class HelperPk : public mdl::arrayCACHEhelper {
+    virtual void    init(void *dst) override final {
+        auto r = (FFTW3(real) *)dst;
+        *r = 0.0;
+    }
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto r1 = (FFTW3(real) *)dst;
+        auto r2 = (const FFTW3(real) *)src;
+        *r1 += *r2;
+    }
+public:
+    explicit HelperPk(FFTW3(real) *pArray,uint32_t nArray)
+        : arrayCACHEhelper(pArray,nArray,true) {}
+
+};
 
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta, int fold) {
     auto fft = pkd->fft;
@@ -102,7 +108,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     auto fftData = reinterpret_cast<FFTW3(real) *>(pkd->pLite);
     fftData = pkd->mdl->SetArray<FFTW3(real)>(fftData + iGrid*fft->rgrid->nLocal,last.i);
     for ( int i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
-    mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
+    pkd->mdl->CacheInitialize(CID_PK,std::make_shared<HelperPk>(fftData,last.i));
 
     auto pad = (iAssignment+1) / 2;
     std::vector<std::uint32_t> stack;

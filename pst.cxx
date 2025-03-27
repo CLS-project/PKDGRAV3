@@ -1589,9 +1589,7 @@ int pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int nOut) {
         ** Start particle caching space.
         */
         PKD pkd = plcl->pkd;
-        mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),
-                   pkd->Local());
-
+        pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
     }
     return 0;
 }

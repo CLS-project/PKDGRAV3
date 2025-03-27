@@ -8,7 +8,11 @@ struct bhStepPack {
     uint8_t iClass;
 };
 
-void smBHstep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void packBHstep(void *vpkd,void *dst,const void *src);
-void unpackBHstep(void *vpkd,void *dst,const void *src);
+void smBHstep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+class SmoothHelperBHstep : public SmoothHelperPacked<bhStepPack> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperBHstep(pkdContext *pkd) : SmoothHelperPacked<bhStepPack>(pkd,false) {}
+};
 

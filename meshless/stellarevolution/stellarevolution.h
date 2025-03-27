@@ -99,12 +99,16 @@ int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
 void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, meshless::FIELDS &, const double);
 
-void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
-void packChemEnrich(void *vpkd, void *dst, const void *src);
-void unpackChemEnrich(void *vpkd, void *dst, const void *src);
-void initChemEnrich(void *vpkd, void *dst);
-void flushChemEnrich(void *vpkd, void *dst, const void *src);
-void combChemEnrich(void *vpkd, void *dst, const void *src);
+void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth, NN *nnList, SMF *smf);
+class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack,stevFlush> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void    init(void *dst) override final;
+    virtual void   flush(void *dst, const void *src) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperChemEnrich(pkdContext *pkd) : SmoothHelperPacked<stevPack,stevFlush>(pkd,true) {}
+};
 
 /*
  * ----------------

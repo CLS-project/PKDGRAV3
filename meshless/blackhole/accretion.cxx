@@ -18,26 +18,34 @@ struct bhAccretionFlush {
     float fMass;
 };
 
-void packBHAccretion(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<bhAccretionPack *>(dst);
+
+class SmoothHelperAccretionFlush : public SmoothHelperPacked<bhAccretionPack,bhAccretionFlush> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void    init(void *dst) override final;
+    virtual void   flush(void *dst, const void *src) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperAccretionFlush(pkdContext *pkd) : SmoothHelperPacked<bhAccretionPack,bhAccretionFlush>(pkd,true) {}
+};
+
+void SmoothHelperAccretionFlush::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iOrder = p2.order();
     p1->iClass = p2.get_class();
 }
 
-void unpackBHAccretion(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperAccretionFlush::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const bhAccretionPack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_order(p2->iOrder);
     p1.set_class(p2->iClass);
 }
 
-void initBHAccretion(void *vpkd,void *dst) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperAccretionFlush::init(void *dst) {
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
 
     if (p.is_bh()) {
@@ -46,9 +54,8 @@ void initBHAccretion(void *vpkd,void *dst) {
     }
 }
 
-void flushBHAccretion(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<bhAccretionFlush *>(dst);
+void SmoothHelperAccretionFlush::flush(void *dst, const void *src) {
+    auto p1 = static_cast<flush_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     if (p2.is_bh()) {
@@ -58,10 +65,9 @@ void flushBHAccretion(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void combBHAccretion(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperAccretionFlush::combine(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const bhAccretionFlush *>(src);
+    auto p2 = static_cast<const flush_type *>(src);
 
     if (p1.is_bh()) {
         assert(p1.order() == p2->iOrder);
@@ -77,10 +83,7 @@ void combBHAccretion(void *vpkd,void *dst,const void *src) {
 }
 
 void pkdBHAccretion(PKD pkd, double dScaleFactor) {
-    mdlPackedCacheCO(pkd->mdl, CID_PARTICLE, NULL, pkd->particles, pkd->Local(),
-                     pkd->particles.ParticleSize(), pkd, sizeof(bhAccretionPack),
-                     packBHAccretion, unpackBHAccretion, sizeof(bhAccretionFlush),
-                     initBHAccretion, flushBHAccretion, combBHAccretion);
+    pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<SmoothHelperAccretionFlush>(pkd));
     for (auto &p : pkd->particles) {
         if (p.is_gas()) {
             auto &sph = p.sph();

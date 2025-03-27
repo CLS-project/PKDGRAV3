@@ -748,12 +748,12 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
 
     if (uRoot == FIXROOT) {
 #ifndef SINGLE_CACHES
-        mdlROcache(pkd->mdl,CID_CELL2,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
-        mdlROcache(pkd->mdl,CID_PARTICLE2,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
+        pkd->mdl->CacheInitialize(CID_CELL2,std::make_shared<treeCACHEhelper>(pkd));
+        pkd->mdl->CacheInitialize(CID_PARTICLE2,std::make_shared<particleCACHEhelper>(pkd));
 #endif
     }
     else {
-        mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
+        pkd->mdl->CacheInitialize(CID_CELL,std::make_shared<treeCACHEhelper>(pkd));
     }
 
 #ifdef USE_ITT
@@ -933,9 +933,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
     /*
     ** Finally activate a read only cache for remote access.
     */
-    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
-               pkd->NodeSize(),pkd->Nodes());
-
+    pkd->mdl->CacheInitialize(CID_CELL,std::make_shared<treeCACHEhelper>(pkd));
 }
 
 void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
@@ -989,5 +987,6 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions) {
     if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
     pkdTreeUpdateFlagBoundsRecurse(pkd, uRoot,SPHoptions);
-    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
+    pkd->mdl->CacheInitialize(CID_CELL,std::make_shared<treeCACHEhelper>(pkd));
+
 }
