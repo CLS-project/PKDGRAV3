@@ -1320,7 +1320,7 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
                 nNewDecorator++;
             }
         }
-        assert(nNewDecorator < pkdSwapDecoratorSpace(pkd));
+        assert(nNewDecorator <= pkdSwapDecoratorSpace(pkd));
         // Also only share now the associated decorators to the particles that
         // we have just sent
 
