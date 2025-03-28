@@ -24,6 +24,45 @@
 #include <vector>
 #include "blitz/array.h"
 
+namespace pyrameters {
+struct arg {
+    template <typename T>
+    PyObject *convert_to_pyobject(const T& val) {
+        using DecayedT = std::decay_t<T>; // Removes references and converts arrays to pointers
+        if constexpr (std::is_integral_v<DecayedT>) {
+            if constexpr (std::is_unsigned_v<DecayedT>) return PyLong_FromUnsignedLongLong(static_cast<unsigned long long>(val));
+            else                                        return PyLong_FromLongLong(static_cast<long long>(val));
+        }
+        else if constexpr (std::is_floating_point<DecayedT>::value)      return PyFloat_FromDouble(val);
+        else if constexpr (std::is_same_v<DecayedT, std::string_view> || std::is_same_v<DecayedT, std::string>) {
+            if (val.data() == nullptr) return Py_None;
+            return PyUnicode_FromStringAndSize(val.data(), val.size());
+        }
+        else if constexpr (std::is_convertible_v<DecayedT, const char*>) {
+            return (val != nullptr) ? PyUnicode_FromString(val) : Py_None;
+        }
+        else {
+            static_assert(std::is_same_v<DecayedT, void>, "Unsupported type in convert_to_pyobject");
+            return nullptr; // This line will never be reached
+        }
+    }
+    const char *key;
+    PyObject *value;
+
+    arg(const char* k, PyObject* v) : key(k), value(v) {}
+    template<typename T>
+    arg(const char* k, const T &v) : key(k), value(convert_to_pyobject(v)) {}
+};
+
+struct ArgKey {
+    const char *key;
+    constexpr explicit ArgKey(const char* k) : key(k) {}
+    template <typename T>
+    arg operator=(const T& val) const {
+        return arg(key, val);
+    }
+};
+
 class pyrameters {
     template<typename T, typename _ = void>
     struct is_container : std::false_type {};
@@ -56,17 +95,32 @@ protected:
 
     bool has(const char *name) const;
 
+    PyObject *get_and_call(const char *name, PyObject *dynamic) const;
+
     // Generic get function
     template<typename T>
     T get(const char *name) const {
-        auto obj = get<PyObject *>(name);  // Look up the attribute (and call if required); specialized
-        T result = get<T>(name, obj);      // Convert the PyObject to the requested type
+        auto obj = get_and_call(name,dynamic_); // Look up the attribute (and call if required)
+        T result = convert_to_C<T>(name, obj);  // Convert the PyObject to the requested type
         Py_XDECREF(obj);
         return result;
     }
 
+    template <typename T, typename... Args>
+    T get(const char *name, arg first, Args... rest) const {
+        PyObject* dynamic = PyDict_Copy(dynamic_);  // Start with a copy of dynamic_
+        if (dynamic == nullptr) throw std::runtime_error("Failed to create dynamic dictionary.");
+        add_to_dict(dynamic, first, rest...);       // Add all key-value pairs to temp_dict
+        auto obj = get_and_call(name,dynamic);      // Look up the attribute (and call if required)
+        T result = convert_to_C<T>(name, obj);      // Convert the PyObject to the requested type
+        Py_XDECREF(obj);
+        Py_DECREF(dynamic);
+        return result;
+    }
+
+private:
     template<typename T>
-    T get(const char *name, PyObject *v) const {
+    T convert_to_C(const char *name, PyObject *v) const {
         if constexpr (is_blitz_tinyvector<T>::value) {
             if (PyList_Check(v)) {
                 Py_ssize_t size = PyList_Size(v);
@@ -74,20 +128,22 @@ protected:
                 if (result.length() != size) throw std::domain_error(name);
                 for (Py_ssize_t i = 0; i < size; ++i) {
                     PyObject *item = PyList_GetItem(v, i);
-                    result[i] = get<typename T::T_numtype>(name, item);
+                    result[i] = convert_to_C<typename T::T_numtype>(name, item);
                 }
-                return result;
+                return result; // small, but NRVO should be able to optimize this anyway
             }
-            else return T(get<typename T::T_numtype>(name,v));
+            else return T(convert_to_C<typename T::T_numtype>(name,v));
         }
-        else if constexpr (std::is_same<T, std::string_view>::value) {
+//      The following works just fine, but returning a string_view is not a good idea because the underlying data may be destroyed.
+//      else if constexpr (std::is_same<T, std::string_view>::value || std::is_same<T, std::string>::value) {
+        else if constexpr (std::is_same<T, std::string>::value) {
             if (PyUnicode_Check(v)) {
                 Py_ssize_t length;
-                auto c_string = PyUnicode_AsUTF8AndSize(v,&length);         // convert to a UTF8 string
+                auto c_string = PyUnicode_AsUTF8AndSize(v, &length);         // convert to a UTF8 string
                 if (c_string == nullptr) throw std::domain_error(name);     // must be a string
-                return std::string_view(c_string,length);                   // return as a string_view
+                return T(c_string,length);                   // return as a string_view
             }
-            else if (v == Py_None) return std::string_view("");
+            else if (v == Py_None) return T("");
             else throw std::domain_error(name);
         }
         else if constexpr (is_std_vector<T>::value) {
@@ -97,11 +153,11 @@ protected:
                 result.resize(size);
                 for (Py_ssize_t i = 0; i < size; ++i) {
                     PyObject *item = PyList_GetItem(v, i);
-                    result[i] = get<typename T::value_type>(name, item);
+                    result[i] = convert_to_C<typename T::value_type>(name, item);
                 }
             }
-            else if (v != Py_None) result.push_back(get<typename T::value_type>(name,v));
-            return result;
+            else if (v != Py_None) result.push_back(convert_to_C<typename T::value_type>(name,v));
+            return result; // uses NVRO or move semantics
         }
         else if constexpr (std::is_same<T, bool>::value) {
             return PyObject_IsTrue(v)>0;
@@ -146,8 +202,8 @@ protected:
         else if constexpr (std::is_same<T, const char *>::value) {
             return PyUnicode_FromString(value);
         }
-        else if constexpr (std::is_same<T, std::string_view>::value) {
-            return PyUnicode_FromString(value.data());
+        else if constexpr (std::is_same<T, std::string_view>::value || std::is_same<T, std::string>::value) {
+            return PyUnicode_FromStringAndSize(value.data(), value.size());
         }
         else if constexpr (std::is_same<T, PyObject *>::value) {
             return Py_NewRef(value);
@@ -263,10 +319,26 @@ public:
 
 public:
     template<typename T> void set_dynamic(const char *name, T value);
-    PyObject *call_dynamic(PyObject *callback) const;
-};
 
-template<> PyObject    *pyrameters::get<PyObject *>(const char *name) const;
+    PyObject *call_dynamic(PyObject *callback) const;
+private:
+    PyObject *call_dynamic(PyObject *callback, PyObject *dynamic) const;
+private:
+    // Base case: Add a single argument to the dictionary
+    void add_to_dict(PyObject* dict, arg arg) const {
+        if (arg.value) {
+            PyDict_SetItemString(dict, arg.key, arg.value);
+            Py_DECREF(arg.value);  // Safe to decref since PyDict_SetItemString increments ref
+        }
+    }
+
+    // Recursive case: Process multiple arguments
+    template <typename... Args>
+    void add_to_dict(PyObject* dict, arg first, Args... rest) const {
+        add_to_dict(dict, first);
+        add_to_dict(dict, rest...);
+    }
+};
 
 template<> void pyrameters::set_dynamic(const char *name, PyObject     *value);
 template<> void pyrameters::set_dynamic(const char *name, float         value);
@@ -275,5 +347,14 @@ template<> void pyrameters::set_dynamic(const char *name, std::int32_t  value);
 template<> void pyrameters::set_dynamic(const char *name, std::int64_t  value);
 template<> void pyrameters::set_dynamic(const char *name, std::uint32_t value);
 template<> void pyrameters::set_dynamic(const char *name, std::uint64_t value);
+
+namespace literals {
+
+// Define a `_key` suffix operator (like fmt::literals)
+constexpr ArgKey operator"" _key(const char* key, size_t) {
+    return ArgKey(key);
+}
+} // namespace literals
+} // namespace pyrameters
 
 #endif

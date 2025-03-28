@@ -90,7 +90,7 @@ static int evalEwald(
     return COST_FLOP_EWALD;
 }
 
-#if defined(USE_SIMD_EWALD) && defined(__SSE2__)
+#if defined(USE_SIMD_EWALD) && (defined(__SSE2__)||defined(__ARM_NEON))
 double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
                       dvec &ax, dvec &ay, dvec &az, dvec &dPot,
                       dvec x, dvec y, dvec z, dvec r2, const dmask &doerfc ) {
@@ -343,7 +343,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut,bool bGPU) {
     /*
     ** Create SIMD versions of the moments.
     */
-#if defined(USE_SIMD_EWALD) && defined(__SSE2__)
+#if defined(USE_SIMD_EWALD) && (defined(__SSE2__)||defined(__ARM_NEON))
     pkd->es.ewm.m = dvec(mom->m);
     pkd->es.ewm.xx = dvec(mom->xx);
     pkd->es.ewm.yy = dvec(mom->yy);
@@ -402,7 +402,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut,bool bGPU) {
     ew->alpha2 = ew->alpha*ew->alpha;
     ew->k1 = M_PI/(ew->alpha2*L*L*L);
     ew->ka = 2.0*ew->alpha/sqrt(M_PI);
-#if defined(USE_SIMD_EWALD) && defined(__SSE2__)
+#if defined(USE_SIMD_EWALD) && (defined(__SSE2__)||defined(__ARM_NEON))
     pkd->es.ewp.Q4xx = dvec(ew->Q4xx);
     pkd->es.ewp.Q4xy = dvec(ew->Q4xy);
     pkd->es.ewp.Q4xz = dvec(ew->Q4xz);
@@ -449,7 +449,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut,bool bGPU) {
     }
     ew->nEwhLoop = i;
     i = (int)pow(1+2*ew->nEwReps,3);
-#if defined(USE_SIMD_EWALD) && defined(__SSE2__)
+#if defined(USE_SIMD_EWALD) && (defined(__SSE2__)||defined(__ARM_NEON))
     i = (i + fvec::mask()) & ~fvec::mask();
 #endif
     i = 0;

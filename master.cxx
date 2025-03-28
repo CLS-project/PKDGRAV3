@@ -62,7 +62,8 @@
 #endif
 
 #include "master.h"
-using namespace fmt::literals; // Gives us ""_a and ""_format literals
+using namespace fmt::literals;        // Gives us ""_a and ""_format literals
+using namespace pyrameters::literals; // Gives us ""_key literals
 
 #include "core/illinois.h"
 #include "io/outtype.h"
@@ -236,23 +237,32 @@ static void make_directories(std::string name) {
     }
 }
 
-std::string MSR::BuildName(std::string_view path,int iStep,const char *type) {
+std::string MSR::BuildName(std::string_view path,int iStep,std::string_view type) {
+    if (type.data()==nullptr) type = "";
+    std::string_view kind = type.length() ? type.substr(1) : "output";
     if (!path.length()) path = "{name}.{step:05d}{type}";
-    auto name = fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
+    auto name = fmt::format(path,"name"_a=OutName(),
+                            "step"_a=iStep,
+                            "type"_a=type,
+                            "kind"_a=kind,
+                            "i"_a="{i}"); // Defers the evaluation of i (if present)
     make_directories(name);
     return name;
 }
-std::string MSR::BuildName(int iStep,const char *type) {
-    return BuildName(parameters.get_achOutPath(),iStep,type);
+std::string MSR::BuildName(int iStep,std::string_view type) {
+    std::string_view kind = type.length() ? type.substr(1) : "output";
+    return BuildName(parameters.get_achOutPath("type"_key=type,"kind"_key=kind),iStep,type);
 }
-std::string MSR::BuildIoName(int iStep,const char *type) {
-    auto achIoPath = parameters.get_achIoPath();
+std::string MSR::BuildIoName(int iStep,std::string_view type) {
+    std::string_view kind = type.length() ? type.substr(1) : "output";
+    auto achIoPath = parameters.get_achIoPath("type"_key=type,"kind"_key=kind);
     if ( achIoPath.length() )
         return BuildName(achIoPath,iStep,type);
     else return BuildName(iStep,type);
 }
-std::string MSR::BuildCpName(int iStep,const char *type) {
-    auto achCheckpointPath = parameters.get_achCheckpointPath();
+std::string MSR::BuildCpName(int iStep,std::string_view type) {
+    std::string_view kind = type.length() ? type.substr(1) : "checkpoint";
+    auto achCheckpointPath = parameters.get_achCheckpointPath("type"_key=type,"kind"_key=kind);
     if ( achCheckpointPath.length() )
         return BuildName(achCheckpointPath,iStep,type);
     else return BuildName(iStep,type);
@@ -1097,6 +1107,7 @@ double MSR::SwitchDelta(double dTime,int iStep) {
         iStep_list.erase(iStep_list.begin());
         dDelta_list.erase(dDelta_list.begin());
     }
+    if (dDelta_list.size() == 0) return 0.0;
     return dDelta_list.front();
 }
 
@@ -3688,7 +3699,8 @@ void MSR::GroupStats() {
 
 #ifdef MDL_FFTW
 double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
-    struct inGenerateIC in;
+    auto inptr = std::make_unique<inGenerateIC>(); // This has largish tables
+    auto &in = *inptr;
     struct outGenerateIC out;
     ServiceFftSizes::input inFFTSizes;
     ServiceFftSizes::output outFFTSizes;
