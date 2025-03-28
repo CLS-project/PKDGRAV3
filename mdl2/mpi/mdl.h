@@ -97,9 +97,15 @@ class CACHEhelper {
     friend class mpiClass;
     friend class CACHE;
 protected:
-    uint32_t nElements; // Total number of elements in the cache
-    uint32_t nDataSize; // Size of a data element in bytes
-    bool     bModify;   // If this cache will be modified (and thus flushed)
+    uint32_t nElements;  // Total number of elements in the cache
+    uint32_t nDataSize;  // Size (bytes) of an element in the source container
+    uint32_t nPackSize;  // Size (bytes) of a packed element
+    uint32_t nFlushSize; // Size (bytes) of a flushed element
+    uint32_t nCacheSize; // Size (bytes) of an element in the cache
+    // NOTE: nCacheSize >= nDataSize. If larger this means there are decorations after the data.
+    bool     bModify;    // If this cache will be modified (and thus flushed)
+    // These overrides only work if nDataSize == nPackSize == nFlushSize == nCacheSize
+    // This is the most common case and the "classic" cache
     virtual void    pack(void *dst, const void *src)                  { memcpy(dst,src,nDataSize); }
     virtual void  unpack(void *dst, const void *src, const void *key) { memcpy(dst,src,nDataSize); }
     virtual void    init(void *dst)                                   {}
@@ -108,15 +114,17 @@ protected:
     virtual void *create(uint32_t size, const void *pKey) { return nullptr; }
     virtual uint32_t getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return uId;}
     virtual bool  modify() {return bModify; }
-    virtual uint32_t pack_size() {return nDataSize;}
-    virtual uint32_t flush_size() {return nDataSize;}
     virtual void *get_element(uint32_t i) {return nullptr;}
     virtual void *get_element(uint32_t uHash, void *pKey) {return nullptr;}
 public:
-    explicit CACHEhelper(uint32_t nDataSize, uint32_t nElements, bool bModify=false) : nElements(nElements), nDataSize(nDataSize), bModify(bModify) {}
+    explicit CACHEhelper(uint32_t nDataSize, uint32_t nElements, bool bModify=false)
+        : nElements(nElements), nDataSize(nDataSize), nPackSize(nDataSize), nFlushSize(nDataSize), nCacheSize(nDataSize), bModify(bModify) {}
     virtual ~CACHEhelper() = default;
-    auto data_size() {return nDataSize;}
-    auto elements() {return nElements;}
+    auto data_size()  const {return nDataSize;}
+    auto pack_size()  const {return nPackSize;}
+    auto cache_size() const {return nCacheSize;}
+    auto flush_size() const {return nFlushSize;}
+    auto elements()   const {return nElements;}
 };
 
 class arrayCACHEhelper : public CACHEhelper {
@@ -130,7 +138,7 @@ public:
         : CACHEhelper(sizeof(T),nArray,bModify), pArray(reinterpret_cast<char *>(pArray)) {}
 
     virtual void *get_element(uint32_t i) override {
-        return pArray + static_cast<size_t>(i) * nDataSize;
+        return pArray + static_cast<size_t>(i) * data_size();
     }
 };
 
@@ -170,17 +178,14 @@ class CACHE : private ARChelper {
     void *fetch(uint32_t uHash, void *pKey, int bLock,int bModify,bool bVirtual);
     void release(void *p) {return arc_cache->release(p);}
     void clear() {arc_cache->clear();}
-    static void *getArrayElement(void *vData,int i,int iDataSize);
 
     void initialize(uint32_t cacheSize,std::shared_ptr<CACHEhelper> helper);
 
-    void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
+    void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,std::shared_ptr<CACHEhelper> helper);
 
     uint16_t iCID;
     // Fast lock to allow local updates while cache is active
     RWLock rwlock;
-    int iDataSize;
-    int nData;
     uint32_t nLineBits;
     uint32_t getLineElementCount() const {return 1 << nLineBits;}
     uint32_t getLineMask()         const {return getLineElementCount()-1; }
@@ -340,7 +345,7 @@ public:
         this->cacheSize = cacheSize;
     }
     CACHE *CacheInitialize(int cid,std::shared_ptr<CACHEhelper> helper);
-    CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
+    CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,std::shared_ptr<CACHEhelper> helper);
 
     // Cache access
 public:

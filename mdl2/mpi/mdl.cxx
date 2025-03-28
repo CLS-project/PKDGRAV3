@@ -149,11 +149,11 @@ CACHE *mdlClass::CacheInitialize(int cid,std::shared_ptr<CACHEhelper> helper) {
     return (c);
 }
 
-CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper) {
+CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,std::shared_ptr<CACHEhelper> helper) {
     assert(cid >= 0 && cid <cache.size());
     if (cid<0 || cid >= cache.size()) abort();
     auto c = cache[cid].get();
-    c->initialize_advanced(cacheSize,hash,iDataSize,std::move(helper));
+    c->initialize_advanced(cacheSize,hash,std::move(helper));
 
     /* Nobody should start using this cache until all threads have started it! */
     ThreadBarrier(true);
@@ -265,23 +265,13 @@ void mpiClass::CacheReceive(int bytes, CacheHeader *ph, int iProcFrom) {
     expedite_flush(iProcFrom);
 }
 
-/*
-** This is the default element fetch routine.  It impliments the old behaviour
-** of a single large array.  New data structures need to be more clever.
-*/
-void *CACHE::getArrayElement(void *vData,int i,int iDataSize) {
-    char *pData = CAST(char *,vData);
-    return pData + (size_t)i*(size_t)iDataSize;
-}
-
 // This records the callback information, and updates the ARC cache to match (if necessary)
 void CACHE::initialize(uint32_t cacheSize,std::shared_ptr<CACHEhelper> helper) {
     cache_helper = std::move(helper);
-    nData = cache_helper->elements();
-    iDataSize = cache_helper->data_size();
+    auto cache_size = cache_helper->cache_size();
 
-    if (iDataSize > MDL_CACHE_DATA_SIZE) nLineBits = 0;
-    else nLineBits = log2(MDL_CACHE_DATA_SIZE / iDataSize);
+    if (cache_size > MDL_CACHE_DATA_SIZE) nLineBits = 0;
+    else nLineBits = log2(MDL_CACHE_DATA_SIZE / cache_size);
     /*
     ** Let's not have too much of a good thing. We want to fetch in cache lines both for
     ** performance, and to save memory (ARC cache has a high overhead), but too much has
@@ -289,7 +279,7 @@ void CACHE::initialize(uint32_t cacheSize,std::shared_ptr<CACHEhelper> helper) {
     ** This was tested with the particle, cell and P(k) caches.
     */
     if (nLineBits > 4) nLineBits = 4;
-    iLineSize = getLineElementCount()*iDataSize;
+    iLineSize = getLineElementCount()*cache_size;
     OneLine.resize(iLineSize);
 
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
@@ -299,14 +289,13 @@ void CACHE::initialize(uint32_t cacheSize,std::shared_ptr<CACHEhelper> helper) {
     arc_cache->initialize(this,cacheSize,iLineSize,nLineBits);
 }
 
-void CACHE::initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper) {
+void CACHE::initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,std::shared_ptr<CACHEhelper> helper) {
     cache_helper = std::move(helper);
     hash_table = hash;
-    this->iDataSize = this->iLineSize = iDataSize;
-    this->nData = 0;
+    iLineSize = cache_helper->cache_size();
 
     nLineBits = 0;
-    OneLine.resize(iDataSize);
+    OneLine.resize(iLineSize);
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
     // Clone the table if it is not the same type as what we have
@@ -444,6 +433,7 @@ void mpiClass::BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &requ
     auto c = pmdl[iCore]->cache[request.header.cid].get();
     assert(c->isActive());
     auto key_size = c->key_size();
+    auto nElements = c->cache_helper->elements();
 
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
@@ -458,7 +448,7 @@ void mpiClass::BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &requ
         flush->addBuffer(CacheMessageType::REPLY,request.header.cid,Self(),request.header.idFrom,request.header.iLine);
         for (auto i=s; i<n; i++ ) {
             auto buffer = flush->getBuffer(pack_size);
-            if (i<c->nData) {
+            if (i<nElements) {
                 auto p = c->ReadLock(i);
                 c->cache_helper->pack(buffer,p);
                 c->ReadUnlock(p);
@@ -581,7 +571,9 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
     auto c = cache[cid].get();
     int s,n;
     uint32_t iIndex = uLine << c->nLineBits;
-    auto pack_size = c->cache_helper->pack_size();
+    auto pack_size = c->cache_helper->pack_size();   // Size of incoming packed data
+    auto cache_size = c->cache_helper->cache_size(); // Size of an element in the cache
+    auto data_size = c->cache_helper->data_size();   // Size of an element in the source container
 
     s = iIndex;
     n = s + c->getLineElementCount();
@@ -592,22 +584,24 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
         memset(data,0,c->iLineSize);
     }
     // Local requests must be from a combiner cache if we get here,
-    // otherwise we would have simply returned a reference
+    // otherwise we would have simply returned a reference.
+    // We copy the element into the cache from the source container.
     else if (iCore >= 0 && iCore < Cores() ) {
         mdlClass *omdl = pmdl[iCore];
         auto oc = omdl->cache[cid].get();
+        auto nElements = oc->cache_helper->elements();
         if (size) {
             if (!src) return nullptr;
-            memcpy(data,src,oc->iDataSize);
+            memcpy(data,src,data_size);
         }
         else {
-            if ( n > oc->nData ) n = oc->nData;
+            if ( n > nElements ) n = nElements;
             auto pData = static_cast<char *>(data);
             for (auto i=s; i<n; i++ ) {
                 auto p = oc->ReadLock(i);
-                memcpy(pData,p,oc->iDataSize);
+                memcpy(pData,p,data_size);
                 oc->ReadUnlock(p);
-                pData += oc->iDataSize;
+                pData += cache_size;
             }
         }
     }
@@ -619,7 +613,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
         auto nLine = c->getLineElementCount();
         auto pData = static_cast<char *>(data);
         for (auto i=0; i<nLine; ++i) {
-            c->cache_helper->unpack(&pData[i*c->iDataSize], &c->OneLine[i*pack_size],pKey);
+            c->cache_helper->unpack(&pData[i*cache_size], &c->OneLine[i*pack_size],pKey);
         }
     }
 
@@ -627,7 +621,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
     auto pData = static_cast<char *>(data);
     for (auto i=s; i<n; i++ ) {
         c->cache_helper->init(pData);
-        pData += c->iDataSize;
+        pData += cache_size;
     }
     return data;
 }
@@ -642,9 +636,10 @@ void CACHE::flushElement( uint32_t uLine, uint32_t uId, uint32_t size, const voi
     mdl->coreFlushBuffer->addBuffer(iCID,mdl->Self(),uId,uLine);
     mdl->coreFlushBuffer->addBuffer(size,pKey);
     auto pData = static_cast<const char *>(data);
+    auto cache_size = cache_helper->cache_size();
     for (auto i=0; i<getLineElementCount(); ++i) {
         cache_helper->flush(mdl->coreFlushBuffer->getBuffer(cache_helper->flush_size()),pData);
-        pData += iDataSize;
+        pData += cache_size;
     }
 }
 
@@ -826,14 +821,15 @@ int mpiClass::CacheReceiveFlush(int count, CacheHeader *ph, int iProcFrom) {
     auto c = pmdl[iCore]->cache[ph->cid].get();
     assert(c->isActive());
     assert(c->modify());
+    auto nElements = c->cache_helper->elements();
     auto key_size = c->key_size();
     auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
     if (key_size==0) {
         // For some operations (e.g., grid assignment), we use core 0 and an index into the process.
         // Here we convert this to the correct index and core, updating iLine and iCore
         int iIndex = ph->iLine << c->nLineBits;
-        while (iIndex >= c->nData) {
-            iIndex -= c->nData;
+        while (iIndex >= nElements) {
+            iIndex -= nElements;
             assert(iCore+1<Cores());
             c = pmdl[++iCore]->cache[ph->cid].get();
         }
@@ -869,6 +865,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
     while (count > 0) {
         char *pData = reinterpret_cast<char *>(ca+1);
         auto c = cache[ca->cid].get();
+        auto nElements = c->cache_helper->elements();
         auto key_size = c->key_size();
         auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
         if (key_size) { // We are updating an advanced key
@@ -889,7 +886,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
             int s = uIndex;
             int n = s + c->getLineElementCount();
             for (int i=s; i<n; i++ ) {
-                if (i<c->nData) {
+                if (i<nElements) {
                     // Here we update a local element that has been flushed back to us.
                     // The danger here is another thread may want to read the value and
                     // end up with an inconsistent view so we lock for write.

@@ -186,17 +186,16 @@ public:
 
 template<typename P,typename F=P>
 class SmoothHelperPacked : public SmoothHelper {
-    uint32_t nPack, nFlush; // Size of packed and flushed data
 protected:
     virtual void    pack(void *dst, const void *src) = 0;
     virtual void  unpack(void *dst, const void *src, const void *key) = 0;
-    virtual uint32_t pack_size() {return nPack;}
-    virtual uint32_t flush_size() {return nFlush;}
 public:
     using pack_type = P;
     using flush_type = F;
-    explicit SmoothHelperPacked(pkdContext *pkd, bool bModify=false)
-        : SmoothHelper(pkd,bModify), nPack(sizeof(P)), nFlush(sizeof(F)) {}
+    explicit SmoothHelperPacked(pkdContext *pkd, bool bModify=false) : SmoothHelper(pkd,bModify) {
+        nPackSize = sizeof(P);
+        nFlushSize = sizeof(F);
+    }
 };
 
 // This is a simple cache helper that does not allow symmetric smoothing.

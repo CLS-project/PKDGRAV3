@@ -392,7 +392,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
             hash.insert(uHash,key,&values.back());
         }
 
-        mdl->AdvancedCacheInitialize(0,&hash,sizeof(values.front()),std::make_shared<test_helper>(sizeof(values.front()),false));
+        mdl->AdvancedCacheInitialize(0,&hash,std::make_shared<test_helper>(sizeof(values.front()),false));
         auto idNext = (idSelf+1) % nThreads;
         // These should be cache hits
         for (auto i=idSelf; i<nData; i += nThreads) {
@@ -479,7 +479,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
             hash.insert(uHash,key,&values.back());
         }
 
-        mdl->AdvancedCacheInitialize(0,&hash,sizeof(values.front()),std::make_shared<test_helper>(sizeof(values.front()),true));
+        mdl->AdvancedCacheInitialize(0,&hash,std::make_shared<test_helper>(sizeof(values.front()),true));
         auto idNext = (idSelf+1) % nThreads;
 
         // These should be cache hits

@@ -619,9 +619,10 @@ protected:
         g1->id.iPid = g2->iPid;
         g1->id.iIndex = g2->iIndex;
     }
-    virtual uint32_t pack_size()  override {return sizeof(remoteID);}
 public:
-    explicit FetchNames(smGroupArray *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray) {}
+    explicit FetchNames(smGroupArray *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray) {
+        nPackSize = sizeof(remoteID);
+    }
 };
 
 /*
@@ -659,10 +660,11 @@ protected:
         g1->iPid = g2->id.iPid;
         g1->iIndex = g2->id.iIndex;
     }
-    virtual uint32_t flush_size() override {return sizeof(remoteID);}
 
 public:
-    explicit PropagateNames(smGroupArray *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray,true) {}
+    explicit PropagateNames(smGroupArray *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray,true) {
+        nFlushSize = sizeof(remoteID);
+    }
 };
 
 int pkdFofPhases(PKD pkd) {
