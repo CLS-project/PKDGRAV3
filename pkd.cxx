@@ -541,7 +541,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->pTempPRIVATE = static_cast<PARTICLE *>(malloc(particles.ParticleSize()));
     mdlassert(mdl,this->pTempPRIVATE != NULL);
 
-    if ( iCacheSize > 0 ) mdlSetCacheSize(this->mdl,iCacheSize);
+    if ( iCacheSize > 0 ) mdl->SetCacheSize(iCacheSize);
     mdl->SetCacheMaxInflight(iCacheMaxInflight);
 
     // This is cheeserific - chooses the largest specified
@@ -616,9 +616,9 @@ pkdContext::~pkdContext() {
     /*
     ** Close caching space and free up nodes.
     */
-    if (mdlCacheStatus(mdl,CID_CELL))      mdlFinishCache(mdl,CID_CELL);
-    if (mdlCacheStatus(mdl,CID_CELL2))     mdlFinishCache(mdl,CID_CELL2);
-    if (mdlCacheStatus(mdl,CID_PARTICLE2)) mdlFinishCache(mdl,CID_PARTICLE2);
+    if (mdl->CacheStatus(CID_CELL))      mdl->FinishCache(CID_CELL);
+    if (mdl->CacheStatus(CID_CELL2))     mdl->FinishCache(CID_CELL2);
+    if (mdl->CacheStatus(CID_PARTICLE2)) mdl->FinishCache(CID_PARTICLE2);
     /*
     ** Free checklist.
     */
@@ -640,8 +640,8 @@ pkdContext::~pkdContext() {
     }
 
     /* Only thread zero allocated this memory block  */
-    mdlThreadBarrier(mdl);
-    if (mdlCore(mdl) == 0) {
+    mdl->ThreadBarrier();
+    if (mdl->Core() == 0) {
         mdl->delete_shared_array(storageBase,storageSize);
     }
     free(pTempPRIVATE);
@@ -1299,8 +1299,8 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
 
         mdlassert(pkd->mdl,pkd->Local() + pkd->nRejects <= pkd->FreeStore());
         // Swap the particles
-        auto outPart = mdlSwap(pkd->mdl,idSwap,nBuf,pkd->Particle(pkd->Local()),
-                               nOutBytes,&nSndBytes,&nRcvBytes);
+        auto outPart = pkd->mdl->Swap(idSwap,nBuf,pkd->Particle(pkd->Local()),
+                                      nOutBytes,&nSndBytes,&nRcvBytes);
 
 
 
@@ -1345,8 +1345,8 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
         nSkipBytes = (pkd->nDecoratorRejects-nToBeSendDecorator)*pkd->decorators.DecoratorSize();
         nBuf = pkdSwapDecoratorSpace(pkd)*pkd->decorators.DecoratorSize();
 
-        auto outDecorator = mdlSwapSkip(pkd->mdl,idSwap,nBuf,pkd->Decorator(pkd->DecoratorLocal()),
-                                        nOutDecoratorBytes, nSkipBytes, &nSndDecoratorBytes,&nRcvDecoratorBytes);
+        auto outDecorator = pkd->mdl->Swap(idSwap,nBuf,pkd->Decorator(pkd->DecoratorLocal()),
+                                           nOutDecoratorBytes, &nSndDecoratorBytes,&nRcvDecoratorBytes, nSkipBytes);
 
         auto nSentDecorator = nSndDecoratorBytes/pkd->decorators.DecoratorSize();
 
@@ -1402,8 +1402,8 @@ void pkdSwapAll(PKD pkd, int idSwap) {
 
     nBuf = pkd->FreeStore()*pkd->particles.ParticleSize();
     nOutBytes = pkd->Local()*pkd->particles.ParticleSize();
-    mdlSwap(pkd->mdl,idSwap,nBuf,pkd->particles, nOutBytes,
-            &nSndBytes, &nRcvBytes);
+    pkd->mdl->Swap(idSwap,nBuf,pkd->particles, nOutBytes,
+                   &nSndBytes, &nRcvBytes);
     mdlassert(pkd->mdl,nSndBytes/pkd->particles.ParticleSize() == pkd->Local());
     pkd->SetLocal(nRcvBytes/pkd->particles.ParticleSize());
     /*
@@ -1414,8 +1414,8 @@ void pkdSwapAll(PKD pkd, int idSwap) {
         pkd->CopyDecorator(pkd->Decorator(iBuf+i),pkd->Decorator(i));
     nBuf = pkd->FreeDecoratorStore()*pkd->decorators.DecoratorSize();
     nOutBytes = pkd->DecoratorLocal()*pkd->decorators.DecoratorSize();
-    mdlSwap(pkd->mdl,idSwap,nBuf,pkd->decorators, nOutBytes,
-            &nSndBytes, &nRcvBytes);
+    pkd->mdl->Swap(idSwap,nBuf,pkd->decorators, nOutBytes,
+                   &nSndBytes, &nRcvBytes);
     mdlassert(pkd->mdl,nSndBytes/pkd->decorators.DecoratorSize() == pkd->DecoratorLocal());
     pkd->decorators.SetLocal(nRcvBytes/pkd->decorators.DecoratorSize());
 
@@ -1736,7 +1736,7 @@ void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Boun
     ctx.iIndex = 0;
     ctx.iDecoratorIndex = 0;
 #ifdef MPI_VERSION
-    mdlRecv(pkd->mdl,iNode,unpackWrite,&ctx);
+    pkd->mdl->Recv(iNode,unpackWrite,&ctx);
 #endif
 }
 
@@ -1790,7 +1790,7 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
     ctx.iIndex = 0;
     ctx.iDecoratorIndex = 0;
 #ifdef MPI_VERSION
-    mdlSend(pkd->mdl,iNode,packWrite, &ctx);
+    pkd->mdl->Send(iNode,packWrite, &ctx);
 #endif
 }
 
@@ -1971,7 +1971,7 @@ void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize,double dvFa
     ctx.iIndex = 0;
     ctx.bMarked = bMarked;
 #ifdef MPI_VERSION
-    mdlSend(pkd->mdl,iNode,packArray, &ctx);
+    pkd->mdl->Send(iNode,packArray, &ctx);
 #endif
 }
 
@@ -1994,7 +1994,7 @@ void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize) {
     struct unpackArrayCtx ctx;
     ctx.pDest = static_cast<char *>(pDest);
 #ifdef MPI_VERSION
-    mdlRecv(pkd->mdl,iNode,unpackArray,&ctx);
+    pkd->mdl->Recv(iNode,unpackArray,&ctx);
 #endif
     return ctx.pDest;
 }
@@ -2046,7 +2046,7 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
     while (!cellStack.empty()) {
         auto [iCell, id] = cellStack.top();
         cellStack.pop();
-        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL,iCell,id)];
 
         // Walking the top tree
         if (c->is_top_tree()) {
@@ -2063,12 +2063,12 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
         ** and mdlFetch them from that thread
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
-            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE,pj,id)];
             ++nParticles;
 
             // Shortcut if necessary flag already set, as the test will pass in the end
             if ((SPHoptions->doSetDensityFlags && p.marked()) || (SPHoptions->doSetNNflags && p.NN_flag())) {
-                if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
+                if (id != pkd->Self()) pkd->mdl->Release(CID_PARTICLE,&p);
                 continue;
             }
 
@@ -2115,7 +2115,7 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
                 // Check that density flag is set if applicable
                 if (SPHoptions->doSetDensityFlags) assert(p.marked());
             }
-            if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
+            if (id != pkd->Self()) pkd->mdl->Release(CID_PARTICLE,&p);
         }
     }
     assert(nParticles == pkd->nGas);
@@ -2148,7 +2148,7 @@ void pkdGravAll(PKD pkd,
     for (i=0; i<=IRUNGMAX; ++i) pkd->nRung[i] = 0;
 
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-    mdlTimeReset(pkd->mdl);
+    pkd->mdl->TimeReset();
 #endif
 
     /*
@@ -2189,8 +2189,8 @@ void pkdGravAll(PKD pkd,
     assert(pkd->nWpPending == 0);
 
     if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
-        mdlFlushCache(pkd->mdl,CID_PARTICLE);
-        mdlCacheBarrier(pkd->mdl,CID_PARTICLE);
+        pkd->mdl->FlushCache(CID_PARTICLE);
+        pkd->mdl->CacheBarrier(CID_PARTICLE);
         extensiveMarkerTest(pkd, ts, SPHoptions);
     }
 
@@ -2208,15 +2208,15 @@ void pkdGravAll(PKD pkd,
     ** Get caching statistics.
     */
     if (*pnActive) {
-        *pdCellNumAccess = mdlNumAccess(pkd->mdl,CID_CELL)/dActive;
-        *pdPartNumAccess = mdlNumAccess(pkd->mdl,CID_PARTICLE)/dActive;
+        *pdCellNumAccess = pkd->mdl->NumAccess(CID_CELL)/dActive;
+        *pdPartNumAccess = pkd->mdl->NumAccess(CID_PARTICLE)/dActive;
     }
     else {
         *pdCellNumAccess = 0;
         *pdPartNumAccess = 0;
     }
-    *pdCellMissRatio = 100.0*mdlMissRatio(pkd->mdl,CID_CELL);      /* as a percentage */
-    *pdPartMissRatio = 100.0*mdlMissRatio(pkd->mdl,CID_PARTICLE);  /* as a percentage */
+    *pdCellMissRatio = 100.0*pkd->mdl->MissRatio(CID_CELL);      /* as a percentage */
+    *pdPartMissRatio = 100.0*pkd->mdl->MissRatio(CID_PARTICLE);  /* as a percentage */
     /*
     ** Output flops count in GFlops!
     */
@@ -2224,7 +2224,7 @@ void pkdGravAll(PKD pkd,
     /*
     ** Stop particle caching space.
     */
-    mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    pkd->mdl->FinishCache(CID_PARTICLE);
 
     for (i=0; i<=IRUNGMAX; ++i) pnRung[i] = pkd->nRung[i];
 
@@ -2284,7 +2284,7 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
     }
     if (pkd->nSideHealpix) {
         assert(healpixname && healpixname[0]);
-        mdlFinishCache(pkd->mdl,CID_HEALPIX);
+        pkd->mdl->FinishCache(CID_HEALPIX);
         int fd = open(healpixname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
         if (fd<0) {
             perror(healpixname);
@@ -2315,7 +2315,7 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 
     pkd->nSideHealpix = nSideHealpix;
     if (pkd->nSideHealpix) {
-        pkd->nHealpixPerDomain = ( nside2npix64(pkd->nSideHealpix) + mdlThreads(pkd->mdl) - 1) / mdlThreads(pkd->mdl);
+        pkd->nHealpixPerDomain = ( nside2npix64(pkd->nSideHealpix) + pkd->mdl->Threads() - 1) / pkd->mdl->Threads();
         pkd->nHealpixPerDomain = (pkd->nHealpixPerDomain+15) & ~15;
         if (pkd->pHealpixData==NULL) {
             pkd->pHealpixData = static_cast<healpixData *>(malloc(pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData)));
@@ -2356,9 +2356,9 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
         assert(iPixel >= 0);
         int id  = iPixel / pkd->nHealpixPerDomain;
         int idx = iPixel - id*pkd->nHealpixPerDomain;
-        assert(id<mdlThreads(pkd->mdl));
+        assert(id<pkd->mdl->Threads());
         assert(idx < pkd->nHealpixPerDomain);
-        auto m = static_cast<healpixData *>(mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id));
+        auto m = pkd->mdl->VirtualFetch<healpixData>(CID_HEALPIX,idx,id);
         if (P.group()) {
             if (m->nGrouped < 0xffffffffu) ++m->nGrouped; /* Increment with saturate */
         }
@@ -2540,7 +2540,7 @@ void pkdReorderWithinNodes(PKD pkd) {
             node->Nbh() = i - start;
         }
     }
-    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
+    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
     mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
 }
 #endif

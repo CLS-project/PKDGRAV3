@@ -20,6 +20,7 @@
 #include <boost/circular_buffer.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/barrier.hpp>
+#include "mdlstubs.h"
 #include "mdlbase.h"
 #include <stdio.h>
 #include <assert.h>
@@ -66,8 +67,6 @@
 
 typedef int (*mdlWorkFunction)(void *ctx);
 typedef int (*mdlPack)(void *,int *,size_t,void *);
-
-typedef void *MDL;
 
 #ifdef __cplusplus
 namespace mdl {
@@ -122,7 +121,7 @@ class CACHE : private ARChelper {
     friend class mpiClass;
     std::shared_ptr<CACHEhelper> cache_helper;
     std::unique_ptr<GARC> arc_cache;
-private:
+
     virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
     virtual void *getLocalData(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
     virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
@@ -130,24 +129,20 @@ private:
     virtual void *finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src) override;
     virtual void combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
     hash::GHASH *hash_table = nullptr;
+    class mdlClass *const mdl;  // MDL is needed for cache operations
+    mdlMessageCacheRequest CacheRequest;
 
-protected:
     auto lookup(uint32_t uHash, const void *pKey) {
         return hash_table->lookup(uHash,pKey);
     }
 
-public:
     auto fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual)
     {return arc_cache->fetch(uIndex,uId,bLock,bModify,bVirtual);}
     void *fetch(uint32_t uHash, void *pKey, int bLock,int bModify,bool bVirtual);
     void release(void *p) {return arc_cache->release(p);}
     void clear() {arc_cache->clear();}
-protected:
     static void *getArrayElement(void *vData,int i,int iDataSize);
-protected:
-    class mdlClass *const mdl;  // MDL is needed for cache operations
-    mdlMessageCacheRequest CacheRequest;
-public:
+
     void initialize(uint32_t cacheSize,
                     void *(*getElt)(void *pData,int i,int iDataSize),
                     void *pData,int nData, int iArrayElementSize,
@@ -155,13 +150,11 @@ public:
 
     void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
-protected:
     void *(*getElt)(void *pData,int i,int iDataSize);
     void *pData;
     uint16_t iCID;
     // Fast lock to allow local updates while cache is active
     RWLock rwlock;
-public:
     int iDataSize;
     int iArrayElementSize;
     int nData;
@@ -175,9 +168,7 @@ public:
      */
     uint64_t nAccess;
     uint64_t nMiss;
-public:
-    explicit CACHE(mdlClass *mdl,uint16_t iCID);
-    virtual ~CACHE() = default;
+
     void close();
     bool isActive() {return cache_helper.get() != nullptr; }
     bool modify() {assert(cache_helper); return cache_helper->modify();}
@@ -187,6 +178,9 @@ public:
     void WriteUnlock(const void *p) {rwlock.unlock_write();}
     void *ReadLock(int iIndex) {rwlock.lock_read(); return getElement(iIndex);}
     void ReadUnlock(const void *p) {rwlock.unlock_read();}
+public:
+    explicit CACHE(mdlClass *mdl,uint16_t iCID);
+    virtual ~CACHE() = default;
 };
 
 //*****************************************************************************
@@ -207,6 +201,35 @@ protected:
     std::vector<dd_offset_type> ddCounts;
     dd_offset_type ddFreeOffset[2], ddFreeCounts[2]; // For global Swap
 public:
+    /*
+     ** Special MDL memory allocation functions for allocating memory
+     ** which must be visible to other processors thru the MDL cache
+     ** functions.
+     ** Malloc() is defined to return a pointer to AT LEAST iSize bytes
+     ** of memory. This pointer will be passed to cache functions.
+     ** For PVM and most machines these functions are trivial, but on the
+     ** T3D and perhaps some future machines these functions are required.
+     */
+    template<typename T=void>
+    auto Malloc(size_t iSize) const {
+        return static_cast<T *>(malloc(iSize));
+    }
+    template<typename T>
+    void Free(T *p) const {
+        free(p);
+    }
+
+protected:
+    void *exchangeArray(void *vdata);
+public:
+    template<typename T>
+    auto SetArray(void *vdata,size_t nmemb=0) {
+        if constexpr (std::is_void_v<T>) nMessageData = 0;
+        else nMessageData = nmemb * sizeof(T);
+        return static_cast<T *>(exchangeArray(vdata));
+    }
+
+protected:
     class mdlClass **pmdl;
     class mpiClass *mpi;
     void *(*fcnWorkerInit)(MDL mdl);
@@ -247,9 +270,6 @@ public:
 
     int nFlushOutBytes;
 
-#if defined(USE_CUDA)
-    int inCudaBufSize, outCudaBufSize;
-#endif
 protected:
     void CommitServices();
     void Handler();
@@ -293,6 +313,9 @@ public:
     virtual ~mdlClass();
     void SetCacheMaxInflight(int iMax);
 
+    void SetCacheSize(int cacheSize) {
+        this->cacheSize = cacheSize;
+    }
     CACHE *CacheInitialize(int cid,
                            void *(*getElt)(void *pData,int i,int iDataSize),
                            void *pData,int nData,
@@ -306,10 +329,48 @@ public:
                            void *pData,int nData,int iDataSize, int iArrayElementSize);
     CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
-    void *AcquireWrite(int cid,int iIndex) {
-        return cache[cid]->WriteLock(iIndex);
+    // Cache access
+public:
+    template<typename T=void>
+    auto Fetch(int cid,int iIndex,int id) {
+        const bool lock   = false; // we never lock in fetch
+        const bool modify = false; // fetch can never modify
+        const bool virt   = false; // really fetch the element
+        return static_cast<T *>(Access(cid, iIndex, id, lock, modify, virt));
     }
-
+    template<typename T=void>
+    auto KeyFetch(int cid,uint32_t uHash, void *pKey,int lock,int modify,int virt) {
+        return static_cast<T *>(Access(cid, uHash, pKey, lock, modify, virt));
+    }
+    template<typename T=void>
+    auto Acquire(int cid,int iIndex,int id) {
+        const bool lock   = true;  // we always lock in acquire
+        const bool modify = cache[cid]->modify();
+        const bool virt   = false; // really fetch the element
+        return static_cast<T *>(Access(cid, iIndex, id, lock, modify, virt));
+    }
+    template<typename T=void>
+    auto KeyAcquire(int cid,uint32_t uHash, void *pKey) {
+        const bool lock   = true;  // we always lock in acquire
+        const bool modify = cache[cid]->modify();
+        const bool virt   = false; // really fetch the element
+        return static_cast<T *>(Access(cid, uHash, pKey, lock, modify, virt));
+    }
+    /* Locks the element, but does not fetch or initialize */
+    template<typename T=void>
+    auto VirtualFetch(int cid,int iIndex,int id) {
+        const int lock   = false; // fetch never locks
+        const int modify = true;  // virtual always modifies
+        const bool virt  = true;  // do not fetch the element
+        return static_cast<T *>(Access(cid, iIndex, id, lock, modify, virt));
+    }
+    void Release(int cid,void *p) {
+        cache[cid]->release(p);
+    }
+    template<typename T=void>
+    auto AcquireWrite(int cid,int iIndex) {
+        return static_cast<T *>(cache[cid]->WriteLock(iIndex));
+    }
     void ReleaseWrite(int cid,void *p) {
         cache[cid]->WriteUnlock(p);
     }
@@ -331,13 +392,14 @@ public:
     }
     void Send(int id,mdlPack pack, void *ctx);
     void Recv(int id,mdlPack unpack, void *ctx);
-    int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t nSkipBytes, size_t *pnSndBytes,size_t *pnRcvBytes);
+    int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes, size_t nSkipBytes=0);
 
     void CacheCheck();
+    int  CacheStatus(int cid);
     void CacheBarrier(int cid);
-    int ThreadBarrier(bool bGlobal=false,int iVote=0);
+    int  ThreadBarrier(bool bGlobal=false,int iVote=0);
     void CompleteAllWork();
-    bool isCudaActive();
+    bool CudaActive();
     bool isMetalActive();
     int numGPUs();
     void Backtrace() {show_backtrace();}
@@ -349,6 +411,9 @@ public:
 #ifdef MDL_FFTW
     size_t FFTlocalCount(int n1,int n2,int n3,int *nz,int *sz,int *ny,int *sy);
     MDLFFT FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real) *data);
+    MDLFFT FFTInitialize(int nx,int ny,int nz,int bMeasure,FFTW3(real) *data);
+    void FFTNodeFinish( MDLFFT fft );
+    void FFTFinish( MDLFFT fft );
 
     void FFT( MDLFFT fft, FFTW3(real) *data );
     void IFFT( MDLFFT fft, FFTW3(complex) *kdata );
@@ -359,6 +424,15 @@ public:
     int swapglobal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
     uint64_t new_shared_array(void **p, int nSegments,  uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore=0);
     void delete_shared_array(void *p,uint64_t nBytes);
+
+    double NumAccess(int cid) {
+        return cache[cid]->nAccess;
+    }
+    double MissRatio(int cid) {
+        auto &c = cache[cid];
+        double dAccess = c->nAccess;
+        return dAccess > 0.0 ? (c->nMiss/dAccess) : 0.0;
+    }
 };
 
 class mpiClass : public mdlClass {
@@ -510,12 +584,12 @@ public:
                       int argc=0, char **argv=0);
     virtual ~mpiClass();
     void SetCacheMaxInflight(int iMax) {iCacheMaxInflight = iMax;}
-    int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
+    int Launch();
 #ifdef USE_CUDA
-    bool isCudaActive() {return cuda.isActive(); }
+    bool CudaActive() {return cuda.isActive(); }
     int numGPUs() {return cuda.numDevices();}
 #else
-    bool isCudaActive() {return false; }
+    bool CudaActive() {return false; }
     int numGPUs() {return 0;}
 #endif
 #ifdef USE_METAL
@@ -528,29 +602,13 @@ public:
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
     void ThreadBarrierWait();
 };
+int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc=0,char **argv=nullptr);
 } // namespace mdl
-#endif
+#endif // __cplusplus
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-int mdlProcToThread(MDL mdl, int iProc);
-int mdlThreadToProc(MDL mdl, int iThread);
-
-/*
- ** General Functions
- */
-int mdlLaunch(int,char **,int (*)(MDL,void *),void *(*)(MDL),void (*)(MDL,void *));
-MDL   mdlMDL(void);
-void *mdlWORKER(void);
-
-void mdlAbort(MDL);
-int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
-int mdlSwapSkip(MDL,int,size_t,void *,size_t,size_t,size_t *,size_t *);
-void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
-void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
-void mdlAddService(MDL,int,void *,fcnService_t *fcnService,int,int);
 
 static inline int mdlGridCoordCompare(const mdlGridCoord *a,const mdlGridCoord *b) {
     return a->x==b->x && a->y==b->y && a->z==b->z;
@@ -590,18 +648,12 @@ void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, uint64_t nLocal);
 */
 void mdlGridShare(MDL mdl,MDLGRID grid);
 /*
-** Allocate the local elements.  The size of a single element is
-** given and the local GRID information is consulted to determine
-** how many to allocate.
-*/
-void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize);
-void mdlGridFree( MDL mdl, MDLGRID grid, void *p );
-/*
 ** This gives the processor on which the given slab can be found.
 */
-static inline int mdlGridId(MDL mdl,MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
+static inline int mdlGridId(MDL vmdl,MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
+    auto mdl = static_cast<mdl::mdlClass *>(vmdl);
     assert(z<grid->n3);
-    return mdlProcToThread(mdl,grid->id[z]);
+    return mdl->ProcToThread(grid->id[z]);
 }
 /*
 ** This returns the index into the array on the appropriate processor.
@@ -617,16 +669,6 @@ static inline int mdlGridIdx(MDL mdl,MDLGRID grid, uint32_t x, uint32_t y, uint3
 */
 #ifdef MDL_FFTW
 
-size_t mdlFFTlocalCount(MDL mdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int *sy);
-MDLFFT mdlFFTNodeInitialize(MDL mdl,int nx,int ny,int nz,int bMeasure,FFTW3(real) *data);
-MDLFFT mdlFFTInitialize(MDL mdl,int nx,int ny,int nz,int bMeasure,FFTW3(real) *data);
-void mdlFFTNodeFinish( MDL mdl, MDLFFT fft );
-void mdlFFTFinish( MDL mdl, MDLFFT fft );
-FFTW3(real) *mdlFFTMalloc( MDL mdl, MDLFFT fft );
-void mdlFFTFree( MDL mdl, MDLFFT fft, void *p );
-void mdlFFT( MDL mdl, MDLFFT fft, FFTW3(real) *data);
-void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *data);
-
 /* Grid accessors: r-space */
 #define mdlFFTrId(mdl,fft,x,y,z) mdlGridId(mdl,(fft)->rgrid,x,y,z)
 #define mdlFFTrIdx(mdl,fft,x,y,z) mdlGridIdx(mdl,(fft)->rgrid,x,y,z)
@@ -637,19 +679,9 @@ void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *data);
 
 #endif
 
-void mdlAlltoallv(MDL mdl,int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
-
 /*
  ** Caching functions.
  */
-void *mdlMalloc(MDL,size_t);
-void mdlFree(MDL,void *);
-void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size,size_t minSize);
-void *mdlSetArray(MDL mdl,size_t nmemb,size_t size,void *vdata);
-void mdlFreeArray(MDL,void *);
-void mdlSetCacheSize(MDL,int);
-int mdlCacheStatus(MDL mdl,int cid); /* zero means not open */
-
 void mdlROcache(MDL mdl,int cid,
                 void *(*getElt)(void *pData,int i,int iDataSize),
                 void *pData,int iDataSize,int nData);
@@ -702,35 +734,7 @@ void mdlPackedStrideCacheCO(MDL mdl,int cid,
 void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize);
 void mdlAdvancedCacheCO(MDL mdl,int cid,void *pHash,int iDataSize,
                         void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));
-void mdlFinishCache(MDL,int);
-void mdlCacheCheck(MDL);
-void mdlCacheBarrier(MDL,int);
-void mdlPrefetch(MDL mdl,int cid,int iIndex, int id);
-void *mdlAcquire(MDL mdl,int cid,int iIndex,int id);
-void *mdlFetch(MDL mdl,int cid,int iIndex,int id);
-void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id);
-const void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey,int lock,int modify,int virt);
-void *mdlKeyAcquire(MDL mdl,int cid,uint32_t uHash, void *pKey);
-void mdlRelease(MDL,int,void *);
-void mdlFlushCache(MDL,int);
-void mdlThreadBarrier(MDL);
-void mdlCompleteAllWork(MDL);
-void *mdlAcquireWrite(MDL mdl, int cid, int iIndex);
-void mdlReleaseWrite(MDL mdl,int cid,void *p);
-/*
- ** Cache statistics functions.
- */
-double mdlNumAccess(MDL,int);
-double mdlMissRatio(MDL,int);
 
-void mdlSetCudaBufferSize(MDL,int,int);
-int mdlCudaActive(MDL mdl);
-
-void mdlTimeReset(MDL mdl);
-double mdlTimeComputing(MDL mdl);
-double mdlTimeSynchronizing(MDL mdl);
-double mdlTimeWaiting(MDL mdl);
-double mdlWallTime(MDL mdl);
 void mdlprintf(MDL mdl, const char *format, ...);
 
 #ifdef __cplusplus

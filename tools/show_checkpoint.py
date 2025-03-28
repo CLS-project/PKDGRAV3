@@ -11,6 +11,7 @@ with open(argv[1],'rb') as fp:
     if not 1 <= version <= 2:
         print("Invalid checkpoint version")
         exit(1)
+    print( f'version = {version}')
     print( f'species = {load(fp)}')
     print( f'classes = {load(fp)}')
     print( f'step    = {load(fp)}')
@@ -24,5 +25,8 @@ with open(argv[1],'rb') as fp:
     s = load(fp)
     print(f"{'Parameters (explicitly set only):':<20}")
     for k in vars(a):
-    	if (getattr(s,k,False)):
-    		print("  ",f"{k:<20}",getattr(a,k))
+        if (getattr(s,k,False)):
+            print("  ",f"{k:<20}",getattr(a,k))
+    if version >= 2:
+        callbacks = load(fp)
+    interpreter = load(fp)

@@ -84,7 +84,7 @@ void pkdTreeInitMarked(PKD pkd) {
     auto pRoot    = InitializeRootCommon(pkd,ROOT);
     auto pRootFix = InitializeRootCommon(pkd,FIXROOT);
 
-    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
+    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
 
     auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return p.marked();}) - pkd->particles.begin();
     pRoot->set_local(0,i-1);
@@ -105,8 +105,8 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
     }
 
     /* We can always close the "active" caches */
-    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
-// done elsewhere   if (mdlCacheStatus(pkd->mdl,CID_PARTICLE)) mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
+// done elsewhere   if (pkd->mdl->CacheStatus(CID_PARTICLE)) pkd->mdl->FinishCache(CID_PARTICLE);
 
     /* Full Normal tree build. Only ROOT will be used */
     if (uRungDD == IRUNGMAX) {
@@ -130,8 +130,8 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 
 #ifndef SINGLE_CACHES
         /* Here we also have to close the "fixed" caches */
-        if (mdlCacheStatus(pkd->mdl,CID_CELL2))     mdlFinishCache(pkd->mdl,CID_CELL2);
-        if (mdlCacheStatus(pkd->mdl,CID_PARTICLE2)) mdlFinishCache(pkd->mdl,CID_PARTICLE2);
+        if (pkd->mdl->CacheStatus(CID_CELL2))     pkd->mdl->FinishCache(CID_CELL2);
+        if (pkd->mdl->CacheStatus(CID_PARTICLE2)) pkd->mdl->FinishCache(CID_PARTICLE2);
 #endif
         auto iLast = std::partition(pkd->particles.begin(),pkd->particles.end(),
         [uRungDD](auto &p) {return p.rung() < uRungDD;})
@@ -811,7 +811,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
         /*
         ** Close cell caching space and free up nodes.
         */
-        mdlFinishCache(pkd->mdl,CID_CELL);
+        pkd->mdl->FinishCache(CID_CELL);
     }
 
     /*
@@ -988,7 +988,7 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
 }
 
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions) {
-    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
+    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
     pkdTreeUpdateFlagBoundsRecurse(pkd, uRoot,SPHoptions);
     mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
 }

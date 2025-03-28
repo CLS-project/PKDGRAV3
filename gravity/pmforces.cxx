@@ -83,7 +83,7 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
 
     GridInfo G(pkd->mdl,fft);
     complex_array_t K;
-    G.setupArray((FFTW3(real) *)mdlSetArray(pkd->mdl,0,0,pkd->pLite),K);
+    G.setupArray(pkd->mdl->SetArray<FFTW3(real)>(pkd->pLite),K);
     NoiseGenerator ng(iSeed,bFixed,fPhase);
     ng.FillNoise(K,fft->rgrid->n3);
     for ( auto index=K.begin(); index!=K.end(); ++index ) {
@@ -141,12 +141,6 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
     mdlGridCoord rfirst, rlast;
     /* Grid coordinates in Fourier space : [O, Nyquist].[0, nGrid].[0, nGrid] */
     mdlGridCoord kfirst, klast, kindex;
-    /*
-     * Define the grid arrays : only 3 grids are stored
-     * in memory, the other ones are defined in order to
-     * have an explicit naming in the code
-     */
-    FFTW3(complex) *cDelta_lin_field, *cForceY, *cForceZ;
 
     /* Scale factors and normalization */
     const double dNormalization = a*a*a * dBSize;
@@ -157,11 +151,16 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
     /* Imprint the density grid of the linear species */
     int bRho = 1;  /* Generate the \delta\rho field */
     pkdGenerateLinGrid(pkd, fft, a0, a1, dBSize, iSeed, bFixed, fPhase, bRho);
-    cDelta_lin_field = (FFTW3(complex) *)mdlSetArray(pkd->mdl, klast.i, sizeof(FFTW3(complex)), pkd->pLite);
 
+    /*
+     * Define the grid arrays : only 3 grids are stored
+     * in memory, the other ones are defined in order to
+     * have an explicit naming in the code
+     */
+    auto cDelta_lin_field = pkd->mdl->SetArray<FFTW3(complex)>(pkd->pLite,klast.i);
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
-    cForceY = (FFTW3(complex) *)mdlSetArray(pkd->mdl,klast.i,sizeof(FFTW3(complex)),cDelta_lin_field + fft->kgrid->nLocal);
-    cForceZ = (FFTW3(complex) *)mdlSetArray(pkd->mdl,klast.i, sizeof(FFTW3(complex)),cForceY + fft->kgrid->nLocal);
+    auto cForceY = pkd->mdl->SetArray<FFTW3(complex)>(cDelta_lin_field + fft->kgrid->nLocal,klast.i);
+    auto cForceZ = pkd->mdl->SetArray<FFTW3(complex)>(cForceY          + fft->kgrid->nLocal,klast.i);
 
     int idx, i, j, jj, k, kk;
     const int iNyquist = nGrid / 2 ;
@@ -208,14 +207,9 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
         cDelta_lin_field[idx][0] =  dDifferentiate * imPotential;
         cDelta_lin_field[idx][1] = -dDifferentiate * rePotential;
     }
-    mdlIFFT(pkd->mdl, fft, cForceY);
-    //auto rForceY = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceY));
-
-    mdlIFFT(pkd->mdl, fft, cForceZ);
-    //auto rForceZ = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceZ));
-
-    mdlIFFT(pkd->mdl, fft, cDelta_lin_field);
-    //auto rForceX = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field));
+    pkd->mdl->IFFT(fft, cForceY);
+    pkd->mdl->IFFT(fft, cForceZ);
+    pkd->mdl->IFFT(fft, cDelta_lin_field);
 }
 
 int pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -280,7 +274,7 @@ static void fetch_forces(PKD pkd,int cid,int nGrid,force_array_t &forces, const 
         loc[0] = wrap(loc[0]); loc[1] = wrap(loc[1]); loc[2] = wrap(loc[2]);
         auto id = mdlFFTrId(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
         auto idx = mdlFFTrIdx(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
-        auto p = reinterpret_cast<float *>(mdlFetch(pkd->mdl,cid,idx,id));
+        auto p = pkd->mdl->Fetch<float>(cid,idx,id);
         *i = *p;
     }
 }
@@ -296,10 +290,10 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=3) {
     int nGrid = pkd->fft->rgrid->n1;
     assert(iAssignment>=0 && iAssignment<=3);
 
-    int iLocal = mdlCore(pkd->mdl) ? 0 : pkd->fft->rgrid->nLocal;
-    FFTW3(real)* forceX = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),pkd->pLite));
-    FFTW3(real)* forceY = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),forceX + pkd->fft->rgrid->nLocal));
-    FFTW3(real)* forceZ = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),forceY + pkd->fft->rgrid->nLocal));
+    int iLocal = pkd->mdl->Core() ? 0 : pkd->fft->rgrid->nLocal;
+    auto forceX = pkd->mdl->SetArray<FFTW3(real)>(pkd->pLite,iLocal);
+    auto forceY = pkd->mdl->SetArray<FFTW3(real)>(forceX + pkd->fft->rgrid->nLocal,iLocal);
+    auto forceZ = pkd->mdl->SetArray<FFTW3(real)>(forceY + pkd->fft->rgrid->nLocal,iLocal);
     mdlROcache(pkd->mdl,CID_GridLinFx,NULL, forceX, sizeof(FFTW3(real)),iLocal);
     mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),iLocal );
     mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),iLocal );
@@ -342,9 +336,9 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=3) {
             }
         }
     }
-    mdlFinishCache(pkd->mdl,CID_GridLinFx);
-    mdlFinishCache(pkd->mdl,CID_GridLinFy);
-    mdlFinishCache(pkd->mdl,CID_GridLinFz);
+    pkd->mdl->FinishCache(CID_GridLinFx);
+    pkd->mdl->FinishCache(CID_GridLinFy);
+    pkd->mdl->FinishCache(CID_GridLinFz);
 }
 
 int pstLinearKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -368,7 +362,6 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
                      double *fK, double *fPower, uint64_t *nPower) {
     MDLFFT fft = pkd->fft;
     mdlGridCoord first, last, index;
-    FFTW3(complex) *fftDataK;
     double ak;
     int i,j,k, idx, ks;
     int iNyquist = nGrid / 2;
@@ -387,7 +380,7 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
 
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
     mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last,0);
-    fftDataK = (FFTW3(complex) *)mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(complex)),pkd->pLite);
+    auto fftDataK = pkd->mdl->SetArray<FFTW3(complex)>(pkd->pLite,last.i);
 
     for ( i=0; i<nBins; i++ ) {
         fK[i] = 0.0;

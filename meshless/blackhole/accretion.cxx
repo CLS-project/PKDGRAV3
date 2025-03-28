@@ -90,7 +90,7 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
             if (iPid != NOT_ACCRETED) {
                 particleStore::ParticlePointer bh(pkd->particles);
                 if (iPid != pkd->Self()) {
-                    bh = &pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,iIndex,iPid))];
+                    bh = &pkd->particles[pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE,iIndex,iPid)];
                 }
                 else {
                     bh = &pkd->particles[iIndex];
@@ -119,10 +119,10 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                 pkdDeleteParticle(pkd,p);
 
                 if (iPid != pkd->Self())
-                    mdlRelease(pkd->mdl, CID_PARTICLE, bh);
+                    pkd->mdl->Release( CID_PARTICLE, bh);
             }
         }
     }
-    mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    pkd->mdl->FinishCache(CID_PARTICLE);
 }
 

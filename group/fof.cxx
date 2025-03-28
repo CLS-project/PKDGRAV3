@@ -173,7 +173,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     pkd->cl->clear();
 
     auto bndSelf = pkd->tree[ROOT]->bound();
-    idSelf = mdlSelf(pkd->mdl);
+    idSelf = pkd->mdl->Self();
     iTop = pkd->iTopTree[ROOT];
     id = idSelf;
     for (j=0; j<3; ++j) fOffset[j] = 0.0;
@@ -666,7 +666,7 @@ public:
 };
 
 int pkdFofPhases(PKD pkd) {
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int bMadeProgress=0;
     int iIndex,iPid,iRemote,iLink,i;
     remoteID name;
@@ -680,7 +680,7 @@ int pkdFofPhases(PKD pkd) {
         iIndex = pkd->tmpFofRemote[iRemote].key.iIndex;
         assert(iIndex > 0);
         iPid = pkd->tmpFofRemote[iRemote].key.iPid;
-        pRemote = static_cast<struct smGroupArray *>(mdlFetch(mdl,CID_GROUP,iIndex,iPid));
+        pRemote = mdl->Fetch<smGroupArray>(CID_GROUP,iIndex,iPid);
         /*
         ** Now update the name in the local table of remote group links.
         */
@@ -750,7 +750,7 @@ int pkdFofPhases(PKD pkd) {
                     name.iIndex = pkd->tmpFofRemote[iLink].name.iIndex;
                     iPid = pkd->tmpFofRemote[iLink].key.iPid;
                     iIndex = pkd->tmpFofRemote[iLink].key.iIndex;
-                    pRemote = static_cast<struct smGroupArray *>(mdlVirtualFetch(mdl,CID_GROUP,iIndex,iPid));
+                    pRemote = mdl->VirtualFetch<smGroupArray>(CID_GROUP,iIndex,iPid);
                     assert(pRemote);
                     if (name.iPid < pRemote->id.iPid) {
                         pRemote->id.iPid = name.iPid;

@@ -25,7 +25,7 @@ int ServiceFftSizes::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto out  = static_cast<output *>(vout);
     assert(nIn==sizeof(input));
     assert(nOut==sizeof(output));
-    out->nMaxLocal = mdlFFTlocalCount(pst->mdl,in->nx,in->ny,in->nz,&out->nMaxZ,0,&out->nMaxY,0);
+    out->nMaxLocal = pst->mdl->FFTlocalCount(in->nx,in->ny,in->nz,&out->nMaxZ,0,&out->nMaxY,0);
     return sizeof(output);
 }
 

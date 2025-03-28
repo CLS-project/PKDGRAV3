@@ -99,7 +99,7 @@ void *worker_init(MDL vmdl) {
     LCL *plcl = new LCL;
     plcl->pkd = NULL;
     pstInitialize(&pst,mdl,plcl);
-    pstAddServices(pst,vmdl);
+    pstAddServices(pst,mdl);
     mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
     mdl->AddService(std::make_unique<ServiceSwapAll>(pst));
     mdl->AddService(std::make_unique<ServiceHostname>(pst));
@@ -176,10 +176,11 @@ void worker_done(MDL mdl, void *ctx) {
 /*
 ** This is invoked for the "master" process after the worker has been setup.
 */
-int master(MDL mdl,void *vpst) {
+int master(MDL vmdl,void *vpst) {
+    auto mdl = reinterpret_cast<mdl::mdlClass *>(vmdl);
     auto pst = reinterpret_cast<PST>(vpst);
-    int argc = mdlGetArgc(mdl);
-    char **argv = mdlGetArgv(mdl);
+    int argc = mdl->GetArgc();
+    char **argv = mdl->GetArgv();
 
     /* a USR1 signal indicates that the queue wants us to exit */
 #ifndef _MSC_VER
@@ -224,5 +225,5 @@ int main(int argc,char **argv) {
     setbuf(stdout,(char *) NULL);
 #endif
 
-    return mdlLaunch(argc,argv,master,worker_init,worker_done);
+    return mdl::Launch(master,worker_init,worker_done,argc,argv);
 }

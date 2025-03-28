@@ -88,11 +88,13 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_link_libraries(${PROJECT_NAME} mdlcuda)
 target_sources(${PROJECT_NAME}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.cxx
+          ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlstubs.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mpimessages.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlmessages.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/gpu/mdlgpu.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.cxx
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.h
+          ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlstubs.h
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h
           ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h
 )
@@ -181,4 +183,4 @@ endif(hasParent)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
 install(TARGETS ${PROJECT_NAME} DESTINATION "lib")
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h mpi/mdl.h mdlbase.h DESTINATION "include")
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h mpi/mdl.h mpi/mdlstubs.h mdlbase.h DESTINATION "include")

@@ -627,7 +627,7 @@ int MSR::ValidateParameters() {
     /*
     ** CUDA likes a larger group size
     */
-    if ( (mdl->isCudaActive() || mdl->isMetalActive()) && parameters.get_bGPU() && !parameters.has_nGroup() && parameters.get_nGroup()<256)
+    if ( (mdl->CudaActive() || mdl->isMetalActive()) && parameters.get_bGPU() && !parameters.has_nGroup() && parameters.get_nGroup()<256)
         parameters.set_nGroup(256);
 
 #ifndef USE_HDF5

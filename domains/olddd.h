@@ -30,7 +30,7 @@ public:
         int nLocal;
     };
     explicit ServiceColRejects(PST pst)
-        : TraversePST(pst,PST_COLREJECTS,0,mdlThreads(pst->mdl)*sizeof(output),"ColRejects") {}
+        : TraversePST(pst,PST_COLREJECTS,0,pst->mdl->Threads()*sizeof(output),"ColRejects") {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -42,8 +42,8 @@ public:
     typedef ServiceColRejects::output output;
     explicit ServiceSwapRejects(PST pst)
         : TraversePST(pst,PST_SWAPREJECTS,
-                      mdlThreads(pst->mdl)*sizeof(input),
-                      mdlThreads(pst->mdl)*sizeof(output),"SwapRejects") {}
+                      pst->mdl->Threads()*sizeof(input),
+                      pst->mdl->Threads()*sizeof(output),"SwapRejects") {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -57,7 +57,7 @@ public:
     };
     typedef ServiceColRejects::output output;
     explicit ServiceColOrdRejects(PST pst)
-        : TraversePST(pst,PST_COLORDREJECTS,0,mdlThreads(pst->mdl)*sizeof(output),"ColOrdRejects") {}
+        : TraversePST(pst,PST_COLORDREJECTS,0,pst->mdl->Threads()*sizeof(output),"ColOrdRejects") {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;

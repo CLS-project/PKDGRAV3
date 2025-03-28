@@ -523,12 +523,12 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetBufferInfo == NULL) ||
                                            (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL) ) ) {
         fprintf(stderr, "ERROR: Trying to use particle buffer in node smooth,"
-                "but not all the required fuctions are set\n");
+                        "but not all the required fuctions are set\n");
         abort();
     }
     /*
     ** Initialize the ACTIVE particles in the tree.
-    ** There are other particles in the tree -- just not active.
+    ** There are other particles in the tree -- just not active.mdlN
     */
     auto pRoot = pkd->tree[ROOT];
     auto nTree = pRoot->count();
@@ -663,22 +663,22 @@ void smFinish(SMX smx,SMF *smf) {
      * Output statistics.
      */
     snprintf(achOut, sizeof(achOut), "Cell Accesses: %g\n",
-             mdlNumAccess(smx->pkd->mdl,CID_CELL));
+             smx->pkd->mdl->NumAccess(CID_CELL));
     mdlDiag(smx->pkd->mdl, achOut);
     snprintf(achOut, sizeof(achOut), "    Miss ratio: %g\n",
-             mdlMissRatio(smx->pkd->mdl,CID_CELL));
+             smx->pkd->mdl->MissRatio(CID_CELL));
     mdlDiag(smx->pkd->mdl, achOut);
     snprintf(achOut, sizeof(achOut), "Particle Accesses: %g\n",
-             mdlNumAccess(smx->pkd->mdl,CID_PARTICLE));
+             smx->pkd->mdl->NumAccess(CID_PARTICLE));
     mdlDiag(smx->pkd->mdl, achOut);
     snprintf(achOut, sizeof(achOut), "    Miss ratio: %g\n",
-             mdlMissRatio(smx->pkd->mdl,CID_PARTICLE));
+             smx->pkd->mdl->MissRatio(CID_PARTICLE));
     mdlDiag(smx->pkd->mdl, achOut);
     /*
     ** Stop particle caching space.
     */
     if (smx->bOwnCache)
-        mdlFinishCache(smx->pkd->mdl,CID_PARTICLE);
+        smx->pkd->mdl->FinishCache(CID_PARTICLE);
     /*
     ** Finish compressed lists.
     */
@@ -697,12 +697,12 @@ void smFinish(SMX smx,SMF *smf) {
 
 static auto getCell(PKD pkd, int iCell, int id) {
     return (id==pkd->Self()) ? pkd->tree[iCell]
-           : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+           : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL,iCell,id)];
 }
 
 PQ *pqSearch(SMX smx,PQ *pq,TinyVector<double,3> r,int iRoot) {
     PKD pkd = smx->pkd;
-    MDL mdl = smx->pkd->mdl;
+    auto mdl = smx->pkd->mdl;
     int idSelf = smx->pkd->Self();
     struct smContext::stStack *S = smx->ST;
     int iCell,id;
@@ -761,7 +761,7 @@ PQ *pqSearch(SMX smx,PQ *pq,TinyVector<double,3> r,int iRoot) {
                     }
                     else {
                         smHashDel(smx,pq->pPart);
-                        mdlRelease(pkd->mdl,CID_PARTICLE,pq->pPart);
+                        mdl->Release(CID_PARTICLE,pq->pPart);
                         pq->iPid = idSelf;
                     }
                     pq->pPart = &p;
@@ -780,7 +780,7 @@ PQ *pqSearch(SMX smx,PQ *pq,TinyVector<double,3> r,int iRoot) {
             auto pEnd = kdn->upper() + 1;
 #endif
             for (auto pj = kdn->lower(); pj < pEnd; ++pj) {
-                auto p = pkd->particles[static_cast<PARTICLE *>(mdlFetch(mdl,CID_PARTICLE,pj,id))];
+                auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE,pj,id)];
 #ifndef OPTIM_REORDER_IN_NODES
                 if (smx->bSearchGasOnly && !p.is_gas()) continue;
 #endif
@@ -793,9 +793,9 @@ PQ *pqSearch(SMX smx,PQ *pq,TinyVector<double,3> r,int iRoot) {
                     }
                     else {
                         smHashDel(smx,pq->pPart);
-                        mdlRelease(pkd->mdl,CID_PARTICLE,pq->pPart);
+                        mdl->Release(CID_PARTICLE,pq->pPart);
                     }
-                    auto p = pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
+                    auto p = pkd->particles[mdl->Acquire<PARTICLE>(CID_PARTICLE,pj,id)];
                     pq->pPart = &p;
                     pq->fDist2 = fDist2;
                     pq->dr = dr;
@@ -846,7 +846,7 @@ void smSmoothFinish(SMX smx) {
         }
         else {
             smHashDel(smx,smx->pq[i].pPart);
-            mdlRelease(smx->pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
+            smx->pkd->mdl->Release(CID_PARTICLE,smx->pq[i].pPart);
         }
     }
 }
@@ -991,7 +991,7 @@ void smSmooth(SMX smx,SMF *smf) {
             /*
             ** Call mdlCacheCheck to make sure we are making progress!
             */
-            mdlCacheCheck(pkd->mdl);
+            pkd->mdl->CacheCheck();
         }
     }
     smSmoothFinish(smx);
@@ -999,7 +999,7 @@ void smSmooth(SMX smx,SMF *smf) {
 
 void smGather(SMX smx,double fBall2,TinyVector<double,3> r) {
     PKD pkd = smx->pkd;
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int idSelf = pkd->Self();
     struct smContext::stStack *S = smx->ST;
     int iCell,id;
@@ -1054,7 +1054,7 @@ void smGather(SMX smx,double fBall2,TinyVector<double,3> r) {
             else {
                 pEnd = kdn->upper();
                 for (pj=kdn->lower(); pj<=pEnd; ++pj) {
-                    auto p = pkd->particles[static_cast<PARTICLE *>(mdlFetch(mdl,CID_PARTICLE,pj,id))];
+                    auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE,pj,id)];
                     if (!p.is_gas()) continue;
                     TinyVector<double,3> dr{r - p.position()};
                     double fDist2 = dot(dr,dr);
@@ -1066,7 +1066,7 @@ void smGather(SMX smx,double fBall2,TinyVector<double,3> r) {
                         }
                         smx->nnList[nCnt].fDist2 = fDist2;
                         smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].pPart = static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id));
+                        smx->nnList[nCnt].pPart = mdl->Acquire<PARTICLE>(CID_PARTICLE,pj,id);
                         smx->nnList[nCnt].iIndex = pj;
                         smx->nnList[nCnt].iPid = id;
                         ++nCnt;
@@ -1159,7 +1159,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,doubl
     */
     for (int i=0; i<smx->nnListSize; ++i) {
         if (smx->nnList[i].iPid != pkd->Self()) {
-            mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+            pkd->mdl->Release(CID_PARTICLE,smx->nnList[i].pPart);
         }
     }
 }
@@ -1256,7 +1256,7 @@ void static inline reallocNodeBuffer(const int N, const int nVar, meshless::myre
  */
 int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int nCnt;
     int nSmoothed=0;
 
@@ -1469,7 +1469,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                             }
 
                             nnList_p[nCnt_p].pPart = (smx->nnList[pk].iPid == pkd->Self()) ?
-                                                     smx->nnList[pk].pPart : static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,smx->nnList[pk].iIndex,smx->nnList[pk].iPid));
+                                                     smx->nnList[pk].pPart : mdl->Acquire<PARTICLE>(CID_PARTICLE,smx->nnList[pk].iIndex,smx->nnList[pk].iPid);
                             nnList_p[nCnt_p].fDist2 = fDist2;
                             nnList_p[nCnt_p].dr = dr;
                             nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
@@ -1505,7 +1505,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                     for (auto pk = 0; pk < nCnt_p; ++pk) {
                         if (nnList_p[pk].iPid != pkd->Self()) {
-                            mdlRelease(pkd->mdl,CID_PARTICLE,nnList_p[pk].pPart);
+                            pkd->mdl->Release(CID_PARTICLE,nnList_p[pk].pPart);
                         }
                     }
                 }
@@ -1526,7 +1526,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
 void buildInteractionList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCnt_tot, TinyVector<double,3> r, int ix, int iy, int iz) {
     PKD pkd = smx->pkd;
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int id, sp, iCell;
     struct smContext::stStack *S = smx->ST;
     int nCnt = *nCnt_tot;
@@ -1593,7 +1593,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCn
                 auto pEnd = kdn->upper() + 1;
 #endif
                 for (auto pj = kdn->lower(); pj < pEnd; ++pj) {
-                    auto p = pkd->particles[static_cast<PARTICLE *>(mdlFetch(mdl,CID_PARTICLE,pj,id))];
+                    auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE,pj,id)];
 #ifndef OPTIM_REORDER_IN_NODES
                     if (!p.is_gas()) continue;
 #endif

@@ -92,7 +92,7 @@ public:
     void setupArray(real_t *dataFirst,complex_array_t &kspace);
     void setupArray(complex_t *dataFirst,complex_array_t &kspace);
 
-    explicit GridInfo(MDL mdl,MDLFFT fft);
+    explicit GridInfo(mdl::mdlClass *mdl,MDLFFT fft);
     };
 }
 #endif
