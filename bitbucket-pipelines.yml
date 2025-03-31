@@ -2,10 +2,10 @@ image: dpotter/pkdgrav3-build
 pipelines:
   default:
     - step:
-        size: 8x
+        size: 2x
         script:
           - cmake -S . -B build
-          - cmake --build build -- -j 8
+          - cmake --build build -- -j 4
   branches:
     develop:
       - parallel:
@@ -39,9 +39,9 @@ pipelines:
                   ctest -V --test-dir build
     iac-hydro:
       - step:
-          size: 8x
+          size: 2x
           script:
             - >
               cmake -DCOOLING=on -DSTAR_FORMATION=on -DFEEDBACK=on
               -DEEOS_POLYTROPE=on -DBLACKHOLES=on -DSTELLAR_EVOLUTION=on -S . -B build
-            - cmake --build build -- -j 8
+            - cmake --build build -- -j 4
