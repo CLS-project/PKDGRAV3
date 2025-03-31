@@ -257,9 +257,9 @@ public:
         return static_cast<T *>(exchangeArray(vdata));
     }
 
+    class mpiClass *mpi;
 protected:
     class mdlClass **pmdl;
-    class mpiClass *mpi;
     void *(*fcnWorkerInit)(MDL mdl);
     void   (*fcnWorkerDone)(MDL mdl, void *ctx);
     int    (*fcnMaster)(    MDL mdl, void *ctx);
