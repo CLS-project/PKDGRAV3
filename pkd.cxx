@@ -360,6 +360,11 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
+
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV|PKD_MODEL_STAR|PKD_MODEL_BH) ) {
+        particles.add<decorators::FIELDS *>(PKD_FIELD::oDecorator,"decorator");
+    }
+
     if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
         auto gas = decorators.overlay(DECORATOR_FIELD::oMFM);
         gas.add<decorators::MFM>(DECORATOR_FIELD::oMFM,"hydro");
@@ -398,7 +403,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** 64 bit integer.
     */
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
-    if ( mMemoryModel ) particles.add<decorators::FIELDS *>(PKD_FIELD::oDecorator,"decorator");
 
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
     if ( mMemoryModel & PKD_MODEL_STRENGTH ) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr,"strength");
