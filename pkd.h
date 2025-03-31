@@ -627,6 +627,26 @@ public:
 };
 using PKD = pkdContext *;
 
+class treeCACHEhelper : public mdl::CACHEhelper {
+protected:
+    pkdContext *pkd;
+public:
+    explicit treeCACHEhelper(pkdContext *pkd)
+        : CACHEhelper(pkd->NodeSize(),0,false), pkd(pkd) {}
+    virtual void *get_element(uint32_t i) override final {
+        return pkd->tree[i];
+    }
+};
+
+class particleCACHEhelper : public mdl::arrayCACHEhelper {
+protected:
+    pkdContext *pkd;
+public:
+    explicit particleCACHEhelper(pkdContext *pkd, bool bModify=false)
+        : arrayCACHEhelper(pkd->particles.ParticleSize(),pkd->particles,pkd->Local(),bModify), pkd(pkd) {}
+};
+
+
 static inline int pkdIsRungActive(PKD pkd, uint8_t uRung ) {
     return uRung >= pkd->uMinRungActive && uRung <= pkd->uMaxRungActive;
 }

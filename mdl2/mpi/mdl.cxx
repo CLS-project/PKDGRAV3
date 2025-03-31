@@ -24,6 +24,7 @@ using namespace mdl;
 #include <set>
 #include <queue>
 #include <chrono>
+#include <utility>
 
 static inline int size_t_to_int(size_t v) {
     return (int)v;
@@ -118,20 +119,6 @@ typedef struct srvHeader {
 *   mdlClass - A worker thread instance
 \*****************************************************************************/
 
-class legacyCACHEhelper : public CACHEhelper {
-protected:
-    void *ctx;
-    void (*init_function)(void *,void *);
-    void (*combine_function)(void *,void *,const void *);
-    virtual void    init(void *dst)                                  override {(*init_function)(ctx,dst);}
-    virtual void combine(void *dst, const void *src,const void *key) override {(*combine_function)(ctx,dst,src); }
-public:
-    explicit legacyCACHEhelper( uint32_t nData,void *ctx,
-                                void (*init_function)(void *,void *),
-                                void (*combine_function)(void *,void *,const void *))
-        : CACHEhelper(nData,true), ctx(ctx), init_function(init_function),combine_function(combine_function) {}
-};
-
 /*****************************************************************************\
 * CACHE open/close
 \*****************************************************************************/
@@ -141,47 +128,8 @@ CACHE::CACHE(mdlClass *mdl,uint16_t iCID)
     : mdl(mdl), CacheRequest(iCID,mdl->Self()), iCID(iCID) {
 }
 
-// This opens a read-only cache. Called from a worker outside of MDL
-extern "C"
-void mdlROcache(MDL mdl,int cid,
-                void *(*getElt)(void *pData,int i,int iDataSize),
-                void *pData,int iDataSize,int nData) {
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,iDataSize,
-            std::make_shared<CACHEhelper>(iDataSize));
-}
-
-// This opens a combiner (read/write) cache. Called from a worker outside of MDL
-extern "C"
-void mdlCOcache(MDL mdl,int cid,
-                void *(*getElt)(void *pData,int i,int iDataSize),
-                void *pData,int iDataSize,int nData,
-                void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *)) {
-    assert(init);
-    assert(combine);
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,iDataSize,
-            std::make_shared<legacyCACHEhelper>(iDataSize,ctx,init,combine));
-}
-
-CACHE *mdlClass::CacheInitialize(int cid,
-                                 void *(*getElt)(void *pData,int i,int iDataSize),
-                                 void *pData,int nData,int iDataSize, int iArrayElementSize) {
-    return CacheInitialize(cid,getElt,pData,nData, iArrayElementSize, std::make_shared<CACHEhelper>(iDataSize));
-}
-
-CACHE *mdlClass::CacheInitialize(
-    int cid,
-    void *(*getElt)(void *pData,int i,int iArrayElementSize),
-    void *pData,int nData,
-    std::shared_ptr<CACHEhelper> helper) {
-    return CacheInitialize(cid,getElt,pData,nData,helper->data_size(),helper);
-}
-
 // Cache creation is a collective operation (all worker threads participate): call the initialize() member to set it up.
-CACHE *mdlClass::CacheInitialize(
-    int cid,
-    void *(*getElt)(void *pData,int i,int iArrayElementSize),
-    void *pData,int nData, int iArrayElementSize,
-    std::shared_ptr<CACHEhelper> helper) {
+CACHE *mdlClass::CacheInitialize(int cid,std::shared_ptr<CACHEhelper> helper) {
 
     // We cannot reallocate this structure because there may be other threads accessing it.
     // This might be safe to do with an appropriate barrier, but it would shuffle CACHE objects.
@@ -190,7 +138,7 @@ CACHE *mdlClass::CacheInitialize(
     if (cid<0 || cid >= cache.size()) abort();
 
     auto c = cache[cid].get();
-    c->initialize(cacheSize,getElt,pData,nData,iArrayElementSize,helper);
+    c->initialize(cacheSize,std::move(helper));
 
     /* Nobody should start using this cache until all threads have started it! */
     ThreadBarrier(true);
@@ -201,204 +149,11 @@ CACHE *mdlClass::CacheInitialize(
     return (c);
 }
 
-class packedCACHEhelperRO : public CACHEhelper {
-protected:
-    uint32_t nPack;
-    void *ctx;
-    void (*init_shared_function)   (void *,void *);
-    void (*pack_function)   (void *,void *,const void *);
-    void (*unpack_function) (void *,void *,const void *);
-
-    virtual void   pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
-    virtual void unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
-    virtual uint32_t pack_size() override {return nPack;}
-
-public:
-    explicit packedCACHEhelperRO(uint32_t nData,void *ctx,
-                                 uint32_t pack_size,
-                                 void (*init_shared_function)   (void *,void *),
-                                 void (*pack_function)   (void *,void *,const void *),
-                                 void (*unpack_function) (void *,void *,const void *))
-        : CACHEhelper(nData,false),nPack(pack_size),ctx(ctx),
-          init_shared_function(init_shared_function),pack_function(pack_function),
-          unpack_function(unpack_function) {}
-};
-
-void mdlPackedCacheRO(MDL mdl,int cid,
-                      void *(*getElt)(void *pData,int i,int iDataSize),
-                      void *pData,int nData,uint32_t iDataSize,
-                      void *ctx,uint32_t iPackSize,
-                      void (*init_shared) (void *, void *),
-                      void (*pack)   (void *,void *,const void *),
-                      void (*unpack) (void *,void *,const void *)) {
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,iDataSize,
-            std::make_shared<packedCACHEhelperRO>(iDataSize,ctx,iPackSize,
-                    init_shared,pack,unpack));
-}
-void mdlPackedStrideCacheRO(MDL mdl,int cid,
-                            void *(*getElt)(void *pData,int i,int iArrayElementSize),
-                            void *pData,int nData,uint32_t iDataSize, int iArrayElementSize,
-                            void *ctx,uint32_t iPackSize,
-                            void (*init_shared) (void *, void *),
-                            void (*pack)   (void *,void *,const void *),
-                            void (*unpack) (void *,void *,const void *)) {
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData, iArrayElementSize,
-            std::make_shared<packedCACHEhelperRO>(iDataSize,ctx,iPackSize,
-                    init_shared,pack,unpack));
-}
-
-class packedCACHEhelperCO : public CACHEhelper {
-protected:
-    uint32_t nPack, nFlush;
-    void *ctx;
-    void (*pack_function)   (void *,void *,const void *);
-    void (*unpack_function) (void *,void *,const void *);
-    void (*init_function)   (void *,void *);
-    void (*init_shared_function)   (void *,void *);
-    void (*flush_function)  (void *,void *,const void *);
-    void (*combine_function)(void *,void *,const void *);
-
-    virtual void    pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
-    virtual void  unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
-    virtual void    init(void *dst)                                   override { (*init_function)(ctx,dst); }
-    virtual void    init_shared(void *dst)                            override { (*init_shared_function)(ctx,dst); }
-    virtual void   flush(void *dst, const void *src)                  override { (*flush_function)(ctx,dst,src); }
-    virtual void combine(void *dst, const void *src, const void *key) override { (*combine_function)(ctx,dst,src); }
-    virtual uint32_t pack_size()  override {return nPack;}
-    virtual uint32_t flush_size() override {return nFlush;}
-
-public:
-    explicit packedCACHEhelperCO(uint32_t nData,void *ctx,
-                                 uint32_t pack_size,
-                                 void (*pack_function)   (void *,void *,const void *),
-                                 void (*unpack_function) (void *,void *,const void *),
-                                 void (*init_function)   (void *,void *),
-                                 void (*init_shared_function)   (void *,void *),
-                                 uint32_t flush_size,
-                                 void (*flush_function)  (void *,void *,const void *),
-                                 void (*combine_function)(void *,void *,const void *))
-        : CACHEhelper(nData,true),nPack(pack_size),nFlush(flush_size),ctx(ctx),
-          pack_function(pack_function),unpack_function(unpack_function),
-          init_function(init_function),init_shared_function(init_shared_function),
-          flush_function(flush_function),
-          combine_function(combine_function) {}
-};
-
-void mdlPackedCacheCO(MDL mdl,int cid,
-                      void *(*getElt)(void *pData,int i,int iDataSize),
-                      void *pData,int nData,uint32_t iDataSize,
-                      void *ctx,uint32_t iPackSize,
-                      void (*pack)   (void *,void *,const void *),
-                      void (*unpack) (void *,void *,const void *),
-                      uint32_t iFlushSize,
-                      void (*init)   (void *,void *),
-                      void (*init_shared)   (void *,void *),
-                      void (*flush)  (void *,void *,const void *),
-                      void (*combine)(void *,void *,const void *)) {
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData, iDataSize,
-            std::make_shared<packedCACHEhelperCO>(iDataSize,ctx,iPackSize,
-                    pack,unpack,init,init_shared,iFlushSize,flush, combine));
-}
-void mdlPackedStrideCacheCO(MDL mdl,int cid,
-                            void *(*getElt)(void *pData,int i,int iDataSize),
-                            void *pData,int nData,uint32_t iDataSize, int iArrayElementSize,
-                            void *ctx,uint32_t iPackSize,
-                            void (*pack)   (void *,void *,const void *),
-                            void (*unpack) (void *,void *,const void *),
-                            uint32_t iFlushSize,
-                            void (*init)   (void *,void *),
-                            void (*init_shared)   (void *,void *),
-                            void (*flush)  (void *,void *,const void *),
-                            void (*combine)(void *,void *,const void *)) {
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData, iArrayElementSize,
-            std::make_shared<packedCACHEhelperCO>(iDataSize,ctx,iPackSize,
-                    pack,unpack,init,init_shared,iFlushSize,flush, combine));
-}
-
-class advancedCACHEhelper : public CACHEhelper {
-protected:
-    uint32_t nPack, nFlush;
-    void *ctx;
-    void (*pack_function)   (void *,void *,const void *);
-    void (*unpack_function) (void *,void *,const void *);
-    void (*init_function)   (void *,void *);
-    void (*init_shared_function)   (void *,void *);
-    void (*flush_function)  (void *,void *,const void *);
-    void (*combine_function)(void *,void *,const void *);
-    uint32_t (*get_thread)  (void *,uint32_t,uint32_t,const void *);
-    void *(*create_function) (void *,uint32_t,const void *);
-
-    virtual void    pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
-    virtual void  unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
-    virtual void    init(void *dst)                                   override { if (init_function)   (*init_function)(ctx,dst); }
-    virtual void    init_shared(void *dst)                            override { if (init_shared_function)   (*init_shared_function)(ctx,dst); }
-    virtual void   flush(void *dst, const void *src)                  override { if (flush_function)  (*flush_function)(ctx,dst,src); }
-    virtual void combine(void *dst, const void *src, const void *key) override { if (combine_function)(*combine_function)(ctx,dst,src); }
-    virtual void *create(uint32_t size, const void *pKey) override
-    { return (*create_function)(ctx,size,pKey); }
-    virtual uint32_t getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) override
-    { return (*get_thread)(ctx,uLine,size,pKey); }
-    virtual uint32_t pack_size()  override {return nPack;}
-    virtual uint32_t flush_size() override {return nFlush;}
-public:
-    explicit advancedCACHEhelper(uint32_t nData,bool bModify,void *ctx,
-                                 uint32_t (*get_thread)  (void *,uint32_t,uint32_t,const void *),
-                                 uint32_t pack_size,
-                                 void (*pack_function)   (void *,void *,const void *),
-                                 void (*unpack_function) (void *,void *,const void *),
-                                 void (*init_function)   (void *,void *),
-                                 void (*init_shared_function)   (void *,void *),
-                                 uint32_t flush_size,
-                                 void (*flush_function)  (void *,void *,const void *),
-                                 void (*combine_function)(void *,void *,const void *),
-                                 void *(*create_function) (void *,uint32_t,const void *))
-        : CACHEhelper(nData,bModify), nPack(pack_size), nFlush(flush_size), ctx(ctx),
-          pack_function(pack_function),unpack_function(unpack_function),
-          init_function(init_function),init_shared_function(init_shared_function),
-          flush_function(flush_function),
-          combine_function(combine_function),
-          get_thread(get_thread), create_function(create_function) {}
-};
-
-extern "C"
-void mdlAdvancedCache(MDL mdl,int cid,void *pHash,int iDataSize,bool bModify,void *ctx,
-                      uint32_t (*get_thread)  (void *,uint32_t,uint32_t,const void *),
-                      uint32_t pack_size,
-                      void (*pack_function)   (void *,void *,const void *),
-                      void (*unpack_function) (void *,void *,const void *),
-                      void (*init_function)   (void *,void *),
-                      void (*init_shared_function)   (void *,void *),
-                      uint32_t flush_size,
-                      void (*flush_function)  (void *,void *,const void *),
-                      void (*combine_function)(void *,void *,const void *),
-                      void *(*create_function) (void *,uint32_t,const void *)) {
-    auto hash = static_cast<hash::GHASH *>(pHash);
-    static_cast<mdlClass *>(mdl)->AdvancedCacheInitialize(cid,hash,iDataSize,
-            std::make_shared<advancedCACHEhelper>(iDataSize,bModify,ctx,get_thread,
-                    pack_size,pack_function,unpack_function,init_function, init_shared_function,
-                    flush_size,flush_function,combine_function,create_function));
-}
-
-extern "C"
-void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize) {
-    auto hash = static_cast<hash::GHASH *>(pHash);
-    static_cast<mdlClass *>(mdl)->AdvancedCacheInitialize(cid,hash,iDataSize,
-            std::make_shared<CACHEhelper>(iDataSize));
-}
-
-extern "C"
-void mdlAdvancedCacheCO(MDL mdl,int cid,void *pHash,int iDataSize,
-                        void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *)) {
-    auto hash = static_cast<hash::GHASH *>(pHash);
-    static_cast<mdlClass *>(mdl)->AdvancedCacheInitialize(cid,hash,iDataSize,
-            std::make_shared<legacyCACHEhelper>(iDataSize,ctx,init,combine));
-}
-
-CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper) {
+CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,std::shared_ptr<CACHEhelper> helper) {
     assert(cid >= 0 && cid <cache.size());
     if (cid<0 || cid >= cache.size()) abort();
     auto c = cache[cid].get();
-    c->initialize_advanced(cacheSize,hash,iDataSize,helper);
+    c->initialize_advanced(cacheSize,hash,std::move(helper));
 
     /* Nobody should start using this cache until all threads have started it! */
     ThreadBarrier(true);
@@ -510,32 +265,13 @@ void mpiClass::CacheReceive(int bytes, CacheHeader *ph, int iProcFrom) {
     expedite_flush(iProcFrom);
 }
 
-/*
-** This is the default element fetch routine.  It impliments the old behaviour
-** of a single large array.  New data structures need to be more clever.
-*/
-void *CACHE::getArrayElement(void *vData,int i,int iArrayElementSize) {
-    char *pData = CAST(char *,vData);
-    return pData + (size_t)i*(size_t)iArrayElementSize;
-}
-
 // This records the callback information, and updates the ARC cache to match (if necessary)
-void CACHE::initialize(uint32_t cacheSize,
-                       void *(*getElt)(void *pData,int i,int iArrayElementSize),
-                       void *pData,int nData, int iArrayElementSize,
-                       std::shared_ptr<CACHEhelper> helper) {
+void CACHE::initialize(uint32_t cacheSize,std::shared_ptr<CACHEhelper> helper) {
+    cache_helper = std::move(helper);
+    auto cache_size = cache_helper->cache_size();
 
-    assert(!cache_helper);
-
-    this->getElt = getElt==NULL ? getArrayElement : getElt;
-    this->pData = pData;
-    this->nData = nData;
-    this->iArrayElementSize = iArrayElementSize;
-    this->iDataSize = helper->data_size();
-    this->cache_helper = helper;
-
-    if (iDataSize > MDL_CACHE_DATA_SIZE) nLineBits = 0;
-    else nLineBits = log2(MDL_CACHE_DATA_SIZE / iDataSize);
+    if (cache_size > MDL_CACHE_DATA_SIZE) nLineBits = 0;
+    else nLineBits = log2(MDL_CACHE_DATA_SIZE / cache_size);
     /*
     ** Let's not have too much of a good thing. We want to fetch in cache lines both for
     ** performance, and to save memory (ARC cache has a high overhead), but too much has
@@ -543,13 +279,13 @@ void CACHE::initialize(uint32_t cacheSize,
     ** This was tested with the particle, cell and P(k) caches.
     */
     if (nLineBits > 4) nLineBits = 4;
-    iLineSize = getLineElementCount()*iDataSize;
+    iLineSize = getLineElementCount()*cache_size;
     OneLine.resize(iLineSize);
 
     // We need to accomodate extra buffer space in the case that the pack size
     // is larger than the element size. This can be common when using decorators.
-    if (helper->data_size() < helper->pack_size())
-        OneLine.resize(getLineElementCount() * helper->pack_size());
+    if (cache_helper->data_size() < cache_helper->pack_size())
+        OneLine.resize(getLineElementCount() * cache_helper->pack_size());
 
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
@@ -558,16 +294,13 @@ void CACHE::initialize(uint32_t cacheSize,
     arc_cache->initialize(this,cacheSize,iLineSize,nLineBits);
 }
 
-void CACHE::initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper) {
+void CACHE::initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,std::shared_ptr<CACHEhelper> helper) {
+    cache_helper = std::move(helper);
     hash_table = hash;
-    this->iDataSize = this->iLineSize = iDataSize;
-    assert(helper);
-    this->cache_helper = helper;
-    this->pData = nullptr;
-    this->nData = 0;
+    iLineSize = cache_helper->cache_size();
 
     nLineBits = 0;
-    OneLine.resize(iDataSize);
+    OneLine.resize(iLineSize);
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
     // Clone the table if it is not the same type as what we have
@@ -705,6 +438,7 @@ void mpiClass::BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &requ
     auto c = pmdl[iCore]->cache[request.header.cid].get();
     assert(c->isActive());
     auto key_size = c->key_size();
+    auto nElements = c->cache_helper->elements();
 
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
@@ -719,7 +453,7 @@ void mpiClass::BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &requ
         flush->addBuffer(CacheMessageType::REPLY,request.header.cid,Self(),request.header.idFrom,request.header.iLine);
         for (auto i=s; i<n; i++ ) {
             auto buffer = flush->getBuffer(pack_size);
-            if (i<c->nData) {
+            if (i<nElements) {
                 auto p = c->ReadLock(i);
                 c->cache_helper->pack(buffer,p);
                 c->ReadUnlock(p);
@@ -842,7 +576,9 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
     auto c = cache[cid].get();
     int s,n;
     uint32_t iIndex = uLine << c->nLineBits;
-    auto pack_size = c->cache_helper->pack_size();
+    auto pack_size = c->cache_helper->pack_size();   // Size of incoming packed data
+    auto cache_size = c->cache_helper->cache_size(); // Size of an element in the cache
+    auto data_size = c->cache_helper->data_size();   // Size of an element in the source container
 
     s = iIndex;
     n = s + c->getLineElementCount();
@@ -853,23 +589,25 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
         memset(data,0,c->iLineSize);
     }
     // Local requests must be from a combiner cache if we get here,
-    // otherwise we would have simply returned a reference
+    // otherwise we would have simply returned a reference.
+    // We copy the element into the cache from the source container.
     else if (iCore >= 0 && iCore < Cores() ) {
         mdlClass *omdl = pmdl[iCore];
         auto oc = omdl->cache[cid].get();
+        auto nElements = oc->cache_helper->elements();
         if (size) {
             if (!src) return nullptr;
-            memcpy(data,src,oc->iArrayElementSize);
+            memcpy(data,src,data_size);
         }
         else {
-            if ( n > oc->nData ) n = oc->nData;
+            if ( n > nElements ) n = nElements;
             auto pData = static_cast<char *>(data);
             for (auto i=s; i<n; i++ ) {
                 auto p = oc->ReadLock(i);
-                memcpy(pData,p,oc->iArrayElementSize);
+                memcpy(pData,p,data_size);
                 c->cache_helper->init_shared(pData);
                 oc->ReadUnlock(p);
-                pData += oc->iDataSize;
+                pData += cache_size;
             }
         }
     }
@@ -881,7 +619,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
         auto nLine = c->getLineElementCount();
         auto pData = static_cast<char *>(data);
         for (auto i=0; i<nLine; ++i) {
-            c->cache_helper->unpack(&pData[i*c->iDataSize], &c->OneLine[i*pack_size],pKey);
+            c->cache_helper->unpack(&pData[i*cache_size], &c->OneLine[i*pack_size],pKey);
         }
     }
 
@@ -889,7 +627,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
     auto pData = static_cast<char *>(data);
     for (auto i=s; i<n; i++ ) {
         c->cache_helper->init(pData);
-        pData += c->iDataSize;
+        pData += cache_size;
     }
     return data;
 }
@@ -904,9 +642,10 @@ void CACHE::flushElement( uint32_t uLine, uint32_t uId, uint32_t size, const voi
     mdl->coreFlushBuffer->addBuffer(iCID,mdl->Self(),uId,uLine);
     mdl->coreFlushBuffer->addBuffer(size,pKey);
     auto pData = static_cast<const char *>(data);
+    auto cache_size = cache_helper->cache_size();
     for (auto i=0; i<getLineElementCount(); ++i) {
         cache_helper->flush(mdl->coreFlushBuffer->getBuffer(cache_helper->flush_size()),pData);
-        pData += iDataSize;
+        pData += cache_size;
     }
 }
 
@@ -1088,14 +827,15 @@ int mpiClass::CacheReceiveFlush(int count, CacheHeader *ph, int iProcFrom) {
     auto c = pmdl[iCore]->cache[ph->cid].get();
     assert(c->isActive());
     assert(c->modify());
+    auto nElements = c->cache_helper->elements();
     auto key_size = c->key_size();
     auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
     if (key_size==0) {
         // For some operations (e.g., grid assignment), we use core 0 and an index into the process.
         // Here we convert this to the correct index and core, updating iLine and iCore
         int iIndex = ph->iLine << c->nLineBits;
-        while (iIndex >= c->nData) {
-            iIndex -= c->nData;
+        while (iIndex >= nElements) {
+            iIndex -= nElements;
             assert(iCore+1<Cores());
             c = pmdl[++iCore]->cache[ph->cid].get();
         }
@@ -1131,6 +871,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
     while (count > 0) {
         char *pData = reinterpret_cast<char *>(ca+1);
         auto c = cache[ca->cid].get();
+        auto nElements = c->cache_helper->elements();
         auto key_size = c->key_size();
         auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
         if (key_size) { // We are updating an advanced key
@@ -1151,7 +892,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
             int s = uIndex;
             int n = s + c->getLineElementCount();
             for (int i=s; i<n; i++ ) {
-                if (i<c->nData) {
+                if (i<nElements) {
                     // Here we update a local element that has been flushed back to us.
                     // The danger here is another thread may want to read the value and
                     // end up with an inconsistent view so we lock for write.

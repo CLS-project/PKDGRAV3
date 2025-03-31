@@ -207,7 +207,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
         int nData = cacheSize;
         auto pData = new std::uint64_t[nData];
         for (auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
-        mdlROcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData);
+        mdl->CacheInitialize(0,std::make_shared<mdl::arrayCACHEhelper>(sizeof(pData[0]),pData,nData));
 
         nBAD = 0;
         for (auto iProc=0; iProc<mdl->Threads(); ++iProc) {
@@ -233,16 +233,21 @@ TEST_F(CacheTest, CacheReadWorks) {
 } // namespace test_ro
 
 namespace flush {
-static void initFlush(void *vctx, void *g) {
-    //auto ctx = reinterpret_cast<worker::Context*>(vctx);
-    auto p1 = reinterpret_cast<std::uint64_t *>(g);
+class FlushHelper : public mdl::arrayCACHEhelper {
+    virtual void    init(void *dst) override;
+    virtual void combine(void *dst, const void *src, const void *key) override;
+public:
+    explicit FlushHelper(std::uint64_t *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray,true) {}
+};
+
+void FlushHelper::init(void *dst) {
+    auto p1 = reinterpret_cast<std::uint64_t *>(dst);
     *p1 = 0;
 }
 
-static void combFlush(void *vctx, void *g1, const void *g2) {
-    //auto ctx = reinterpret_cast<worker::Context*>(vctx);
-    auto p1 = reinterpret_cast<std::uint64_t *>(g1);
-    auto p2 = reinterpret_cast<const std::uint64_t *>(g2);
+void FlushHelper::combine(void *dst, const void *src, const void *key) {
+    auto p1 = reinterpret_cast<std::uint64_t *>(dst);
+    auto p2 = reinterpret_cast<const std::uint64_t *>(src);
     *p1 += *p2;
 }
 
@@ -263,7 +268,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
         int nData = cacheSize;
         auto pData = new std::uint64_t[nData];
         for (auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
-        mdlCOcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData,ctx,initFlush,combFlush);
+        mdl->CacheInitialize(0,std::make_shared<FlushHelper>(pData,nData));
 
         nBAD = 0;
         for (auto iProc=0; iProc<mdl->Threads(); ++iProc) {
@@ -307,7 +312,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
         int nData = cacheSize / 10; // Smaller is fine for this
         auto pData = new std::uint64_t[nData];
         for (auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
-        mdlCOcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData,ctx,initFlush,combFlush);
+        mdl->CacheInitialize(0,std::make_shared<FlushHelper>(pData,nData));
 
         for (auto iProc=0; iProc<mdl->Threads(); ++iProc) {
             for (auto i=0; i<nData; ++i) (void)mdl->Fetch(0,i,iProc);
@@ -352,7 +357,7 @@ protected:
         return * static_cast<const uint64_t *>(pKey); // TESTING: we put the remote id here
     }
 public:
-    explicit test_helper(uint32_t nData, bool bModify=false) : CACHEhelper(nData,bModify) {}
+    explicit test_helper(uint32_t nData, bool bModify=false) : CACHEhelper(sizeof(uint64_t),nData,bModify) {}
 };
 
 constexpr int SERVICE = worker::TEST_ADVANCED_RO;
@@ -387,7 +392,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
             hash.insert(uHash,key,&values.back());
         }
 
-        mdl->AdvancedCacheInitialize(0,&hash,sizeof(values.front()),std::make_shared<test_helper>(sizeof(values.front()),false));
+        mdl->AdvancedCacheInitialize(0,&hash,std::make_shared<test_helper>(sizeof(values.front()),false));
         auto idNext = (idSelf+1) % nThreads;
         // These should be cache hits
         for (auto i=idSelf; i<nData; i += nThreads) {
@@ -439,7 +444,7 @@ protected:
         return * static_cast<const uint64_t *>(pKey); // TESTING: we put the remote id here
     }
 public:
-    explicit test_helper(uint32_t nData, bool bModify=true) : CACHEhelper(nData,bModify) {}
+    explicit test_helper(uint32_t nData, bool bModify=true) : CACHEhelper(sizeof(std::uint64_t),nData,bModify) {}
 };
 
 constexpr int SERVICE = worker::TEST_ADVANCED_FLUSH;
@@ -474,7 +479,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
             hash.insert(uHash,key,&values.back());
         }
 
-        mdl->AdvancedCacheInitialize(0,&hash,sizeof(values.front()),std::make_shared<test_helper>(sizeof(values.front()),true));
+        mdl->AdvancedCacheInitialize(0,&hash,std::make_shared<test_helper>(sizeof(values.front()),true));
         auto idNext = (idSelf+1) % nThreads;
 
         // These should be cache hits

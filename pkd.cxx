@@ -2026,15 +2026,18 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->particles.PhysicalSoft(dSoftMax,dFac,bSoftMaxMul);
 }
 
-static void initSetMarked(void *vpkd, void *v) {}
-static void combSetMarked(void *vpkd, void *v1, const void *v2) {
-    PARTICLE *p1 = (PARTICLE *)v1;
-    const PARTICLE *p2 = (const PARTICLE *)v2;
-    if (p2->bMarked) p1->bMarked = 1;
+class SetMarkedHelper : public particleCACHEhelper {
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto p1 = static_cast<PARTICLE *>(dst);
+        auto p2 = static_cast<const PARTICLE *>(src);
+        if (p2->bMarked) p1->bMarked = 1;
 #ifdef NN_FLAG_IN_PARTICLE
-    if (p2->bNNflag) p1->bNNflag = 1;
+        if (p2->bNNflag) p1->bNNflag = 1;
 #endif
-}
+    }
+public:
+    explicit SetMarkedHelper(PKD pkd) : particleCACHEhelper(pkd, true) {}
+};
 
 void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *SPHoptions) {
     std::stack<std::pair<int,int>> cellStack;
@@ -2162,12 +2165,10 @@ void pkdGravAll(PKD pkd,
     ** Start particle caching space (cell cache already active).
     */
     if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
-        mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),
-                   pkd->Local(),NULL,initSetMarked,combSetMarked);
+        pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<SetMarkedHelper>(pkd));
     }
     else {
-        mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),
-                   pkd->Local());
+        pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
     }
 
     /*
@@ -2254,26 +2255,28 @@ static void flushLightCone(PKD pkd) {
     pkd->nLightCone = 0;
 }
 
-static void initHealpix(void *vpkd, void *v) {
-    healpixData *m = (healpixData *)v;
-    m->nGrouped = 0;
-    m->nUngrouped = 0;
-    m->fPotential = 0;
-}
+class HealpixHelper : public mdl::arrayCACHEhelper {
+    virtual void    init(void *dst) override final {
+        auto m = static_cast<healpixData *>(dst);
+        m->nGrouped = 0;
+        m->nUngrouped = 0;
+        m->fPotential = 0;
+    }
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto m1 = static_cast<healpixData *>(dst);
+        auto m2 = static_cast<const healpixData *>(src);
+        auto SumWithSaturate = [](uint32_t a, uint32_t b) -> uint32_t {
+            uint64_t sum = static_cast<uint64_t>(a) + b;
+            return (sum > 0xffffffffu) ? 0xffffffffu : static_cast<uint32_t>(sum);
+        };
+        m1->nGrouped = SumWithSaturate(m1->nGrouped,m2->nGrouped);
+        m1->nUngrouped = SumWithSaturate(m1->nUngrouped,m2->nUngrouped);
+        m1->fPotential += m2->fPotential;
+    }
 
-static uint32_t SumWithSaturate(uint32_t a,uint32_t b) {
-    uint64_t sum = (uint64_t)a + b;
-    if (sum > 0xffffffffu) return 0xffffffffu;
-    else return sum;
-}
-
-static void combHealpix(void *vctx, void *v1, const void *v2) {
-    healpixData *m1 = (healpixData *)v1;
-    const healpixData *m2 = (const healpixData *)v2;
-    m1->nGrouped = SumWithSaturate(m1->nGrouped,m2->nGrouped);
-    m1->nUngrouped = SumWithSaturate(m1->nUngrouped,m2->nUngrouped);
-    m1->fPotential += m2->fPotential;
-}
+public:
+    explicit HealpixHelper(PKD pkd) : arrayCACHEhelper(pkd->pHealpixData,pkd->nHealpixPerDomain,true) {}
+};
 
 void pkdLightConeClose(PKD pkd,const char *healpixname) {
     int i;
@@ -2326,9 +2329,7 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
             pkd->pHealpixData[i].nUngrouped = 0;
             pkd->pHealpixData[i].fPotential = 0;
         }
-        mdlCOcache(pkd->mdl,CID_HEALPIX,NULL,
-                   pkd->pHealpixData,sizeof(*pkd->pHealpixData),
-                   pkd->nHealpixPerDomain,pkd,initHealpix,combHealpix);
+        pkd->mdl->CacheInitialize(CID_HEALPIX,std::make_shared<HealpixHelper>(pkd));
     }
 }
 
@@ -2541,7 +2542,7 @@ void pkdReorderWithinNodes(PKD pkd) {
         }
     }
     if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
-    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
+    pkd->mdl->CacheInitialize(CID_CELL,std::make_shared<treeCACHEhelper>(pkd));
 }
 #endif
 

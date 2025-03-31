@@ -695,7 +695,8 @@ int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double 
     SMX smx;
     SMF smf;
 
-    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(), pkd->Local());
+    pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
+
     initGravWalk(pkd,dTime,dThetaMin,0,0,0,0,&smx,&smf);
     nActive = 0;
     for (gid=1; gid<pkd->nGroups; ++gid) {

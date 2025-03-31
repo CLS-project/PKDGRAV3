@@ -10,9 +10,8 @@ void MSR::BHGasPin(double dTime, double dDelta) {
     Smooth(dTime,dDelta,SMX_BH_GASPIN,0,parameters.get_nSmooth());
 }
 
-void packBHGasPin(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<bhGasPinPack *>(dst);
+void SmoothHelperBHGasPin::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iClass = p2.get_class();
@@ -24,10 +23,9 @@ void packBHGasPin(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void unpackBHGasPin(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperBHGasPin::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const bhGasPinPack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -38,9 +36,8 @@ void unpackBHGasPin(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void smBHGasPin(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smBHGasPin(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
     const auto pv = p.velocity() / smf->a;
     const NN *nnLowPot;
 
@@ -93,28 +90,31 @@ struct bhRepositionPack {
     uint8_t iClass;
 };
 
-void packBHReposition(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<bhRepositionPack *>(dst);
+class SmoothHelperBHReposition : public SmoothHelperPacked<bhRepositionPack> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperBHReposition(pkdContext *pkd,bool bSymmetric=false) : SmoothHelperPacked<bhRepositionPack>(pkd,bSymmetric) {}
+};
+
+void SmoothHelperBHReposition::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->position = p2.position();
     p1->iClass = p2.get_class();
 }
 
-void unpackBHReposition(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperBHReposition::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const bhRepositionPack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_position(p2->position);
     p1.set_class(p2->iClass);
 }
 
 void pkdBHReposition(PKD pkd) {
-    mdlPackedCacheRO(pkd->mdl, CID_PARTICLE, NULL, pkd->particles,pkd->Local(),
-                     pkd->particles.ParticleSize(), pkd, sizeof(bhRepositionPack),
-                     init_shared_gas_decorator, packBHReposition, unpackBHReposition);
+    pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<SmoothHelperBHReposition>(pkd));
     for (auto &p : pkd->particles) {
         if (p.is_bh()) {
             auto &bh = p.BH();

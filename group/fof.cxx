@@ -600,28 +600,29 @@ NextCell:
     ** Now lets go looking for local particles which have a remote neighbor that is part of
     ** a group.
     */
-    pkd->mdl->CacheInitialize(CID_PARTICLE,NULL,pkd->particles,pkd->Local(),pkd->particles.ParticleSize(),pkd->particles.ParticleSize());
+    pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
     pkdFofRemoteSearch(pkd,dTau2,bPeriodic,nReplicas,nBucket);
     pkd->mdl->FinishCache(CID_PARTICLE);
 }
 
-class FetchNames : public mdl::CACHEhelper {
+class FetchNames : public mdl::arrayCACHEhelper {
 protected:
-    virtual void pack(void *dst, const void *src) override {
+    virtual void pack(void *dst, const void *src) override final {
         auto g1 = static_cast<remoteID *>(dst);           // Packed value
         auto g2 = static_cast<smGroupArray const *>(src); // Regular element
         g1->iPid = g2->id.iPid;
         g1->iIndex = g2->id.iIndex;
     }
-    virtual void  unpack(void *dst, const void *src, const void *key) override {
+    virtual void  unpack(void *dst, const void *src, const void *key) override final {
         auto g1 = static_cast<smGroupArray *>(dst);   // Regular element
         auto g2 = static_cast<remoteID const *>(src); // Packed value
         g1->id.iPid = g2->iPid;
         g1->id.iIndex = g2->iIndex;
     }
-    virtual uint32_t pack_size()  override {return sizeof(remoteID);}
 public:
-    explicit FetchNames() : CACHEhelper(sizeof(struct smGroupArray)) {}
+    explicit FetchNames(smGroupArray *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray) {
+        nPackSize = sizeof(remoteID);
+    }
 };
 
 /*
@@ -631,12 +632,12 @@ public:
 ** the second fetch will only update it if the new name is actually smaller than the
 ** one set by the first fetch.
 */
-class PropagateNames : public mdl::CACHEhelper {
+class PropagateNames : public mdl::arrayCACHEhelper {
 protected:
-    virtual void pack(void *dst, const void *src) override {
+    virtual void pack(void *dst, const void *src) override final {
         assert(0); abort(); // We use virtual fetch only, so pack() is not used
     }
-    virtual void  unpack(void *dst, const void *src, const void *key) override {
+    virtual void  unpack(void *dst, const void *src, const void *key) override final {
         assert(0); abort(); // We use virtual fetch only, so unpack() is not used
     }
     // virtual uint32_t pack_size()  override {return sizeof(remoteID);}
@@ -645,7 +646,7 @@ protected:
         g->id.iPid = INT32_MAX;
         g->id.iIndex = INT32_MAX;
     }
-    virtual void combine(void *dst, const void *src,const void *key) override {
+    virtual void combine(void *dst, const void *src,const void *key) override final {
         auto g1 = static_cast<smGroupArray *>(dst);   // Regular element
         auto g2 = static_cast<remoteID const *>(src); // Packed value
         if ( g1->id.iPid>g2->iPid || (g1->id.iPid==g2->iPid && g1->id.iIndex>g2->iIndex) ) {
@@ -653,16 +654,17 @@ protected:
             g1->id.iIndex = g2->iIndex;
         }
     }
-    virtual void flush(void *dst, const void *src) override {
+    virtual void flush(void *dst, const void *src) override final {
         auto g1 = static_cast<remoteID *>(dst);           // Packed value
         auto g2 = static_cast<smGroupArray const *>(src); // Regular element
         g1->iPid = g2->id.iPid;
         g1->iIndex = g2->id.iIndex;
     }
-    virtual uint32_t flush_size() override {return sizeof(remoteID);}
 
 public:
-    explicit PropagateNames() : CACHEhelper(sizeof(struct smGroupArray),true) {}
+    explicit PropagateNames(smGroupArray *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray,true) {
+        nFlushSize = sizeof(remoteID);
+    }
 };
 
 int pkdFofPhases(PKD pkd) {
@@ -675,7 +677,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 1: fetch remote names.
     */
-    pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->ga,pkd->nGroups,std::make_shared<FetchNames>());
+    pkd->mdl->CacheInitialize(CID_GROUP,std::make_shared<FetchNames>(pkd->ga,pkd->nGroups));
     for (iRemote=1; iRemote<pkd->iRemoteGroup; ++iRemote) {
         iIndex = pkd->tmpFofRemote[iRemote].key.iIndex;
         assert(iIndex > 0);
@@ -740,7 +742,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 3: propagate.
     */
-    pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->ga,pkd->nGroups,std::make_shared<PropagateNames>());
+    pkd->mdl->CacheInitialize(CID_GROUP,std::make_shared<PropagateNames>(pkd->ga,pkd->nGroups));
     for (i=1; i<pkd->nGroups; ++i) {
         iLink = pkd->ga[i].iLink;
         if (iLink) {

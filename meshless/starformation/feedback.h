@@ -25,12 +25,17 @@ struct snFeedbackFlush {
 };
 
 
-void smSNFeedback(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) ;
-void packSNFeedback(void *vpkd,void *dst,const void *src);
-void unpackSNFeedback(void *vpkd,void *dst,const void *src);
-void initSNFeedback(void *vpkd,void *dst);
-void flushSNFeedback(void *vpkd,void *dst,const void *src);
-void combSNFeedback(void *vpkd,void *dst,const void *src);
+void smSNFeedback(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) ;
+class SmoothHelperSNFeedback : public SmoothHelperPacked<snFeedbackPack,snFeedbackFlush> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void    init(void *dst) override final;
+    virtual void   flush(void *dst, const void *src) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+    virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
+public:
+    SmoothHelperSNFeedback(pkdContext *pkd) : SmoothHelperPacked<snFeedbackPack,snFeedbackFlush>(pkd,true) {}
+};
 
 
 static inline float SNFeedbackEfficiency(float Z, float rho, double dSNFBEfficiency,

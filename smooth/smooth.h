@@ -18,9 +18,9 @@
 #ifndef SMOOTH_HINCLUDED
 #define SMOOTH_HINCLUDED
 
-extern "C" {
-#include "listcomp.h"
-}
+// extern "C" {
+// #include "listcomp.h"
+// }
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
 #include "hydro/hydro.h"
@@ -42,7 +42,7 @@ struct smExtraArray {
 typedef struct smContext {
     PKD pkd;
     PARTICLE *pSentinel;
-    void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
+    void (*fcnSmooth)(particleStore::ParticleReference &p,float,int,NN *,SMF *);
     void (*fcnSmoothNode)(PARTICLE *, float, int, int, double *, double *, SMF *);
     void (*fcnSmoothGetBufferInfo)(int *, int *);
     void (*fcnSmoothFillBuffer)(double *, PARTICLE *, int, int,
@@ -54,7 +54,6 @@ typedef struct smContext {
     int nQueue;
     int bPeriodic;
     int bOwnCache;
-    int bSymmetric;
     int iSmoothType;
     int bSearchGasOnly;
     blitz::TinyVector<double,3> rLast; /* For the snake */
@@ -96,7 +95,7 @@ typedef struct smContext {
     /*
     ** Context for nearest neighbor lists.
     */
-    LCODE lcmp;
+    // LCODE lcmp;
     /*
     ** Some variables needed for smNewFof().
     */
@@ -125,9 +124,6 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCn
 #endif
 
 void smGather(SMX smx,double fBall2,blitz::TinyVector<double,3> r);
-
-void init_shared_gas_decorator(void *vpkd, void *dst);
-void init_shared_bh_decorator(void *vpkd, void *dst);
 
 inline void smSwapNN(NN *nnList, int i, int j) {
     NN temp;

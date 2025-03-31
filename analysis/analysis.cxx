@@ -126,62 +126,67 @@ static void jacobi(double a[4][4],int n,double d[4],double v[4][4], int *nrot) {
 /*
 ** Combiner cache functions
 */
-static void combProfileBins1(void *vpkd, void *b1, const void *b2) {
-    PROFILEBIN *pBin1 = (PROFILEBIN *)b1;
-    const PROFILEBIN *pBin2 = (const PROFILEBIN *)b2;
 
-    pBin1->dMassInBin += pBin2->dMassInBin;
-    pBin1->nParticles += pBin2->nParticles;
-    pBin1->L[0] += pBin2->L[0];
-    pBin1->L[1] += pBin2->L[1];
-    pBin1->L[2] += pBin2->L[2];
-    pBin1->vel_radial += pBin2->vel_radial;
-    pBin1->vel_radial_sigma += pBin2->vel_radial_sigma;
-}
+class HelperProfileBins1 : public mdl::arrayCACHEhelper {
+protected:
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto pBin1 = static_cast<PROFILEBIN *>(dst);
+        const auto pBin2 = static_cast<const PROFILEBIN *>(src);
+        pBin1->dMassInBin += pBin2->dMassInBin;
+        pBin1->nParticles += pBin2->nParticles;
+        pBin1->L += pBin2->L;
+        pBin1->vel_radial += pBin2->vel_radial;
+        pBin1->vel_radial_sigma += pBin2->vel_radial_sigma;
+    }
+    virtual void    init(void *dst) override final {
+        auto pBin = static_cast<PROFILEBIN *>(dst);
+        pBin->dMassInBin = 0.0;
+        pBin->L = 0.0;
+        pBin->vel_radial = 0.0;
+        pBin->vel_radial_sigma = 0.0;
+        pBin->nParticles = 0;
+    }
+public:
+    HelperProfileBins1(PROFILEBIN *pArray,uint32_t nArray)
+        : arrayCACHEhelper(pArray,nArray,true) {}
+};
 
-static void initProfileBins1(void *vpkd, void *b) {
-    PROFILEBIN *pBin = (PROFILEBIN *)b;
-    pBin->dMassInBin = 0.0;
-    pBin->L[0] = pBin->L[1] = pBin->L[2] = 0.0;
-    pBin->vel_radial = pBin->vel_radial_sigma = 0.0;
-    pBin->nParticles = 0;
-}
+class HelperProfileBins2 : public mdl::arrayCACHEhelper {
+protected:
+    virtual void    init(void *dst) override final {
+        auto pBin = static_cast<PROFILEBIN *>(dst);
+        pBin->vel_tang_sigma = 0.0;
+    }
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto pBin1 = static_cast<PROFILEBIN *>(dst);
+        const auto pBin2 = static_cast<const PROFILEBIN *>(src);
+        pBin1->vel_tang_sigma += pBin2->vel_tang_sigma;
+    }
+public:
+    HelperProfileBins2(PROFILEBIN *pArray,uint32_t nArray)
+        : arrayCACHEhelper(pArray,nArray,true) {}
+};
 
-static void combProfileBins2(void *vpkd, void *b1, const void *b2) {
-    PROFILEBIN *pBin1 = (PROFILEBIN *)b1;
-    const PROFILEBIN *pBin2 = (const PROFILEBIN *)b2;
-    pBin1->vel_tang_sigma += pBin2->vel_tang_sigma;
-}
-
-static void initProfileBins2(void *vpkd, void *b) {
-    PROFILEBIN *pBin = (PROFILEBIN *)b;
-    pBin->vel_tang_sigma = 0.0;
-}
 
 #ifdef SHAPES
-static void combShapesBins1(void *vpkd, void *b1, const void *b2) {
-    SHAPESBIN *pBin1 = (SHAPESBIN *)b1;
-    const SHAPESBIN *pBin2 = (const SHAPESBIN *)b2;
-    int j,k;
-    pBin1->dMassEnclosed += pBin2->dMassEnclosed;
-    for (j=0; j<3; j++) {
-        pBin1->com[j] += pBin2->com[j];
-        for (k=0; k<3; k++) {
-            pBin1->dInertia[j][k] += pBin2->dInertia[j][k];
-        }
+class HelperShapesBins1 : public mdl::arrayCACHEhelper {
+protected:
+    virtual void    init(void *dst) override final {
+        auto pBin = static_cast<SHAPESBIN *>(dst);
+        pBin->dMassEnclosed = 0.0;
+        pBin->com = 0.0;
+        pBin->dInertia = 0.0;
     }
-}
-static void initShapesBins1(void *vpkd, void *b) {
-    SHAPESBIN *pBin = (SHAPESBIN *)b;
-    int j,k;
-    pBin->dMassEnclosed = 0.0;
-    for (j=0; j<3; j++) {
-        pBin->com[j] = 0.0;
-        for (k=0; k<3; k++) {
-            pBin->dInertia[j][k] = 0.0;
-        }
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto pBin1 = static_cast<SHAPESBIN *>(dst);
+        const auto pBin2 = static_cast<const SHAPESBIN *>(src);
+        pBin1->com += pBin2->com;
+        pBin1->dInertia += pBin2->dInertia;
     }
-}
+public:
+    HelperShapesBins1(SHAPESBIN *pArray,uint32_t nArray)
+        : arrayCACHEhelper(pArray,nArray,true) {}
+};
 #endif
 
 /*
@@ -337,7 +342,7 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
     double ell_matrix[3][3], ell_matrix_inv[3][3];
 
 
-    mdlCOcache(pkd->mdl,CID_SHAPES,NULL,shapesBins,sizeof(SHAPESBIN),pkd->Self()==0?nBins:0,pkd,initShapesBins1,combShapesBins1);
+    pkd->mdl->CacheInitialize(CID_SHAPES,std::make_shared<HelperShapesBins1>(shapesBins,pkd->Self()==0?nBins:0));
 
     /*
     ** The most efficient way to handle this is to do the calculations for all bins
@@ -486,7 +491,8 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
     }
     else shapesBins = NULL;
 
-    mdlROcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->Self()?0:nBins);
+    pkd->mdl->CacheInitialize(CID_BIN,std::make_shared<mdl::arrayCACHEhelper>(pkd->profileBins,pkd->Self()?0:nBins));
+
     CalculateInertia(pkd,nBins,dRadii,shapesBins);
     pkd->mdl->FinishCache(CID_BIN);
 
@@ -534,7 +540,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
             r0 = r;
         }
     }
-    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->Self()==0?nBins:0,pkd,initProfileBins1,combProfileBins1);
+    pkd->mdl->CacheInitialize(CID_BIN,std::make_shared<HelperProfileBins1>(pkd->profileBins,pkd->Self()==0?nBins:0));
 
     /*
     ** Now we add all of the particles to the appropriate bin.  NOTE than both
@@ -578,7 +584,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     pkd->mdl->FinishCache(CID_BIN);
 
     /* We need angular momentum to calculate tangental velocity sigma, so we reopen the cache */
-    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->Self()?0:nBins,pkd,initProfileBins2,combProfileBins2);
+    pkd->mdl->CacheInitialize(CID_BIN,std::make_shared<HelperProfileBins2>(pkd->profileBins,pkd->Self()==0?nBins:0));
     r0 = 0.0;
     i = 0;
     for (iBin=0; iBin<nBins; iBin++) {

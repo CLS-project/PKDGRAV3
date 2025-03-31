@@ -24,10 +24,8 @@ void MSR::MeshlessGradients(double dTime, double dDelta) {
     printf("took %.5f seconds\n", dsec);
 }
 
-
-void packHydroGradients(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<hydroGradientsPack *>(dst);
+void SmoothHelperHydroGradients::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iClass = p2.get_class();
@@ -41,10 +39,9 @@ void packHydroGradients(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void unpackHydroGradients(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void  SmoothHelperHydroGradients::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const hydroGradientsPack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -59,10 +56,9 @@ void unpackHydroGradients(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
     double rho_max, rho_min;
     double vx_max, vx_min, vy_max, vy_min, vz_max, vz_min;
     double p_max, p_min;
@@ -138,7 +134,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     psph.gradVz = 0.0;
     psph.gradP = 0.0;
     for (auto i = 0; i < nSmooth; ++i) {
-        if (pIn == nnList[i].pPart) continue;
+        if (&p == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
         const auto &qv = q.velocity();
         auto &qsph = q.sph();
@@ -173,7 +169,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
     for (auto i = 0; i < nSmooth; ++i) {
-        if (pIn == nnList[i].pPart) continue;
+        if (&p == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
         auto &qsph = q.sph();
         const auto &qv = q.velocity();
@@ -198,7 +194,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     limRho= limVx= limVy= limVz= limP = 1.;
 #if defined(LIMITER_BARTH) || defined(LIMITER_CONDBARTH)
     for (auto i = 0; i < nSmooth; ++i) {
-        if (pIn == nnList[i].pPart) continue;
+        if (&p == nnList[i].pPart) continue;
         const TinyVector<double,3> dr{-nnList[i].dr}; //Vector from p to q
         // TODO Use TinyVector for limiters
         double dx = dr[0];

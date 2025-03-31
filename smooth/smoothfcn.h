@@ -174,29 +174,90 @@ enum SMOOTH_TYPE {
     SMX_CHEM_ENRICHMENT,
 };
 
+extern void init_shared_gas_decorator(PKD pkd, void *dst);
+extern void init_shared_bh_decorator(PKD pkd, void *dst);
+
+// Smooth operates on particles, so we use a particleCACHEhelper.
+// Additionally we can call a function to initialize the local data
+// before we open the cache. Most often this is not needed, but
+// occasionally we loop over the local particles calling init.
+class SmoothHelper : public particleCACHEhelper {
+public:
+    SmoothHelper(pkdContext *pkd,bool bModify=false) : particleCACHEhelper(pkd,bModify) {}
+    virtual void initialize_local() {}
+};
+
+template<typename P,typename F=P>
+class SmoothHelperPacked : public SmoothHelper {
+protected:
+    virtual void    pack(void *dst, const void *src) = 0;
+    virtual void  unpack(void *dst, const void *src, const void *key) = 0;
+public:
+    using pack_type = P;
+    using flush_type = F;
+    explicit SmoothHelperPacked(pkdContext *pkd, bool bModify=false) : SmoothHelper(pkd,bModify) {
+        nPackSize = sizeof(P);
+        nFlushSize = sizeof(F);
+    }
+};
+
+// This is a simple cache helper that does not allow symmetric smoothing.
+// If bSymmetric is true, it will assert. For symmetric smoothing, the
+// helper requires at least a combine function.
+class SmoothHelperAsymmetric : public SmoothHelper {
+public:
+    SmoothHelperAsymmetric(pkdContext *pkd,bool bSymmetric=false)  : SmoothHelper(pkd,false) {
+        assert(!bSymmetric);
+    }
+};
+
 //#define SMX_NULL                            0
-void NullSmooth(PARTICLE *,float fBall,int,NN *,SMF *);
+void NullSmooth(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+class SmoothHelperNull : public SmoothHelper {
+public:
+    SmoothHelperNull(pkdContext *pkd) : SmoothHelper(pkd) {}
+};
 
 //#define SMX_DENSITY             1
-void initDensity(void *,void *);
-void combDensity(void *,void *,const void *);
-void Density(PARTICLE *,float fBall,int,NN *,SMF *);
-void DensitySym(PARTICLE *,float fBall,int,NN *,SMF *);
+void Density(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+void DensitySym(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+class SmoothHelperDensity : public SmoothHelper {
+    virtual void init(void *pIn) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+    virtual void initialize_local() override final;
+public:
+    SmoothHelperDensity(pkdContext *pkd,bool bSymmetric);
+};
 
 //#define SMX_PRINTNN                            9
-void PrintNN(PARTICLE *,float fBall,int,NN *,SMF *);
+void PrintNN(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
 
 //#define SMX_DENSITY_F1          28
-void DensityF1(PARTICLE *,float fBall,int,NN *,SMF *);
+void DensityF1(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+using SmoothHelperDensityF1 = SmoothHelperAsymmetric;
 
 //#define SMX_DENSITY_M3          29
-void DensityM3(PARTICLE *,float fBall,int,NN *,SMF *);
+void DensityM3(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+class SmoothHelperDensityM3 : public SmoothHelper {
+public:
+    SmoothHelperDensityM3(pkdContext *pkd,bool bSymmetric=false) : SmoothHelper(pkd,false) {
+        assert(!bSymmetric);
+        assert(pkd->particles.present(PKD_FIELD::oGroup));
+    }
+};
 //#define SMX_GRADIENT_M3         30
-void LinkGradientM3(PARTICLE *,float fBall,int,NN *,SMF *);
+void LinkGradientM3(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+using SmoothHelperGradientM3 = SmoothHelperAsymmetric;
 //#define SMX_HOP_LINK            31
-void LinkHopChains(PARTICLE *,float fBall,int,NN *,SMF *);
+void LinkHopChains(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+using SmoothHelperHopChains = SmoothHelperAsymmetric;
 
 //#define SMX_BALL                33
-void initBall(void *,void *);
-void BallSmooth(PARTICLE *,float fBall,int,NN *,SMF *);
+void BallSmooth(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+class SmoothHelperBallSmooth : public SmoothHelper {
+    virtual void init(void *pIn) override final;
+    virtual void initialize_local() override final;
+public:
+    SmoothHelperBallSmooth(pkdContext *pkd);
+};
 #endif

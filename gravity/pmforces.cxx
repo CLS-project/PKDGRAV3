@@ -294,9 +294,10 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=3) {
     auto forceX = pkd->mdl->SetArray<FFTW3(real)>(pkd->pLite,iLocal);
     auto forceY = pkd->mdl->SetArray<FFTW3(real)>(forceX + pkd->fft->rgrid->nLocal,iLocal);
     auto forceZ = pkd->mdl->SetArray<FFTW3(real)>(forceY + pkd->fft->rgrid->nLocal,iLocal);
-    mdlROcache(pkd->mdl,CID_GridLinFx,NULL, forceX, sizeof(FFTW3(real)),iLocal);
-    mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),iLocal );
-    mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),iLocal );
+    pkd->mdl->CacheInitialize(CID_GridLinFx,std::make_shared<mdl::arrayCACHEhelper>(forceX,iLocal));
+    pkd->mdl->CacheInitialize(CID_GridLinFy,std::make_shared<mdl::arrayCACHEhelper>(forceY,iLocal));
+    pkd->mdl->CacheInitialize(CID_GridLinFz,std::make_shared<mdl::arrayCACHEhelper>(forceZ,iLocal));
+
 
     auto pad = (iAssignment+1)/2;
     std::vector<std::uint32_t> stack;

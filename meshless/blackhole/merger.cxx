@@ -45,12 +45,12 @@ void combBHmerger(void *vpkd, void *p1,const void *p2) {
 
 
 }
+void SmoothHelperBHmerger::combine(void *dst, const void *src, const void *key) {
+    assert(0);
+}
 
-
-
-void smBHmerger(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smBHmerger(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
 
     for (auto i = 0; i < nSmooth; ++i) {
         auto q = pkd->particles[nnList[i].pPart];
@@ -249,7 +249,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
                     }
 
-                    smx->fcnSmooth(&partj,partj.soft(),nCnt_p,nnList_p,smf);
+                    smx->fcnSmooth(partj,partj.soft(),nCnt_p,nnList_p,smf);
 
                 }
             }

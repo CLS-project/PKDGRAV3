@@ -24,26 +24,31 @@
 #include <math.h>
 #include <algorithm>
 
-static void initJoinLoops(void *vctx, void *v) {}
-static void combJoinLoops(void *vctx, void *v1, const void *v2) {
-    SMF *smf = (SMF *)vctx;
-    GHtmpGroupTable *g1 = (GHtmpGroupTable *)v1;
-    const GHtmpGroupTable *g2 = (const GHtmpGroupTable *)v2;
-    if ( g1->iPid>g2->iPid || (g1->iPid==g2->iPid && g1->iIndex>g2->iIndex) ) {
-        g1->iPid = g2->iPid;
-        g1->iIndex = g2->iIndex;
-        smf->bDone = 0;
+class HelperJoinLoops : public mdl::arrayCACHEhelper {
+    int &bDone;
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto g1 = static_cast<GHtmpGroupTable *>(dst);
+        const auto g2 = static_cast<const GHtmpGroupTable *>(src);
+        if ( g1->iPid>g2->iPid || (g1->iPid==g2->iPid && g1->iIndex>g2->iIndex) ) {
+            g1->iPid = g2->iPid;
+            g1->iIndex = g2->iIndex;
+            bDone = 0;
+        }
     }
-}
+public:
+    explicit HelperJoinLoops(PKD pkd,int &bDone) : arrayCACHEhelper(pkd->tmpHopGroups,pkd->nGroups,true),bDone(bDone) {}
+};
 
-static void initSetArc(void *vpkd, void *v) {}
-static void combSetArc(void *vpkd, void *v1, const void *v2) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(v1)];
-    const auto p2 = pkd->particles[static_cast<const PARTICLE *>(v2)];
-    if (p2.is_marked()) p1.set_marked(true);
-    assert(p1.group() == p2.group());
-}
+class HelperSetArc : public particleCACHEhelper {
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+        const auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+        if (p2.is_marked()) p1.set_marked(true);
+        assert(p1.group() == p2.group());
+    }
+public:
+    explicit HelperSetArc(PKD pkd) : particleCACHEhelper(pkd,true) {}
+};
 
 /*
 ** Follow the link for the given particle
@@ -195,7 +200,7 @@ int smHopLink(SMX smx,SMF *smf) {
     */
     mdl->FinishCache(CID_PARTICLE);
     nGroups = pkdGroupCombineDuplicateIds(pkd,nGroups,ga,0);
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
+    mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
     /*
     ** Now lets go looking for remote loops and see if we are part of them.
     ** The group table still contains PARTICLE links, so we use it to
@@ -210,16 +215,14 @@ int smHopLink(SMX smx,SMF *smf) {
     /* We will update bMarked (an arc) remotely, so we need a combiner cache */
     mdl->FinishCache(CID_PARTICLE);
     for (auto &p : pkd->particles) p.set_marked(false); // Not an arc (yet)
-    mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
-               pkd->particles,pkd->particles.ParticleSize(),
-               pkd->Local(),pkd,initSetArc,combSetArc);
+    mdl->CacheInitialize(CID_PARTICLE,std::make_shared<HelperSetArc>(pkd));
     pkd->tmpHopGroups = mdl->Malloc<GHtmpGroupTable>(nGroups * sizeof(GHtmpGroupTable));
     assert(pkd->tmpHopGroups!=NULL);
     for (pi=1; pi<nGroups; ++pi) {
         pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
         pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
     }
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), nGroups);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(pkd->tmpHopGroups,nGroups));
     for (pi=1; pi<nGroups; ++pi) {
         /* Completely local loop: any particle can start the "arc" */
         if (ga[pi].id.iPid == pkd->Self()) {
@@ -275,8 +278,8 @@ int smHopLink(SMX smx,SMF *smf) {
         pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
         pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
     }
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), nGroups);
+    mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(pkd->tmpHopGroups,nGroups));
     nSpur = 0;
     for (pi=1; pi<nGroups; ++pi) {
         auto p1 = mdl->Acquire<PARTICLE>(CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
@@ -311,7 +314,7 @@ int smHopLink(SMX smx,SMF *smf) {
     }
     mdl->FinishCache(CID_PARTICLE);
     nGroups = pkdGroupCombineDuplicateIds(pkd,nGroups,ga,0);
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
+    mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
 
     /*
     ** Whew. The situation for groups is now one of the following.
@@ -328,7 +331,8 @@ int smHopLink(SMX smx,SMF *smf) {
         pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
         pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
     }
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), nGroups);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(pkd->tmpHopGroups,nGroups));
+
     for (pi=1; pi<nGroups; ++pi) {
         if (ga[pi].id.iPid == pkd->Self()) {
             gid = pkd->particles[ga[pi].id.iIndex].group();
@@ -376,8 +380,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     int pi;
 
     smf->bDone = 1;
-    mdlCOcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), pkd->nGroups,
-               smf, initJoinLoops, combJoinLoops );
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<HelperJoinLoops>(pkd,smf->bDone));
     /*
     ** Check all particles that are part of a loop or an arc (they are marked).
     ** We have contructed a tree with only marked particles, so just check those.
@@ -391,7 +394,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     mdl->FinishCache(CID_GROUP);
 
     /* Follow the chains to the end */
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), pkd->nGroups);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(pkd->tmpHopGroups,pkd->nGroups));
     for (pi=1; pi<pkd->nGroups; ++pi) {
         int iPid = pkd->Self();
         int iIndex = pi;
@@ -418,7 +421,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     }
     mdl->FinishCache(CID_PARTICLE);
     pkd->nGroups = pkdGroupCombineDuplicateIds(pkd,pkd->nGroups,ga,1);
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
+    mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
     int nRemote = 0;
     *nLocal = 0;
     for (pi=1; pi<pkd->nGroups; ++pi) {
@@ -448,27 +451,29 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, blitz::TinyVector<d
     return pkd->nLocalGroups;
 }
 
-static void initHopGetRoots(void *vpkd, void *v) {
-    HopGroupTable *g = (HopGroupTable *)v;
-    g->rmt.iPid = -1;
-    g->rmt.iIndex = 0;
-    g->iGlobalId = 0;
-}
-
-static void combHopGetRoots(void *vctx, void *v1, const void *v2) {
-    PKD pkd = (PKD)vctx;
-    HopGroupTable *g1 = (HopGroupTable *)v1;
-    const HopGroupTable *g2 = (const HopGroupTable *)v2;
-
-    if (g2->iGlobalId) {
-        int gid = g1 - pkd->hopGroups;
-        int iRoot = pkd->hopRootIndex[gid]++;
-        assert(gid<pkd->nLocalGroups); /* We should only get data for local groups */
-        assert(pkd->hopRoots[iRoot].iPid==-1 && pkd->hopRoots[iRoot].iIndex==-1);
-        pkd->hopRoots[iRoot].iPid = g2->rmt.iPid;
-        pkd->hopRoots[iRoot].iIndex = g2->rmt.iIndex;
+class HelperHopGetRoots : public mdl::arrayCACHEhelper {
+    class pkdContext *pkd;
+    virtual void init(void *v) override final {
+        auto g = static_cast<HopGroupTable *>(v);
+        g->rmt.iPid = -1;
+        g->rmt.iIndex = 0;
+        g->iGlobalId = 0;
     }
-}
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto g1 = static_cast<HopGroupTable *>(dst);
+        const auto g2 = static_cast<const HopGroupTable *>(src);
+        if (g2->iGlobalId) {
+            int gid = g1 - pkd->hopGroups;
+            int iRoot = pkd->hopRootIndex[gid]++;
+            assert(gid<pkd->nLocalGroups); /* We should only get data for local groups */
+            assert(pkd->hopRoots[iRoot].iPid==-1 && pkd->hopRoots[iRoot].iIndex==-1);
+            pkd->hopRoots[iRoot].iPid = g2->rmt.iPid;
+            pkd->hopRoots[iRoot].iIndex = g2->rmt.iIndex;
+        }
+    }
+public:
+    explicit HelperHopGetRoots(pkdContext *pkd) : arrayCACHEhelper(pkd->hopRoots,pkd->nGroups,true),pkd(pkd) {}
+};
 
 void pkdHopTreeBuild(PKD pkd, int nBucket,int nGroup) {
     auto mdl = pkd->mdl;
@@ -518,8 +523,7 @@ void pkdHopTreeBuild(PKD pkd, int nBucket,int nGroup) {
     ** Let the group master know about the remote tree roots. We can use the
     ** combiner cache because there is at most 1 root per group per node.
     */
-    mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
-               pkd, initHopGetRoots, combHopGetRoots );
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<HelperHopGetRoots>(pkd));
     for (i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
         assert(pkd->hopGroups[i].id.iPid != pkd->Self());
 //  if (pkd->hopNumRoots[i] == 0) continue;
@@ -535,7 +539,8 @@ void pkdHopTreeBuild(PKD pkd, int nBucket,int nGroup) {
     /*
     ** Now we just need to fetch all of the roots for remote groups
     */
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->hopRoots,sizeof(*pkd->hopRoots), nRootsTotal);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(pkd->hopRoots,nRootsTotal));
+
     for (gid=1+pkd->nLocalGroups; gid<pkd->nGroups; ++gid) {
         int iIndex = pkd->hopGroups[gid].iAllRoots;
         for (i=0; i<pkd->hopGroups[gid].nRemote+1; ++i) {
@@ -593,12 +598,16 @@ static int cmpEE(const void *p1,const void *p2) {
     return 0;
 }
 
-static void initMaxHopEnergy(void *vpkd, void *v) {}
-static void combMaxHopEnergy(void *vctx, void *v1, const void *v2) {
-    HopGroupTable *g1 = (HopGroupTable *)v1;
-    const HopGroupTable *g2 = (const HopGroupTable *)v2;
-    if (g2->dEnergy > g1->dEnergy) g1->dEnergy = g2->dEnergy;
-}
+class HelperMaxHopEnergy : public mdl::arrayCACHEhelper {
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto g1 = static_cast<HopGroupTable *>(dst);
+        const auto g2 = static_cast<const HopGroupTable *>(src);
+        if (g2->dEnergy > g1->dEnergy) g1->dEnergy = g2->dEnergy;
+    }
+public:
+    explicit HelperMaxHopEnergy(pkdContext *pkd) : arrayCACHEhelper(pkd->hopGroups,pkd->nGroups,true) {}
+};
+
 
 int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double,3> dPeriod) {
     auto mdl = pkd->mdl;
@@ -611,8 +620,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz:
     double dv, dv2;
     double dEnergy;
 
-    mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
-               pkd, initMaxHopEnergy, combMaxHopEnergy);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<HelperMaxHopEnergy>(pkd));
     for (gid=1; gid<pkd->nGroups; ++gid) {
         if (pkd->hopGroups[gid].bComplete) continue;
         iRoot = pkd->hopGroups[gid].iTreeRoot;
@@ -651,7 +659,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz:
     }
     mdl->FinishCache(CID_GROUP);
 
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(pkd->hopGroups,pkd->nGroups));
     for (gid=1+pkd->nLocalGroups; gid<pkd->nGroups; ++gid) {
         if (pkd->hopGroups[gid].bComplete) continue;
         assert(pkd->hopGroups[gid].id.iPid != pkd->Self());
