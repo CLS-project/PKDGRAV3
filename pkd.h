@@ -621,7 +621,7 @@ protected:
     pkdContext *pkd;
 public:
     explicit treeCACHEhelper(pkdContext *pkd)
-        : CACHEhelper(pkd->NodeSize(),0,false), pkd(pkd) {}
+        : CACHEhelper(pkd->NodeSize(),pkd->tree.Nodes(),false), pkd(pkd) {}
     virtual void *get_element(uint32_t i) override final {
         return pkd->tree[i];
     }
