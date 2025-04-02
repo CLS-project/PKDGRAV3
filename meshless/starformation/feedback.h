@@ -34,7 +34,9 @@ class SmoothHelperSNFeedback : public SmoothHelperPacked<snFeedbackPack,snFeedba
     virtual void combine(void *dst, const void *src, const void *key) override final;
     virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperSNFeedback(pkdContext *pkd) : SmoothHelperPacked<snFeedbackPack,snFeedbackFlush>(pkd,true) {}
+    SmoothHelperSNFeedback(pkdContext *pkd) : SmoothHelperPacked<snFeedbackPack,snFeedbackFlush>(pkd,true) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 

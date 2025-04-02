@@ -108,7 +108,9 @@ class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack,stevFlush> {
     virtual void combine(void *dst, const void *src, const void *key) override final;
     virtual void init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperChemEnrich(pkdContext *pkd) : SmoothHelperPacked<stevPack,stevFlush>(pkd,true) {}
+    SmoothHelperChemEnrich(pkdContext *pkd) : SmoothHelperPacked<stevPack,stevFlush>(pkd,true) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 /*

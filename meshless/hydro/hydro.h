@@ -101,7 +101,9 @@ class SmoothHelperHydroGradients : public SmoothHelperPacked<hydroGradientsPack>
     virtual void  unpack(void *dst, const void *src, const void *key) override final;
     virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperHydroGradients(pkdContext *pkd) : SmoothHelperPacked<hydroGradientsPack>(pkd,false) {}
+    SmoothHelperHydroGradients(pkdContext *pkd) : SmoothHelperPacked<hydroGradientsPack>(pkd,false) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 /* Flux loop */
@@ -155,7 +157,9 @@ class SmoothHelperHydroFluxes : public SmoothHelperPacked<hydroFluxesPack,hydroF
     virtual void combine(void *dst, const void *src, const void *key) override final;
     virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperHydroFluxes(pkdContext *pkd) : SmoothHelperPacked<hydroFluxesPack,hydroFluxesFlush>(pkd,true) {}
+    SmoothHelperHydroFluxes(pkdContext *pkd) : SmoothHelperPacked<hydroFluxesPack,hydroFluxesFlush>(pkd,true) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 /* Time step loop */
@@ -184,7 +188,9 @@ class SmoothHelperHydroStep : public SmoothHelperPacked<hydroStepPack,hydroStepF
     virtual void combine(void *dst, const void *src, const void *key) override final;
     virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperHydroStep(pkdContext *pkd) : SmoothHelperPacked<hydroStepPack,hydroStepFlush>(pkd,true) {}
+    SmoothHelperHydroStep(pkdContext *pkd) : SmoothHelperPacked<hydroStepPack,hydroStepFlush>(pkd,true) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 
