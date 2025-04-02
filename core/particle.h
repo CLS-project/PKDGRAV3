@@ -49,11 +49,11 @@
 
 /* Regular particle with order and all the goodies */
 struct PARTICLE {
-    uint64_t  uRung      :  IRUNGBITS;
+uint64_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
+uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
 #ifdef NN_FLAG_IN_PARTICLE
     uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
 #endif
@@ -65,9 +65,9 @@ static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
 #define IGROUPMAX ((1<<IGROUPBITS)-1)
 
 typedef struct uparticle {
-    uint32_t  uRung      :  IRUNGBITS;
+uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
-    uint32_t  iGroup     :  IGROUPBITS;
+uint32_t  iGroup     :  IGROUPBITS;
 } UPARTICLE;
 static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 
@@ -542,7 +542,7 @@ public:
         auto is_gas()       const {return species() == FIO_SPECIES_SPH;}
         auto is_star()      const {return species() == FIO_SPECIES_STAR;}
         auto is_bh()        const {return species() == FIO_SPECIES_BH;}
-        auto have_decorator()    const {return have(PKD_FIELD::oDecorator); }
+        auto have_decorator()    const {return have(PKD_FIELD::oDecorator) && !is_dark(); }
     };
     friend class SingleReference<Particle>;
 
