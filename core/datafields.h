@@ -175,11 +175,8 @@ protected:
     blitz::TinyVector<offset_type, field_count> field_offset;  // Offset to the field within the specified alignment
     blitz::TinyVector<overlay_type,field_count> overlay_field; // Overlay index or NO_OVERLAY
     blitz::TinyVector<offset_type, field_count> overlay_offset;// Offset within the overlay
+    std::vector<char> swap_buffer; // Buffer for swapping fields
 
-    // blitz::TinyVector<size_t,field_count> oFieldOffset;  //!< The offset (in bytes) to each field
-    // size_t iElementSize = sizeof(DATA);      //!< Size (in bytes) of a single element
-    // size_t nElementAlign = alignof(DATA);    //!< Requirement alignment of the element (usually 4 or 8)
-    // size_t iElement32 = 0;
 public:
     Fields() :
         field_offset(offset_type(0)),
@@ -187,15 +184,6 @@ public:
         overlay_offset(offset_type(0))
         // oFieldOffset(size_t(0))
     {}
-    //! Setup the field offsets for adding fields.
-    //! Here we set the basic size of the element to a fixed value (the header size).
-    //! Following this call, "add" is called for each element that should be present.
-    //! \param iBasicSize The size of the element header (the fixed part)
-    // void initialize(size_t iBasicSize=0) {
-    //     iElementSize = nElementAlign = iBasicSize;
-    //     iElement32 = 0;
-    //     // oFieldOffset = 0;
-    // }
     template<typename H>
     void set_header() {
         max_align = log2(alignof(H));
@@ -205,8 +193,6 @@ public:
     //! Make sure that elements are properly aligned.
     //! This is called after all fields have been added. The size is adjusted to respect alignment.
     void commit(void) {
-        // iElementSize = (iElementSize + nElementAlign - 1 ) & ~(nElementAlign-1);
-
         auto [size,alignment] = this->assign_offsets(field_offset,element_size);
         element_size += size;
         // Adjust the offsets for overlay fields (but skip the "master" field)
@@ -222,15 +208,14 @@ public:
             }
         }
         this->clear();
+        swap_buffer.resize(element_size);
     }
 
-    //! Add a field to the store. A field of type T is added with the specified offset.
-    //! \param f The field id
-    //! \param offset The offset to the field
-    // template<typename T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
-    // void add(FIELD f,std::string_view name, size_t offset) {
-    //     oFieldOffset[static_cast<unsigned int>(f)] = offset;
-    // }
+    void swap(void *f1, void *f2) noexcept {
+        std::memcpy(swap_buffer.data(),f1,element_size);
+        std::memcpy(f1,f2,element_size);
+        std::memcpy(f2,swap_buffer.data(),element_size);
+    }
 
     //! Add a field to the store. A field of type T is added and the offset recorded. The size of the
     //! element is increased to account for this. For types with multiple values use array syntax.

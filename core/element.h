@@ -68,11 +68,7 @@ template<typename ELEMENT>
 class SingleReference : public ELEMENT {
 protected:
     void swap(SingleReference &rhs) noexcept {
-        auto n = this->store().ElementSize();
-        char buffer[n];
-        memcpy(buffer,this->p,n);
-        memcpy(this->p,rhs.p,n);
-        memcpy(rhs.p,buffer,n);
+        this->store().swap(this->p,rhs.p);
     }
 public:
     using ELEMENT::ELEMENT; // Get all constructors (including the copy constructor)
