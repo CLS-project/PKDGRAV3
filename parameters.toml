@@ -309,21 +309,51 @@ help="input file name"
 flag="o"
 default="pkdgrav3"
 help="output name for snapshots and logfile"
+docs='''
+This parameter sets the base name for output files and should be a simple
+string such as "simulation" or "galaxy1". It will be substituted into the
+output path. For details see :ref:`achOutPath <achOutPath>`.
+'''
 
 ["I/O Parameters".achOutPath]
 flag="op"
-default=""
+default="{name}.{step:05d}{type}"
 help="output path for snapshots and logfile"
+docs='''
+This parameter specifies the full name and possibly the path for output files.
+This includes tipsy outputs, checkpoints, and analysis files,
+but see also :ref:`achIoPath <achIoPath>` and :ref:`achCheckpointPath <achCheckpointPath>`.
+This string **must** include the format specifiers ``{name}``, ``{step}`` and ``{type}``
+as in the default. It may also include a directory path, for example "output/{name}.{step:05d}{type}".
+The following field names are allowed:
+
+* name -- simulation name (same as :ref:`achOutName <achOutName>`)
+* step -- current simulation step (or zero for intial conditions)
+* type -- file type (e.g., ".log", ".fof" or empty for outputs)
+* kind -- extension name without leading dot or "output" for outputs
+'''
 
 ["I/O Parameters".achIoPath]
 flag="iop"
 default=""
-help="output path for snapshots and logfile"
+omitted="same as :ref:`achOutPath <achOutPath>`"
+help="output path for snapshots"
+docs='''
+If specified, this will override the path for Tipsy outputs.
+It otherwise behaves exactly like :ref:`achOutPath <achOutPath>`.
+This is useful if you want outputs to be stored in a different directory for example.
+'''
 
 ["I/O Parameters".achCheckpointPath]
 flag="cpp"
 default=""
+omitted="same as :ref:`achOutPath <achOutPath>`"
 help="output path for checkpoints"
+docs='''
+If specified, this will override the path for checkpoint outputs.
+It otherwise behaves exactly like :ref:`achOutPath <achOutPath>`.
+This is useful if you want checkpoints to be stored in a different directory for example.
+'''
 
 ["I/O Parameters".achDataSubPath]
 flag="dsp"
@@ -935,6 +965,16 @@ docs='''
 The code allocates exactly enough space to store the particles if they are evenly
 distributed between all of the threads, **plus** this fraction. For example, if this
 parameter is set to 0.1 then it increases the size of the particle storage by 10%.
+This uses additional memory, but makes it easier to balance work.
+'''
+
+["Memory Model and Control".dExtraDecoratorStore]
+flag="extradecorator"
+default=0.2
+help="Extra storage for decorators"
+docs='''
+The code allocates exactly enough space to store the decorators if they are evenly
+distributed between all of the threads, **plus** this fraction.
 This uses additional memory, but makes it easier to balance work.
 '''
 

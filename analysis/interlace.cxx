@@ -27,8 +27,8 @@ void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource) {
     GridInfo G(pkd->mdl,fft);
 
     complex_array_t K1,K2;
-    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGridTarget;
-    auto data2 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGridSource;
+    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGridTarget;
+    auto data2 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGridSource;
     G.setupArray(data1,K1);
     G.setupArray(data2,K2);
 

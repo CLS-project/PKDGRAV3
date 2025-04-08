@@ -34,9 +34,8 @@ static inline void snFeedback(PKD pkd, PARTICLE *pIn, int nSmooth, NN *nnList,
  * The helper snFeedback computes the probability of explosion and adds
  * the energy to the gas particles in nnList
  */
-void smSNFeedback(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smSNFeedback(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
 
     const auto fNgbTotMass = std::accumulate(nnList, nnList + nSmooth, 0.0f,
     [pkd](auto &a, auto &b) { return a + pkd->particles[b.pPart].mass(); }) - p.mass();
@@ -50,22 +49,20 @@ void smSNFeedback(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif
 
     if (!star.bCCSNFBDone && ((smf->dTime - star.fTimer) > smf->dCCSNFBDelay)) {
-        snFeedback(pkd, pIn, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
+        snFeedback(pkd, &p, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
                    smf->dCCSNFBSpecEnergy, star.fSNEfficiency, smf->dConstGamma);
         star.bCCSNFBDone = 1;
     }
 
     if (!star.bSNIaFBDone && ((smf->dTime - star.fTimer) > smf->dSNIaFBDelay)) {
-        snFeedback(pkd, pIn, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
+        snFeedback(pkd, &p, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
                    smf->dSNIaFBSpecEnergy, star.fSNEfficiency, smf->dConstGamma);
         star.bSNIaFBDone = 1;
     }
 }
 
-
-void packSNFeedback(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<snFeedbackPack *>(dst);
+void SmoothHelperSNFeedback::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iClass = p2.get_class();
@@ -78,13 +75,13 @@ void packSNFeedback(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void unpackSNFeedback(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperSNFeedback::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const snFeedbackPack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        p1.set_adj_decorator();
         p1.set_position(p2->position);
         p1.set_mass(p2->fMass);
 #ifdef ENTROPY_SWITCH
@@ -93,8 +90,7 @@ void unpackSNFeedback(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void initSNFeedback(void *vpkd,void *dst) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperSNFeedback::init(void *dst) {
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
 
     if (p.is_gas()) {
@@ -112,9 +108,8 @@ void initSNFeedback(void *vpkd,void *dst) {
     }
 }
 
-void flushSNFeedback(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<snFeedbackFlush *>(dst);
+void SmoothHelperSNFeedback::flush(void *dst, const void *src) {
+    auto p1 = static_cast<flush_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     if (p2.is_gas()) {
@@ -132,10 +127,9 @@ void flushSNFeedback(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void combSNFeedback(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperSNFeedback::combine(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const snFeedbackFlush *>(src);
+    auto p2 = static_cast<const flush_type *>(src);
 
     if (p1.is_gas()) {
         auto &sph = p1.sph();
@@ -151,7 +145,6 @@ void combSNFeedback(void *vpkd,void *dst,const void *src) {
 #endif
     }
 }
-
 
 static inline void snFeedback(PKD pkd, PARTICLE *pIn, int nSmooth, NN *nnList,
                               const float fNgbTotMass, const double dDeltau,

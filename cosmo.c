@@ -772,14 +772,14 @@ void csmClassGslInitialize(CSM csm) {
     csm->classGsl.perturbations.logk2delta_m_acc = gsl_interp_accel_alloc();
     csm->classGsl.perturbations.loga2delta_m_acc = gsl_interp_accel_alloc();
     csm->classGsl.perturbations.logkloga2delta_m_spline = gsl_spline2d_alloc(
-                gsl_interp2d_bicubic, size_k, size_a);
+            gsl_interp2d_bicubic, size_k, size_a);
     gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_m_spline, logk, loga,
                       csm->val.classData.perturbations.delta_m, size_k, size_a);
     /* theta_m */
     csm->classGsl.perturbations.logk2theta_m_acc = gsl_interp_accel_alloc();
     csm->classGsl.perturbations.loga2theta_m_acc = gsl_interp_accel_alloc();
     csm->classGsl.perturbations.logkloga2theta_m_spline = gsl_spline2d_alloc(
-                gsl_interp2d_bicubic, size_k, size_a);
+            gsl_interp2d_bicubic, size_k, size_a);
     gsl_spline2d_init(csm->classGsl.perturbations.logkloga2theta_m_spline, logk, loga,
                       csm->val.classData.perturbations.theta_m, size_k, size_a);
     /* delta_lin */
@@ -787,7 +787,7 @@ void csmClassGslInitialize(CSM csm) {
         csm->classGsl.perturbations.logk2delta_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.perturbations.loga2delta_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.perturbations.logkloga2delta_lin_spline = gsl_spline2d_alloc(
-                    gsl_interp2d_bicubic, size_k, size_a);
+                gsl_interp2d_bicubic, size_k, size_a);
         gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_lin_spline, logk, loga,
                           csm->val.classData.perturbations.delta_lin, size_k, size_a);
     }
@@ -800,7 +800,7 @@ void csmClassGslInitialize(CSM csm) {
         csm->classGsl.perturbations.logk2delta_pk_acc = gsl_interp_accel_alloc();
         csm->classGsl.perturbations.loga2delta_pk_acc = gsl_interp_accel_alloc();
         csm->classGsl.perturbations.logkloga2delta_pk_spline = gsl_spline2d_alloc(
-                    gsl_interp2d_bicubic, size_k, size_a);
+                gsl_interp2d_bicubic, size_k, size_a);
         gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_pk_spline, logk, loga,
                           csm->val.classData.perturbations.delta_pk, size_k, size_a);
     }
@@ -1808,21 +1808,20 @@ void csmComoveGrowth(CSM csm, double a,
     double H_init = csmExp2Hub(csm, a_init);
     double stepwidth = (log(a) - lna_init)/NSTEPS;
 
-    // NOTICE: Storing the following quantities into data structures is by far not optimal (we actually never need the old values after the update).
-    double ln_timesteps[NSTEPS+1];
+    double ln_timestep;
     // -- 1LPT
-    double D1[NSTEPS+1]; // 1LPT growth factor D1(a)
-    double G1[NSTEPS+1]; // G1(a) = dD1(a)/dln(a) * H  ==>  Growth rate: f1(a) = G1/(H*D1)
+    double D1; // 1LPT growth factor D1(a)
+    double G1; // G1(a) = dD1(a)/dln(a) * H  ==>  Growth rate: f1(a) = G1/(H*D1)
     // -- 2LPT
-    double D2[NSTEPS+1]; // 2LPT growth factor D2(a)
-    double G2[NSTEPS+1]; // G2(a) = dD2(a)/dln(a) * H  ==>  Growth rate: f2(a) = G2/(H*D2)
+    double D2; // 2LPT growth factor D2(a)
+    double G2; // G2(a) = dD2(a)/dln(a) * H  ==>  Growth rate: f2(a) = G2/(H*D2)
     // -- 3LPT
-    double D3a[NSTEPS+1]; // 3LPT growth factor D3a(a)
-    double G3a[NSTEPS+1]; // G3a(a) = dD3a(a)/dln(a) * H  ==>  Growth rate: f3a(a) = G3a/(H*D3a)
-    double D3b[NSTEPS+1]; // 3LPT growth factor D3b(a)
-    double G3b[NSTEPS+1]; // G3b(a) = dD3b(a)/dln(a) * H  ==>  Growth rate: f3b(a) = G3b/(H*D3b)
-    double D3c[NSTEPS+1]; // 3LPT growth factor D3c(a)
-    double G3c[NSTEPS+1]; // G3c(a) = dD3c(a)/dln(a) * H  ==>  Growth rate: f3c(a) = G3c/(H*D3c)
+    double D3a; // 3LPT growth factor D3a(a)
+    double G3a; // G3a(a) = dD3a(a)/dln(a) * H  ==>  Growth rate: f3a(a) = G3a/(H*D3a)
+    double D3b; // 3LPT growth factor D3b(a)
+    double G3b; // G3b(a) = dD3b(a)/dln(a) * H  ==>  Growth rate: f3b(a) = G3b/(H*D3b)
+    double D3c; // 3LPT growth factor D3c(a)
+    double G3c; // G3c(a) = dD3c(a)/dln(a) * H  ==>  Growth rate: f3c(a) = G3c/(H*D3c)
 
     /* Set initial conditions for growth ODEs.
     ** We use the conventions of all growth factors being positive.
@@ -1834,32 +1833,32 @@ void csmComoveGrowth(CSM csm, double a,
     if (csmRadMatEquivalence(csm) < a_init) {
         /* Use matter-only initial conditions for growth ODEs */
         double Cm = 1.;  // arbitrary
-        D1[0] = Cm*a_init;
-        G1[0] = H_init*D1[0];
-        D2[0] = 3./7.*pow(D1[0], 2.);
-        G2[0] = 2.*H_init*D2[0];
-        D3a[0] = 1./3.*pow(D1[0], 3.);
-        G3a[0] = 3.*H_init*D3a[0];
-        D3b[0] = 10./21.*pow(D1[0], 3.);
-        G3b[0] = 3.*H_init*D3b[0];
-        D3c[0] = 1./7.*pow(D1[0], 3.);
-        G3c[0] = 3.*H_init*D3c[0];
+        D1 = Cm*a_init;
+        G1 = H_init*D1;
+        D2 = 3./7.*pow(D1, 2.);
+        G2 = 2.*H_init*D2;
+        D3a = 1./3.*pow(D1, 3.);
+        G3a = 3.*H_init*D3a;
+        D3b = 10./21.*pow(D1, 3.);
+        G3b = 3.*H_init*D3b;
+        D3c = 1./7.*pow(D1, 3.);
+        G3c = 3.*H_init*D3c;
     }
     else {
         /* Use boundary conditions for early radiation domination */
         double Cr = 1.;  // arbitrary
         double dOmegaRad_eff = pow(a_init, 4.)*pow(H_init/csm->val.dHubble0, 2.);
         double eps = 3./2.*csm->val.dOmega0/dOmegaRad_eff*a_init;
-        D1 [0] = pow(Cr, 1.)       *(1. + 1.*eps + 1./4.*eps*eps);
-        G1 [0] = pow(Cr, 1.)*H_init*(0. + 1.*eps + 1./2.*eps*eps);
-        D2 [0] = pow(Cr, 2.)       *(0. + 1.*eps + 3./4.*eps*eps);
-        G2 [0] = pow(Cr, 2.)*H_init*(0. + 1.*eps + 3./2.*eps*eps);
-        D3a[0] = pow(Cr, 3.)       *(0. + 2.*eps + 2./1.*eps*eps);
-        G3a[0] = pow(Cr, 3.)*H_init*(0. + 2.*eps + 4./1.*eps*eps);
-        D3b[0] = pow(Cr, 3.)       *(0. + 2.*eps + 5./2.*eps*eps);
-        G3b[0] = pow(Cr, 3.)*H_init*(0. + 2.*eps + 5./1.*eps*eps);
-        D3c[0] = pow(Cr, 3.)       *(0. + 1.*eps + 3./4.*eps*eps);
-        G3c[0] = pow(Cr, 3.)*H_init*(0. + 1.*eps + 3./2.*eps*eps);
+        D1  = pow(Cr, 1.)       *(1. + 1.*eps + 1./4.*eps*eps);
+        G1  = pow(Cr, 1.)*H_init*(0. + 1.*eps + 1./2.*eps*eps);
+        D2  = pow(Cr, 2.)       *(0. + 1.*eps + 3./4.*eps*eps);
+        G2  = pow(Cr, 2.)*H_init*(0. + 1.*eps + 3./2.*eps*eps);
+        D3a = pow(Cr, 3.)       *(0. + 2.*eps + 2./1.*eps*eps);
+        G3a = pow(Cr, 3.)*H_init*(0. + 2.*eps + 4./1.*eps*eps);
+        D3b = pow(Cr, 3.)       *(0. + 2.*eps + 5./2.*eps*eps);
+        G3b = pow(Cr, 3.)*H_init*(0. + 2.*eps + 5./1.*eps*eps);
+        D3c = pow(Cr, 3.)       *(0. + 1.*eps + 3./4.*eps*eps);
+        G3c = pow(Cr, 3.)*H_init*(0. + 1.*eps + 3./2.*eps*eps);
     }
 
     //Classical RK4 Solver
@@ -1876,91 +1875,91 @@ void csmComoveGrowth(CSM csm, double a,
 
     int i; // running loop variable
     for (i=0; i<NSTEPS; i++) {
-        ln_timesteps[i] = lna_init + i*stepwidth;
+        ln_timestep = lna_init + i*stepwidth;
 
         //RK4 step 1
-        k0 = stepwidth * RK4_f1(csm, ln_timesteps[i], G1[i]);
-        l0 = stepwidth * RK4_g1(csm, ln_timesteps[i], D1[i], G1[i]);
+        k0 = stepwidth * RK4_f1(csm, ln_timestep, G1);
+        l0 = stepwidth * RK4_g1(csm, ln_timestep, D1, G1);
 
-        m0 = stepwidth * RK4_f2(csm, ln_timesteps[i], G2[i]);
-        n0 = stepwidth * RK4_g2(csm, ln_timesteps[i], D1[i], D2[i], G2[i]);
+        m0 = stepwidth * RK4_f2(csm, ln_timestep, G2);
+        n0 = stepwidth * RK4_g2(csm, ln_timestep, D1, D2, G2);
 
-        o0 = stepwidth * RK4_f3a(csm, ln_timesteps[i], G3a[i]);
-        p0 = stepwidth * RK4_g3a(csm, ln_timesteps[i], D1[i], D3a[i], G3a[i]);
-        q0 = stepwidth * RK4_f3b(csm, ln_timesteps[i], G3b[i]);
-        r0 = stepwidth * RK4_g3b(csm, ln_timesteps[i], D1[i], D2[i], D3b[i], G3b[i]);
-        s0 = stepwidth * RK4_f3c(csm, ln_timesteps[i], G3c[i]);
-        t0 = stepwidth * RK4_g3c(csm, ln_timesteps[i], D1[i], G3c[i]);
+        o0 = stepwidth * RK4_f3a(csm, ln_timestep, G3a);
+        p0 = stepwidth * RK4_g3a(csm, ln_timestep, D1, D3a, G3a);
+        q0 = stepwidth * RK4_f3b(csm, ln_timestep, G3b);
+        r0 = stepwidth * RK4_g3b(csm, ln_timestep, D1, D2, D3b, G3b);
+        s0 = stepwidth * RK4_f3c(csm, ln_timestep, G3c);
+        t0 = stepwidth * RK4_g3c(csm, ln_timestep, D1, G3c);
 
         //RK4 step 2
-        k1 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth/2.0, G1[i] + l0/2.0);
-        l1 = stepwidth * RK4_g1(csm, ln_timesteps[i] + stepwidth/2.0, D1[i] + k0/2.0, G1[i] + l0/2.0);
+        k1 = stepwidth * RK4_f1(csm, ln_timestep + stepwidth/2.0, G1 + l0/2.0);
+        l1 = stepwidth * RK4_g1(csm, ln_timestep + stepwidth/2.0, D1 + k0/2.0, G1 + l0/2.0);
 
-        m1 = stepwidth * RK4_f2(csm, ln_timesteps[i] + stepwidth/2.0, G2[i] + n0/2.0);
-        n1 = stepwidth * RK4_g2(csm, ln_timesteps[i] + stepwidth/2.0, D1[i] + k0/2.0, D2[i] + m0/2.0, G2[i] + n0/2.0);
+        m1 = stepwidth * RK4_f2(csm, ln_timestep + stepwidth/2.0, G2 + n0/2.0);
+        n1 = stepwidth * RK4_g2(csm, ln_timestep + stepwidth/2.0, D1 + k0/2.0, D2 + m0/2.0, G2 + n0/2.0);
 
-        o1 = stepwidth * RK4_f3a(csm, ln_timesteps[i] + stepwidth/2.0, G3a[i] + p0/2.0);
-        p1 = stepwidth * RK4_g3a(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k0/2.0, D3a[i] + o0/2.0, G3a[i] + p0/2.0);
-        q1 = stepwidth * RK4_f3b(csm, ln_timesteps[i] + stepwidth/2.0, G3b[i] + r0/2.0);
-        r1 = stepwidth * RK4_g3b(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k0/2.0, D2[i]  + m0/2.0, D3b[i] + q0/2.0, G3b[i] + r0/2.0);
-        s1 = stepwidth * RK4_f3c(csm, ln_timesteps[i] + stepwidth/2.0, G3c[i] + t0/2.0);
-        t1 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k0/2.0, G3c[i] + t0/2.0);
+        o1 = stepwidth * RK4_f3a(csm, ln_timestep + stepwidth/2.0, G3a + p0/2.0);
+        p1 = stepwidth * RK4_g3a(csm, ln_timestep + stepwidth/2.0, D1  + k0/2.0, D3a + o0/2.0, G3a + p0/2.0);
+        q1 = stepwidth * RK4_f3b(csm, ln_timestep + stepwidth/2.0, G3b + r0/2.0);
+        r1 = stepwidth * RK4_g3b(csm, ln_timestep + stepwidth/2.0, D1  + k0/2.0, D2  + m0/2.0, D3b + q0/2.0, G3b + r0/2.0);
+        s1 = stepwidth * RK4_f3c(csm, ln_timestep + stepwidth/2.0, G3c + t0/2.0);
+        t1 = stepwidth * RK4_g3c(csm, ln_timestep + stepwidth/2.0, D1  + k0/2.0, G3c + t0/2.0);
 
         //RK4 step 3
-        k2 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth/2.0, G1[i] + l1/2.0);
-        l2 = stepwidth * RK4_g1(csm, ln_timesteps[i] + stepwidth/2.0, D1[i] + k1/2.0, G1[i] + l1/2.0);
+        k2 = stepwidth * RK4_f1(csm, ln_timestep + stepwidth/2.0, G1 + l1/2.0);
+        l2 = stepwidth * RK4_g1(csm, ln_timestep + stepwidth/2.0, D1 + k1/2.0, G1 + l1/2.0);
 
-        m2 = stepwidth * RK4_f2(csm, ln_timesteps[i] + stepwidth/2.0, G2[i] + n1/2.0);
-        n2 = stepwidth * RK4_g2(csm, ln_timesteps[i] + stepwidth/2.0, D1[i] + k1/2.0, D2[i] + m1/2.0, G2[i] + n1/2.0);
+        m2 = stepwidth * RK4_f2(csm, ln_timestep + stepwidth/2.0, G2 + n1/2.0);
+        n2 = stepwidth * RK4_g2(csm, ln_timestep + stepwidth/2.0, D1 + k1/2.0, D2 + m1/2.0, G2 + n1/2.0);
 
-        o2 = stepwidth * RK4_f3a(csm, ln_timesteps[i] + stepwidth/2.0, G3a[i] + p1/2.0);
-        p2 = stepwidth * RK4_g3a(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k1/2.0, D3a[i] + o1/2.0, G3a[i] + p1/2.0);
-        q2 = stepwidth * RK4_f3b(csm, ln_timesteps[i] + stepwidth/2.0, G3b[i] + r1/2.0);
-        r2 = stepwidth * RK4_g3b(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k1/2.0, D2[i]  + m1/2.0, D3b[i] + q1/2.0, G3b[i] + r1/2.0);
-        s2 = stepwidth * RK4_f3c(csm, ln_timesteps[i] + stepwidth/2.0, G3c[i] + t1/2.0);
-        t2 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth/2.0, D1[i]  + k1/2.0, G3c[i] + t1/2.0);
+        o2 = stepwidth * RK4_f3a(csm, ln_timestep + stepwidth/2.0, G3a + p1/2.0);
+        p2 = stepwidth * RK4_g3a(csm, ln_timestep + stepwidth/2.0, D1  + k1/2.0, D3a + o1/2.0, G3a + p1/2.0);
+        q2 = stepwidth * RK4_f3b(csm, ln_timestep + stepwidth/2.0, G3b + r1/2.0);
+        r2 = stepwidth * RK4_g3b(csm, ln_timestep + stepwidth/2.0, D1  + k1/2.0, D2  + m1/2.0, D3b + q1/2.0, G3b + r1/2.0);
+        s2 = stepwidth * RK4_f3c(csm, ln_timestep + stepwidth/2.0, G3c + t1/2.0);
+        t2 = stepwidth * RK4_g3c(csm, ln_timestep + stepwidth/2.0, D1  + k1/2.0, G3c + t1/2.0);
 
         //RK4 step 4
-        k3 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth, G1[i] + l2);
-        l3 = stepwidth * RK4_g1(csm, ln_timesteps[i] + stepwidth, D1[i] + k2, G1[i] + l2);
+        k3 = stepwidth * RK4_f1(csm, ln_timestep + stepwidth, G1 + l2);
+        l3 = stepwidth * RK4_g1(csm, ln_timestep + stepwidth, D1 + k2, G1 + l2);
 
-        m3 = stepwidth * RK4_f2(csm, ln_timesteps[i] + stepwidth, G2[i] + n2);
-        n3 = stepwidth * RK4_g2(csm, ln_timesteps[i] + stepwidth, D1[i] + k2, D2[i] + m2, G2[i] + n2);
+        m3 = stepwidth * RK4_f2(csm, ln_timestep + stepwidth, G2 + n2);
+        n3 = stepwidth * RK4_g2(csm, ln_timestep + stepwidth, D1 + k2, D2 + m2, G2 + n2);
 
-        o3 = stepwidth * RK4_f3a(csm, ln_timesteps[i] + stepwidth, G3a[i] + p2);
-        p3 = stepwidth * RK4_g3a(csm, ln_timesteps[i] + stepwidth, D1[i]  + k2, D3a[i] + o2, G3a[i] + p2);
-        q3 = stepwidth * RK4_f3b(csm, ln_timesteps[i] + stepwidth, G3b[i] + r2);
-        r3 = stepwidth * RK4_g3b(csm, ln_timesteps[i] + stepwidth, D1[i]  + k2, D2[i]  + m2, D3b[i] + q2, G3b[i] + r2);
-        s3 = stepwidth * RK4_f3c(csm, ln_timesteps[i] + stepwidth, G3c[i] + t2);
-        t3 = stepwidth * RK4_g3c(csm, ln_timesteps[i] + stepwidth, D1[i]  + k2, G3c[i] + t2);
+        o3 = stepwidth * RK4_f3a(csm, ln_timestep + stepwidth, G3a + p2);
+        p3 = stepwidth * RK4_g3a(csm, ln_timestep + stepwidth, D1  + k2, D3a + o2, G3a + p2);
+        q3 = stepwidth * RK4_f3b(csm, ln_timestep + stepwidth, G3b + r2);
+        r3 = stepwidth * RK4_g3b(csm, ln_timestep + stepwidth, D1  + k2, D2  + m2, D3b + q2, G3b + r2);
+        s3 = stepwidth * RK4_f3c(csm, ln_timestep + stepwidth, G3c + t2);
+        t3 = stepwidth * RK4_g3c(csm, ln_timestep + stepwidth, D1  + k2, G3c + t2);
 
         //Update
-        D1[i+1] = D1[i] + (k0 + 2*k1 + 2*k2 + k3)/6.0;
-        G1[i+1] = G1[i] + (l0 + 2*l1 + 2*l2 + l3)/6.0;
+        D1 += (k0 + 2*k1 + 2*k2 + k3)/6.0;
+        G1 += (l0 + 2*l1 + 2*l2 + l3)/6.0;
 
-        D2[i+1] = D2[i] + (m0 + 2*m1 + 2*m2 + m3)/6.0;
-        G2[i+1] = G2[i] + (n0 + 2*n1 + 2*n2 + n3)/6.0;
+        D2 += (m0 + 2*m1 + 2*m2 + m3)/6.0;
+        G2 += (n0 + 2*n1 + 2*n2 + n3)/6.0;
 
-        D3a[i+1] = D3a[i] + (o0 + 2*o1 + 2*o2 + o3)/6.0;
-        G3a[i+1] = G3a[i] + (p0 + 2*p1 + 2*p2 + p3)/6.0;
-        D3b[i+1] = D3b[i] + (q0 + 2*q1 + 2*q2 + q3)/6.0;
-        G3b[i+1] = G3b[i] + (r0 + 2*r1 + 2*r2 + r3)/6.0;
-        D3c[i+1] = D3c[i] + (s0 + 2*s1 + 2*s2 + s3)/6.0;
-        G3c[i+1] = G3c[i] + (t0 + 2*t1 + 2*t2 + t3)/6.0;
+        D3a += (o0 + 2*o1 + 2*o2 + o3)/6.0;
+        G3a += (p0 + 2*p1 + 2*p2 + p3)/6.0;
+        D3b += (q0 + 2*q1 + 2*q2 + q3)/6.0;
+        G3b += (r0 + 2*r1 + 2*r2 + r3)/6.0;
+        D3c += (s0 + 2*s1 + 2*s2 + s3)/6.0;
+        G3c += (t0 + 2*t1 + 2*t2 + t3)/6.0;
     }
 
-    *D1LPT = D1[NSTEPS];
-    *f1LPT = G1[NSTEPS]/(csmExp2Hub(csm,a) * *D1LPT);
+    *D1LPT = D1;
+    *f1LPT = G1/(csmExp2Hub(csm,a) * *D1LPT);
 
-    *D2LPT = D2[NSTEPS];
-    *f2LPT = G2[NSTEPS]/(csmExp2Hub(csm,a) * *D2LPT);
+    *D2LPT = D2;
+    *f2LPT = G2/(csmExp2Hub(csm,a) * *D2LPT);
 
-    *D3aLPT = D3a[NSTEPS];
-    *f3aLPT = G3a[NSTEPS]/(csmExp2Hub(csm,a) * *D3aLPT);
-    *D3bLPT = D3b[NSTEPS];
-    *f3bLPT = G3b[NSTEPS]/(csmExp2Hub(csm,a) * *D3bLPT);
-    *D3cLPT = D3c[NSTEPS];
-    *f3cLPT = G3c[NSTEPS]/(csmExp2Hub(csm,a) * *D3cLPT);
+    *D3aLPT = D3a;
+    *f3aLPT = G3a/(csmExp2Hub(csm,a) * *D3aLPT);
+    *D3bLPT = D3b;
+    *f3bLPT = G3b/(csmExp2Hub(csm,a) * *D3bLPT);
+    *D3cLPT = D3c;
+    *f3cLPT = G3c/(csmExp2Hub(csm,a) * *D3cLPT);
     return;
 }
 

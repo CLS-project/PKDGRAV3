@@ -21,7 +21,7 @@
 
 typedef struct StellarEvolutionData {
     /* Pointer to function that gives the number of SNIa per Msol in [fInitialTime, fFinalTime] */
-    float (*fcnNumSNIa)(SMF *smf, meshless::STAR &star, float fInitialTime, float fFinalTime);
+    float (*fcnNumSNIa)(SMF *smf, decorators::STAR &star, float fInitialTime, float fFinalTime);
 
     /* Initial mass array for CCSN and AGB tables */
     float afInitialMass[STEV_INTERP_N_MASS];
@@ -97,14 +97,21 @@ struct stevFlush {
 
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
-void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, meshless::FIELDS &, const double);
+void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, decorators::MFM &, const double);
 
-void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
-void packChemEnrich(void *vpkd, void *dst, const void *src);
-void unpackChemEnrich(void *vpkd, void *dst, const void *src);
-void initChemEnrich(void *vpkd, void *dst);
-void flushChemEnrich(void *vpkd, void *dst, const void *src);
-void combChemEnrich(void *vpkd, void *dst, const void *src);
+void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth, NN *nnList, SMF *smf);
+class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack,stevFlush> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void    init(void *dst) override final;
+    virtual void   flush(void *dst, const void *src) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+    virtual void init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
+public:
+    SmoothHelperChemEnrich(pkdContext *pkd) : SmoothHelperPacked<stevPack,stevFlush>(pkd,true) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
+};
 
 /*
  * ----------------
@@ -119,8 +126,8 @@ void stevFreeTable(STEV_RAWDATA *);
 void stevFreeSNIaTable(STEV_RAWDATA *);
 void stevFreeLifetimeTable(STEV_RAWDATA *);
 
-float stevExponentialNumSNIa(SMF *, meshless::STAR &, float, float);
-float stevPowerlawNumSNIa(SMF *, meshless::STAR &, float, float);
+float stevExponentialNumSNIa(SMF *, decorators::STAR &, float, float);
+float stevPowerlawNumSNIa(SMF *, decorators::STAR &, float, float);
 
 /*
  * -------
@@ -478,7 +485,7 @@ static inline void stevComputeMassToEject(
     *pfMetalMass += M_LN10 * fMetalMassTemp;
 }
 
-static inline float stevLifetimeFunction(PKD pkd, meshless::STAR &star, const double dMass) {
+static inline float stevLifetimeFunction(PKD pkd, decorators::STAR &star, const double dMass) {
     int iMass;
     float fDeltaMass;
     stevGetIndex1D(pkd->StelEvolData->afLifetimeInitialMass, STEV_LIFETIME_N_MASS,
@@ -497,7 +504,7 @@ static inline float stevLifetimeFunction(PKD pkd, meshless::STAR &star, const do
     return powf(10.0f, fLogTime);
 }
 
-static inline float stevInverseLifetimeFunction(PKD pkd, meshless::STAR &star, const float fTime) {
+static inline float stevInverseLifetimeFunction(PKD pkd, decorators::STAR &star, const float fTime) {
     const float *afTimeLowerZ = pkd->StelEvolData->afLifetime + star.Lifetime.oZ;
     const float *afTimeUpperZ = afTimeLowerZ + STEV_LIFETIME_N_MASS;
 
@@ -525,7 +532,7 @@ static inline float stevInverseLifetimeFunction(PKD pkd, meshless::STAR &star, c
 /* Function that estimates the time it will take a star particle to lose all
  * its initial mass by estimating its current ejecta rate. This is then used
  * to compute the time it needs to eject fMinMassFrac of its mass. */
-static inline float stevComputeFirstEnrichTime(PKD pkd, meshless::STAR &star,
+static inline float stevComputeFirstEnrichTime(PKD pkd, decorators::STAR &star,
         const double dCCSNMinMass) {
     const float fMinMassFrac = 1e-3f;
 
@@ -575,7 +582,7 @@ static inline float stevComputeNextEnrichTime(const float fTime, const float fSt
     return fTime + fMinMassFrac * fStarMass * fEjMassRateInv;
 }
 
-static inline void stevStarParticleInit(PKD pkd, meshless::STAR &star, const double dSNIaMaxMass,
+static inline void stevStarParticleInit(PKD pkd, decorators::STAR &star, const double dSNIaMaxMass,
                                         const double dCCSNMinMass, const double dCCSNMaxMass) {
     int iZ;
     float fLogZ;

@@ -25,6 +25,7 @@
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
+using namespace pyrameters::literals; // Gives us ""_key literals
 
 /******************************************************************************\
 *   Simulation Mode: normal method of populating the simulation data
@@ -63,6 +64,8 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep) {
     iStep_list.clear();     // to this step number
 
     auto nSteps = parameters.get_nSteps();
+    if (nSteps.size() == 1 && nSteps[0]==0) return true;
+
     auto dDelta = parameters.get_dDelta();
     auto dRedTo = parameters.get_dRedTo();
 
@@ -72,7 +75,6 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep) {
         decltype(nSteps)::value_type sum = 0;
         for (auto nStep : nSteps) iStep_list.push_back(sum += nStep);
     }
-
     // If dDelta is used, then we just need to copy the values from the parameters
     if (dDelta.size()) {
         if (dDelta.size() != iStep_list.size()) {
@@ -132,9 +134,8 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep) {
     }
     parameters.set_dynamic("delta",dDelta_list.front());
     print_notice (" Step From     Step To  Delta-T\n");
-    for (auto i=0, j=iStartStep; i<dDelta_list.size(); j=iStep_list[i],++i) {
+    for (auto i=0, j=iStartStep; i<dDelta_list.size(); j=iStep_list[i], ++i) {
         print_notice("{:10d}  {:10d}  {:.8g}\n",j,iStep_list[i],dDelta_list[i]);
-
     }
     return true;
 }
@@ -348,13 +349,14 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
 
     // Make sure that the tree is usable before the start of the simulation
     if (bDoStartFof || bDoStartOutput) {
+        ReorderDecorator();
         DomainDecomp();
         BuildTree(bEwald);
     }
 
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
-    auto nSteps = iStep_list.back();
+    auto nSteps = iStep_list.empty() ? 0 : iStep_list.back();
     for (auto iStep=iStartStep+1; iStep<=nSteps&&!iStop; ++iStep) {
         dTheta = set_dynamic(iStep,dTime);
         dDelta = SwitchDelta(dTime,iStep-1);
@@ -503,9 +505,9 @@ static void validate_path(const char *name,const std::string_view &path) {
 int MSR::ValidateParameters() {
     int success = 1;
     try {
-        validate_path("achOutPath",       parameters.get_achOutPath());
-        validate_path("achCheckpointPath",parameters.get_achCheckpointPath());
-        validate_path("achIoPath",        parameters.get_achIoPath());
+        validate_path("achOutPath",       parameters.get_achOutPath("type"_key=nullptr,"kind"_key=nullptr));
+        validate_path("achCheckpointPath",parameters.get_achCheckpointPath("type"_key=nullptr,"kind"_key=nullptr));
+        validate_path("achIoPath",        parameters.get_achIoPath("type"_key=nullptr,"kind"_key=nullptr));
     }
     catch (fmt::format_error &e) {
         print_error("ERROR: {}\n{}",e.what(),
@@ -632,7 +634,7 @@ int MSR::ValidateParameters() {
     /*
     ** CUDA likes a larger group size
     */
-    if ( (mdl->isCudaActive() || mdl->isMetalActive()) && parameters.get_bGPU() && !parameters.has_nGroup() && parameters.get_nGroup()<256)
+    if ( (mdl->CudaActive() || mdl->isMetalActive()) && parameters.get_bGPU() && !parameters.has_nGroup() && parameters.get_nGroup()<256)
         parameters.set_nGroup(256);
 
 #ifndef USE_HDF5

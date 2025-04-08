@@ -38,7 +38,7 @@ static const std::complex<float> I(0,1);
 
 typedef blitz::Array<basicParticle,3> basicParticleArray;
 static basicParticleArray getOutputArray(PKD pkd,GridInfo &G,real_array_t &R) {
-    void *pData = mdlSetArray(pkd->mdl,0,0,pkd->particles);
+    auto pData = pkd->mdl->SetArray<void>(pkd->particles);
     if (blitz::product(R.shape())) {
         basicParticleArray fullOutput(
             reinterpret_cast<basicParticle *>(pData),
@@ -892,7 +892,7 @@ int pkdGenerateIC(
     real_array_t    R[gridInfo.nGrids];
     complex_array_t K[gridInfo.nGrids];
     GridInfo G(pkd->mdl, fft);
-    auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl, 0, 0, pkd->particles));
+    auto data = pkd->mdl->SetArray<real_t>(pkd->particles);
     for (auto i = 0; i < gridInfo.nGrids; i++) {
         G.setupArray(data, K[i]);
         G.setupArray(data, R[i]);
@@ -1111,9 +1111,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 double a_m1 = 1./in->dExpansion;
                 VelGas *= a_m1;
 
-                /* Fill the meshless::FIELDS with some initial values */
+                /* Fill the decorators::MFM with some initial values */
                 double u = in->dInitialT * in->dTuFac;
-                assert(pkd->particles.present(PKD_FIELD::oSph));
+                assert(pkd->decorators.present(DECORATOR_FIELD::oMFM));
+                pgas.set_decorator_index(pkd->decorators.append());
                 auto &Sph = pgas.sph();
                 Sph.ElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
 #ifdef HAVE_HELIUM
@@ -1293,7 +1294,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         free(sdisps);
         free(rcount);
         free(rdisps);
-        mdlFFTNodeFinish(pst->mdl,fft);
+        pst->mdl->FFTNodeFinish(fft);
         pkd->fft = NULL;
 
         /* We need to relocate the particles */
@@ -1385,12 +1386,12 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     if (pstAmNode(pst)) {
         struct inGenerateICthread tin;
-        MDLFFT fft = mdlFFTNodeInitialize(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,0);
+        MDLFFT fft = mdl->FFTNodeInitialize(in->nGrid,in->nGrid,in->nGrid,0,0);
         tin.ic = reinterpret_cast<struct inGenerateIC *>(vin);
         tin.fft = fft;
         pltGenerateIC(pst,&tin,sizeof(tin),vout,nOut);
 
-        int myProc = mdlProc(pst->mdl);
+        int myProc = pst->mdl->Proc();
         uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
 
         /* Expand the particles by adding an iOrder */

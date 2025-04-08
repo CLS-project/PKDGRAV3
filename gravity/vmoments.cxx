@@ -284,7 +284,7 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ilcList &ill,const float *a,float 
     result.zero();
 
     fvec v(v1), ax(a[0]), ay(a[1]), az(a[2]);
-    for (auto tile : ill) {
+    for (auto &tile : ill) {
         auto nBlocks = tile.count() / tile.width;
         for (auto iBlock=0; iBlock<nBlocks; ++iBlock) {
             result += EvalBlock(tile.width,tile[iBlock],v,ax,ay,az,imaga);

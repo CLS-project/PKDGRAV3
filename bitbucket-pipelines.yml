@@ -5,12 +5,12 @@ pipelines:
         size: 2x
         script:
           - cmake -S . -B build
-          - cmake --build build -- -j 8
+          - cmake --build build -- -j 4
   branches:
     develop:
       - parallel:
           - step:
-              size: 2x
+              size: 8x
               runs-on:
                 - self.hosted
                 - gpu
@@ -24,7 +24,7 @@ pipelines:
                   env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8
                   ctest -V --test-dir build
           - step:
-              size: 2x
+              size: 8x
               runs-on:
                 - self.hosted
                 - avx512
@@ -44,4 +44,4 @@ pipelines:
             - >
               cmake -DCOOLING=on -DSTAR_FORMATION=on -DFEEDBACK=on
               -DEEOS_POLYTROPE=on -DBLACKHOLES=on -DSTELLAR_EVOLUTION=on -S . -B build
-            - cmake --build build -- -j 8
+            - cmake --build build -- -j 4

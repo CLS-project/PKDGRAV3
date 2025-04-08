@@ -41,6 +41,7 @@
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "core/ignoresigbus.h"
+#include "core/decorator_reorder.h"
 
 #include "io/service.h"
 #include "io/restore.h"
@@ -98,7 +99,7 @@ void *worker_init(MDL vmdl) {
     LCL *plcl = new LCL;
     plcl->pkd = NULL;
     pstInitialize(&pst,mdl,plcl);
-    pstAddServices(pst,vmdl);
+    pstAddServices(pst,mdl);
     mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
     mdl->AddService(std::make_unique<ServiceSwapAll>(pst));
     mdl->AddService(std::make_unique<ServiceHostname>(pst));
@@ -122,6 +123,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceRemoveDeleted>(pst));
     mdl->AddService(std::make_unique<ServiceFileSizes>(pst));
     mdl->AddService(std::make_unique<ServiceRestore>(pst));
+    mdl->AddService(std::make_unique<ServiceRestoreDecorator>(pst));
     mdl->AddService(std::make_unique<ServiceCalcBound>(pst));
     mdl->AddService(std::make_unique<ServiceCombineBound>(pst));
     mdl->AddService(std::make_unique<ServiceDistribTopTree>(pst));
@@ -143,6 +145,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceRsSaveIds>(pst));
     mdl->AddService(std::make_unique<ServiceRsReorderIds>(pst));
     mdl->AddService(std::make_unique<ServiceRsExtract>(pst));
+    mdl->AddService(std::make_unique<ServiceReorderDecorator>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceDomainDecomp>(pst));
 #ifdef NEW_REORDER
     mdl->AddService(std::make_unique<NewDD::ServiceReorder>(pst));
@@ -173,10 +176,11 @@ void worker_done(MDL mdl, void *ctx) {
 /*
 ** This is invoked for the "master" process after the worker has been setup.
 */
-int master(MDL mdl,void *vpst) {
+int master(MDL vmdl,void *vpst) {
+    auto mdl = reinterpret_cast<mdl::mdlClass *>(vmdl);
     auto pst = reinterpret_cast<PST>(vpst);
-    int argc = mdlGetArgc(mdl);
-    char **argv = mdlGetArgv(mdl);
+    int argc = mdl->GetArgc();
+    char **argv = mdl->GetArgv();
 
     /* a USR1 signal indicates that the queue wants us to exit */
 #ifndef _MSC_VER
@@ -221,5 +225,5 @@ int main(int argc,char **argv) {
     setbuf(stdout,(char *) NULL);
 #endif
 
-    return mdlLaunch(argc,argv,master,worker_init,worker_done);
+    return mdl::Launch(master,worker_init,worker_done,argc,argv);
 }

@@ -113,9 +113,8 @@ static inline double densNodeNcondB(PKD pkd, particleStore::ParticleReference &p
     return Ncond;
 }
 
-void packHydroDensity(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<hydroDensityPack *>(dst);
+void SmoothHelperHydroDensity::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iClass = p2.get_class();
@@ -126,10 +125,9 @@ void packHydroDensity(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void unpackHydroDensity(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void  SmoothHelperHydroDensity::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const hydroDensityPack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -141,9 +139,8 @@ void unpackHydroDensity(void *vpkd,void *dst,const void *src) {
 
 // Compute the density and derived variables simply given the fBall,
 // without trying to converge to the correct value
-void hydroDensityFinal(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroDensityFinal(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
 #ifdef OPTIM_UNION_EXTRAFIELDS
     double *omega = NULL;
     omega = p.is_gas()  ? &(p.sph().omega)  : omega;
@@ -353,9 +350,8 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
  * The supported density computation is that performed by hydroDensity_node,
  * which is automatically selected when using the OPTIM_SMOOTH_NODE flag
  */
-void hydroDensity(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroDensity(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
     double pH, rpq, Hpq, c;
 
     /* Particle p data */

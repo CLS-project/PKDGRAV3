@@ -17,15 +17,15 @@
 #include "gridinfo.hpp"
 using namespace gridinfo;
 
-GridInfo::GridInfo(MDL mdl,MDLFFT fft) {
+GridInfo::GridInfo(mdl::mdlClass *mdl,MDLFFT fft) {
     m_grid = fft->rgrid->n1, fft->rgrid->n2, fft->rgrid->n3;
     m_nlocal = fft->rgrid->nLocal;
     m_sz = fft->rgrid->sSlab;
     m_nz = fft->rgrid->nSlab;
     m_sy = fft->kgrid->sSlab;
     m_ny = fft->kgrid->nSlab;
-    m_iCore = mdlCore(mdl);
-    m_nCore = mdlCores(mdl);
+    m_iCore = mdl->Core();
+    m_nCore = mdl->Cores();
 }
 
 
@@ -65,10 +65,6 @@ void GridInfo::setupArray(real_t *dataFirst,real_array_t &rspace) {
         rspace.reference(rspace2);
     }
 }
-
-//pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-//pthread_mutex_lock(&mutex);
-//pthread_mutex_unlock(&mutex);
 
 void GridInfo::setupArray(complex_t *dataFirst,complex_array_t &kspace) {
     // The complex array shares the storage of the real array, but:

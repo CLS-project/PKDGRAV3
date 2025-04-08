@@ -28,10 +28,10 @@
 #include "cosmo.h"
 #include "ic/ic.h"
 
-#define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
-#define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
-#define pstAmNode(pst) ((pst)->nLeaves == mdlCores((pst)->mdl))
-#define pstNotNode(pst) ((pst)->nLeaves != mdlCores((pst)->mdl))
+#define pstOffNode(pst) ((pst)->nLeaves > (pst)->mdl->Cores())
+#define pstOnNode(pst) ((pst)->nLeaves <= (pst)->mdl->Cores())
+#define pstAmNode(pst) ((pst)->nLeaves == (pst)->mdl->Cores())
+#define pstNotNode(pst) ((pst)->nLeaves != (pst)->mdl->Cores())
 #define pstAmCore(pst) ((pst)->nLeaves == 1)
 #define pstNotCore(pst) ((pst)->nLeaves > 1)
 
@@ -99,6 +99,7 @@ enum pst_service {
     PST_OUTPUT_SEND,
     PST_CHECKPOINT,
     PST_RESTORE,
+    PST_RESTORE_DECORATOR,
     PST_BUILDTREE,
     PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
@@ -156,6 +157,7 @@ enum pst_service {
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
 #endif
+    PST_REORDERDECORATOR,
 #ifdef OPTIM_REORDER_IN_NODES
     PST_REORDERINNODES,
 #endif
@@ -246,7 +248,7 @@ enum pst_service {
     PST_IGNORE_SIGBUS,
 };
 
-void pstAddServices(PST,MDL);
+void pstAddServices(PST,mdl::mdlClass *);
 void pstInitialize(PST *,mdl::mdlClass *,LCL *);
 void pstFinish(PST);
 
@@ -254,6 +256,7 @@ void pstFinish(PST);
 struct inInitializePStore {
     uint64_t mMemoryModel;
     uint64_t nStore;
+    uint64_t nDecoratorStore;
     fioSpeciesList nSpecies;
     blitz::TinyVector<double,3> fPeriod;
     uint64_t nMinEphemeral;
@@ -268,14 +271,15 @@ struct inInitializePStore {
 };
 struct outInitializePStore {
     int nSizeParticle;
+    int nSizeDecorator;
     int nSizeNode;
 };
 int pstInitializePStore(PST,void *,int,void *,int);
 
 /* PST_READFILE */
 struct inReadFile {
-    uint64_t nNodeStart; /* First particle to read (of total) */
-    uint64_t nNodeEnd;   /* Last particle to read (of total) */
+    fioSpeciesList nSpeciesStart;
+    fioSpeciesList nSpeciesEnd;
     double dvFac;
     double dTuFac;
     double dOmega0;

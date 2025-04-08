@@ -40,9 +40,8 @@ void MSR::HydroStep(double dTime, double dDelta) {
     }
 }
 
-void packHydroStep(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<hydroStepPack *>(dst);
+void SmoothHelperHydroStep::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iClass = p2.get_class();
@@ -57,13 +56,13 @@ void packHydroStep(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void unpackHydroStep(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperHydroStep::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const hydroStepPack *>(src);
-
+    auto p2 = static_cast<const pack_type *>(src);
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        p1.set_adj_decorator();
+
         p1.set_position(p2->position);
         p1.velocity() = p2->velocity;
         p1.sph().c = p2->c;
@@ -74,30 +73,27 @@ void unpackHydroStep(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void initHydroStep(void *vpkd,void *dst) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperHydroStep::init(void *dst) {
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
-
     if (p.is_gas()) {
         p.sph().uWake = 0;
     }
 }
 
-void flushHydroStep(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<hydroStepFlush *>(dst);
+void SmoothHelperHydroStep::flush(void *dst, const void *src) {
+    auto p1 = static_cast<flush_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
-
     if (p2.is_gas()) {
+        const auto &sph = p2.sph();
+
         p1->uNewRung = p2.new_rung();
-        p1->uWake = p2.sph().uWake;
+        p1->uWake = sph.uWake;
     }
 }
 
-void combHydroStep(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperHydroStep::combine(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const hydroStepFlush *>(src);
+    auto p2 = static_cast<const flush_type *>(src);
     assert(!pkd->bNoParticleOrder);
     if (p1.is_gas()) {
         if (p2->uNewRung > p1.new_rung()) p1.set_new_rung(p2->uNewRung);
@@ -110,9 +106,8 @@ void combHydroStep(void *vpkd,void *dst,const void *src) {
  *    - Acceleration
  *    - Timestep of the neighouring particles (in a scatter approach)
  */
-void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
     double dtEst;
 
     const auto &pv = p.velocity();
@@ -123,7 +118,7 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     /*  Signal velocity criterion as described in Monaghan (1997) */
     for (auto i = 0; i < nSmooth; ++i) {
-        if (pIn == nnList[i].pPart) continue;
+        if (&p == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
         const auto &qv = q.velocity();
         const auto &qsph = q.sph();

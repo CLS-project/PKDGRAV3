@@ -18,7 +18,7 @@ if (USE_CPPTRACE)
   FetchContent_Declare(
     cpptrace
     GIT_REPOSITORY https://github.com/jdpotter/cpptrace.git
-    GIT_TAG        v0.7.2 # <HASH or TAG>
+    GIT_TAG        v0.7.4 # <HASH or TAG>
   )
   FetchContent_GetProperties(cpptrace)
   if (NOT cpptrace_POPULATED)
@@ -75,7 +75,7 @@ check_symbol_exists(clock_gettime time.h HAVE_CLOCK_GETTIME)
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
 find_package(elfutils QUIET)
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS thread)
 
 add_library(${PROJECT_NAME} STATIC "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
@@ -88,11 +88,13 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_link_libraries(${PROJECT_NAME} mdlcuda)
 target_sources(${PROJECT_NAME}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.cxx
+          ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlstubs.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mpimessages.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlmessages.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/gpu/mdlgpu.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.cxx
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.h
+          ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlstubs.h
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h
           ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h
 )
@@ -169,7 +171,7 @@ if(HAVE_MEMKIND)
 find_library(MEMKIND_LIBRARY memkind)
 target_link_libraries(${PROJECT_NAME} ${MEMKIND_LIBRARY})
 endif()
-target_link_libraries(${PROJECT_NAME} Boost::boost)
+target_link_libraries(${PROJECT_NAME} Boost::boost Boost::thread)
 
 if (APPLE AND METAL AND FOUNDATION AND QUARTZCORE)
   target_link_libraries(${PROJECT_NAME} mdlmetal)
@@ -181,4 +183,4 @@ endif(hasParent)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
 install(TARGETS ${PROJECT_NAME} DESTINATION "lib")
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h mpi/mdl.h mdlbase.h DESTINATION "include")
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h mpi/mdl.h mpi/mdlstubs.h mdlbase.h DESTINATION "include")

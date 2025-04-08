@@ -68,21 +68,27 @@ static void flush_masses(PKD pkd,int nGrid,const mass_array_t &masses, const sha
             loc[0] = wrap(loc[0]); loc[1] = wrap(loc[1]); loc[2] = wrap(loc[2]);
             auto id = mdlFFTrId(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
             auto idx = mdlFFTrIdx(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
-            float *p = reinterpret_cast<float *>(mdlVirtualFetch(pkd->mdl,CID_PK,idx,id));
+            float *p = pkd->mdl->VirtualFetch<float>(CID_PK,idx,id);
             *p += *i;
         }
     }
 }
 
-static void initPk(void *vpkd, void *g) {
-    FFTW3(real) * r = (FFTW3(real) *)g;
-    *r = 0.0;
-}
-static void combPk(void *vpkd, void *g1, const void *g2) {
-    auto r1 = (FFTW3(real) *)g1;
-    auto r2 = (const FFTW3(real) *)g2;
-    *r1 += *r2;
-}
+class HelperPk : public mdl::arrayCACHEhelper {
+    virtual void    init(void *dst) override final {
+        auto r = (FFTW3(real) *)dst;
+        *r = 0.0;
+    }
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto r1 = (FFTW3(real) *)dst;
+        auto r2 = (const FFTW3(real) *)src;
+        *r1 += *r2;
+    }
+public:
+    explicit HelperPk(FFTW3(real) *pArray,uint32_t nArray)
+        : arrayCACHEhelper(pArray,nArray,true) {}
+
+};
 
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta, int fold) {
     auto fft = pkd->fft;
@@ -100,9 +106,9 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     mdlGridCoord first, last;
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
     auto fftData = reinterpret_cast<FFTW3(real) *>(pkd->pLite);
-    fftData = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData + iGrid*fft->rgrid->nLocal));
+    fftData = pkd->mdl->SetArray<FFTW3(real)>(fftData + iGrid*fft->rgrid->nLocal,last.i);
     for ( int i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
-    mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
+    pkd->mdl->CacheInitialize(CID_PK,std::make_shared<HelperPk>(fftData,last.i));
 
     auto pad = (iAssignment+1) / 2;
     std::vector<std::uint32_t> stack;
@@ -154,7 +160,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
             flush_masses(pkd,nGrid,masses,ilower,fold);
         }
     }
-    mdlFinishCache(pkd->mdl,CID_PK);
+    pkd->mdl->FinishCache(CID_PK);
 }
 
 int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -199,7 +205,7 @@ void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
     assert(iGrid == 0);
 
     complex_array_t K1;
-    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
+    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGrid;
     G.setupArray(data1,K1);
 
     for ( auto index=K1.begin(); index!=K1.end(); ++index ) {

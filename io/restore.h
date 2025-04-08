@@ -27,4 +27,11 @@ public:
     virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
 };
 
+class ServiceRestoreDecorator : public ServiceInput {
+public:
+    explicit ServiceRestoreDecorator(PST pst)
+        : ServiceInput(pst,PST_RESTORE_DECORATOR) {}
+    virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
+};
+
 #endif /* E5B60112_B4E2_46CB_AC8A_564BF342E5D3 */

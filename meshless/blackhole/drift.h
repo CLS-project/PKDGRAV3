@@ -9,9 +9,13 @@ struct bhGasPinPack {
     uint8_t iClass;
 };
 
-void smBHGasPin(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void packBHGasPin(void *vpkd,void *dst,const void *src);
-void unpackBHGasPin(void *vpkd,void *dst,const void *src);
+class SmoothHelperBHGasPin : public SmoothHelperPacked<bhGasPinPack> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperBHGasPin(pkdContext *pkd) : SmoothHelperPacked<bhGasPinPack>(pkd,false) {}
+};
 
+void smBHGasPin(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void pkdBHReposition(PKD pkd);
 

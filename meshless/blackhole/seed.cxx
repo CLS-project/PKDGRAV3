@@ -122,7 +122,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
 
             for (int i = 0; i < smx->nnListSize; ++i) {
                 if (smx->nnList[i].iPid != pkd->Self()) {
-                    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+                    pkd->mdl->Release(CID_PARTICLE,smx->nnList[i].pPart);
                 }
             }
             /* Old seeding process, which creates a BH rather than converting
