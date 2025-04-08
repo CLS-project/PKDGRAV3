@@ -48,8 +48,6 @@ typedef struct smContext {
     void (*fcnSmoothFillBuffer)(double *, PARTICLE *, int, int,
                                 double, blitz::TinyVector<double,3>, SMF *);
     void (*fcnSmoothUpdate)(double *, double *, PARTICLE *, PARTICLE *, int, int, SMF *);
-    // The smooth will only lock the decorator of this species type
-    FIO_SPECIES decorator_species;
     int nSmooth;
     int nQueue;
     int bPeriodic;

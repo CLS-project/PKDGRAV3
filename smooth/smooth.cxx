@@ -235,7 +235,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     smx->fcnSmoothGetBufferInfo = NULL;
     smx->fcnSmoothFillBuffer = NULL;
     smx->fcnSmoothUpdate = NULL;
-    smx->decorator_species = FIO_SPECIES_LAST;
     if (smf != NULL) smf->pkd = pkd;
     smx->nSmooth = nSmooth;
     smx->bPeriodic = bPeriodic;
@@ -284,19 +283,16 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_HYDRO_DENSITY:
         assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensity;
-        smx->decorator_species = FIO_SPECIES_SPH;
         helper = std::make_shared<SmoothHelperHydroDensity>(pkd);
         break;
     case SMX_HYDRO_DENSITY_FINAL:
         assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensityFinal;
-        smx->decorator_species = FIO_SPECIES_SPH;
         helper = std::make_shared<SmoothHelperHydroDensity>(pkd);
         break;
     case SMX_HYDRO_GRADIENT:
         assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmooth = hydroGradients;
-        smx->decorator_species = FIO_SPECIES_SPH;
         helper = std::make_shared<SmoothHelperHydroGradients>(pkd);
         break;
 #ifdef OPTIM_FLUX_VEC
@@ -306,20 +302,17 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnSmoothGetBufferInfo = hydroFluxGetBufferInfo;
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
         smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
-        smx->decorator_species = FIO_SPECIES_SPH;
         helper = std::make_shared<SmoothHelperHydroFluxes>(pkd);
         break;
 #endif
     case SMX_HYDRO_STEP:
         assert( pkd->decorators.present(DECORATOR_FIELD::oMFM) ); /* Validate memory model */
         smx->fcnSmooth = hydroStep;
-        smx->decorator_species = FIO_SPECIES_SPH;
         helper = std::make_shared<SmoothHelperHydroStep>(pkd);
         break;
 #ifdef FEEDBACK
     case SMX_SN_FEEDBACK:
         smx->fcnSmooth = smSNFeedback;
-        smx->decorator_species = FIO_SPECIES_SPH;
         smx->bSearchGasOnly = 1;
         helper = std::make_shared<SmoothHelperSNFeedback>(pkd);
         break;
@@ -336,7 +329,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         break;
     case SMX_BH_EVOLVE:
         smx->fcnSmooth = smBHEvolve;
-        smx->decorator_species = FIO_SPECIES_SPH;
         smx->bSearchGasOnly = 1;
         helper = std::make_shared<SmoothHelperBHEvolve>(pkd);
         break;
@@ -349,7 +341,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
         smx->fcnSmooth = smChemEnrich;
-        smx->decorator_species = FIO_SPECIES_SPH;
         smx->bSearchGasOnly = 1;
         helper = std::make_shared<SmoothHelperChemEnrich>(pkd);
         break;
