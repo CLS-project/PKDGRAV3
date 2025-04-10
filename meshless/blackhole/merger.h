@@ -3,7 +3,8 @@
 
 void smBHmerger(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) ;
 class SmoothHelperBHmerger : public SmoothHelper {
-    virtual void combine(void *dst, const void *src, const void *key) override final;
+    // TODO: allow for BH mergers across domains
+    //virtual void combine(void *dst, const void *src, const void *key) override final;
 public:
     SmoothHelperBHmerger(pkdContext *pkd) : SmoothHelper(pkd,true) {}
 };

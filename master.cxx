@@ -4176,7 +4176,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
     print("Writing output for step {}\n", iStep);
 
-    Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
 
     if (DoGas() && NoSteps()) {  /* Diagnostic Gas */
         Reorder();
@@ -4232,6 +4231,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         Reorder();
         OutArray(BuildName(iStep,".soft").c_str(),OUT_SOFT_ARRAY);
     }
+    Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
 }
 
 uint64_t MSR::CountSelected() {
