@@ -26,7 +26,7 @@ void MSR::SetStellarEvolutionParam() {
     }
     else {
         std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
-                  "achSNIaDTDType parameter: " << achSNIaDTDType << std::endl;
+                     "achSNIaDTDType parameter: " << achSNIaDTDType << std::endl;
         Exit(1);
     }
 
@@ -167,7 +167,7 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
     }
     else {
         std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
-                  "achSNIaDTDType parameter: " << in->achSNIaDTDType << std::endl;
+                     "achSNIaDTDType parameter: " << in->achSNIaDTDType << std::endl;
         exit(1);
     }
 
@@ -223,9 +223,8 @@ void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, meshless:
     sph.fReceivedE = 0.0f;
 }
 
-void packChemEnrich(void *vpkd, void *dst, const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<stevPack *>(dst);
+void SmoothHelperChemEnrich::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iClass = p2.get_class();
@@ -235,10 +234,9 @@ void packChemEnrich(void *vpkd, void *dst, const void *src) {
     }
 }
 
-void unpackChemEnrich(void *vpkd, void *dst, const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperChemEnrich::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const stevPack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -247,8 +245,7 @@ void unpackChemEnrich(void *vpkd, void *dst, const void *src) {
     }
 }
 
-void initChemEnrich(void *vpkd, void *dst) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperChemEnrich::init(void *dst) {
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
 
     if (p.is_gas()) {
@@ -263,9 +260,8 @@ void initChemEnrich(void *vpkd, void *dst) {
     }
 }
 
-void flushChemEnrich(void *vpkd, void *dst, const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<stevFlush *>(dst);
+void SmoothHelperChemEnrich::flush(void *dst, const void *src) {
+    auto p1 = static_cast<flush_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     if (p2.is_gas()) {
@@ -280,10 +276,9 @@ void flushChemEnrich(void *vpkd, void *dst, const void *src) {
     }
 }
 
-void combChemEnrich(void *vpkd, void *dst, const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperChemEnrich::combine(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const stevFlush *>(src);
+    auto p2 = static_cast<const flush_type *>(src);
 
     if (p1.is_gas()) {
         auto &sph = p1.sph();
@@ -311,9 +306,8 @@ void combChemEnrich(void *vpkd, void *dst, const void *src) {
    in smf are in Msol. Conversely, star.fInitialMass and p.mass() are in code units.
    Furthermore, all times are in code units.
 */
-void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf) {
+void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
     auto &star = p.star();
 
     const float fInitialTime = star.fLastEnrichTime;

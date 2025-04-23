@@ -53,7 +53,7 @@ module mdl_module
       type(*)::Out   ! Output type/structure
     end subroutine mdl_service
 
-    subroutine mdl_launch(argc,argv,master,worker_init,worker_done) BIND(C,NAME="mdlLaunch")
+    subroutine mdl_launch(master,worker_init,worker_done,argc,argv) BIND(C,NAME="mdlLaunch")
       USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT, C_PTR, C_FUNPTR
       INTEGER(KIND=C_INT), VALUE :: argc
       TYPE(C_PTR), VALUE :: argv
@@ -131,11 +131,6 @@ module mdl_module
       type(c_ptr),value::mdl
       integer(c_int), VALUE :: iThread
     end function mdl_thread_to_proc
-
-    real(c_double) function mdlWallTime(mdl) BIND(C,NAME="mdlWallTime")
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_DOUBLE, C_PTR
-      type(c_ptr),value::mdl
-    end function mdlWallTime
 
     ! =============================================================================
 
@@ -253,10 +248,6 @@ module mdl_module
       mdl_procs = mdlProcs(mdl%mdl2)
     end function mdl_procs
 
-    double precision function mdl_wtime(mdl)
-      type(mdl_t)::mdl
-      mdl_wtime = mdlWallTime(mdl%mdl2)
-    end function mdl_wtime
 !##############################################################
 !##############################################################
 !##############################################################

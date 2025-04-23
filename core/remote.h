@@ -37,7 +37,7 @@ public:
     }
     auto operator()(int iIndex,int iID) {
         if (iID==mdl->Self()) return (*this)(iIndex);
-        else return local()[reinterpret_cast<typename STORE::value_type *>(mdlFetch(mdl,cache_id,iIndex,iID))];
+        else return local()[mdl->Fetch<typename STORE::value_type>(cache_id,iIndex,iID)];
     }
 };
 

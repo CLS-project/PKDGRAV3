@@ -54,7 +54,7 @@ static int packGroupStats(void *vctx, int *id, size_t nSize, void *vBuff) {
 static int packGridK(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packCtx *ctx = (struct packCtx *)vctx;
     PKD pkd = ctx->pkd;
-    if (mdlCore(pkd->mdl) == 0) {
+    if (pkd->mdl->Core() == 0) {
         auto fftData = reinterpret_cast<COMPLEX *>(pkd->pLite) + ctx->iGrid * pkd->fft->kgrid->nLocal;
         size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
         size_t nLeft = nLocal - ctx->iIndex;
@@ -70,7 +70,7 @@ static int packGridK(void *vctx, int *id, size_t nSize, void *vBuff) {
 static int packGridR(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packCtx *ctx = (struct packCtx *)vctx;
     PKD pkd = ctx->pkd;
-    if (mdlCore(pkd->mdl) == 0) {
+    if (pkd->mdl->Core() == 0) {
         auto fftData = reinterpret_cast<float *>(pkd->pLite) + ctx->iGrid * pkd->fft->rgrid->nLocal;
         auto pOutput = reinterpret_cast<float *>(vBuff);
         size_t nLocal = 1ul * pkd->fft->rgrid->a1 * pkd->fft->rgrid->n2 * pkd->fft->rgrid->nSlab;
@@ -110,7 +110,7 @@ void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner, int iGrid) {
         fprintf(stderr,"ERROR: invalid output type %d\n", eOutputType);
         abort();
     }
-    mdlSend(pkd->mdl,iPartner, pack, &ctx);
+    pkd->mdl->Send(iPartner, pack, &ctx);
 }
 
 int pstOutputSend(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -174,7 +174,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
         send.iGrid = iGrid;
         ++iPartner;
         int rID = pkd->mdl->ReqService(iPartner,PST_OUTPUT_SEND,&send,sizeof(send));
-        mdlRecv(pkd->mdl,iPartner,unpack,&info);
+        pkd->mdl->Recv(iPartner,unpack,&info);
         pkd->mdl->GetReply(rID);
     }
     io_close(&info);

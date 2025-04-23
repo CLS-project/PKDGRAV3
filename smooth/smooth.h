@@ -18,9 +18,9 @@
 #ifndef SMOOTH_HINCLUDED
 #define SMOOTH_HINCLUDED
 
-extern "C" {
-#include "listcomp.h"
-}
+// extern "C" {
+// #include "listcomp.h"
+// }
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
 #include "hydro/hydro.h"
@@ -42,7 +42,7 @@ struct smExtraArray {
 typedef struct smContext {
     PKD pkd;
     PARTICLE *pSentinel;
-    void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
+    void (*fcnSmooth)(particleStore::ParticleReference &p,float,int,NN *,SMF *);
     void (*fcnSmoothNode)(PARTICLE *, float, int, int, double *, double *, SMF *);
     void (*fcnSmoothGetBufferInfo)(int *, int *);
     void (*fcnSmoothFillBuffer)(double *, PARTICLE *, int, int,
@@ -52,7 +52,6 @@ typedef struct smContext {
     int nQueue;
     int bPeriodic;
     int bOwnCache;
-    int bSymmetric;
     int iSmoothType;
     int bSearchGasOnly;
     blitz::TinyVector<double,3> rLast; /* For the snake */
@@ -94,7 +93,7 @@ typedef struct smContext {
     /*
     ** Context for nearest neighbor lists.
     */
-    LCODE lcmp;
+    // LCODE lcmp;
     /*
     ** Some variables needed for smNewFof().
     */

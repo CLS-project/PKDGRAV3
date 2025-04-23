@@ -27,7 +27,7 @@
 ** We are about to renumber the groups locally. Each group has the new ID in iNewGid.
 */
 static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bIndexIsGID) {
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int pi, gid;
 
     /* Update the group for all local particles */
@@ -40,17 +40,17 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bI
 
     /* Now gid has the new position -- a reorder is necessary */
     if (bIndexIsGID) {
-        mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray), nGroups);
+        mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(sizeof(struct smGroupArray),ga,nGroups));
         for (gid=1; gid<nGroups; ++gid) {
             if (ga[gid].id.iPid==pkd->Self()) {
                 ga[gid].id.iIndex = ga[gid].iNewGid;
             }
             else {
-                auto g = static_cast<struct smGroupArray *>(mdlFetch(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid));
+                auto g = mdl->Fetch<smGroupArray>(CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
                 ga[gid].id.iIndex = g->iNewGid;
             }
         }
-        mdlFinishCache(mdl,CID_GROUP);
+        mdl->FinishCache(CID_GROUP);
     }
 }
 
@@ -153,25 +153,28 @@ int pkdGroupCombineDuplicateIds(PKD pkd, int nGroups, struct smGroupArray *ga,in
     return nGroups;
 }
 
-
-static void initMaxnGroup(void *vpkd, void *v) {}
-static void combMaxnGroup(void *vctx, void *v1, const void *v2) {
-    struct smGroupArray *g1 = (struct smGroupArray *)v1;
-    const struct smGroupArray *g2 = (const struct smGroupArray *)v2;
-    /* Remember: nTotal is really MAX(nLocal) here. */
-    if (g2->nTotal > g1->nTotal) {
-        g1->nTotal = g2->nTotal;
-        g1->id.iPid = g2->id.iPid;
-        g1->id.iIndex = g2->id.iIndex;
+class HelperMaxnGroup : public mdl::arrayCACHEhelper {
+protected:
+    virtual void combine(void *dst, const void *src,const void *key) override final {
+        auto g1 = static_cast<smGroupArray *>(dst);
+        auto g2 = static_cast<smGroupArray const *>(src);
+        /* Remember: nTotal is really MAX(nLocal) here. */
+        if (g2->nTotal > g1->nTotal) {
+            g1->nTotal = g2->nTotal;
+            g1->id.iPid = g2->id.iPid;
+            g1->id.iIndex = g2->id.iIndex;
+        }
     }
-}
+public:
+    explicit HelperMaxnGroup(smGroupArray *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray,true) {}
+};
 
 /*
 ** For each group, find the processor that has the most particles
 ** and make that processor that master for that group.
 */
 int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int i, gid, nLocalGroups;
 
     /* Count local members of all groups */
@@ -186,27 +189,26 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
         ++ga[gid].nTotal;
     }
     /* Now find the real processor with the most particles for each group */
-    mdlCOcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray),nGroups,
-               NULL,initMaxnGroup,combMaxnGroup);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<HelperMaxnGroup>(ga,nGroups));
     for (i=1+nLocalGroups; i<nGroups; ++i) {
         assert(ga[i].id.iPid != pkd->Self());
-        auto g = static_cast<struct smGroupArray *>(mdlVirtualFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
+        auto g = mdl->VirtualFetch<smGroupArray>(CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
         g->id.iPid = pkd->Self();
         g->id.iIndex = i;
         g->nTotal = ga[i].nTotal;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Now the local groups are not at the start of the table!
     */
     /* Now update the new group location */
-    mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray), pkd->nGroups);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(ga,pkd->nGroups));
     for (i=1+nLocalGroups; i<nGroups; ++i) {
-        auto g = static_cast<struct smGroupArray *>(mdlFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
+        auto g = mdl->Fetch<smGroupArray>(CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
         ga[i].id.iPid = g->id.iPid;
         ga[i].id.iIndex = g->id.iIndex;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Get local groups back at the begining of the table.
     */
@@ -214,22 +216,26 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
     return (nGroups);
 }
 
-
-static void initTotalnGroup(void *vpkd, void *v) {
-    struct smGroupArray *g = (struct smGroupArray *)v;
-    g->nTotal = 0;
-}
-static void combTotalnGroup(void *vctx, void *v1, const void *v2) {
-    struct smGroupArray *g1 = (struct smGroupArray *)v1;
-    const struct smGroupArray *g2 = (const struct smGroupArray *)v2;
-    g1->nTotal += g2->nTotal;
-}
+class HelperTotalnGroup : public mdl::arrayCACHEhelper {
+protected:
+    virtual void init(void *v) override final {
+        auto g = static_cast<smGroupArray *>(v);
+        g->nTotal = 0;
+    }
+    virtual void combine(void *dst, const void *src,const void *key) override final {
+        auto g1 = static_cast<smGroupArray *>(dst);
+        auto g2 = static_cast<smGroupArray const *>(src);
+        g1->nTotal += g2->nTotal;
+    }
+public:
+    explicit HelperTotalnGroup(smGroupArray *pArray,uint32_t nArray) : arrayCACHEhelper(pArray,nArray,true) {}
+};
 
 /*
 ** Returns the number of local groups in the smGroupArray table.
 */
 int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
-    MDL mdl = pkd->mdl;
+    auto mdl = pkd->mdl;
     int i, gid;
     int nLocalGroups;
 
@@ -249,23 +255,22 @@ int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
     /*
     ** Then add to counts for all groups owned by a remote processor.
     */
-    mdlCOcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray),nGroups,
-               NULL,initTotalnGroup,combTotalnGroup);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<HelperTotalnGroup>(ga,nGroups));
     for (i=1+nLocalGroups; i<nGroups; ++i) {
         assert(ga[i].id.iPid != pkd->Self());   /* assumes local groups come first, then remotes */
-        auto g = static_cast<struct smGroupArray *>(mdlVirtualFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
+        auto g = mdl->VirtualFetch<smGroupArray>(CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
         g->nTotal += ga[i].nTotal;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
     /*
     ** Finally update remote group counts.
     */
-    mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray),nGroups);
+    mdl->CacheInitialize(CID_GROUP,std::make_shared<mdl::arrayCACHEhelper>(ga,nGroups));
     for (i=1+nLocalGroups; i<nGroups; ++i) {
-        auto g = static_cast<struct smGroupArray *>(mdlFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
+        auto g = mdl->Fetch<smGroupArray>(CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
         ga[i].nTotal = g->nTotal;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    mdl->FinishCache(CID_GROUP);
 
     return (nLocalGroups);
 }

@@ -35,7 +35,7 @@ int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
 int ServiceHostname::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     static_assert(std::is_void<input>());
     auto out = static_cast<output *>(vout);
-    out->iMpiID = mdlSelf(pst->mdl);
+    out->iMpiID = pst->mdl->Self();
     strncpy(out->szHostname,mdlName(pst->mdl),sizeof(out->szHostname));
     out->szHostname[sizeof(out->szHostname)-1] = 0;
     auto p = strchr(out->szHostname,'.');

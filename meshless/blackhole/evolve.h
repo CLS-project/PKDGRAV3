@@ -28,12 +28,16 @@ struct bhEvolveFlush {
     int iAccIndex;
 };
 
-void smBHEvolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void packBHEvolve(void *vpkd,void *dst,const void *src);
-void unpackBHEvolve(void *vpkd,void *dst,const void *src);
-void initBHEvolve(void *vpkd,void *dst);
-void flushBHEvolve(void *vpkd,void *dst,const void *src);
-void combBHEvolve(void *vpkd,void *dst,const void *src);
+void smBHEvolve(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+class SmoothHelperBHEvolve : public SmoothHelperPacked<bhEvolvePack,bhEvolveFlush> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void    init(void *dst) override final;
+    virtual void   flush(void *dst, const void *src) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperBHEvolve(pkdContext *pkd) : SmoothHelperPacked<bhEvolvePack,bhEvolveFlush>(pkd,true) {}
+};
 
 void pkdBHIntegrate(PKD pkd, particleStore::ParticleReference &p, double dTime, double dDelta, double dBHRadiativeEff);
 

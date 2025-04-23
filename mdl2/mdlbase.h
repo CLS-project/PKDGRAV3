@@ -222,6 +222,9 @@ public:
     int32_t Procs()   const { return layout.nProcs; }
     int32_t ProcToThread(int32_t iProc) const;
     int32_t ThreadToProc(int32_t iThread) const;
+    int     GetArgc() const { return argc; }
+    char **GetArgv() const { return argv; }
+
     void yield();
     void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name="");
     void AddService(std::unique_ptr<BasicService> &&service);
@@ -243,15 +246,7 @@ int mdlBaseThreadToProc(mdlBASE *base, int iThread);
 extern "C" {
 #endif
 
-int mdlThreads(void *mdl);
-int mdlSelf(void *mdl);
-int mdlCore(void *mdl);
-int mdlCores(void *mdl);
-int mdlProc(void *mdl);
-int mdlProcs(void *mdl);
 const char *mdlName(void *mdl);
-int mdlGetArgc(void *mdl);
-char **mdlGetArgv(void *mdl);
 
 void mdlDiag(void *mdl, const char *psz);
 #ifdef MDLASSERT

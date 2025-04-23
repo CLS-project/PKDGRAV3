@@ -531,13 +531,12 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->pTempPRIVATE = static_cast<PARTICLE *>(malloc(particles.ParticleSize()));
     mdlassert(mdl,this->pTempPRIVATE != NULL);
 
-    if ( iCacheSize > 0 ) mdlSetCacheSize(this->mdl,iCacheSize);
+    if ( iCacheSize > 0 ) mdl->SetCacheSize(iCacheSize);
     mdl->SetCacheMaxInflight(iCacheMaxInflight);
 
     // This is cheeserific - chooses the largest specified
 #if defined(USE_CUDA)
     this->cudaClient = new CudaClient(this->mdl->mpi->cuda,this->mdl->gpu);
-    mdlSetCudaBufferSize(this->mdl,PP_CUDA_MEMORY_LIMIT,PP_CUDA_MEMORY_LIMIT);
 #endif
 #if defined(USE_METAL)
     this->metalClient = new MetalClient(*this->mdl);
@@ -606,9 +605,9 @@ pkdContext::~pkdContext() {
     /*
     ** Close caching space and free up nodes.
     */
-    if (mdlCacheStatus(mdl,CID_CELL))      mdlFinishCache(mdl,CID_CELL);
-    if (mdlCacheStatus(mdl,CID_CELL2))     mdlFinishCache(mdl,CID_CELL2);
-    if (mdlCacheStatus(mdl,CID_PARTICLE2)) mdlFinishCache(mdl,CID_PARTICLE2);
+    if (mdl->CacheStatus(CID_CELL))      mdl->FinishCache(CID_CELL);
+    if (mdl->CacheStatus(CID_CELL2))     mdl->FinishCache(CID_CELL2);
+    if (mdl->CacheStatus(CID_PARTICLE2)) mdl->FinishCache(CID_PARTICLE2);
     /*
     ** Free checklist.
     */
@@ -630,8 +629,8 @@ pkdContext::~pkdContext() {
     }
 
     /* Only thread zero allocated this memory block  */
-    mdlThreadBarrier(mdl);
-    if (mdlCore(mdl) == 0) {
+    mdl->ThreadBarrier();
+    if (mdl->Core() == 0) {
         mdl->delete_shared_array(storageBase,storageSize);
     }
     free(pTempPRIVATE);
@@ -1231,8 +1230,8 @@ int pkdSwapRejects(PKD pkd,int idSwap) {
         nBuf = (pkdSwapSpace(pkd))*pkd->particles.ParticleSize();
         nOutBytes = pkd->nRejects*pkd->particles.ParticleSize();
         mdlassert(pkd->mdl,pkd->Local() + pkd->nRejects <= pkd->FreeStore());
-        mdlSwap(pkd->mdl,idSwap,nBuf,pkd->Particle(pkd->Local()),
-                nOutBytes,&nSndBytes,&nRcvBytes);
+        pkd->mdl->Swap(idSwap,nBuf,pkd->Particle(pkd->Local()),
+                       nOutBytes,&nSndBytes,&nRcvBytes);
         pkd->AddLocal(nRcvBytes/pkd->particles.ParticleSize());
         pkd->nRejects -= nSndBytes/pkd->particles.ParticleSize();
     }
@@ -1253,8 +1252,8 @@ void pkdSwapAll(PKD pkd, int idSwap) {
         pkd->CopyParticle(pkd->Particle(iBuf+i),pkd->Particle(i));
     nBuf = pkd->FreeStore()*pkd->particles.ParticleSize();
     nOutBytes = pkd->Local()*pkd->particles.ParticleSize();
-    mdlSwap(pkd->mdl,idSwap,nBuf,pkd->particles, nOutBytes,
-            &nSndBytes, &nRcvBytes);
+    pkd->mdl->Swap(idSwap,nBuf,pkd->particles, nOutBytes,
+                   &nSndBytes, &nRcvBytes);
     mdlassert(pkd->mdl,nSndBytes/pkd->particles.ParticleSize() == pkd->Local());
     pkd->SetLocal(nRcvBytes/pkd->particles.ParticleSize());
 }
@@ -1523,7 +1522,7 @@ void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Boun
     ctx.dTuFac = dTuFac;
     ctx.iIndex = 0;
 #ifdef MPI_VERSION
-    mdlRecv(pkd->mdl,iNode,unpackWrite,&ctx);
+    pkd->mdl->Recv(iNode,unpackWrite,&ctx);
 #endif
 }
 
@@ -1551,7 +1550,7 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
     ctx.dvFac = 1.0;
     ctx.iIndex = 0;
 #ifdef MPI_VERSION
-    mdlSend(pkd->mdl,iNode,packWrite, &ctx);
+    pkd->mdl->Send(iNode,packWrite, &ctx);
 #endif
 }
 
@@ -1732,7 +1731,7 @@ void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize,double dvFa
     ctx.iIndex = 0;
     ctx.bMarked = bMarked;
 #ifdef MPI_VERSION
-    mdlSend(pkd->mdl,iNode,packArray, &ctx);
+    pkd->mdl->Send(iNode,packArray, &ctx);
 #endif
 }
 
@@ -1755,7 +1754,7 @@ void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize) {
     struct unpackArrayCtx ctx;
     ctx.pDest = static_cast<char *>(pDest);
 #ifdef MPI_VERSION
-    mdlRecv(pkd->mdl,iNode,unpackArray,&ctx);
+    pkd->mdl->Recv(iNode,unpackArray,&ctx);
 #endif
     return ctx.pDest;
 }
@@ -1787,15 +1786,18 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->particles.PhysicalSoft(dSoftMax,dFac,bSoftMaxMul);
 }
 
-static void initSetMarked(void *vpkd, void *v) {}
-static void combSetMarked(void *vpkd, void *v1, const void *v2) {
-    PARTICLE *p1 = (PARTICLE *)v1;
-    const PARTICLE *p2 = (const PARTICLE *)v2;
-    if (p2->bMarked) p1->bMarked = 1;
+class SetMarkedHelper : public particleCACHEhelper {
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto p1 = static_cast<PARTICLE *>(dst);
+        auto p2 = static_cast<const PARTICLE *>(src);
+        if (p2->bMarked) p1->bMarked = 1;
 #ifdef NN_FLAG_IN_PARTICLE
-    if (p2->bNNflag) p1->bNNflag = 1;
+        if (p2->bNNflag) p1->bNNflag = 1;
 #endif
-}
+    }
+public:
+    explicit SetMarkedHelper(PKD pkd) : particleCACHEhelper(pkd, true) {}
+};
 
 void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *SPHoptions) {
     std::stack<std::pair<int,int>> cellStack;
@@ -1807,7 +1809,7 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
     while (!cellStack.empty()) {
         auto [iCell, id] = cellStack.top();
         cellStack.pop();
-        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL,iCell,id)];
 
         // Walking the top tree
         if (c->is_top_tree()) {
@@ -1824,12 +1826,12 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
         ** and mdlFetch them from that thread
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
-            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE,pj,id)];
             ++nParticles;
 
             // Shortcut if necessary flag already set, as the test will pass in the end
             if ((SPHoptions->doSetDensityFlags && p.marked()) || (SPHoptions->doSetNNflags && p.NN_flag())) {
-                if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
+                if (id != pkd->Self()) pkd->mdl->Release(CID_PARTICLE,&p);
                 continue;
             }
 
@@ -1876,7 +1878,7 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
                 // Check that density flag is set if applicable
                 if (SPHoptions->doSetDensityFlags) assert(p.marked());
             }
-            if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
+            if (id != pkd->Self()) pkd->mdl->Release(CID_PARTICLE,&p);
         }
     }
     assert(nParticles == pkd->nGas);
@@ -1909,7 +1911,7 @@ void pkdGravAll(PKD pkd,
     for (i=0; i<=IRUNGMAX; ++i) pkd->nRung[i] = 0;
 
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-    mdlTimeReset(pkd->mdl);
+    pkd->mdl->TimeReset();
 #endif
 
     /*
@@ -1923,12 +1925,10 @@ void pkdGravAll(PKD pkd,
     ** Start particle caching space (cell cache already active).
     */
     if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
-        mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),
-                   pkd->Local(),NULL,initSetMarked,combSetMarked);
+        pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<SetMarkedHelper>(pkd));
     }
     else {
-        mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),
-                   pkd->Local());
+        pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
     }
 
     /*
@@ -1950,8 +1950,8 @@ void pkdGravAll(PKD pkd,
     assert(pkd->nWpPending == 0);
 
     if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
-        mdlFlushCache(pkd->mdl,CID_PARTICLE);
-        mdlCacheBarrier(pkd->mdl,CID_PARTICLE);
+        pkd->mdl->FlushCache(CID_PARTICLE);
+        pkd->mdl->CacheBarrier(CID_PARTICLE);
         extensiveMarkerTest(pkd, ts, SPHoptions);
     }
 
@@ -1969,15 +1969,15 @@ void pkdGravAll(PKD pkd,
     ** Get caching statistics.
     */
     if (*pnActive) {
-        *pdCellNumAccess = mdlNumAccess(pkd->mdl,CID_CELL)/dActive;
-        *pdPartNumAccess = mdlNumAccess(pkd->mdl,CID_PARTICLE)/dActive;
+        *pdCellNumAccess = pkd->mdl->NumAccess(CID_CELL)/dActive;
+        *pdPartNumAccess = pkd->mdl->NumAccess(CID_PARTICLE)/dActive;
     }
     else {
         *pdCellNumAccess = 0;
         *pdPartNumAccess = 0;
     }
-    *pdCellMissRatio = 100.0*mdlMissRatio(pkd->mdl,CID_CELL);      /* as a percentage */
-    *pdPartMissRatio = 100.0*mdlMissRatio(pkd->mdl,CID_PARTICLE);  /* as a percentage */
+    *pdCellMissRatio = 100.0*pkd->mdl->MissRatio(CID_CELL);      /* as a percentage */
+    *pdPartMissRatio = 100.0*pkd->mdl->MissRatio(CID_PARTICLE);  /* as a percentage */
     /*
     ** Output flops count in GFlops!
     */
@@ -1985,7 +1985,7 @@ void pkdGravAll(PKD pkd,
     /*
     ** Stop particle caching space.
     */
-    mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    pkd->mdl->FinishCache(CID_PARTICLE);
 
     for (i=0; i<=IRUNGMAX; ++i) pnRung[i] = pkd->nRung[i];
 
@@ -2015,26 +2015,28 @@ static void flushLightCone(PKD pkd) {
     pkd->nLightCone = 0;
 }
 
-static void initHealpix(void *vpkd, void *v) {
-    healpixData *m = (healpixData *)v;
-    m->nGrouped = 0;
-    m->nUngrouped = 0;
-    m->fPotential = 0;
-}
+class HealpixHelper : public mdl::arrayCACHEhelper {
+    virtual void    init(void *dst) override final {
+        auto m = static_cast<healpixData *>(dst);
+        m->nGrouped = 0;
+        m->nUngrouped = 0;
+        m->fPotential = 0;
+    }
+    virtual void combine(void *dst, const void *src, const void *key) override final {
+        auto m1 = static_cast<healpixData *>(dst);
+        auto m2 = static_cast<const healpixData *>(src);
+        auto SumWithSaturate = [](uint32_t a, uint32_t b) -> uint32_t {
+            uint64_t sum = static_cast<uint64_t>(a) + b;
+            return (sum > 0xffffffffu) ? 0xffffffffu : static_cast<uint32_t>(sum);
+        };
+        m1->nGrouped = SumWithSaturate(m1->nGrouped,m2->nGrouped);
+        m1->nUngrouped = SumWithSaturate(m1->nUngrouped,m2->nUngrouped);
+        m1->fPotential += m2->fPotential;
+    }
 
-static uint32_t SumWithSaturate(uint32_t a,uint32_t b) {
-    uint64_t sum = (uint64_t)a + b;
-    if (sum > 0xffffffffu) return 0xffffffffu;
-    else return sum;
-}
-
-static void combHealpix(void *vctx, void *v1, const void *v2) {
-    healpixData *m1 = (healpixData *)v1;
-    const healpixData *m2 = (const healpixData *)v2;
-    m1->nGrouped = SumWithSaturate(m1->nGrouped,m2->nGrouped);
-    m1->nUngrouped = SumWithSaturate(m1->nUngrouped,m2->nUngrouped);
-    m1->fPotential += m2->fPotential;
-}
+public:
+    explicit HealpixHelper(PKD pkd) : arrayCACHEhelper(pkd->pHealpixData,pkd->nHealpixPerDomain,true) {}
+};
 
 void pkdLightConeClose(PKD pkd,const char *healpixname) {
     int i;
@@ -2045,7 +2047,7 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
     }
     if (pkd->nSideHealpix) {
         assert(healpixname && healpixname[0]);
-        mdlFinishCache(pkd->mdl,CID_HEALPIX);
+        pkd->mdl->FinishCache(CID_HEALPIX);
         int fd = open(healpixname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
         if (fd<0) {
             perror(healpixname);
@@ -2076,7 +2078,7 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 
     pkd->nSideHealpix = nSideHealpix;
     if (pkd->nSideHealpix) {
-        pkd->nHealpixPerDomain = ( nside2npix64(pkd->nSideHealpix) + mdlThreads(pkd->mdl) - 1) / mdlThreads(pkd->mdl);
+        pkd->nHealpixPerDomain = ( nside2npix64(pkd->nSideHealpix) + pkd->mdl->Threads() - 1) / pkd->mdl->Threads();
         pkd->nHealpixPerDomain = (pkd->nHealpixPerDomain+15) & ~15;
         if (pkd->pHealpixData==NULL) {
             pkd->pHealpixData = static_cast<healpixData *>(malloc(pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData)));
@@ -2087,9 +2089,7 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
             pkd->pHealpixData[i].nUngrouped = 0;
             pkd->pHealpixData[i].fPotential = 0;
         }
-        mdlCOcache(pkd->mdl,CID_HEALPIX,NULL,
-                   pkd->pHealpixData,sizeof(*pkd->pHealpixData),
-                   pkd->nHealpixPerDomain,pkd,initHealpix,combHealpix);
+        pkd->mdl->CacheInitialize(CID_HEALPIX,std::make_shared<HealpixHelper>(pkd));
     }
 }
 
@@ -2117,9 +2117,9 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
         assert(iPixel >= 0);
         int id  = iPixel / pkd->nHealpixPerDomain;
         int idx = iPixel - id*pkd->nHealpixPerDomain;
-        assert(id<mdlThreads(pkd->mdl));
+        assert(id<pkd->mdl->Threads());
         assert(idx < pkd->nHealpixPerDomain);
-        auto m = static_cast<healpixData *>(mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id));
+        auto m = pkd->mdl->VirtualFetch<healpixData>(CID_HEALPIX,idx,id);
         if (P.group()) {
             if (m->nGrouped < 0xffffffffu) ++m->nGrouped; /* Increment with saturate */
         }
@@ -2253,8 +2253,8 @@ void pkdReorderWithinNodes(PKD pkd) {
             node->Nbh() = i - start;
         }
     }
-    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
-    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
+    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
+    pkd->mdl->CacheInitialize(CID_CELL,std::make_shared<treeCACHEhelper>(pkd));
 }
 #endif
 

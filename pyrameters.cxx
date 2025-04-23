@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "pyrameters.h"
+namespace pyrameters {
 
 bool pyrameters::has(const char *name) const {
     bool bSpecified = false;
@@ -100,10 +101,25 @@ bool pyrameters::update(PyObject *kwobj,bool bIgnoreUnknown) {
 }
 
 PyObject *pyrameters::call_dynamic(PyObject *callback) const {
+    return call_dynamic(callback,dynamic_);
+}
+PyObject *pyrameters::call_dynamic(PyObject *callback, PyObject *dynamic) const {
     auto call_args = PyTuple_New(0);
-    auto result = PyObject_Call(callback,call_args,dynamic_);
+    auto result = PyObject_Call(callback,call_args,dynamic);
     Py_DECREF(call_args);
     return result;
+}
+
+PyObject *pyrameters::get_and_call(const char *name,PyObject *dynamic) const {
+    auto v = PyObject_GetAttrString(arguments_, name);
+    if (!v) throw std::domain_error(name);
+    if (PyCallable_Check(v)) {
+        auto callback = v;
+        v = call_dynamic(callback,dynamic);
+        Py_DECREF(callback);
+    }
+    if (PyErr_Occurred()) PyErr_Print();
+    return v;
 }
 
 template<> PyObject *pyrameters::get<PyObject *>(const char *name) const {
@@ -172,4 +188,5 @@ template<> void pyrameters::set_dynamic(const char *name, std::int32_t value) {
 
 template<> void pyrameters::set_dynamic(const char *name, std::uint32_t value) {
     set_dynamic<std::uint64_t>(name,value);
+}
 }

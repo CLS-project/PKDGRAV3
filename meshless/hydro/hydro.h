@@ -67,12 +67,16 @@ struct hydroDensityPack {
     bool bMarked;
 };
 
-void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+void hydroDensity(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PARTICLE *> &sinks,
                        NN *nnList, int nCnt);
-void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void packHydroDensity(void *vpkd,void *dst,const void *src);
-void unpackHydroDensity(void *vpkd,void *dst,const void *src);
+void hydroDensityFinal(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+class SmoothHelperHydroDensity : public SmoothHelperPacked<hydroDensityPack> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperHydroDensity(pkdContext *pkd) : SmoothHelperPacked<hydroDensityPack>(pkd,false) {}
+};
 
 /* Gradient loop */
 struct hydroGradientsPack {
@@ -85,9 +89,13 @@ struct hydroGradientsPack {
     bool bMarked;
 };
 
-void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void packHydroGradients(void *vpkd,void *dst,const void *src);
-void unpackHydroGradients(void *vpkd,void *dst,const void *src);
+void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+class SmoothHelperHydroGradients : public SmoothHelperPacked<hydroGradientsPack> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperHydroGradients(pkdContext *pkd) : SmoothHelperPacked<hydroGradientsPack>(pkd,false) {}
+};
 
 /* Flux loop */
 struct hydroFluxesPack {
@@ -118,10 +126,6 @@ struct hydroFluxesFlush {
     float fMass;
 };
 
-void packHydroFluxes(void *vpkd,void *dst,const void *src);
-void unpackHydroFluxes(void *vpkd,void *dst,const void *src);
-void initHydroFluxes(void *vpkd,void *vp);
-void initHydroFluxesCached(void *vpkd,void *vp);
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth, int nBuff,
                   meshless::myreal *restrict input_buffer,
                   meshless::myreal *restrict output_buffer,
@@ -130,13 +134,21 @@ void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
                           meshless::myreal *restrict input_buffer,
                           meshless::myreal *restrict output_buffer,
                           SMF *smf);
-void flushHydroFluxes(void *vpkd,void *dst,const void *src);
-void combHydroFluxes(void *vpkd,void *p1,const void *p2);
 void hydroFluxFillBuffer(meshless::myreal *input_buffer, PARTICLE *q, int i, int nBuff,
                          double dr2, blitz::TinyVector<double,3> dr, SMF *);
 void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal *input_buffer,
                                PARTICLE *p, PARTICLE *q, int i, int nBuff, SMF *);
 void hydroFluxGetBufferInfo(int *in, int *out);
+
+class SmoothHelperHydroFluxes : public SmoothHelperPacked<hydroFluxesPack,hydroFluxesFlush> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void    init(void *dst) override final;
+    virtual void   flush(void *dst, const void *src) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperHydroFluxes(pkdContext *pkd) : SmoothHelperPacked<hydroFluxesPack,hydroFluxesFlush>(pkd,true) {}
+};
 
 /* Time step loop */
 struct hydroStepPack {
@@ -155,12 +167,18 @@ struct hydroStepFlush {
     uint8_t uWake;
 };
 
-void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void packHydroStep(void *vpkd,void *dst,const void *src);
-void unpackHydroStep(void *vpkd,void *dst,const void *src);
-void initHydroStep(void *vpkd,void *dst);
-void flushHydroStep(void *vpkd,void *dst,const void *src);
-void combHydroStep(void *vpkd,void *dst,const void *src);
+void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+class SmoothHelperHydroStep : public SmoothHelperPacked<hydroStepPack,hydroStepFlush> {
+    virtual void    pack(void *dst, const void *src) override final;
+    virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void    init(void *dst) override final;
+    virtual void   flush(void *dst, const void *src) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+public:
+    SmoothHelperHydroStep(pkdContext *pkd) : SmoothHelperPacked<hydroStepPack,hydroStepFlush>(pkd,true) {}
+};
+
+
 void pkdWakeParticles(PKD pkd,int iRoot,double dTime,double dDelta);
 
 /* Source terms */

@@ -62,7 +62,8 @@
 #endif
 
 #include "master.h"
-using namespace fmt::literals; // Gives us ""_a and ""_format literals
+using namespace fmt::literals;        // Gives us ""_a and ""_format literals
+using namespace pyrameters::literals; // Gives us ""_key literals
 
 #include "core/illinois.h"
 #include "io/outtype.h"
@@ -236,23 +237,32 @@ static void make_directories(std::string name) {
     }
 }
 
-std::string MSR::BuildName(std::string_view path,int iStep,const char *type) {
+std::string MSR::BuildName(std::string_view path,int iStep,std::string_view type) {
+    if (type.data()==nullptr) type = "";
+    std::string_view kind = type.length() ? type.substr(1) : "output";
     if (!path.length()) path = "{name}.{step:05d}{type}";
-    auto name = fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
+    auto name = fmt::format(path,"name"_a=OutName(),
+                            "step"_a=iStep,
+                            "type"_a=type,
+                            "kind"_a=kind,
+                            "i"_a="{i}"); // Defers the evaluation of i (if present)
     make_directories(name);
     return name;
 }
-std::string MSR::BuildName(int iStep,const char *type) {
-    return BuildName(parameters.get_achOutPath(),iStep,type);
+std::string MSR::BuildName(int iStep,std::string_view type) {
+    std::string_view kind = type.length() ? type.substr(1) : "output";
+    return BuildName(parameters.get_achOutPath("type"_key=type,"kind"_key=kind),iStep,type);
 }
-std::string MSR::BuildIoName(int iStep,const char *type) {
-    auto achIoPath = parameters.get_achIoPath();
+std::string MSR::BuildIoName(int iStep,std::string_view type) {
+    std::string_view kind = type.length() ? type.substr(1) : "output";
+    auto achIoPath = parameters.get_achIoPath("type"_key=type,"kind"_key=kind);
     if ( achIoPath.length() )
         return BuildName(achIoPath,iStep,type);
     else return BuildName(iStep,type);
 }
-std::string MSR::BuildCpName(int iStep,const char *type) {
-    auto achCheckpointPath = parameters.get_achCheckpointPath();
+std::string MSR::BuildCpName(int iStep,std::string_view type) {
+    std::string_view kind = type.length() ? type.substr(1) : "checkpoint";
+    auto achCheckpointPath = parameters.get_achCheckpointPath("type"_key=type,"kind"_key=kind);
     if ( achCheckpointPath.length() )
         return BuildName(achCheckpointPath,iStep,type);
     else return BuildName(iStep,type);
@@ -341,7 +351,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     double dStorageAmount = (1.0+parameters.get_dExtraStore());
     int i;
     for ( i=0; i<=FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
-    ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(mdl));
+    ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdl->Threads());
     ps.nTreeBitsLo = parameters.get_nTreeBitsLo();
     ps.nTreeBitsHi = parameters.get_nTreeBitsHi();
     ps.iCacheSize  = parameters.get_iCacheSize();
@@ -873,7 +883,7 @@ void MSR::SetDerivedParameters(bool bRestart) {
 
 void MSR::Initialize() {
     lcl.pkd = NULL;
-    nThreads = mdlThreads(mdl);
+    nThreads = mdl->Threads();
     lStart=time(0);
     fCenter = 0; // Center is at (0,0,0)
     /* Storage for output times*/
@@ -1041,6 +1051,7 @@ double MSR::SwitchDelta(double dTime,int iStep) {
         iStep_list.erase(iStep_list.begin());
         dDelta_list.erase(dDelta_list.begin());
     }
+    if (dDelta_list.size() == 0) return 0.0;
     return dDelta_list.front();
 }
 
@@ -3625,7 +3636,8 @@ void MSR::GroupStats() {
 
 #ifdef MDL_FFTW
 double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
-    struct inGenerateIC in;
+    auto inptr = std::make_unique<inGenerateIC>(); // This has largish tables
+    auto &in = *inptr;
     struct outGenerateIC out;
     ServiceFftSizes::input inFFTSizes;
     ServiceFftSizes::output outFFTSizes;
@@ -3978,7 +3990,7 @@ void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {
     out.iPartner = -1;
     out.nPartner = -1;
     out.iProcessor = 0;
-    out.nProcessor = nParaWrite > mdlProcs(mdl) ? mdlProcs(mdl) : nParaWrite;
+    out.nProcessor = nParaWrite > mdl->Procs() ? mdl->Procs() : nParaWrite;
     strcpy(out.achOutFile,filename);
     print("Writing grid to {}\n", filename);
     pstOutput(pst,&out,sizeof(out),NULL,0);

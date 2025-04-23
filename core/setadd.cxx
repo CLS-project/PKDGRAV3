@@ -30,19 +30,20 @@ int ServiceSetAdd::operator()(int nIn, void *pIn, void *pOut) {
 }
 
 void ServiceSetAdd::SetAdd(PST pst,input *in) {
+    auto mdl = pst->mdl;
     PST pstNew;
     int n, idMiddle,iProcLower,iProcUpper;
-    mdlassert(pst->mdl,pst->nLeaves==1);
-    mdlassert(pst->mdl,in->idLower==mdlSelf(pst->mdl));
+    mdlassert(mdl,pst->nLeaves==1);
+    mdlassert(mdl,in->idLower==mdl->Self());
     n = in->idUpper - in->idLower;
     idMiddle = (in->idUpper + in->idLower) / 2;
     if ( n > 1 ) {
         int rID;
         /* Make sure that the pst lands on core zero */
-        iProcLower = mdlThreadToProc(pst->mdl,in->idLower);
-        iProcUpper = mdlThreadToProc(pst->mdl,in->idUpper-1);
+        iProcLower = mdl->ThreadToProc(in->idLower);
+        iProcUpper = mdl->ThreadToProc(in->idUpper-1);
         if (iProcLower!=iProcUpper) {
-            idMiddle = mdlProcToThread(pst->mdl,mdlThreadToProc(pst->mdl,idMiddle));
+            idMiddle = pst->mdl->ProcToThread(mdl->ThreadToProc(idMiddle));
         }
         pst->nLeaves += n - 1;
         pst->nLower = idMiddle - in->idLower;
@@ -50,13 +51,13 @@ void ServiceSetAdd::SetAdd(PST pst,input *in) {
 
         in->idLower = idMiddle;
         pst->idUpper = in->idLower;
-        rID = pst->mdl->ReqService(pst->idUpper,getServiceID(),in,sizeof(input));
-        in->idLower = mdlSelf(pst->mdl);
+        rID = mdl->ReqService(pst->idUpper,getServiceID(),in,sizeof(input));
+        in->idLower = mdl->Self();
         in->idUpper = idMiddle;
-        pstInitialize(&pstNew,pst->mdl,pst->plcl);
+        pstInitialize(&pstNew,mdl,pst->plcl);
         pst->pstLower = pstNew;
         pstNew->iLvl = pst->iLvl + 1;
         SetAdd(pst->pstLower,in);
-        pst->mdl->GetReply(rID);
+        mdl->GetReply(rID);
     }
 }

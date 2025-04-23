@@ -50,7 +50,7 @@
 #include <stack>
 
 #if 1
-#if defined(USE_SIMD) && defined(__SSE2__)
+#if defined(USE_SIMD) && (defined(__SSE2__)||defined(__ARM_NEON))
 /* Caution: This uses v/sqrt(v) so v cannot be zero! */
 static inline float asqrtf(float v) {
     __m128 r2 = _mm_max_ss(_mm_set_ss(v),_mm_set_ss(FLT_MIN));
@@ -228,7 +228,7 @@ void pkdParticleWorkDone(workParticle *wp) {
         // char particle_buffer[pkd->particles.ParticleSize()];
         // auto p = reinterpret_cast<PARTICLE *>(particle_buffer);
         for ( i=0; i<wp->nP; i++ ) {
-            //p = static_cast<PARTICLE *>(mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            //p = pkd->mdl->AcquireWrite<PARTICLE>(CID_PARTICLE,wp->iPart[i]);
             p = pkd->particles[wp->pPart[i]];
             // pkd->CopyParticle(p,wp->pPart[i]);
 
@@ -523,9 +523,9 @@ void pkdParticleWorkDone(workParticle *wp) {
             else {
                 ++pkd->nRung[p.rung()];
             }
-            auto q = pkd->particles[static_cast<PARTICLE *>(mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]))];
+            auto q = pkd->particles[pkd->mdl->AcquireWrite<PARTICLE>(CID_PARTICLE,wp->iPart[i])];
             q = p;
-            mdlReleaseWrite(pkd->mdl,CID_PARTICLE,&q);
+            pkd->mdl->ReleaseWrite(CID_PARTICLE,&q);
         }
         delete [] wp->pPart;
         delete [] wp->iPart;
@@ -697,7 +697,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
     while (!cellStack.empty()) {
         auto [iCell, id] = cellStack.top();
         cellStack.pop();
-        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL,iCell,id)];
 
         // Walking the top tree
         if (c->is_top_tree()) {
@@ -714,7 +714,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
         ** and mdlFetch them from that thread
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
-            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))];
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Fetch<PARTICLE>(CID_PARTICLE,pj,id)];
             ++nParticles;
 
             // Get position and ball size of particle p

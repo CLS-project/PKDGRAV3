@@ -51,7 +51,7 @@
 
 static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, blitz::TinyVector<float,3> fOffset) {
     auto c = (id == pkd->Self()) ? pkd->tree[iChild] :
-             pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,iCache,iChild,id))];
+             pkd->tree[pkd->mdl->Fetch<KDN>(iCache,iChild,id)];
     auto nc = (c->is_remote()||c->is_top_tree()) ? 1000000000 : c->count();
     auto cOpen = c->bMax() * pkd->fiCritTheta;
     auto c_r = c->position();
@@ -200,14 +200,14 @@ found_it:
                                     assert(id >= 0);
                                     iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                     if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
-                                        auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
+                                        auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Acquire<PARTICLE>(iCidPart,pj,id)];
                                         if (SPHoptions->doSetDensityFlags) p.set_marked(true);
                                         if (SPHoptions->doSetNNflags) p.set_NN_flag(true);
-                                        if (id != pkd->Self()) mdlRelease(pkd->mdl,iCidPart,&p);
+                                        if (id != pkd->Self()) pkd->mdl->Release(iCidPart,&p);
                                     }
                                     else {
                                         auto p = (id == pkd->Self()) ? pkd->particles[pj]
-                                                 : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))];
+                                                 : pkd->particles[pkd->mdl->Fetch<PARTICLE>(iCidPart,pj,id)];
                                         r = p.position();
                                         if (!bReferenceFound) {
                                             bReferenceFound=1;
@@ -251,26 +251,26 @@ found_it:
                                 else {
                                     assert(id >= 0);
                                     c = (id == pkd->Self()) ? pkd->tree[iCheckCell]
-                                        : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
+                                        : pkd->tree[pkd->mdl->Fetch<KDN>(blk.iCache[jTile],iCheckCell,id)];
                                     iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                     if (!bReferenceFound) {
                                         bReferenceFound=1;
-                                        auto p = (id == pkd->Self()) ? pkd->particles[c->lower()] : ((SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) ? pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,c->lower(),id))] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,c->lower(),id))]);
+                                        auto p = (id == pkd->Self()) ? pkd->particles[c->lower()] : ((SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) ? pkd->particles[pkd->mdl->Acquire<PARTICLE>(iCidPart,c->lower(),id)] : pkd->particles[pkd->mdl->Fetch<PARTICLE>(iCidPart,c->lower(),id)]);
                                         r = p.position();
                                         pkd->ilp.setReference(r);
                                         pkd->ilc.setReference(r);
-                                        if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) mdlRelease(pkd->mdl,iCidPart,&p);
+                                        if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) pkd->mdl->Release(iCidPart,&p);
                                     }
                                     for (pj=c->lower(); pj<=c->upper(); ++pj) {
                                         if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
-                                            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
+                                            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Acquire<PARTICLE>(iCidPart,pj,id)];
                                             if (SPHoptions->doSetDensityFlags) p.set_marked(true);
                                             if (SPHoptions->doSetNNflags) p.set_NN_flag(true);
-                                            if (id != pkd->Self()) mdlRelease(pkd->mdl,iCidPart,&p);
+                                            if (id != pkd->Self()) pkd->mdl->Release(iCidPart,&p);
                                         }
                                         else {
                                             auto p = (id == pkd->Self()) ? pkd->particles[pj]
-                                                     : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))];
+                                                     : pkd->particles[pkd->mdl->Fetch<PARTICLE>(iCidPart,pj,id)];
                                             fMass = p.mass();
                                             fSoft = p.soft();
                                             r = p.position();
@@ -323,10 +323,10 @@ found_it:
                                 fOffset[2] = blk.zOffset[jTile];
                                 assert(id >= 0);
                                 c = (id == pkd->Self()) ? pkd->tree[iCheckCell]
-                                    : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
+                                    : pkd->tree[pkd->mdl->Fetch<KDN>(blk.iCache[jTile],iCheckCell,id)];
                                 iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                 for (pj=c->lower(); pj<=c->upper(); ++pj) {
-                                    auto p = (id == pkd->Self()) ? pkd->particles[pj] : ((SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) ? pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))]);
+                                    auto p = (id == pkd->Self()) ? pkd->particles[pj] : ((SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) ? pkd->particles[pkd->mdl->Acquire<PARTICLE>(iCidPart,pj,id)] : pkd->particles[pkd->mdl->Fetch<PARTICLE>(iCidPart,pj,id)]);
                                     r = p.position();
                                     fMass = p.mass();
                                     fSoft = p.soft();
@@ -346,7 +346,7 @@ found_it:
                                                            Bound(r,r),          // zero size box at r
                                                            SPHBOB(r,0.0));
                                     }
-                                    if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) mdlRelease(pkd->mdl,iCidPart,&p);
+                                    if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) pkd->mdl->Release(iCidPart,&p);
                                 }
                                 break;
                             case 3:
@@ -376,7 +376,7 @@ found_it:
                                     assert(iCheckCell>=0);
                                     id = blk.idCell[jTile];
                                     c = (id == pkd->Self()) ? pkd->tree[iCheckCell]
-                                        : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
+                                        : pkd->tree[pkd->mdl->Fetch<KDN>(blk.iCache[jTile],iCheckCell,id)];
                                     r[0] = blk.x[jTile] + blk.xOffset[jTile];
                                     r[1] = blk.y[jTile] + blk.yOffset[jTile];
                                     r[2] = blk.z[jTile] + blk.zOffset[jTile];
@@ -429,7 +429,7 @@ found_it:
                                         dOffset[1] = blk.yOffset[jTile];
                                         dOffset[2] = blk.zOffset[jTile];
                                         c = (id == pkd->Self()) ? pkd->tree[iCheckCell]
-                                            : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
+                                            : pkd->tree[pkd->mdl->Fetch<KDN>(blk.iCache[jTile],iCheckCell,id)];
                                         c_r = c->position();
 #ifdef USE_SIMD_FMM
                                         dx = k_r - (c_r + dOffset);
@@ -642,7 +642,7 @@ doneCheckList:
 #ifdef USE_METAL
     pkd->metalClient->flushMETAL();
 #endif
-    mdlCompleteAllWork(pkd->mdl);
+    pkd->mdl->CompleteAllWork();
     *pdFlop += pkd->dFlop; /* Accumulate work flops (notably Ewald) */
     return (nTotActive);
 }
@@ -695,7 +695,8 @@ int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double 
     SMX smx;
     SMF smf;
 
-    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(), pkd->Local());
+    pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<particleCACHEhelper>(pkd));
+
     initGravWalk(pkd,dTime,dThetaMin,0,0,0,0,&smx,&smf);
     nActive = 0;
     for (gid=1; gid<pkd->nGroups; ++gid) {
@@ -718,7 +719,7 @@ int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double 
         //     0, dThetaMin, 0, 0, pdFlop, pdPartSum, pdCellSum);
     }
     doneGravWalk(pkd,smx,&smf);
-    mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    pkd->mdl->FinishCache(CID_PARTICLE);
     return nActive;
 }
 

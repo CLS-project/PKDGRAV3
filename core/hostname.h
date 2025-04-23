@@ -25,7 +25,7 @@ public:
     };
     explicit ServiceHostname(PST pst)
         : TraversePST(pst,PST_HOSTNAME,0,
-                      mdlThreads(pst->mdl)*sizeof(output),"Hostname") {}
+                      pst->mdl->Threads()*sizeof(output),"Hostname") {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);

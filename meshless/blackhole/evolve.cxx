@@ -75,9 +75,8 @@ static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int nAccreted,
 }
 
 
-void smBHEvolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smBHEvolve(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
     const auto &pv = p.velocity();
     const auto &pMass = p.mass();
     const float inv_a = 1./smf->a;
@@ -152,9 +151,8 @@ void smBHEvolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 }
 
-void packBHEvolve(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<bhEvolvePack *>(dst);
+void SmoothHelperBHEvolve::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iClass = p2.get_class();
@@ -169,10 +167,9 @@ void packBHEvolve(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void unpackBHEvolve(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperBHEvolve::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const bhEvolvePack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -186,8 +183,7 @@ void unpackBHEvolve(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void initBHEvolve(void *vpkd,void *dst) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperBHEvolve::init(void *dst) {
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
 
     if (p.is_gas()) {
@@ -207,9 +203,8 @@ void initBHEvolve(void *vpkd,void *dst) {
     }
 }
 
-void flushBHEvolve(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<bhEvolveFlush *>(dst);
+void SmoothHelperBHEvolve::flush(void *dst, const void *src) {
+    auto p1 = static_cast<flush_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     if (p2.is_gas()) {
@@ -230,10 +225,9 @@ void flushBHEvolve(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void combBHEvolve(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperBHEvolve::combine(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const bhEvolveFlush *>(src);
+    auto p2 = static_cast<const flush_type *>(src);
 
     if (p1.is_gas()) {
         auto &sph = p1.sph();

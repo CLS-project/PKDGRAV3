@@ -45,12 +45,12 @@ void combBHmerger(void *vpkd, void *p1,const void *p2) {
 
 
 }
+void SmoothHelperBHmerger::combine(void *dst, const void *src, const void *key) {
+    assert(0);
+}
 
-
-
-void smBHmerger(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smBHmerger(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    auto p = pkd->particles[pIn];
 
     for (auto i = 0; i < nSmooth; ++i) {
         auto q = pkd->particles[nnList[i].pPart];
@@ -249,7 +249,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
                     }
 
-                    smx->fcnSmooth(&partj,partj.soft(),nCnt_p,nnList_p,smf);
+                    smx->fcnSmooth(partj,partj.soft(),nCnt_p,nnList_p,smf);
 
                 }
             }
@@ -258,7 +258,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
             for (auto pk = 0; pk < nCnt; ++pk) {
                 if (smx->nnList[pk].iPid != pkd->Self()) {
-                    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+                    pkd->mdl->Release(CID_PARTICLE,smx->nnList[pk].pPart);
                 }
             }
         }
@@ -269,7 +269,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
 inline static auto getCell(PKD pkd, int iCell, int id) {
     return (id==pkd->Self()) ? pkd->tree[iCell]
-           : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+           : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL,iCell,id)];
 }
 
 /* This is mostly a version of buildInteractionList, but that only looks
@@ -357,7 +357,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int 
                 auto pEnd = kdn->upper() + 1;
 #endif
                 for (auto pj = pStart; pj < pEnd; ++pj) {
-                    auto p = pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))];
+                    auto p = pkd->particles[pkd->mdl->Fetch<PARTICLE>(CID_PARTICLE,pj,id)];
 #ifndef OPTIM_REORDER_IN_NODES
                     if (!p.is_bh()) continue;
 #endif
@@ -372,7 +372,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int 
 
                         smx->nnList[nCnt].fDist2 = dot(dr,dr);
                         smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].pPart = static_cast<PARTICLE *>(mdlAcquire(pkd->mdl, CID_PARTICLE, pj, id));
+                        smx->nnList[nCnt].pPart = pkd->mdl->Acquire<PARTICLE>( CID_PARTICLE, pj, id);
                         smx->nnList[nCnt].iIndex = pj;
                         smx->nnList[nCnt].iPid = id;
                         ++nCnt;

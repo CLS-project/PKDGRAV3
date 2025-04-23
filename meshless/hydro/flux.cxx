@@ -28,9 +28,8 @@ void MSR::MeshlessFluxes(double dTime,double dDelta) {
     printf("took %.5f seconds\n", dsec);
 }
 
-void packHydroFluxes(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<hydroFluxesPack *>(dst);
+void SmoothHelperHydroFluxes::pack(void *dst, const void *src) {
+    auto p1 = static_cast<pack_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     p1->iClass = p2.get_class();
@@ -58,10 +57,9 @@ void packHydroFluxes(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void unpackHydroFluxes(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperHydroFluxes::unpack(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const hydroFluxesPack *>(src);
+    auto p2 = static_cast<const pack_type *>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -88,15 +86,11 @@ void unpackHydroFluxes(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void initHydroFluxes(void *vpkd,void *dst) {
-}
-
 /* Zero all the conserved quantities in cached copies, which will be updated
  * during the hydro loop. They will be merged with the actual particle
  * information in combHydroFluxes
  */
-void initHydroFluxesCached(void *vpkd,void *dst) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperHydroFluxes::init(void *dst) {
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
     assert(!pkd->bNoParticleOrder);
     // For the init*Cached and comb functions we still have to explicitly
@@ -120,9 +114,8 @@ void initHydroFluxesCached(void *vpkd,void *dst) {
     }
 }
 
-void flushHydroFluxes(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = static_cast<hydroFluxesFlush *>(dst);
+void SmoothHelperHydroFluxes::flush(void *dst, const void *src) {
+    auto p1 = static_cast<flush_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
     if (p2.is_gas()) {
@@ -142,10 +135,9 @@ void flushHydroFluxes(void *vpkd,void *dst,const void *src) {
     }
 }
 
-void combHydroFluxes(void *vpkd,void *dst,const void *src) {
-    PKD pkd = (PKD) vpkd;
+void SmoothHelperHydroFluxes::combine(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const hydroFluxesFlush *>(src);
+    auto p2 = static_cast<const flush_type *>(src);
 
     assert(!pkd->bNoParticleOrder);
     if (p1.is_gas()) {

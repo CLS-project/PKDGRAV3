@@ -22,20 +22,22 @@
 #include <cstdint>
 #include <vector>
 
+static mdl::mdlClass *master_mdl;
+
 namespace {
 
 namespace worker {
 class Context {
-    MDL mdl;
+    mdl::mdlClass *mdl;
     Context *pLower;
     int     idUpper;
     int nLeaves;
 public:
-    Context(MDL mdl, int idLast=-1);
+    Context(mdl::mdlClass * mdl, int idLast=-1);
 
     MDL getMDL() const {return mdl;}
     int getLeaves() const {return nLeaves; }
-    int nLower() const {return idUpper - mdlSelf(mdl); }
+    int nLower() const {return idUpper - mdl->Self(); }
     int nUpper() const {return nLeaves - nLower(); }
     Context *getLower() const {return pLower;}
     int      getUpper() const {return idUpper;}
@@ -43,22 +45,22 @@ public:
     Context *split(int idLast);
 };
 
-Context::Context(MDL mdl,int iLast)
+Context::Context(mdl::mdlClass * mdl,int iLast)
     : mdl(mdl), pLower(0), idUpper(iLast) {
 }
 
 // Split this node as optimally as possible
 Context *Context::split(int idLast) {
     assert(pLower==0);
-    auto idLower = mdlSelf(mdl);
+    auto idLower = mdl->Self();
     nLeaves = idLast - idLower;
     if (nLeaves>1) {
         auto idMiddle = (idLast + idLower) / 2;
         /* Make sure that the ctx lands on core zero */
-        auto iProcLower = mdlThreadToProc(mdl,idLower);
-        auto iProcUpper = mdlThreadToProc(mdl,idLast-1);
+        auto iProcLower = mdl->ThreadToProc(idLower);
+        auto iProcUpper = mdl->ThreadToProc(idLast-1);
         if (iProcLower!=iProcUpper) {
-            idMiddle = mdlProcToThread(mdl,mdlThreadToProc(mdl,idMiddle));
+            idMiddle = mdl->ProcToThread(mdl->ThreadToProc(idMiddle));
         }
         idUpper = idMiddle;
         pLower = new Context(mdl,idMiddle);
@@ -166,9 +168,8 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
 class SwapLocalTest : public ::testing::Test {};
 
 TEST_F(SwapLocalTest, SwapLocalBasic) {
-    auto ctx = reinterpret_cast<worker::Context *>(mdlWORKER());
     std::uint64_t nBAD;
-    test::swaplocal::test(ctx,NULL,0,&nBAD,sizeof(nBAD));
+    master_mdl->RunService(test::swaplocal::SERVICE,&nBAD);
     EXPECT_EQ(nBAD,0);
 }
 
@@ -179,10 +180,11 @@ TEST_F(SwapLocalTest, SwapLocalBasic) {
 ** This function is called at the very start by every thread.
 ** It returns the "worker context"; in this case the ctx.
 */
-void *worker_init(MDL mdl) {
+void *worker_init(MDL vmdl) {
+    auto mdl = static_cast<mdl::mdlClass *>(vmdl);
     auto ctx = new worker::Context(mdl);
-    mdlAddService(mdl,worker::SET_ADD,ctx,(fcnService_t *)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd),0);
-    mdlAddService(mdl,test::swaplocal::SERVICE,ctx,(fcnService_t *)test::swaplocal::test, 0,sizeof(std::uint64_t));
+    mdl->AddService(worker::SET_ADD,ctx,(fcnService_t *)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd),0);
+    mdl->AddService(test::swaplocal::SERVICE,ctx,(fcnService_t *)test::swaplocal::test, 0,sizeof(std::uint64_t));
     return ctx;
 }
 
@@ -190,7 +192,7 @@ void *worker_init(MDL mdl) {
 ** This function is called at the very end for every thread.
 ** It needs to destroy the worker context (ctx).
 */
-void worker_done(MDL mdl, void *vctx) {
+void worker_done(MDL vmdl, void *vctx) {
     auto ctx = reinterpret_cast<worker::Context *>(vctx);
 
     delete ctx;
@@ -201,18 +203,19 @@ void worker_done(MDL mdl, void *vctx) {
 /*
 ** This is invoked for the "master" process after the worker has been setup.
 */
-int master(MDL mdl,void *vctx) {
+int master(MDL vmdl,void *vctx) {
+    master_mdl = static_cast<mdl::mdlClass *>(vmdl);
     auto ctx = reinterpret_cast<worker::Context *>(vctx);
-    int argc = mdlGetArgc(mdl);
-    char **argv = mdlGetArgv(mdl);
+    int argc = master_mdl->GetArgc();
+    char **argv = master_mdl->GetArgv();
 
     SetAdd::inSetAdd in;
-    in.idUpper = mdlThreads(ctx->getMDL());
+    in.idUpper = master_mdl->Threads();
     SetAdd::serviceSetAdd(ctx,&in,sizeof(in),NULL,0);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
 
 int main(int argc,char **argv) {
-    return mdlLaunch(argc,argv,master,worker_init,worker_done);
+    return mdl::Launch(master,worker_init,worker_done,argc,argv);
 }

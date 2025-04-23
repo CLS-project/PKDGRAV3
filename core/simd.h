@@ -769,6 +769,13 @@ inline mmask<bool> operator&(mmask<bool> const &a, int const &b) { return (int)a
     #pragma GCC diagnostic pop
 #endif
 
+#if defined(__ARM_NEON)
+    #undef __SSE__
+    #undef __SSE2__
+    #undef __SSE3__
+    #undef __SSE4_1__
+#endif
+
 #endif/*__CUDACC__*/
 
 #endif/*SIMD_H*/
