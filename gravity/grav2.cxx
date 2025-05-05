@@ -253,6 +253,10 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {
                         NewSph.u = SPHEOSUofRhoT(pkd,p.density(),NewSph.u,p.imaterial(),wp->SPHoptions);
                         NewSph.oldRho = p.density();
+                        if (wp->SPHoptions->trackPeakPressure) {
+                            auto &NewSphPeakP = p.newsphpeakp();
+                            NewSphPeakP.Ppeak = -1e20;
+                        }
                     }
                     if (!wp->SPHoptions->doOnTheFlyPrediction) {
                         SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, wp->SPHoptions);
@@ -454,6 +458,17 @@ void pkdParticleWorkDone(workParticle *wp) {
                                 NewSphStr.Syz += wp->kick->dtClose[p.rung()] * NewSphStr.SDotyz;
                                 SPHEOSApplyStrengthLimiter(pkd, p.density(), NewSph.u, p.imaterial(), &NewSphStr.Sxx, &NewSphStr.Syy, &NewSphStr.Sxy, &NewSphStr.Sxz, &NewSphStr.Syz, wp->SPHoptions);
                                 NewSphStr.strainJ2 += wp->kick->dtClose[p.rung()] * wp->pInfoOut[i].strainJ2Dot;
+                            }
+                            if (wp->SPHoptions->trackPeakPressure) {
+                                auto &NewSphPeakP = p.newsphpeakp();
+                                float P, T, cs;
+                                P = SPHEOSPCTofRhoU(pkd,p.density(),NewSph.u,&cs,&T,p.imaterial(),wp->SPHoptions);
+                                if (P > NewSphPeakP.Ppeak) {
+                                    NewSphPeakP.Ppeak = P;
+                                    NewSphPeakP.TAtPpeak = T;
+                                    NewSphPeakP.rhoAtPpeak = p.density();
+                                    NewSphPeakP.tAtPpeak = wp->ts->dTime;
+                                }
                             }
                         }
                     }

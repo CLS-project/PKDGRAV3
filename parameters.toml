@@ -1390,6 +1390,11 @@ flag="DisableShockHeatingWithVelocityDamper"
 default=true
 help="When velocity damper is active (or >0 if dynamic velocity damper is used), shock heating for HYDRO_MODEL.SPH is disabled."
 
+["Gas".bTrackPeakPressure]
+flag="TrackPeakPressure"
+default=false
+help="Track the peak pressure and the density, temperature and time at preak pressure. This only works with HYDRO_MODEL.SPH."
+
 ["Gas".bMeshlessHydro]
 flag="meshless"
 default=false
