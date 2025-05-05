@@ -2413,8 +2413,7 @@ uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements
     };
 
     // Align each segment to a page boundary
-    uint64_t nBytes[nSegments];
-    nBytesSegment = nBytes;
+    nBytesSegment.resize(nSegments);
     pSegments = p;
     nMessageData = 0;
     for (auto i=0; i<nSegments; ++i) {

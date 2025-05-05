@@ -148,6 +148,7 @@ typedef struct {
     uint64_t evolveDensity : 1;
     uint64_t doExternalAcceleration : 1;
     uint64_t disableShockHeating : 1;
+    uint64_t trackPeakPressure : 1;
 } SPHOptions;
 
 typedef struct {

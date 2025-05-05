@@ -127,6 +127,7 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 /* vpred if doing consistent prediction */
 #define PKD_MODEL_STRENGTH     (1ULL<<38) /* New Sph Fields */
 /* Spred if doing consistent prediction */
+#define PKD_MODEL_PEAKPRESSURE (1ULL<<40)
 
 #define MAX_RUNG     63
 
