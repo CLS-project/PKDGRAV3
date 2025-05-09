@@ -56,6 +56,8 @@
 
 #include "initlightcone.h"
 
+#include "io/output.h"
+
 #include "domains/calcbound.h"
 #include "domains/combinebound.h"
 #include "domains/distribtoptree.h"
@@ -135,6 +137,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceUpdateRung>(pst));
     mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
     mdl->AddService(std::make_unique<ServiceGetOrdSplits>(pst));
+    mdl->AddService(std::make_unique<ServiceSaveGroupStats>(pst));
 #ifdef HAVE_ROCKSTAR
     mdl->AddService(std::make_unique<ServiceRsHaloCount>(pst));
     mdl->AddService(std::make_unique<ServiceRsHaloLoadIds>(pst));

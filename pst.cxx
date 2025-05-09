@@ -48,6 +48,7 @@
 #include "group/fof.h"
 #include "group/group.h"
 #include "group/groupstats.h"
+#include "io/output.h"
 
 #ifdef COOLING
     #include "cooling/cooling.h"

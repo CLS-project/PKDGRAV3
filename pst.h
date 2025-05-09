@@ -23,7 +23,6 @@
 #include "smooth/smoothfcn.h"
 #include "gravity/moments.h"
 #include "io/outtype.h"
-#include "io/output.h"
 
 #include "cosmo.h"
 #include "ic/ic.h"
@@ -97,6 +96,7 @@ enum pst_service {
     PST_WRITE,
     PST_OUTPUT,
     PST_OUTPUT_SEND,
+    PST_SAVE_GROUP_STATS,
     PST_CHECKPOINT,
     PST_RESTORE,
     PST_BUILDTREE,
@@ -349,19 +349,6 @@ int pstSendArray(PST,void *,int,void *,int);
 
 /* PST_CHECKPOINT */
 int pstCheckpoint(PST,void *,int,void *,int);
-
-struct inOutput {
-    int iProcessor;   /* Output number: 0 to nParaWrite */
-    int nProcessor;   /* Number of processors left in parallel */
-    int iPartner;     /* Who to send the data to */
-    int nPartner;     /* How many partners there are */
-    outType eOutputType;  /* What kind of output */
-    int iGrid;        /* Which grid (for grid output) */
-    char achOutFile[PATH_MAX];
-};
-
-/* PST_OUTPUT */
-int pstOutput(PST,void *,int,void *,int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST,void *,int,void *,int);
