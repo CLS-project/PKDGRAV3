@@ -1,0 +1,44 @@
+gcc-env:
+  compiler:
+      - toolchain: gcc
+        spec: gcc
+  mpi:
+      spec: cray-mpich@8.1.30
+      gpu: cuda
+  unify: true
+  specs:
+  - aws-ofi-nccl@master
+  - cmake
+  - cuda@12.4
+  - fftw
+  - boost+thread
+  - gsl
+  - fmt
+  - hdf5+hl
+  - libtree
+  - meson
+  - nccl
+  - nccl-tests
+  - ninja
+  - openblas threads=openmp
+  - osu-micro-benchmarks@5.9
+  - python@3.12
+  - pkdgrav3@3.4
+  - pkdgrav3-python@3.4
+  variants:
+  - +mpi
+  - +cuda
+  - cuda_arch=90
+  views:
+    default:
+      link: roots
+      exclude:
+        - 'pkdgrav3'
+      uenv:
+        prefix_paths:
+          LD_LIBRARY_PATH: [lib, lib64]
+    pkdgrav3:
+      link: roots
+      uenv:
+        prefix_paths:
+          LD_LIBRARY_PATH: [lib, lib64]

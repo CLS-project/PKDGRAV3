@@ -157,6 +157,34 @@ you would leave it intact. It is also not necessary to run the install
 phase as you can run ``pkdgrav3`` directly from the build directory,
 or copy it somewhere more convenient.
 
++++++++++++++++++++++
+spack package manager
++++++++++++++++++++++
+
+You can use ``spack`` to install the necessary dependencies and compiler pkdgrav3.
+To start with ``spack`` you simply clone the repository to a directory of your choice,
+and source the supplied environment file.
+
+    git clone -c feature.manyFiles=true --depth=2 https://github.com/spack/spack.git
+    source spack/share/spack/setup-env.sh
+
+You then need to add the pkdgrav3 repository.
+
+    spack repo add spack_repo
+    ==> Added repo with namespace 'pkdgrav3'.
+
+You can check how the dependencies will be handled with:
+
+    spack spec pkdgrav3
+
+For local development you should build in a spack environment:
+
+    cd /path/to/pkdgrav3
+    spack env activate  .
+    spack install pkdgrav3
+
+
+
 ++++++++++++++++++++++++++++++++++++++++++
 Swiss National Supercomputer Center (CSCS)
 ++++++++++++++++++++++++++++++++++++++++++
@@ -358,6 +386,33 @@ Homebrew_ as your package manager.
 Then install the following packages::
 
     brew install cmake boost fftw git gsl open-mpi hdf5-mpi python pyenv pyenv-virtualenv
+
+If you intend to use ``spack`` you can instruct it to use the Homebrew versions::
+
+    spack external find --not-buildable cmake git gmake gsl hdf5 openmpi apple-clang gcc
+
+This will create the file ``~/.spack/packages.yaml``. In addtion you will want to add
+the following packages::
+
+      python:
+        externals:
+        - spec: python@3.12
+          prefix: /opt/homebrew/opt/python@3.12
+        buildable: false
+      fftw:
+        externals:
+        - spec: fftw@3.3.10
+          prefix: /opt/homebrew/Cellar/fftw/3.3.10_2
+        buildable: false
+      boost:
+        externals:
+        - spec: boost@1.88.0
+          prefix: /opt/homebrew/Cellar/boost/1.88.0
+        buildable: false
+
+You can verify their version and location with::
+
+    brew --prefix python@3.12 fftw boost
 
 +++++++++++++++++++++
 OpenMPI Based Systems
