@@ -122,9 +122,9 @@ void smBHmerger(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
 
-int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
+uint64_t smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
-    int nSmoothed=0;
+    uint64_t nSmoothed = 0;
 
     smx->nnListSize = 0;
     int nnListMax_p = NNLIST_INCREMENT;

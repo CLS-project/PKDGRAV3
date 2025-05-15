@@ -189,9 +189,9 @@ public:
 
     // Analysis
     void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
-    int ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric);
+    uint64_t ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric);
 #ifdef OPTIM_SMOOTH_NODE
-    int ReSmoothNode(double dTime, double dDelta, int iSmoothType,int bSymmetric);
+    uint64_t ReSmoothNode(double dTime, double dDelta, int iSmoothType,int bSymmetric);
 #endif
     void NewFof(double dTau,int nMinMembers);
     void Hop(double dTime,double dDelta);
