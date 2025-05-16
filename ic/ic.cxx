@@ -173,6 +173,13 @@ PowerTransfer::PowerTransfer(CSM csm, double a, int nTf, double *tk, double *tf)
     }
 }
 
+// The function getGridInfoLPT() determines the number of grids needed, and at the moment
+// the maximum number is 12. We use a small_vector here which will allocate on the stack
+// if the number of grids is 12 or fewer, and on the heap if it is larger.
+static constexpr int MAX_LPT_GRIDS = 12;
+using real_arrays    = boost::container::small_vector<real_array_t,   MAX_LPT_GRIDS>;
+using complex_arrays = boost::container::small_vector<complex_array_t,MAX_LPT_GRIDS>;
+
 /* Function for determining the total number of grids needed as well as
 ** the grid index mapping used during LPT computations.
 */
@@ -201,6 +208,9 @@ gridInfoLPT getGridInfoLPT(int iLPT) {
         /* For 3LPT we need 1 additional potential grid */
         gridInfo.indexPhi3 = gridInfo.nGrids++;
     }
+    // It is better to adjust MAX_LPT_GRIDS above if it changes, but everything
+    // should work with larger values except it will allocate on the heap.
+    // assert(gridInfo.nGrids <= MAX_LPT_GRIDS);
     return gridInfo;
 }
 
@@ -304,7 +314,7 @@ int reusableTmp(tmpNote note, differentiatedPotential diffPot) {
     return note.state == TMP_STATE::ACTIVE && compareDiffPots(note.diffPot, diffPot);
 }
 void handleLPTTerm(
-    PKD pkd, MDLFFT fft, real_array_t *R, complex_array_t *K, std::queue<tmpNote *> &notes, float kFundamental,
+    PKD pkd, MDLFFT fft, real_arrays &R, complex_arrays &K, std::queue<tmpNote *> &notes, float kFundamental,
     int gridIndexOut, LPT_TERM_OP op, float factor, std::vector<differentiatedPotential> diffPots
 ) {
     assert(diffPots.size() >= 2);
@@ -467,7 +477,7 @@ void handleLPTTerm(
 ** will be available after this function returns.
 */
 void carryout1LPT(
-    PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
+    PKD pkd, MDLFFT fft, basicParticleArray output, real_arrays &R, complex_arrays &K,
     gridInfoLPT gridInfo,
     growthFactors growth, int iSeed, int bFixed, float fPhase, int nGrid, double dBoxSize,
     double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ,
@@ -606,7 +616,7 @@ void carryout1LPT(
 ** space) is expected as input.
 */
 void carryout2LPT(
-    PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
+    PKD pkd, MDLFFT fft, basicParticleArray output, real_arrays &R, complex_arrays &K,
     gridInfoLPT gridInfo, std::queue<tmpNote *> &notes,
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
@@ -667,7 +677,7 @@ void carryout2LPT(
 ** (in Fourier space) is expected as input.
 */
 void carryout3aLPT(
-    PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
+    PKD pkd, MDLFFT fft, basicParticleArray output, real_arrays &R, complex_arrays &K,
     gridInfoLPT gridInfo, std::queue<tmpNote *> &notes,
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
@@ -725,7 +735,7 @@ void carryout3aLPT(
 ** and \Phi2 (both in Fourier space) are expected as input.
 */
 void carryout3bLPT(
-    PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
+    PKD pkd, MDLFFT fft, basicParticleArray output, real_arrays &R, complex_arrays &K,
     gridInfoLPT gridInfo, std::queue<tmpNote *> &notes,
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
@@ -795,7 +805,7 @@ void carryout3bLPT(
 ** \Phi1 and \Phi2 (both in Fourier space) are expected as input.
 */
 void carryout3cLPT(
-    PKD pkd, MDLFFT fft, basicParticleArray output, real_array_t *R, complex_array_t *K,
+    PKD pkd, MDLFFT fft, basicParticleArray output, real_arrays &R, complex_arrays &K,
     gridInfoLPT gridInfo, int i, std::queue<tmpNote *> &notes,
     growthFactors growth, int nGrid, double dBoxSize, double a,
     int printIndent = 0
@@ -889,8 +899,8 @@ int pkdGenerateIC(
     ** Particles will overlap K[0] through K[5] eventually.
     */
     gridInfoLPT gridInfo = getGridInfoLPT(iLPT);
-    real_array_t    R[gridInfo.nGrids];
-    complex_array_t K[gridInfo.nGrids];
+    real_arrays    R(gridInfo.nGrids);
+    complex_arrays K(gridInfo.nGrids);
     GridInfo G(pkd->mdl, fft);
     auto data = pkd->mdl->SetArray<real_t>(pkd->particles);
     for (auto i = 0; i < gridInfo.nGrids; i++) {

@@ -24,7 +24,6 @@
 #include "csmpython.h"
 
 #define CYTHON_EXTERN_C extern "C++"
-#include "modules/checkpoint.h"
 #include "modules/PKDGRAV.h"
 
 /******************************************************************************\
@@ -44,6 +43,42 @@ void MSR::runAnalysis(int iStep,double dTime) {
     }
 }
 
+#include <Python.h>
+#include <string.h>
+
+
+/******************************************************************************\
+*   Check if PKDGRAV is imported
+
+*   This is used to check if the user has imported PKDGRAV in their script.
+*   If PKDGRAV is imported, we assume that analysis was performed and we should
+*   skip simulation mode.
+\******************************************************************************/
+
+bool is_PKDGRAV_imported(PyObject *keys) {
+    // Ensure that the provided object is a dictionary.
+    if (!PyDict_Check(keys)) {
+        PyErr_SetString(PyExc_TypeError, "Expected a dict");
+        PyErr_Print();
+        abort();
+    }
+
+    // Iterate over all key-value pairs in the dict.
+    Py_ssize_t pos = 0;
+    PyObject *key, *value;
+    while (PyDict_Next(keys, &pos, &key, &value)) {
+        // Check if the value is a module.
+        if (PyModule_Check(value)) {
+            // Retrieve the module's name.
+            const char *mod_name = PyModule_GetName(value);
+            if (mod_name && strcmp(mod_name, "PKDGRAV") == 0) {
+                return true;  // Found the module.
+            }
+        }
+    }
+    return false;  // Module not found.
+}
+
 /******************************************************************************\
 *   Setup MSR using Python to parse parameters / enter analysis mode
 \******************************************************************************/
@@ -58,7 +93,6 @@ int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab("cosmology",PyInit_cosmology);
     PyImport_AppendInittab("CSM",PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
-    PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
     PyImport_AppendInittab("accuracy", PyInit_accuracy);
     PyImport_AppendInittab("ephemeral", PyInit_ephemeral);
 
@@ -89,11 +123,6 @@ int MSR::Python(int argc, char *argv[]) {
     auto globals = PyModule_GetDict(main_module);
     auto locals = globals;
     PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
-
-    if (!PyImport_ImportModule("checkpoint")) {
-        PyErr_Print();
-        abort();
-    }
 
     // This module is used for checkpointing and restoring the state
     pDill = PyImport_ImportModule("dill");

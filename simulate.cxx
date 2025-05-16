@@ -624,6 +624,11 @@ int MSR::ValidateParameters() {
         }
     }
 
+    if (parameters.get_bTrackPeakPressure() && model != HYDRO_MODEL::SPH) {
+        print_error("ERROR: bTrackPeakPressure only works together with HYDRO_MODEL.SPH.\n");
+        return 0;
+    }
+
 #ifndef NN_FLAG_IN_PARTICLE
     if (NewSPH() && parameters.get_bGasInterfaceCorrection() && parameters.get_dFastGasFraction() > 0.0f) {
         print_error("ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");

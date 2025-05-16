@@ -70,8 +70,6 @@ using namespace pyrameters::literals; // Gives us ""_key literals
 #include "smooth/smoothfcn.h"
 #include "io/fio.h"
 #include "SPH/SPHOptions.h"
-#define CYTHON_EXTERN_C extern "C++"
-#include "modules/checkpoint.h"
 
 #include "core/setadd.h"
 #include "core/swapall.h"
@@ -657,6 +655,7 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
     abort_assert(1001,nGas==0 || DoGas());
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
+    if (parameters.get_bTrackPeakPressure()) mMemoryModel |= PKD_MODEL_PEAKPRESSURE;
     auto [nSizeParticle,nSizeDecorator,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
@@ -3924,6 +3923,7 @@ double MSR::Read(std::string_view achInFile) {
     if (nGas && !DoGas()) parameters.set_hydro_model(HYDRO_MODEL::SPH);
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
+    if (parameters.get_bTrackPeakPressure()) mMemoryModel |= PKD_MODEL_PEAKPRESSURE;
     if (nStar) mMemoryModel |= PKD_MODEL_STAR;
 
 
@@ -4036,7 +4036,7 @@ double MSR::Read(std::string_view achInFile) {
         if (parameters.get_bWriteIC() || (NoSteps())) {
             Output(iStartStep, dTime, 0.0, 0);
         }
-        if (NoSteps()) exit(0);
+        if (NoSteps()) std::_Exit(EXIT_FAILURE); // For now. this will be replaced sood.
     }
 
     return dTime;
