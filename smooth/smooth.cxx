@@ -961,9 +961,9 @@ void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,doubl
     }
 }
 
-int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
+uint64_t smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
-    int nSmoothed=0;
+    uint64_t nSmoothed = 0;
 
     smf->pfDensity = NULL;
     switch (iSmoothType) {
@@ -1051,11 +1051,11 @@ void static inline reallocNodeBuffer(const int N, const int nVar, meshless::myre
  * Then, we put all those particles (including the own bucket)
  * in an interaction list.
  */
-int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
+uint64_t smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
     auto mdl = pkd->mdl;
     int nCnt;
-    int nSmoothed=0;
+    uint64_t nSmoothed = 0;
 
     smx->nnListSize = 0;
     int nnListMax_p = NNLIST_INCREMENT;
@@ -1317,7 +1317,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
         delete [] output_buffer;
     }
     free(nnList_p);
-    //printf("nSmoothed %d \n", nSmoothed);
+    //printf("nSmoothed %lu \n", nSmoothed);
     return nSmoothed;
 }
 

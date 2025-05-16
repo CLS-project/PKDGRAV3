@@ -108,9 +108,9 @@ void smBHmerger(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *
 
 
 
-int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
+uint64_t smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
-    int nSmoothed=0;
+    uint64_t nSmoothed = 0;
 
     smx->nnListSize = 0;
     int nnListMax_p = NNLIST_INCREMENT;

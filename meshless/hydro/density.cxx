@@ -6,7 +6,8 @@ using blitz::abs;
 using blitz::any;
 
 void MSR::ComputeSmoothing(double dTime, double dDelta) {
-    int nSmoothed = 1, it=0, maxit = 100;
+    uint64_t nSmoothed = 1;
+    int it = 0, maxit = 100;
 
     printf("Computing density... \n");
     TimerStart(TIMER_DENSITY);
@@ -20,7 +21,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
         // Currently implemented but not used/tested
         //pstPredictSmoothing(msr->pst,&in,sizeof(in),NULL,NULL);
 
-        while (nSmoothed>0 && it <= maxit) {
+        while (nSmoothed > 0 && it <= maxit) {
             // I think this is no longer used
             //msrSetFirstHydroLoop(msr, 1);
             // 1-> we care if the particle is marked
@@ -33,7 +34,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
             //msrSetFirstHydroLoop(msr, 0);
             it++;
         }
-        if (nSmoothed >0) {
+        if (nSmoothed > 0) {
             // If we can not converge, at least make sure that we update the
             // density and other variables with the latest fBall
 #ifdef OPTIM_SMOOTH_NODE
@@ -42,7 +43,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
             nSmoothed = ReSmooth(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL,0);
 #endif
 
-            printf("Smoothing length did not converge for %d particles\n", nSmoothed);
+            printf("Smoothing length did not converge for %lu particles\n", nSmoothed);
         }
 
         TimerStop(TIMER_DENSITY);

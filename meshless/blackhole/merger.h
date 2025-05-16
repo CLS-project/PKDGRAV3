@@ -8,7 +8,7 @@ class SmoothHelperBHmerger : public SmoothHelper {
 public:
     SmoothHelperBHmerger(pkdContext *pkd) : SmoothHelper(pkd,true) {}
 };
-int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) ;
+uint64_t smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) ;
 void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCnt_tot,
                               blitz::TinyVector<double,3> r, int ix, int iy, int iz);
 

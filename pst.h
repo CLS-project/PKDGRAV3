@@ -465,7 +465,7 @@ struct inSmooth {
     SMF smf;
 };
 struct outSmooth {
-    int nSmoothed;
+    uint64_t nSmoothed;
 };
 int pstSmooth(PST,void *,int,void *,int);
 

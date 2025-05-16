@@ -1945,7 +1945,7 @@ void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int n
     }
 }
 
-int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
+uint64_t MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     struct outSmooth out;
 
@@ -1969,7 +1969,7 @@ int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
 }
 
 #ifdef OPTIM_SMOOTH_NODE
-int MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric) {
+uint64_t MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     struct outSmooth out;
 
