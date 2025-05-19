@@ -7,23 +7,15 @@ gcc-env:
       gpu: cuda
   unify: true
   specs:
-  - aws-ofi-nccl@master
   - cmake
+  - git
   - cuda@12.4
   - fftw
   - boost+thread
   - gsl
-  - fmt
-  - hdf5+hl
-  - libtree
-  - meson
-  - nccl
-  - nccl-tests
-  - ninja
-  - openblas threads=openmp
-  - osu-micro-benchmarks@5.9
+  - hdf5 +hl
   - python@3.12
-  - pkdgrav3@3.4
+  - pkdgrav3@3.4 +aneos
   - pkdgrav3-python@3.4
   variants:
   - +mpi

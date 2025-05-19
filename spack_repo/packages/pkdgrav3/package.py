@@ -1,4 +1,5 @@
 from spack.package import *
+from spack.util.executable import Executable
 from llnl.util import tty
 import os
 import sys
@@ -38,6 +39,7 @@ class Pkdgrav3(CMakePackage):
     variant('cuda', default=False, description='Enable CUDA support')
     variant('cuda_arch', default='80', description='CUDA architecture',
             values=('60', '70', '75', '80', '86', '90'), multi=False)
+    variant('aneos', default=False, description='Enable ANEOS material support (requires submodules)')
 
     depends_on('cmake@3.15:', type='build')
     depends_on('mpi')
@@ -47,6 +49,15 @@ class Pkdgrav3(CMakePackage):
     depends_on('git')
     depends_on('boost+thread')
     depends_on('cuda', when='+cuda')
+
+    def do_stage(self, mirror_only=False):
+        super().do_stage(mirror_only)
+
+        if '+aneos' in self.spec:
+            with working_dir(self.stage.source_path):
+                tty.msg('ANEOS enabled: initializing EOSlib and ANEOSmaterial submodules')
+                git = Executable('git')
+                git('submodule', 'update', '--init', 'EOSlib', 'ANEOSmaterial')
 
     def cmake_args(self):
         boost_spec = self.spec['boost']
