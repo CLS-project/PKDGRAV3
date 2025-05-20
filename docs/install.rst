@@ -189,161 +189,102 @@ For local development you should build in a spack environment:
 Swiss National Supercomputer Center (CSCS)
 ++++++++++++++++++++++++++++++++++++++++++
 
-The necessary libraries can be selected using the modules subsystem with the exception
-of some of the Python packages which can be installed using ``pip`` and ``requirements.txt``.
 
------------------------
-System Specific Modules
------------------------
+The Swiss National Supercomputer Center has moved towards their own tool (``uenv``) for
+package management. On "Daint" the necessary tool is already installed,
+while on "Eiger" it may need to be installed.
+
+----------------
+Installing uenv2
+----------------
 
 Eiger
 -----
 
-The GNU programming environment is recommended, thus issue the following commands::
 
-    module load cray
-    module swap PrgEnv-cray PrgEnv-gnu
-    module load cpeGNU GSL Boost cray-hdf5 cray-fftw CMake cray-python hwloc
+To install ``uenv2`` on Eiger first follow the instructions found at `Installing uv`_.
+Next follow the instructions for `Installing uenv`_.
+
+  .. _Installing uv: https://docs.astral.sh/uv/getting-started/installation/
+  .. _Installing uenv: https://confluence.cscs.ch/spaces/KB/pages/701726829/uenv+user+environments#uenvuserenvironments-Installing
+
+
+If setup correctly you should see version 8.1.0 (or perhaps later)::
+
+    [eiger]$ uenv --version
+    8.1.0
+
+If you use both Eiger and Daint then you should take care to only change uenv if you are on Eiger.
+To do this the change to ``~/.bashrc`` should be the following::
+
+    export PATH=$HOME/.local/$(uname -m)/bin:$PATH
+    if test ${HOST##eiger} != $HOST ; then
+        unset -f uenv
+    fi
 
 Piz Daint
 ---------
 
-You can compile for the GPU partition and run on the multi-core partition, thus issue the following commands::
+On Daint the tool is already installed::
 
-    module load daint-gpu cudatoolkit cray-hdf5 GSL Boost cray-fftw CMake cray-python
+    [daint]$ uenv --version
+    8.1.0
 
-Be aware that the default CUDA Toolkit on Piz Daint may be 11.0.2. This version has a problem where compiler
-options are not properly passed to the GNU compiler when using nvcc. You may need to load a more recent
-version of the toolkit which you can check with ``module available cudatoolkit``. For example, you might
-substitute ``cudatoolkit/11.2.0_3.39-2.1__gf93aa1c`` for ``cudatoolkit`` above.
-
-Tödi / ALPS
+-----------
+Using uenv2
 -----------
 
-If you want "make" to use all available cores for faster compilation, add this to $HOME/.bashrc::
-
-    test -f /usr/bin/nproc && export MAKEFLAGS="-j $(nproc)"
-
-You need to tell the CUDA compiler which architecture to use. The easiest way is to add this to $HOME/.bashrc::
-
-    export CUDAARCHS=90
-
-Now you need to setup a user environment. The system is still being deployed as of when this was written,
-so keep an eye open for changes. First create a user environment and pull the image::
-
-    $ uenv repo create
-    The repository $SCRATCH/.uenv-images has been created.
-    $ uenv image pull prgenv-gnu/24.7:v3
-    downloading image 464292168a66fe7e7bf6ed28b0a1ab9f16fb4e24abb7ea7eca6fdf9aeafa177c 3.8GB
-      [≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡] 100% 3859/3859 MB
-    updating local reference prgenv-gnu/24.7:v3
-    uenv prgenv-gnu/24.7:v3 downloaded
-
-Start the environment and load the necessary modules (you need to repeat this each time you want to compile)::
-
-    $ uenv start --view=spack,modules prgenv-gnu/24.7:v3
-    loading the views prgenv-gnu:spack prgenv-gnu:modules
-    $ module load gcc cray-mpich python hdf5 fftw cmake cuda
-
-Create the Python virtual environment and install the required modules as usual::
-
-    $ cd /path/to/pkdgrav3
-    $ python3 -m venv .venv
-    $ source .venv/bin/activate
-    $ python -m pip install --upgrade pip
-    $ python -m pip install -r requirements.txt
-
-You will also need to install GSL, hwloc and Boost. The easiest way is to use spack.
-Setup spack by following the instructions here (follow the "git clone" tip):
-
-https://eth-cscs.github.io/alps-uenv/uenv-compilation-spack/
-
-You need to enable spack each time you activate the module::
-
-    $ source $SCRATCH/spack/share/spack/setup-env.sh
-
-You can install the packages with::
-
-    $ spack install gsl hwloc boost
-
-Make them available by loading them::
-
-    $ spack load gsl hwloc boost
-
-Configure and compile pkdgrav3 in the usual way::
-
-    $ cmake -S . -B build
-    $ cmake --build build
-
-In the future when you use this uenv, you will need to load the necessary modules
-and activate the python virtual environment. You can do this automatically by
-putting the following in your $HOME/.bashrc::
-
-    if test -n "$UENV_MOUNT_LIST" ; then
-        module load gcc cray-mpich python hdf5 fftw cmake cuda
-        source $SCRATCH/spack/share/spack/setup-env.sh
-        spack load gsl hwloc boost
-        source $HOME/code/pkdgrav3/.venv/bin/activate
-    fi
-    alias pkdenv='uenv start --view=spack,modules prgenv-gnu/24.7:v3'
-
-Running on Tödi requires a wrapper script, and setting environment variables.
-The following is subject to change. Sample job script::
-
-    #!/bin/bash -l
-    #SBATCH -J "test"
-    #SBATCH --account=youraccount
-    #SBATCH --time=01:00:00 --no-requeue
-    #SBATCH --nodes=1
-    #SBATCH --cpus-per-task=18 --ntasks-per-node=4
-    #SBATCH --ntasks-per-core=1
-    #SBATCH --kill-on-invalid-dep=yes
-    #SBATCH --uenv=prgenv-gnu/24.7:v3
-
-    uenv view spack,modules
-
-    export FI_CXI_RX_MATCH_MODE=software
-    export FI_CXI_RDZV_THRESHOLD=$((2*1048576))
-    export FI_CXI_REQ_BUF_SIZE=$((2*2097152))
-    export FI_CXI_REQ_BUF_MIN_POSTED=60
-    export FI_CXI_REQ_BUF_MAX_CACHED=200
-
-    srun --cpu-bind=none --cpus-per-task=$SLURM_CPUS_PER_TASK ./pkdgrav3.sh ./pkdgrav3 cosmology.par
+To find available user environments use the ``uenv find`` command::
 
 
-Sample wrapper script "pkdgrav3.sh"::
+    [daint][dpotter@daint-ln003 ~]$ uenv image find service::pkdgrav3
+    uenv                     arch   system  id                size(MB)  date
+    pkdgrav3/3.4:1824353160  gh200  daint   ee775978c79587fb   4,044    2025-05-19
+    pkdgrav3/3.4:1825038404  gh200  daint   5e0b0ac41d73e4e5   3,866    2025-05-19
 
-    #!/bin/bash
-    export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
-    export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
-    export CUDA_VISIBLE_DEVICES=$(( SLURM_LOCALID % 4 ))
+Your will need to pull the version you want, for example ``pkdgrav3/3.4``.
+If there are multiple images with the same version then you should choose the most recent::
 
-    # Launch MPS from a single rank per node
-    if [ $SLURM_LOCALID -eq 0 ]; then
-        CUDA_VISIBLE_DEVICES=0,1,2,3 nvidia-cuda-mps-control -d
-    fi
-    # Wait for MPS to start
-    sleep 5
+    [daint]$ uenv image pull service::pkdgrav3/3.4:1825038404
+    pulling 5e0b0ac41d73e4e5 100.00% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3867/3867 (0.00 MB/s)
+    updating pkdgrav3/3.4:1825038404@daint%gh200
 
-    "$@"
+The same holds for Eiger::
+
+    [eiger]$ uenv image find service::pkdgrav3
+    uenv                     arch  system  id                size(MB)  date
+    pkdgrav3/3.4:1825268321  zen2  eiger   09cbc44a4026a1f6     643    2025-05-19
+    pkdgrav3/3.4:1826427762  zen2  eiger   c3268965cf74074c     643    2025-05-20
+    [eiger]$ uenv image pull service::pkdgrav3/3.4:1826427762
+    pulling c3268965cf74074c 100.00% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 644/644 (0.00 MB/s)
+    updating pkdgrav3/3.4:1826427762@eiger%zen2
+
+----------------
+Running pkdgrav3
+----------------
+
+To run ``pkdgrav3`` from the image (the specific version) you can use the ``pkdgrav3`` view::
 
 
------------------------------
-Python Packages (Daint/Eiger)
------------------------------
+    uenv start --view=pkdgrav3 pkdgrav3
+    pkdgrav3 cosmology.par
 
-For daint and eiger
-some additional Python package are required to compile the code. **After** you load the
-system modules above, use the following to install the necessary packages::
+If running in the queue then use the ``slurm`` flags::
 
-    cd /path/to/pkdgrav3
-    python -m venv --system-site-packages .venv
-    source .venv/bin/activate
-    python -m pip install -r requirements.txt
+    #SBATCH --uenv=pkdgrav3 --view=pkdgrav3
 
-This should allow you to build the code and run it in the future without activating the
-virtual environment. If you need to recompile, then you must still activate the
-virtual environment.
+-------------------
+Developing pkdgrav3
+-------------------
+
+If you want to compile your own version of ``pkdgrav3`` then you can still use a user environment
+and it will provide the necessary tools. In this case use the ``modules`` view::
+
+    [daint]$ uenv start --view=modules pkdgrav3
+    [daint]$ module load boost cmake cray-mpich fftw gcc gsl hdf5 pkdgrav3-python
+
+Note that the ``pkdgrav3-python`` module loads ``python`` and sets up a virtual environment
+will the python modules necessary to compile and run ``pkdgrav3``.
 
 ++++++
 Ubuntu
