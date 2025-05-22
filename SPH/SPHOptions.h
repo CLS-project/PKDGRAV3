@@ -125,6 +125,9 @@ typedef struct {
     float externalAccelerationX;
     float externalAccelerationY;
     float externalAccelerationZ;
+    int maxGroupSize;
+    int lowerGroupSizeThreshold;
+    int upperGroupSizeThreshold;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doDensityCorrection : 1;

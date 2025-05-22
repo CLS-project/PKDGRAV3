@@ -732,6 +732,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         if (p.have_newsph()) {
             auto &NewSph = p.newsph();
             NewSph.u = NewSph.uDot = NewSph.divv = NewSph.Omega = 0.0;
+            NewSph.cs = NewSph.P = NewSph.oldRho = NewSph.expImb2 = NewSph.T = 0.0;
+            NewSph.vpred[0] = NewSph.vpred[1] = NewSph.vpred[2] = 0.0;
+            NewSph.maxGroupSize = 32768;
         }
 
         if (p.have_newsphstr()) {

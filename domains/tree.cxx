@@ -211,13 +211,34 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
             // Split this node into two children
             auto [pLeft, pRight] = pNode->split(i);
 
-            pNode->set_group(pNode->count() <= nGroup);
+            bool allowGroup = true;
+            bool allowRChildBucket = true;
+            bool allowLChildBucket = true;
+            if (pkd->particles.present(PKD_FIELD::oNewSph) && pNode->count() <= nGroup) {
+                int minMaxGroupSizeL = 32768;
+                int minMaxGroupSizeR = 32768;
+                for (int pj = pLeft->lower(); pj<=pLeft->upper() ; ++pj) {
+                    auto p = pkd->particles[pj];
+                    auto &NewSph = p.newsph();
+                    minMaxGroupSizeL = std::min(minMaxGroupSizeL, NewSph.maxGroupSize);
+                }
+                for (int pj = pRight->lower(); pj<=pRight->upper() ; ++pj) {
+                    auto p = pkd->particles[pj];
+                    auto &NewSph = p.newsph();
+                    minMaxGroupSizeR = std::min(minMaxGroupSizeR, NewSph.maxGroupSize);
+                }
+                int minMaxGroupSize = std::min(minMaxGroupSizeL,minMaxGroupSizeR);
+                allowGroup = (pNode->count() == 1 || pNode->count() <= minMaxGroupSize);
+                allowLChildBucket = (pLeft->count() == 1 || pLeft->count() <= minMaxGroupSizeL);
+                allowRChildBucket = (pRight->count() == 1 || pRight->count() <= minMaxGroupSizeR);
+            }
+            pNode->set_group(pNode->count() <= nGroup && allowGroup);
             pLeft->set_bound(lbnd);
             pRight->set_bound(rbnd);
 
             // Figure out which sub-tree to process next.
-            bool left_is_bucket = (nodeSize <= maxBucketWidth && nl <= bucketSize);
-            bool right_is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
+            bool left_is_bucket = (nodeSize <= maxBucketWidth && nl <= bucketSize && allowLChildBucket);
+            bool right_is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize && allowRChildBucket);
 
             if (!right_is_bucket && !left_is_bucket) {
                 // Process smaller subtree first. This keeps the stack size as small as possible.
@@ -262,6 +283,15 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
             else {
                 pNode->set_bound(rbnd);
                 is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
+            }
+            if (pkd->particles.present(PKD_FIELD::oNewSph) && is_bucket) {
+                int minMaxGroupSize = 32768;
+                for (int pj = pNode->lower(); pj<=pNode->upper() ; ++pj) {
+                    auto p = pkd->particles[pj];
+                    auto &NewSph = p.newsph();
+                    minMaxGroupSize = std::min(minMaxGroupSize,NewSph.maxGroupSize);
+                }
+                is_bucket = (pNode->count() == 1 || pNode->count() <= minMaxGroupSize);
             }
             if (is_bucket) {
                 pNode->set_group(true);

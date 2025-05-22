@@ -1443,6 +1443,16 @@ flag="externalAcceleration"
 default=[0.0, 0.0, 0.0]
 help="External acceleration that is applied to all particles in every step. Only active if HYDRO_MODEL.SPH is used."
 
+["Gas".iLowerGroupSizeThreshold]
+flag="lowerGroupSizeThreshold"
+default=0
+help="If size of the interaction list is below this value, dynamic maximum group size is increased. Only relevant if HYDRO_MODEL.SPH is active"
+
+["Gas".iUpperGroupSizeThreshold]
+flag="upperGroupSizeThreshold"
+default=2147483648
+help="If size of the interaction list is above this value, dynamic maximum group size is decreased. Only relevant if HYDRO_MODEL.SPH is active"
+
 ################################################################################
 ########## Cooling
 ################################################################################

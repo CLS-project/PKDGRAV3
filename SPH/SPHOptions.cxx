@@ -104,6 +104,9 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double d
     SPHoptions.doExternalAcceleration = parameters.has_dExternalAcceleration();
     SPHoptions.disableShockHeating = (parameters.get_bDisableShockHeatingWithVelocityDamper() && SPHoptions.VelocityDamper > 0.0);
     SPHoptions.trackPeakPressure = parameters.get_bTrackPeakPressure();
+    SPHoptions.maxGroupSize = parameters.get_nGroup();
+    SPHoptions.lowerGroupSizeThreshold = parameters.get_iLowerGroupSizeThreshold();
+    SPHoptions.upperGroupSizeThreshold = parameters.get_iUpperGroupSizeThreshold();
     return SPHoptions;
 }
 
@@ -160,6 +163,9 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doExternalAcceleration = source->doExternalAcceleration;
     target->disableShockHeating = source->disableShockHeating;
     target->trackPeakPressure = source->trackPeakPressure;
+    target->maxGroupSize = source->maxGroupSize;
+    target->lowerGroupSizeThreshold = source->lowerGroupSizeThreshold;
+    target->upperGroupSizeThreshold = source->upperGroupSizeThreshold;
 }
 
 void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {
