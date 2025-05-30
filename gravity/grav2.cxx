@@ -294,7 +294,14 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (wp->ilp->count() > wp->SPHoptions->upperGroupSizeThreshold) {
                         newMaxGroupSize /= 2;
                     }
-                    if (wp->ilp->count() < wp->SPHoptions->lowerGroupSizeThreshold) {
+                    else if (wp->ilp->count() < wp->SPHoptions->lowerGroupSizeThreshold) {
+                        newMaxGroupSize *= 2;
+                    }
+                    else if (wp->SPHoptions->nPredictRung == 0 && wp->kick->bKickOpen) {
+                        // On the density pass with open kick on rung 0, increase the maximum group
+                        // size of those particles inbetween the thresholds. If it is not good,
+                        // they get put down to the lower size in the next step again, but with this,
+                        // we get rid of unnecessarily small groups over time.
                         newMaxGroupSize *= 2;
                     }
                     NewSph.maxGroupSize = std::min(wp->SPHoptions->maxGroupSize, std::max(1,newMaxGroupSize));
