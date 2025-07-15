@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <numeric>
-#include "core/vqsort.h"
+#include <algorithm>
 #include "pkd.h"
 #include "ic/ic.h"
 
@@ -206,19 +206,13 @@ double pkdGetDistance2(PKD pkd,particleStore::Particle &p, blitz::TinyVector<dou
     return blitz::dot(dx,dx);
 }
 
-typedef struct {
+struct distance {
     float d2;
     uint32_t i;
-} distance;
-
-static int cmpRadiusLite(const void *pva,const void *pvb) {
-    distance *pa = (distance *)pva;
-    distance *pb = (distance *)pvb;
-    float d = pa->d2 - pb->d2;
-    if ( d > 0 ) return 1;
-    else if ( d < 0 ) return -1;
-    return 0;
-}
+    bool operator<(const distance& other) const {
+        return d2 < other.d2;
+    }
+};
 
 /*
 ** Use the Ephemeral structure to calculate the distance to each particle
@@ -236,7 +230,7 @@ void pkdCalcDistance(PKD pkd, blitz::TinyVector<double,3> dCenter, int bPeriodic
         ephemeral[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
         ephemeral[i].i = i;
     }
-    qsort(ephemeral,pkd->Local(),sizeof(distance),cmpRadiusLite);
+    std::sort(ephemeral,ephemeral + pkd->Local());
 }
 
 /*

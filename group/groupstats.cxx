@@ -20,10 +20,10 @@
 #else
     #include "pkd_config.h"
 #endif
+#include <algorithm>
 #include <math.h>
 #include "groupstats.h"
 #include "group.h"
-#include "core/vqsort.h"
 
 using blitz::TinyVector;
 using blitz::dot;
@@ -224,12 +224,13 @@ public:
 };
 
 
-typedef struct {
+struct MassRadius {
     float fMass;
     float dr;
-}  MassRadius;
-
-#define mrLessThan(a,b) (((MassRadius *)a)->dr < ((MassRadius *)b)->dr)
+    bool operator<(const MassRadius& other) const {
+        return dr < other.dr;
+    }
+};
 
 class HelperRoot : public mdl::arrayCACHEhelper {
 protected:
@@ -960,7 +961,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
             mrFree[n].fMass = p.mass();
             mrFree[n].dr = sqrtf(r2);
         }
-        QSORT(sizeof(MassRadius),mrFree,n,mrLessThan);
+        std::sort(mrFree, mrFree + n);
         fMass = mrFree[0].fMass;
         for (i=1; i<n; ++i) {
             fMass += mrFree[i].fMass;
@@ -1015,7 +1016,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
             mrFree[n].fMass = p.mass();
             mrFree[n].dr = sqrtf(r2);
         }
-        QSORT(sizeof(MassRadius),mrFree,n,mrLessThan);
+        std::sort(mrFree, mrFree + n);
         fMass = mrFree[i].fMass;
         for (i=1; i<n; ++i) {
             fMass += mrFree[i].fMass;

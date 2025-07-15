@@ -583,20 +583,15 @@ void pkdHopTreeBuild(PKD pkd, int nBucket,int nGroup) {
     /* free: We have allocated pkd->hopRoots -- needed for gravity */
 }
 
-typedef struct EnergyElement {
+struct EE { /*EnergyElement*/
     double dPot;
     double dSqrtKin;
     double dTot;
     int i;
-} EE;
-
-static int cmpEE(const void *p1,const void *p2) {
-    EE *a = (EE *)p1;
-    EE *b = (EE *)p2;
-    if (a->dTot > b->dTot) return 1;
-    if (a->dTot < b->dTot) return -1;
-    return 0;
-}
+    bool operator<(const EE& other) const {
+        return dTot < other.dTot;
+    }
+};
 
 class HelperMaxHopEnergy : public mdl::arrayCACHEhelper {
     virtual void combine(void *dst, const void *src, const void *key) override final {
@@ -644,7 +639,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz:
             ee[i].dSqrtKin = a*sqrt(0.5*dv2);
             ee[i].dTot = 0.5*a2*dv2 + ee[i].dPot;
         }
-        qsort(ee+pNode->lower(),pNode->count(),sizeof(EE),cmpEE);
+        std::sort(ee+pNode->lower(),ee+pNode->upper()+1);
         i = pNode->count()>100 ? pNode->upper()-100 : pNode->lower();
         while ( i<=pNode->upper() && ee[i].dTot <= 0.0 ) ++i;
         if (i>pNode->upper()) dEnergy = 0.0;
