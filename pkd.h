@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <optional>
 #include <vector>
 
 #include "mdl.h"
@@ -37,6 +38,7 @@
 #include "units.h"
 #include "io/fio.h"
 #include "basetype.h"
+#include "core/ephemeral.h"
 #include "core/integerize.h"
 #include "core/treenode.h"
 #include "io/iomodule.h"
@@ -398,6 +400,7 @@ public:
     auto Ephemeral() {
         return Segment<T>(1);
     }
+    std::optional<ephemeral_buffer_resource> ephemeral;
 protected:
     PARTICLE *pTempPRIVATE = nullptr;
     size_t nEphemeralBytes = 0; /* per-particle */

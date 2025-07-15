@@ -501,9 +501,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if (nEphemeral * mdl->Cores()*nEphemeralBytes < nMinEphemeral)
         nEphemeral = (nMinEphemeral + mdl->Cores()*nEphemeralBytes - 1) / (mdl->Cores()*nEphemeralBytes);
 
-    // For the third storage we use a rather conservative minimum number of tree nodes
+    // For the third storage we use a rather conservative minimum number of tree nodes.
     // Ideally we would have nStore/nBucket leaf nodes, and thus twice that total tree nodes.
     // The buckets are not always full, and the tree is not completely balanced, so it will be more in practice.
+    ephemeral.reset(); // The monotonic buffer resource will be invalidated by the new allocation
     uint64_t nTreeNodes = (nStore+1) / nBucket * 2;
     TinyVector<size_t,3> nElements{uint64_t(nStore+1),nEphemeral,nTreeNodes};
     TinyVector<size_t,3> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,tree.ElementSize()};
@@ -517,6 +518,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     assert(nElements[0] >= nStore);
     particles.setStore(pSegments[0],nStore);
+
+    // Setup the ephemeral storage. If we run out of space, it will throw an exception.
+    ephemeral.emplace(pSegments[1],nElements[1]*nBytesPerElement[1],std::pmr::null_memory_resource());
+
     /*
     ** Now we setup the node storage for the tree.  This storage is no longer
     ** continguous as the MDL now supports non-contiguous arrays.  We allocate
