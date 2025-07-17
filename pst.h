@@ -984,16 +984,6 @@ struct inTreeUpdateFlagBounds {
 };
 int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut);
 
-/* PST_COUNTDISTANCE */
-struct inCountDistance {
-    double dRadius2Inner;
-    double dRadius2Outer;
-};
-struct outCountDistance {
-    uint64_t nCount;
-};
-int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
-
 /* PST_GRID_CREATE_FFT */
 struct inGridCreateFFT {
     int nGrid;

@@ -27,6 +27,7 @@
 #include <numeric>
 #include <algorithm>
 #include "pkd.h"
+#include "analysis.h"
 #include "ic/ic.h"
 
 #define SHAPES
@@ -209,9 +210,9 @@ double pkdGetDistance2(PKD pkd,particleStore::Particle &p, blitz::TinyVector<dou
 struct distance {
     float d2;
     uint32_t i;
-    bool operator<(const distance& other) const {
-        return d2 < other.d2;
-    }
+    bool operator<(const distance& other)           const { return d2 < other.d2; }
+    bool operator<(float rhs)                       const { return d2 < rhs; }
+    friend bool operator<(float lhs, const distance& rhs) { return lhs < rhs.d2; }
 };
 
 /*
@@ -280,30 +281,20 @@ void pkdResetCOM(PKD pkd, blitz::TinyVector<double,3> r_com, blitz::TinyVector<d
     }
 }
 
-/*
-** Count the number of elements that are interior to r2
-*/
-uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
+
+// Count the number of elements that are interior to r2 (between r2i and r2o).
+int ServiceCountDistance::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto in   = static_cast<input *>(vin);
+    auto out  = static_cast<output *>(vout);
+    auto pkd = pst->plcl->pkd;
+    assert(nIn==sizeof(input));
+    assert(nOut==sizeof(output));
+    decltype(distance::d2) r2i = in->dRadius2Inner, r2o = in->dRadius2Outer; // Avoid potential type conversions below
     auto ephemeral = pkd->Ephemeral<distance>();
-    uint64_t lo,hi,i,upper;
-
-    lo = 0;
-    hi = pkd->Local();
-    while ( lo<hi ) {
-        i = (lo+hi) / 2;
-        if ( ephemeral[i].d2 >= r2o ) hi = i;
-        else lo = i+1;
-    }
-    upper = hi;
-
-    lo = 0;
-    while ( lo<hi ) {
-        i = (lo+hi) / 2;
-        if ( ephemeral[i].d2 >= r2i ) hi = i;
-        else lo = i+1;
-    }
-
-    return upper-hi;
+    auto upper = std::lower_bound(ephemeral, ephemeral+pkd->Local(), r2o); // First element >= r2o
+    auto lower = std::lower_bound(ephemeral, upper,                  r2i); // First element >= r2i
+    *out = std::distance(lower, upper);
+    return sizeof(output);
 }
 
 #ifdef SHAPES

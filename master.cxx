@@ -92,6 +92,7 @@ namespace rockstar {
 }
 #endif
 
+#include "analysis/analysis.h"
 #include "analysis/rsloadids.h"
 #include "analysis/rssaveids.h"
 #include "analysis/rsextract.h"
@@ -4528,20 +4529,19 @@ void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPH
 
 }
 
-uint64_t MSR::CountDistance(double dRadius2Inner, double dRadius2Outer) {
-    struct inCountDistance in;
-    struct outCountDistance out;
-    int nOut;
+uint64_t MSR::CountDistance(double dRadius2Outer,double dRadius2Inner) {
+    ServiceCountDistance::input in;
+    ServiceCountDistance::output out;
     in.dRadius2Inner = dRadius2Inner;
     in.dRadius2Outer = dRadius2Outer;
-    nOut = pstCountDistance(pst, &in, sizeof(in), &out, sizeof(out));
-    assert( nOut == sizeof(out) );
-    return out.nCount;
+    auto nOut = mdl->RunService(PST_COUNTDISTANCE,sizeof(in),&in,&out);
+    assert(nOut == sizeof(out));
+    return out;
 }
 
 double MSR::countSphere(double r,void *vctx) {
     auto *ctx = reinterpret_cast<SPHERECTX *>(vctx);
-    ctx->nSelected = ctx->msr->CountDistance(0.0,r*r);
+    ctx->nSelected = ctx->msr->CountDistance(r*r);
     return 1.0*ctx->nSelected - 1.0*ctx->nTarget;
 }
 
@@ -4564,7 +4564,7 @@ double MSR::countShell(double rInner,void *vctx) {
     if ( rInner == ctx->rMiddle ) nSelected = 0;
     else {
         rOuter = pow(10,2.0*log10(ctx->rMiddle)-log10(rInner));
-        nSelected = ctx->msr->CountDistance(rInner*rInner,rOuter*rOuter);
+        nSelected = ctx->msr->CountDistance(rOuter*rOuter,rInner*rInner);
     }
     return 1.0*nSelected - 1.0*ctx->nTarget;
 }
@@ -4620,7 +4620,7 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
         dMinRadius = illinois( countShell, &ctxShell,
                                pow(10,2.0*log10(dMinRadius)-log10(dMaxRadius)), dMinRadius,
                                0.0, 0.0, NULL );
-        N = CountDistance(dMinRadius*dMinRadius,dLogRadius*dLogRadius);
+        N = CountDistance(dLogRadius*dLogRadius,dMinRadius*dMinRadius);
         nBinsInner = (N+nPerBin/2) / nPerBin;
     }
     else {
@@ -4637,7 +4637,7 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
         ctxShell.msr = this;
         dMinRadius = pow(10,(2.0*(nBins+1)*log10(dMinRadius)-log10(dMaxRadius))/(2*nBins));
         dOuter = pow(10,2.0*log10(ctxShell.rMiddle)-log10(dMinRadius));
-        N = CountDistance(dMinRadius*dMinRadius,dOuter*dOuter);
+        N = CountDistance(dOuter*dOuter,dMinRadius*dMinRadius);
         if ( N < nPerBin-nAccuracy ) {
             dMinRadius = illinois( countShell, &ctxShell,
                                    pow(10,2.0*log10(dMinRadius)-log10(dMaxRadius)), dMinRadius,
@@ -4658,8 +4658,8 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
     if ( nBinsInner ) {
         sec = Time();
         print_detail("Root finding for {bins} bins\n", "bins"_a = nBinsInner);
-        ctxSphere.nTotal = CountDistance(0.0,dLogRadius*dLogRadius);
-        ctxSphere.nInner = CountDistance(0.0,dMinRadius*dMinRadius);
+        ctxSphere.nTotal = CountDistance(dLogRadius*dLogRadius);
+        ctxSphere.nInner = CountDistance(dMinRadius*dMinRadius);
         ctxSphere.msr = this;
         ctxSphere.dFrac = 1.0 / nBinsInner;
         in->dRadii[nBinsInner] = dLogRadius;
@@ -4686,7 +4686,7 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
 
             dLogMin = log10(in->dRadii[nBinsInner+i-1]);
             dRadius = pow(10,(dLogMax-dLogMin)/nBinsRem + dLogMin);
-            n = CountDistance(0.0,dRadius*dRadius);
+            n = CountDistance(dRadius*dRadius);
             if ( n-N < nPerBin-nAccuracy ) {
                 ctxSphere.nTarget = N + nPerBin;
                 dRadius = illinois( countSphere, &ctxSphere, 0.0, dMaxRadius,

@@ -849,7 +849,6 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
                 const blitz::TinyVector<double,3> &com, const blitz::TinyVector<double,3> &vcm,
                 const blitz::TinyVector<double,3> &L);
 void pkdCalcDistance(PKD pkd, blitz::TinyVector<double,3> dCenter, int bPeriodic);
-uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double,3> &dCenter, double dRadius, int bPeriodic,
                 blitz::TinyVector<double,3> &com, blitz::TinyVector<double,3> &vcm,
                 blitz::TinyVector<double,3> &L,

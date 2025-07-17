@@ -288,8 +288,6 @@ void pstAddServices(PST pst,mdl::mdlClass * mdl) {
     mdl->AddService(PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
                     sizeof(struct inTreeUpdateFlagBounds),
                     (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
-    mdl->AddService(PST_COUNTDISTANCE,pst,(fcnService_t *)pstCountDistance,
-                    sizeof(struct inCountDistance), sizeof(struct outCountDistance));
 #ifdef MDL_FFTW
     mdl->AddService(PST_GRID_CREATE_FFT,pst,(fcnService_t *)pstGridCreateFFT,
                     sizeof(struct inGridCreateFFT), 0);
@@ -2175,26 +2173,6 @@ int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
         nOut = pkd->tree.ElementSize();
     }
     return nOut;
-}
-
-int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inCountDistance *>(vin);
-    auto out = static_cast<struct outCountDistance *>(vout);
-    struct outCountDistance outUpper;
-
-    assert( nIn==sizeof(struct inCountDistance) );
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_COUNTDISTANCE,vin,nIn);
-        pstCountDistance(pst->pstLower,vin,nIn,vout,nOut);
-        nOut = pst->mdl->GetReply(rID,outUpper);
-        assert(nOut==sizeof(struct outCountDistance));
-        out->nCount += outUpper.nCount;
-    }
-    else {
-        out->nCount = pkdCountDistance(plcl->pkd,in->dRadius2Inner,in->dRadius2Outer);
-    }
-    return sizeof(struct outCountDistance);
 }
 
 #ifdef MDL_FFTW
