@@ -18,6 +18,7 @@
 
 class ServiceInitLightcone : public TraversePST {
 public:
+    static constexpr std::string_view name = "InitLightcone";
     struct input {
         int bBowtie;
         int bLightConeParticles;
@@ -28,7 +29,7 @@ public:
     };
     typedef void output;
     explicit ServiceInitLightcone(PST pst)
-        : TraversePST(pst,PST_INITLIGHTCONE,sizeof(input),"InitLightcone") {}
+        : TraversePST(pst,PST_INITLIGHTCONE,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

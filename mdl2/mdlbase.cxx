@@ -50,9 +50,9 @@ protected:
     fcnService_t *fcnService;
     void *p1;
 public:
-    explicit LegacyService(fcnService_t *fcnService,void *p1=nullptr, int service_id=0,
-                           int nInBytes=0, int nOutBytes=0, const char *service_name="")
-        : BasicService(service_id, nInBytes, nOutBytes, service_name),
+    explicit LegacyService(fcnService_t *fcnService,std::string_view service_name, void *p1=nullptr, int service_id=0,
+                           int nInBytes=0, int nOutBytes=0)
+        : BasicService(service_id, service_name, nInBytes, nOutBytes),
           fcnService(fcnService), p1(p1) {}
     virtual ~LegacyService() = default;
 protected:
@@ -71,11 +71,17 @@ int LegacyService::operator()(int nIn, void *pIn, void *pOut) {
 * mdlBASE
 \*****************************************************************************/
 
-#define MDL_DEFAULT_SERVICES    120
+#define MDL_DEFAULT_SERVICES    200
 
-static int _srvNull(void *p1, void *vin, int nIn, void *vout, int nOut) {
-    return 0;
-}
+class NullService : public BasicService {
+public:
+    static constexpr std::string_view name = "Null";
+    explicit NullService()
+        : BasicService(0, name, 0, 0) {}
+    virtual ~NullService() = default;
+protected:
+    virtual int operator()(int nIn, void *pIn, void *pOut) override {return 0; }
+};
 
 mdlBASE::mdlBASE(int argc,char **argv) {
 #ifdef _MSC_VER
@@ -119,7 +125,7 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     ** Provide a 'null' service for sid = 0, so that stopping the
     ** service handler is well defined!
     */
-    services[0] = std::make_unique<LegacyService>(_srvNull);
+    services[0] = std::make_unique<NullService>();
 }
 
 mdlBASE::~mdlBASE() {
@@ -154,7 +160,7 @@ void mdlBASE::AddService(int sid, void *p1,
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
     if (sid >= services.size()) services.resize(sid+9);
     assert(services[sid]==nullptr);
-    services[sid] = std::make_unique<LegacyService>(fcnService,p1,sid,nInBytes,nOutBytes,name);
+    services[sid] = std::make_unique<LegacyService>(fcnService,name,p1,sid,nInBytes,nOutBytes);
 }
 
 void mdlBASE::AddService(std::unique_ptr<BasicService> &&service) {

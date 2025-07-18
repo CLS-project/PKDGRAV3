@@ -64,6 +64,7 @@ typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 #include "mdlbt.h"
 #include <vector>
 #include <string>
+#include <string_view>
 #include <memory>
 #include <initializer_list>
 #define MAX_NODE_NAME_LENGTH      256
@@ -139,14 +140,11 @@ private:
     int service_id;
     std::string service_name;
 public:
-    explicit BasicService(int service_id, int nInBytes, int nOutBytes, const char *service_name="")
+    explicit BasicService(int service_id, std::string_view service_name, int nInBytes, int nOutBytes=0)
         : nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
-    explicit BasicService(int service_id, int nInBytes, const char *service_name="")
-        : nInBytes(nInBytes), nOutBytes(0), service_id(service_id),service_name(service_name) {}
-    explicit BasicService(int service_id, const char *service_name="")
-        : nInBytes(0), nOutBytes(0), service_id(service_id),service_name(service_name) {}
     virtual ~BasicService() = default;
     int getServiceID()  {return service_id;}
+    std::string_view getServiceName() const {return service_name;}
     int getMaxBytesIn() {return nInBytes;}
     int getMaxBytesOut() {return nOutBytes;}
 protected:

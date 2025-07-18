@@ -21,12 +21,13 @@
 
 class ServiceCountDistance : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "CountDistance";
     struct input {
         double dRadius2Inner;
         double dRadius2Outer;
     };
     explicit ServiceCountDistance(PST pst)
-        : TraverseCount(pst,PST_COUNTDISTANCE,sizeof(input),"CountDistance") {}
+        : TraverseCount(pst,PST_COUNTDISTANCE,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };

@@ -18,10 +18,11 @@
 
 class ServiceCombineBound : public TraverseCombinePST {
 public:
+    static constexpr std::string_view name = "CombineBound";
     typedef void input;
     typedef Bound output;
     explicit ServiceCombineBound(PST pst)
-        : TraverseCombinePST(pst,PST_COMBINEBOUND,0,sizeof(output),"CombineBound") {}
+        : TraverseCombinePST(pst,PST_COMBINEBOUND,name,0,sizeof(output)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Combine(void *vout,void *vout2);

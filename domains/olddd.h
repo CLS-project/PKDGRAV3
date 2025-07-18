@@ -20,6 +20,7 @@
 namespace OldDD {
 class ServiceColRejects : public TraversePST {
 public:
+    static constexpr std::string_view name = "ColRejects";
     typedef void input;
     struct output {
         int id;
@@ -28,7 +29,7 @@ public:
         int nLocal;
     };
     explicit ServiceColRejects(PST pst)
-        : TraversePST(pst,PST_COLREJECTS,0,pst->mdl->Threads()*sizeof(output),"ColRejects") {}
+        : TraversePST(pst,PST_COLREJECTS,name,0,pst->mdl->Threads()*sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -36,12 +37,13 @@ protected:
 
 class ServiceSwapRejects : public TraversePST {
 public:
+    static constexpr std::string_view name = "SwapRejects";
     typedef int input;
     typedef ServiceColRejects::output output;
     explicit ServiceSwapRejects(PST pst)
-        : TraversePST(pst,PST_SWAPREJECTS,
+        : TraversePST(pst,PST_SWAPREJECTS,name,
                       pst->mdl->Threads()*sizeof(input),
-                      pst->mdl->Threads()*sizeof(output),"SwapRejects") {}
+                      pst->mdl->Threads()*sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -49,13 +51,14 @@ protected:
 
 class ServiceColOrdRejects : public TraversePST {
 public:
+    static constexpr std::string_view name = "ColOrdRejects";
     struct input {
         uint64_t iOrdSplit;
         int iSplitSide;
     };
     typedef ServiceColRejects::output output;
     explicit ServiceColOrdRejects(PST pst)
-        : TraversePST(pst,PST_COLORDREJECTS,0,pst->mdl->Threads()*sizeof(output),"ColOrdRejects") {}
+        : TraversePST(pst,PST_COLORDREJECTS,name,0,pst->mdl->Threads()*sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -63,15 +66,15 @@ protected:
 
 class ServiceDomain : public TraversePST {
 public:
-    explicit ServiceDomain(PST node_pst,int service_id,
-                           int nInBytes, const char *service_name="")
-        : TraversePST(node_pst,service_id, nInBytes, service_name) {}
+    explicit ServiceDomain(PST node_pst,int service_id,std::string_view service_name, int nInBytes)
+        : TraversePST(node_pst,service_id, service_name, nInBytes) {}
 protected:
     int RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,ServiceColRejects::output *p2,int *pidSwap);
 };
 
 class ServiceDomainDecomp : public ServiceDomain {
 public:
+    static constexpr std::string_view name = "DomainDecomp";
     struct input {
         Bound bnd;
         int nBndWrap[3];
@@ -82,7 +85,7 @@ public:
     };
     typedef void output;
     explicit ServiceDomainDecomp(PST pst)
-        : ServiceDomain(pst,PST_DOMAINDECOMP,sizeof(input),"DomainDecomp") {}
+        : ServiceDomain(pst,PST_DOMAINDECOMP,name,sizeof(input)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -93,6 +96,7 @@ private:
 #ifndef NEW_REORDER
 class ServiceDomainOrder : public ServiceDomain {
 public:
+    static constexpr std::string_view name = "DomainOrder";
     struct input {
         uint64_t iMinOrder;
         uint64_t iMaxOrder;
@@ -102,7 +106,7 @@ public:
     };
     typedef void output;
     explicit ServiceDomainOrder(PST pst)
-        : ServiceDomain(pst,PST_DOMAINORDER,sizeof(input),"DomainOrder") {}
+        : ServiceDomain(pst,PST_DOMAINORDER,name,sizeof(input)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -112,6 +116,7 @@ private:
 
 class ServiceLocalOrder : public TraversePST {
 public:
+    static constexpr std::string_view name = "LocalOrder";
     struct input {
         uint64_t iMinOrder;
         uint64_t iMaxOrder;
@@ -121,7 +126,7 @@ public:
     };
     typedef void output;
     explicit ServiceLocalOrder(PST pst)
-        : TraversePST(pst,PST_LOCALORDER,sizeof(input),"LocalOrder") {}
+        : TraversePST(pst,PST_LOCALORDER,name,sizeof(input)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -130,6 +135,7 @@ protected:
 
 class ServiceWeight : public TraversePST {
 public:
+    static constexpr std::string_view name = "Weight";
     struct input {
         int iSplitDim;
         double fSplit;
@@ -144,7 +150,7 @@ public:
         double fHigh;
     };
     explicit ServiceWeight(PST pst)
-        : TraversePST(pst,PST_WEIGHT,sizeof(input),sizeof(output),"Weight") {}
+        : TraversePST(pst,PST_WEIGHT,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -152,6 +158,7 @@ protected:
 
 class ServiceWeightWrap : public TraversePST {
 public:
+    static constexpr std::string_view name = "WeightWrap";
     struct input {
         int iSplitDim;
         double fSplit;
@@ -164,7 +171,7 @@ public:
         uint64_t nHigh;
     };
     explicit ServiceWeightWrap(PST pst)
-        : TraversePST(pst,PST_WEIGHTWRAP,sizeof(input),sizeof(output),"WeightWrap") {}
+        : TraversePST(pst,PST_WEIGHTWRAP,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -172,6 +179,7 @@ protected:
 
 class ServiceOrdWeight : public TraversePST {
 public:
+    static constexpr std::string_view name = "OrdWeight";
     struct input {
         uint64_t iOrdSplit;
         int iSplitSide;
@@ -182,7 +190,7 @@ public:
         uint64_t nHigh;
     };
     explicit ServiceOrdWeight(PST pst)
-        : TraversePST(pst,PST_ORDWEIGHT,sizeof(input),sizeof(output),"OrdWeight") {}
+        : TraversePST(pst,PST_ORDWEIGHT,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;

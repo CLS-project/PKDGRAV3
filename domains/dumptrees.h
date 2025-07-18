@@ -18,6 +18,7 @@
 
 class ServiceDumpTrees : public TraversePST {
 public:
+    static constexpr std::string_view name = "DumpTrees";
     struct input {
         uint8_t uRungDD; /* Domain DD was done on this rung */
         bool bOnlyVA;
@@ -26,7 +27,7 @@ public:
     };
     typedef void output;
     explicit ServiceDumpTrees(PST pst)
-        : TraversePST(pst,PST_DUMPTREES,sizeof(input),"DumpTrees") {}
+        : TraversePST(pst,PST_DUMPTREES,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

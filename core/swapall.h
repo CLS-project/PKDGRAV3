@@ -19,6 +19,7 @@
 class ServiceSwapAll : public mdl::BasicService {
     PST node_pst;
 public:
+    static constexpr std::string_view name = "SwapAll";
     struct input {
         int idSwap;
         input() = default;
@@ -26,7 +27,7 @@ public:
     };
     typedef void output;
     explicit ServiceSwapAll(PST node_pst)
-        : BasicService(PST_SWAPALL, sizeof(input), "SwapAll"), node_pst(node_pst) {}
+        : BasicService(PST_SWAPALL, name, sizeof(input)), node_pst(node_pst) {}
 protected:
     virtual int operator()(int nIn, void *pIn, void *pOut) override;
 };
