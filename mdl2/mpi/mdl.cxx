@@ -2346,12 +2346,12 @@ void mdlClass::CommitServices() {
     ThreadBarrier();
 }
 
-void mdlAddService(MDL cmdl,int sid,void *p1,
-                   fcnService_t *fcnService,
-                   int nInBytes,int nOutBytes) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdl->AddService(sid, p1, fcnService, nInBytes, nOutBytes);
-}
+// void mdlAddService(MDL cmdl,int sid,void *p1,
+//                    fcnService_t *fcnService,
+//                    int nInBytes,int nOutBytes) {
+//     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
+//     mdl->AddService(sid, p1, fcnService, nInBytes, nOutBytes);
+// }
 
 int mdlClass::ReqService(int id,int sid,void *vin,int nInBytes) {
     mdlMessageSendRequest request(Self(), sid, id, vin, nInBytes);

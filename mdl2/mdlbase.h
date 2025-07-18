@@ -140,6 +140,8 @@ private:
     int nOutBytes;
     int service_id;
     std::string service_name;
+protected:
+    void setServiceId(int id) { service_id = id; }
 public:
     explicit BasicService(int service_id, std::string_view service_name, int nInBytes, int nOutBytes=0)
         : nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
@@ -226,7 +228,7 @@ public:
     char **GetArgv() const { return argv; }
 
     void yield();
-    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name="");
+    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, std::string_view service_name);
     void AddService(std::unique_ptr<BasicService> &&service);
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
     int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
@@ -234,8 +236,13 @@ public:
     int  RunService(int sid, ServiceBuffer &b, ServiceBufferOut &out) { return RunService(sid,b.size(),b.data(),out.data());}
     int  RunService(int sid, ServiceBufferOut &out) { return RunService(sid,0,nullptr,out.data());}
     int  RunService(int sid, void *pOut=nullptr) { return RunService(sid,0,nullptr,pOut); }
-protected:
+public:
     int  RunService(std::string_view service_name, int nIn, void *pIn, void *pOut=nullptr);
+    int  RunService(std::string_view service_name, ServiceBuffer &b, void *pOut=nullptr) { return RunService(service_name,b.size(),b.data(),pOut);}
+    int  RunService(std::string_view service_name, int nIn, void *pIn, ServiceBufferOut &out) { return RunService(service_name,nIn,pIn,out.data());}
+    int  RunService(std::string_view service_name, ServiceBuffer &b, ServiceBufferOut &out) { return RunService(service_name,b.size(),b.data(),out.data());}
+    int  RunService(std::string_view service_name, ServiceBufferOut &out) { return RunService(service_name,0,nullptr,out.data());}
+    int  RunService(std::string_view service_name, void *pOut=nullptr) { return RunService(service_name,0,nullptr,pOut); }
 public:
     template<typename T>
     int  RunService(int nIn, void *pIn, void *pOut=nullptr) {

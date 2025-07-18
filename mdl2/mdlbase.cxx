@@ -156,15 +156,15 @@ int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
 
 void mdlBASE::AddService(int sid, void *p1,
                          fcnService_t *fcnService,
-                         int nInBytes, int nOutBytes, const char *name) {
+                         int nInBytes, int nOutBytes, std::string_view service_name) {
     if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
     if (sid >= services.size()) services.resize(sid+9);
     assert(services[sid]==nullptr);
-    services[sid] = std::make_unique<LegacyService>(fcnService,name,p1,sid,nInBytes,nOutBytes);
-    auto result = service_map.insert({name, sid});
+    services[sid] = std::make_unique<LegacyService>(fcnService,service_name,p1,sid,nInBytes,nOutBytes);
+    auto result = service_map.insert({service_name, sid});
     if (!result.second) {
-        throw std::runtime_error("Service name already exists: " + std::string(name));
+        throw std::runtime_error("Service name already exists: " + std::string(service_name));
     }
 }
 
