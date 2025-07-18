@@ -65,6 +65,7 @@ typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 #include <vector>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <memory>
 #include <initializer_list>
 #define MAX_NODE_NAME_LENGTH      256
@@ -176,6 +177,7 @@ public:
     int nMaxInBytes;
     int nMaxOutBytes;
     std::vector< std::unique_ptr<BasicService>> services;
+    std::unordered_map<std::string_view,int> service_map;
 
     /* Maps a give process (Proc) to the first global thread ID */
     std::vector<int> iProcToThread; /* [0,nProcs] (note inclusive extra element) */
@@ -232,6 +234,33 @@ public:
     int  RunService(int sid, ServiceBuffer &b, ServiceBufferOut &out) { return RunService(sid,b.size(),b.data(),out.data());}
     int  RunService(int sid, ServiceBufferOut &out) { return RunService(sid,0,nullptr,out.data());}
     int  RunService(int sid, void *pOut=nullptr) { return RunService(sid,0,nullptr,pOut); }
+protected:
+    int  RunService(std::string_view service_name, int nIn, void *pIn, void *pOut=nullptr);
+public:
+    template<typename T>
+    int  RunService(int nIn, void *pIn, void *pOut=nullptr) {
+        return RunService(T::name, nIn, pIn, pOut);
+    }
+    template<typename T>
+    int  RunService(ServiceBuffer &b, void *pOut=nullptr) {
+        return RunService<T>(b.size(), b.data(), pOut);
+    }
+    template<typename T>
+    int  RunService(int nIn, void *pIn, ServiceBufferOut &out) {
+        return RunService<T>(nIn, pIn, out.data());
+    }
+    template<typename T>
+    int  RunService(ServiceBuffer &b, ServiceBufferOut &out) {
+        return RunService<T>(b.size(), b.data(), out.data());
+    }
+    template<typename T>
+    int  RunService(ServiceBufferOut &out) {
+        return RunService<T>(0, nullptr, out.data());
+    }
+    template<typename T>
+    int  RunService(void *pOut=nullptr) {
+        return RunService<T>(0, nullptr, pOut);
+    }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
 };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);

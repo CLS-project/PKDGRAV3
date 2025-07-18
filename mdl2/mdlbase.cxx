@@ -121,6 +121,7 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     ** Now allocate the initial service slots.
     */
     services.resize(MDL_DEFAULT_SERVICES);
+    service_map.reserve(MDL_DEFAULT_SERVICES);
     /*
     ** Provide a 'null' service for sid = 0, so that stopping the
     ** service handler is well defined!
@@ -169,6 +170,10 @@ void mdlBASE::AddService(std::unique_ptr<BasicService> &&service) {
     if (service->getMaxBytesOut() > nMaxOutBytes) nMaxOutBytes = service->getMaxBytesOut();
     if (sid >= services.size()) services.resize(sid+9);
     assert(services[sid]==nullptr);
+    auto result = service_map.insert({service->getServiceName(), sid});
+    if (!result.second) {
+        throw std::runtime_error("Service name already exists: " + std::string(service->getServiceName()));
+    }
     services[sid] = std::move(service);
 }
 
@@ -176,6 +181,10 @@ int mdlBASE::RunService(int sid,int nIn, void *pIn, void *pOut) {
     assert(sid < services.size());
     assert(services[sid] != nullptr);
     return (*services[sid])(nIn,pIn,pOut);
+}
+
+int mdlBASE::RunService(std::string_view service_name, int nIn, void *pIn, void *pOut) {
+    return RunService(service_map.at(service_name), nIn, pIn, pOut);
 }
 
 void mdlBASE::yield() {
