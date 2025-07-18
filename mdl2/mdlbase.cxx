@@ -162,6 +162,10 @@ void mdlBASE::AddService(int sid, void *p1,
     if (sid >= services.size()) services.resize(sid+9);
     assert(services[sid]==nullptr);
     services[sid] = std::make_unique<LegacyService>(fcnService,name,p1,sid,nInBytes,nOutBytes);
+    auto result = service_map.insert({name, sid});
+    if (!result.second) {
+        throw std::runtime_error("Service name already exists: " + std::string(name));
+    }
 }
 
 void mdlBASE::AddService(std::unique_ptr<BasicService> &&service) {
