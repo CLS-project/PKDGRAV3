@@ -328,7 +328,7 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=3) {
             fetch_forces(pkd,CID_GridLinFy,nGrid,forcesY,ilower);
             fetch_forces(pkd,CID_GridLinFz,nGrid,forcesZ,ilower);
             for ( auto &p : *kdn) { // All particles in this tree cell
-                auto v = p.velocity();
+                auto &v = p.velocity();
                 float3_t r = p.position();
                 r = (r * ifPeriod + 0.5) * nGrid - flower; // Scale and shift to fit in subcube
                 v[0] += (dtOpen + dtClose) * force_interpolate(forcesX, r.data(), iAssignment);
