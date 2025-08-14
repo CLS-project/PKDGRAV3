@@ -74,6 +74,7 @@ using namespace pyrameters::literals; // Gives us ""_key literals
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
+#include "core/ignoresigbus.h"
 #include "core/calcroot.h"
 #include "core/select.h"
 #include "core/fftsizes.h"
@@ -102,6 +103,8 @@ namespace rockstar {
 #include "domains/dumptrees.h"
 #include "domains/olddd.h"
 #include "domains/reorder.h"
+#include "domains/enforceperiodic.h"
+#include "domains/combinebound.h"
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
@@ -448,7 +451,7 @@ void MSR::stat_files(std::vector<uint64_t> &counts,const std::string_view &filen
     hdr.nElementSize = 1;
 
     auto out = new ServiceFileSizes::output[ServiceFileSizes::max_files];
-    auto n = mdl->RunService(PST_FILE_SIZES,sizeof(hdr),&hdr,out);
+    auto n = mdl->RunService<ServiceFileSizes>(sizeof(hdr),&hdr,out);
     n /= sizeof(ServiceFileSizes::output);
     counts.resize(n);
 
@@ -487,7 +490,7 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
     hdr->io.nSimultaneous = parallel_read_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
-    mdl->RunService(PST_RESTORE,msg);
+    mdl->RunService<ServiceRestore>(msg);
 }
 
 template<>
@@ -902,13 +905,13 @@ void MSR::Initialize() {
     */
     if (nThreads > 1) {
         ServiceSetAdd::input inAdd(nThreads);
-        mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
+        mdl->RunService<ServiceSetAdd>(sizeof(inAdd),&inAdd);
     }
 
 }
 
 void MSR::IgnoreSIGBUS() {
-    mdl->RunService(PST_IGNORE_SIGBUS);
+    mdl->RunService<ServiceIgnoreSIGBUS>();
 }
 
 int MSR::GetLock() {
@@ -1239,7 +1242,7 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
 void MSR::SetSoft(double dSoft) {
     print_detail("Set Softening...\n");
     ServiceSetSoft::input in(dSoft);
-    mdl->RunService(PST_SETSOFT,sizeof(in),&in);
+    mdl->RunService<ServiceSetSoft>(sizeof(in),&in);
 }
 
 // Use the smSmooth routine with an empty smooth function to initialize fBall
@@ -1437,10 +1440,10 @@ void MSR::DomainDecompOld(int iRung) {
     if (parameters.get_bPeriodic() && blitz::all(period < FLOAT_MAXVAL)) {
         Bound::coord_type offset(0.5*period);
         in.bnd = Bound(fCenter-offset,fCenter+offset);
-        mdl->RunService(PST_ENFORCEPERIODIC,sizeof(in.bnd),&in.bnd);
+        mdl->RunService<ServiceEnforcePeriodic>(sizeof(in.bnd),&in.bnd);
     }
     else {
-        mdl->RunService(PST_COMBINEBOUND,&in.bnd);
+        mdl->RunService<ServiceCombineBound>(&in.bnd);
     }
     /* We make sure that the classes are synchronized among all the domains,
      * otherwise a new class type being moved to another DD region could cause
@@ -1452,7 +1455,7 @@ void MSR::DomainDecompOld(int iRung) {
     print_detail("Domain Decomposition... \n");
     TimerStart(TIMER_DOMAIN);
 
-    mdl->RunService(PST_DOMAINDECOMP,sizeof(in),&in);
+    mdl->RunService<OldDD::ServiceDomainDecomp>(sizeof(in),&in);
     TimerStop(TIMER_DOMAIN);
     dsec = TimerGet(TIMER_DOMAIN);
     print("Domain Decomposition complete, Wallclock: {:.5} secs\n\n",dsec);
@@ -1506,7 +1509,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     nTopTree = pstBuildTree(pst,&in,sizeof(in),pkdn,nTopTree);
     pDistribTop->nTop = nTopTree / pkd->NodeSize();
     assert(pDistribTop->nTop == (2*nThreads-1));
-    mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);
+    mdl->RunService<ServiceDistribTopTree>(nMsgSize,pDistribTop);
     TimerStop(TIMER_TREE);
     dsec = TimerGet(TIMER_TREE);
     print("Tree built, Wallclock: {:.5} secs\n\n",dsec);
@@ -1523,7 +1526,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
         calc.com = pkdn->position();
         calc.uRoot = uRoot;
 
-        mdl->RunService(PST_CALCROOT,sizeof(calc),&calc,&root);
+        mdl->RunService<ServiceCalcRoot>(sizeof(calc),&calc,&root);
         momTreeRoot[uRoot] = root.momc;
         momTreeCom[uRoot][0] = calc.com[0];
         momTreeCom[uRoot][1] = calc.com[1];
@@ -1534,7 +1537,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 void MSR::BuildTree(int bNeedEwald) {
     print_detail("Building local trees...\n\n");
     ServiceDumpTrees::input dump(IRUNGMAX);
-    mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
+    mdl->RunService<ServiceDumpTrees>(sizeof(dump),&dump);
     BuildTree(bNeedEwald,ROOT,0);
 
     if (bNeedEwald) {
@@ -1543,7 +1546,7 @@ void MSR::BuildTree(int bNeedEwald) {
         droot.r[0] = momTreeCom[ROOT][0];
         droot.r[1] = momTreeCom[ROOT][1];
         droot.r[2] = momTreeCom[ROOT][2];
-        mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
+        mdl->RunService<ServiceDistribRoot>(sizeof(droot),&droot);
     }
 #ifdef OPTIM_REORDER_IN_NODES
     if (MeshlessHydro()) {
@@ -2022,7 +2025,7 @@ void print_grid(int width, int nThreads, const std::unique_ptr<T[]> &data, M T::
 void MSR::Hostname() {
     int i;
     std::unique_ptr<ServiceHostname::output[]> out {new ServiceHostname::output[nThreads]};
-    mdl->RunService(PST_HOSTNAME,out.get());
+    mdl->RunService<ServiceHostname>(out.get());
     print("Host Names:\n");
     print_grid(12,nThreads,out,&ServiceHostname::output::szHostname);
     print("MPI Rank:\n");
