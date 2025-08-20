@@ -156,31 +156,6 @@ typedef struct {
     int nEnclosed;
 } ShrinkStruct;
 
-static void initShrink(void *vpkd, void *v) {
-    ShrinkStruct *g = (ShrinkStruct *)v;
-    int j;
-
-    g->fMass = 0.0;
-    for (j=0; j<3; j++) {
-        g->rcom[j] = 0.0;
-    }
-    g->nEnclosed = 0;
-}
-
-static void combShrink(void *vpkd, void *v1, const void *v2) {
-    ShrinkStruct *g1 = (ShrinkStruct *)v1;
-    const ShrinkStruct *g2 = (const ShrinkStruct *)v2;
-    float x;
-    int j;
-
-    g1->fMass += g2->fMass;
-    x = g2->fMass/g1->fMass;
-    for (j=0; j<3; j++) {
-        g1->rcom[j] = (1-x)*g1->rcom[j] + x*g2->rcom[j];
-    }
-    g1->nEnclosed += g2->nEnclosed;
-}
-
 class HelperShrink : public mdl::arrayCACHEhelper {
 protected:
     virtual void    init(void *dst) override final {
