@@ -18,11 +18,11 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceRemoveDeleted::input>()  || std::is_standard_layout<ServiceRemoveDeleted::input>());
-static_assert(std::is_void<ServiceRemoveDeleted::output>() || std::is_standard_layout<ServiceRemoveDeleted::output>());
+static_assert(std::is_void_v<ServiceRemoveDeleted::input>  || std::is_standard_layout_v<ServiceRemoveDeleted::input>);
+static_assert(std::is_void_v<ServiceRemoveDeleted::output> || std::is_standard_layout_v<ServiceRemoveDeleted::output>);
 
 int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    static_assert(std::is_void<input>());
+    static_assert(std::is_void_v<input>);
     auto pkd = pst->plcl->pkd;
     // Move the deleted particles to the end of the array
     auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return !p.is_deleted();});

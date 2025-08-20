@@ -18,8 +18,8 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceUpdateRung::input>()  || std::is_standard_layout<ServiceUpdateRung::input>());
-static_assert(std::is_void<ServiceUpdateRung::output>() || std::is_standard_layout<ServiceUpdateRung::output>());
+static_assert(std::is_void_v<ServiceUpdateRung::input>  || std::is_standard_layout_v<ServiceUpdateRung::input>);
+static_assert(std::is_void_v<ServiceUpdateRung::output> || std::is_standard_layout_v<ServiceUpdateRung::output>);
 
 int ServiceUpdateRung::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto const &in = * static_cast<input *>(vin);

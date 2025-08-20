@@ -17,8 +17,8 @@
 #include "fftsizes.h"
 
 // Ensure the communication structures are "standard" so that they can be moved around with "memcpy" (required by MDL)
-static_assert(std::is_void<ServiceFftSizes::input>()  || std::is_standard_layout<ServiceFftSizes::input>());
-static_assert(std::is_void<ServiceFftSizes::output>() || std::is_standard_layout<ServiceFftSizes::output>());
+static_assert(std::is_void_v<ServiceFftSizes::input>  || std::is_standard_layout_v<ServiceFftSizes::input>);
+static_assert(std::is_void_v<ServiceFftSizes::output> || std::is_standard_layout_v<ServiceFftSizes::output>);
 
 int ServiceFftSizes::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);

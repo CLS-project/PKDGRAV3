@@ -95,7 +95,7 @@ struct PARTCLASS {
     PARTCLASS(FIO_SPECIES eSpecies,float fMass,float fSoft,int iMat,float accFac)
         : fMass(fMass), fSoft(fSoft), iMat(iMat), accFac(accFac), eSpecies(eSpecies) {}
 };
-static_assert(std::is_trivial<PARTCLASS>());
+static_assert(std::is_trivially_copyable_v<PARTCLASS>);
 
 namespace meshless {
 namespace hana = boost::hana;
