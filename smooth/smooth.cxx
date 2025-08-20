@@ -21,6 +21,7 @@
     #include "pkd_config.h"
 #endif
 
+#include <new>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>

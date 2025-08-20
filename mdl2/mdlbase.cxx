@@ -37,6 +37,7 @@ using namespace mdl;
 #include <stdarg.h>
 #include <string.h>
 #include <numeric>
+#include <stdexcept>
 
 /*****************************************************************************\
 * LegacyService
