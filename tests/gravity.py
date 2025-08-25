@@ -6,6 +6,7 @@ import unittest
 from ddt import ddt, data, file_data, unpack
 import xmlrunner
 import PKDGRAV as msr
+from PKDGRAV import PKD_FIELD
 from CSM import CSM
 
 # @ddt
@@ -41,7 +42,7 @@ class TestGravityB0Final(unittest.TestCase):
         msr.build_tree()
         msr.gravity(time=self.time,theta=theta) 
         msr.reorder()
-        a=msr.get_array(field=msr.FIELD_ACCELERATION,time=self.time)
+        a=msr.get_array(field=PKD_FIELD.FIELD_ACCELERATION,time=self.time)
         relerr = np.linalg.norm(a-self.a,axis=1) / self.maga
         rms = np.std(relerr)
         print('rms',rms)
@@ -66,7 +67,7 @@ class TestGravityB0Periodic(unittest.TestCase):
         msr.build_tree(ewald=True)
         msr.gravity(time=self.time,theta=theta) 
         msr.reorder()
-        a=msr.get_array(field=msr.FIELD_ACCELERATION,time=self.time)
+        a=msr.get_array(field=PKD_FIELD.FIELD_ACCELERATION,time=self.time)
         relerr = np.linalg.norm(a-self.a,axis=1) / self.maga
         rms = np.std(relerr)
         print('rms',rms)
