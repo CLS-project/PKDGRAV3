@@ -508,8 +508,8 @@ public:
     int64_t nHealpixPerDomain;
     int64_t nSideHealpix;
     healpixData *pHealpixData;
-    gsl_spline *interp_scale; // interpolation table for 1/a given r in the lightcone
-    gsl_interp_accel *interp_accel = gsl_interp_accel_alloc();
+    gsl_spline *interp_scale = nullptr; // interpolation table for 1/a given r in the lightcone
+    gsl_interp_accel *interp_accel = nullptr;
 
     /*
     ** Advanced memory models
@@ -605,10 +605,10 @@ public:
 #endif
 
 #ifdef USE_CUDA
-    CudaClient *cudaClient;
+    std::unique_ptr<CudaClient> cudaClient;
 #endif
 #ifdef USE_METAL
-    MetalClient *metalClient;
+    std::unique_ptr<MetalClient> metalClient;
 #endif
 #ifdef MDL_FFTW
     MDLFFT fft;

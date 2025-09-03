@@ -1867,6 +1867,9 @@ int mpiClass::Launch() {
     drainMPI();
 
     worker_threads.join_all();
+    for (i = iCoreMPI+1; i < Cores(); ++i) {
+        delete pmdl[i];
+    }
     delete[] (pmdl-1);
 
     // Deallocate cache reply buffers

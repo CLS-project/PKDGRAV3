@@ -545,10 +545,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     // This is cheeserific - chooses the largest specified
 #if defined(USE_CUDA)
-    this->cudaClient = new CudaClient(this->mdl->mpi->cuda,this->mdl->gpu);
+    this->cudaClient = std::make_unique<CudaClient>(this->mdl->mpi->cuda,this->mdl->gpu);
 #endif
 #if defined(USE_METAL)
-    this->metalClient = new MetalClient(*this->mdl);
+    this->metalClient = std::make_unique<MetalClient>(*this->mdl);
 #endif
     /*
     ** Initialize global group id.
@@ -656,6 +656,8 @@ pkdContext::~pkdContext() {
         csmFinish(csm);
         csm = NULL;
     }
+    if (interp_scale) gsl_spline_free(interp_scale);
+    if (interp_accel) gsl_interp_accel_free(interp_accel);
 #ifdef COOLING
     cooling_clean(cooling);
 #endif
@@ -2374,6 +2376,7 @@ void pkdSetupInterpScale(PKD pkd,double dBoxSize,double mrMax) {
         rt[i] = i*dr;
         at_inv[i] = 1.0/csmComoveLookbackTime2Exp(pkd->csm,rt[i]/dLightSpeed);
     }
+    pkd->interp_accel = gsl_interp_accel_alloc();
     pkd->interp_scale = gsl_spline_alloc(gsl_interp_cspline,nTable);
     gsl_spline_init(pkd->interp_scale,rt,at_inv,nTable);
 }

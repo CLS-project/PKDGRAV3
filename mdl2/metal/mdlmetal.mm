@@ -95,6 +95,9 @@ Device::Device(METAL *metal,MTL::Device *pDevice,int nStreams)
 
 Device::~Device() {
     pDevice->release();
+    while (!free_streams.empty()) {
+        delete &free_streams.dequeue();
+    }
 }
 
 void Device::launch(metalMessage &M) {
