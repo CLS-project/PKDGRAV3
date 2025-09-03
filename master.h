@@ -130,18 +130,19 @@ public:
     void Simulate(double dTime,int iStartStep,bool bRestart=false);
     void Simulate(double dTime);
 private:
-    int64_t parallel_count(bool bParallel,int64_t nParallel);
     void persist(PyObject *file,PyObject *obj);
     void persist(PyObject *file,int n);
     void persist(PyObject *file,double d);
     template<typename T>
     T restore(PyObject *file,PyObject *replace=Py_None);
 protected:
-    int64_t parallel_read_count();
-    int64_t parallel_write_count();
     void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
     void Restore(const std::string &filename,int nSizeParticle);
     void PrintStat(const STAT &ps,char const *pszPrefix,int p);
+public:
+    int64_t parallel_count(int64_t nParallel,bool bParallel=true);
+    int64_t parallel_read_count();
+    int64_t parallel_write_count();
 
 public:
     // I/O and IC Generation
@@ -196,7 +197,8 @@ public:
     void NewFof(double dTau,int nMinMembers);
     void Hop(double dTime,double dDelta);
     void GroupStats();
-    void HopWrite(const char *fname);
+    void WriteGroupStats(const std::string_view &fname, int nParallel);
+    void WriteGroupStats(const std::string_view &fname);
     EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
     MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,int fold=1);

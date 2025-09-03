@@ -1,0 +1,34 @@
+gcc-env:
+  compiler:
+      - toolchain: gcc
+        spec: gcc
+  mpi:
+      spec: cray-mpich@8.1.30
+  unify: true
+  specs:
+  - cmake
+  - git
+  - fftw
+  - boost+thread
+  - gsl
+  - hdf5 +hl
+  - python@3.12
+  - pkdgrav3@3.4 +aneos
+  - pkdgrav3-python@3.4
+  variants:
+  - +mpi
+  - ~cuda
+  - ~rocm
+  views:
+    default:
+      link: roots
+      exclude:
+        - 'pkdgrav3'
+      uenv:
+        prefix_paths:
+          LD_LIBRARY_PATH: [lib, lib64]
+    pkdgrav3:
+      link: roots
+      uenv:
+        prefix_paths:
+          LD_LIBRARY_PATH: [lib, lib64]

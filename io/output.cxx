@@ -15,15 +15,21 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
+#include "pkd_config.h"
 #include "output.h"
+#include "io/iochunk.h"
 #include "pst.h"
 #include <complex>
 #define COMPLEX std::complex<float>
+
+void ServiceSaveGroupStats::Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) {
+    pst->plcl->pkd->GroupStatsSave(iGroup,filename,iSegment,nSegment);
+}
+
+void pkdContext::GroupStatsSave(int iGroup,const std::string &filename,int iSegment,int nSegment) {
+    auto nBytes = nLocalGroups * sizeof(TinyGroupTable);
+    io_chunk_write(filename.c_str(), tinyGroupTable+1, nBytes, iSegment>0);
+}
 
 /* Generic context: all things/stuff from iIndex (starts at zero) */
 struct packCtx {

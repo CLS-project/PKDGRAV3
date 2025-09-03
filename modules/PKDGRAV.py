@@ -321,6 +321,16 @@ def fof(tau,minmembers=10):
     msr0.NewFof(tau,minmembers)
     msr0.GroupStats()
 
+def write_group_stats(filename,*,parallel=None):
+    """
+    Write group statistics to a file
+
+    :param str filename: the name of the file
+    :param integer parallel: number of parallel files to write
+    """
+    parallel = 1 if parallel is None else msr0.parallel_count(parallel)
+    msr0.WriteGroupStats(filename.encode('UTF-8'),parallel)
+
 def smooth(type,n=32,time=1.0,delta=0.0,symmetric=False,resmooth=False):
     """
     Smooths the density field with a given kernel

@@ -1,5 +1,5 @@
-#ifndef B52D0DB0_06A9_416B_A559_F5010B417974
-#define B52D0DB0_06A9_416B_A559_F5010B417974
+#ifndef SERVICE_H
+#define SERVICE_H
 /*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
  *  Copyright (c) 2001-2018 Joachim Stadel & Douglas Potter
  *
@@ -119,4 +119,4 @@ protected:
     virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) = 0;
 };
 
-#endif /* B52D0DB0_06A9_416B_A559_F5010B417974 */
+#endif /* SERVICE_H */
