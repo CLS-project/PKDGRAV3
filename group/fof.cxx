@@ -505,8 +505,8 @@ NextCell:
     /*
     ** The following *just* fits into ephemeral storage of 4 bytes/particle.
     */
-    assert(pkd->EphemeralBytes() >= 4);
-    Fifo = (uint32_t *)(pkd->pLite);
+    assert(pkd->EphemeralElementBytes() >= 4);
+    Fifo = pkd->Ephemeral<uint32_t>();
     iGroup = 1;
     for (pn=0; pn<pkd->Local(); ++pn) {
         auto p = pkd->particles[pn];
@@ -565,9 +565,9 @@ NextCell:
     ** Create initial group table. The assert below is a very minimal requirement as it doesn't account for remote
     ** links (tmpFofRemote). However, we check this again everytime we add a new remote link.
     */
-    assert(sizeof(*pkd->ga)*pkd->nGroups+sizeof(*pkd->tmpFofRemote) <= 1ul*pkd->EphemeralBytes()*pkd->FreeStore());
-    pkd->nMaxRemoteGroups = (1ul*pkd->EphemeralBytes()*pkd->FreeStore() - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
-    pkd->ga = (struct smGroupArray *)(pkd->pLite);
+    assert(sizeof(*pkd->ga)*pkd->nGroups+sizeof(*pkd->tmpFofRemote) <= 1ul*pkd->EphemeralElementBytes()*pkd->FreeStore());
+    pkd->nMaxRemoteGroups = (1ul*pkd->EphemeralElementBytes()*pkd->FreeStore() - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
+    pkd->ga = pkd->Ephemeral<smGroupArray>();
     pkd->tmpFofRemote = (FOFRemote *)&pkd->ga[pkd->nGroups];
     for (i=0; i<pkd->nGroups; ++i) {
         pkd->ga[i].id.iIndex = i;

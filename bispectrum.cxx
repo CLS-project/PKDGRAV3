@@ -20,6 +20,7 @@
 using namespace gridinfo;
 
 void pkdBispectrumNormalize(PKD pkd, int iGridTarget, double kmin,double kmax) {
+    auto ephemeral = pkd->Ephemeral<real_t>();
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
     auto iNyquist = nGrid / 2;
@@ -27,7 +28,7 @@ void pkdBispectrumNormalize(PKD pkd, int iGridTarget, double kmin,double kmax) {
     GridInfo G(pkd->mdl,fft);
 
     complex_array_t K1;
-    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite,0) + fft->rgrid->nLocal * iGridTarget;
+    auto data1 = pkd->mdl->SetArray(ephemeral,0) + fft->rgrid->nLocal * iGridTarget;
     G.setupArray(data1,K1);
     double k2min = kmin*kmin;
     double k2max = kmax*kmax;
@@ -43,6 +44,7 @@ void pkdBispectrumNormalize(PKD pkd, int iGridTarget, double kmin,double kmax) {
 }
 
 void pkdBispectrumSelect(PKD pkd, int iGridTarget, int iGridSource,double kmin,double kmax) {
+    auto ephemeral = pkd->Ephemeral<real_t>();
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
     auto iNyquist = nGrid / 2;
@@ -50,8 +52,8 @@ void pkdBispectrumSelect(PKD pkd, int iGridTarget, int iGridSource,double kmin,d
     GridInfo G(pkd->mdl,fft);
 
     complex_array_t K1,K2;
-    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGridTarget;
-    auto data2 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGridSource;
+    auto data1 = pkd->mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridTarget;
+    auto data2 = pkd->mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridSource;
     G.setupArray(data1,K1);
     G.setupArray(data2,K2);
 
@@ -95,12 +97,13 @@ void MSR::BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double km
 }
 
 double pkdBispectrumCalculate(PKD pkd, int iGrid1, int iGrid2, int iGrid3 ) {
+    auto ephemeral = pkd->Ephemeral<real_t>();
     auto fft = pkd->fft;
     GridInfo G(pkd->mdl,fft);
     real_array_t R1,R2,R3;
-    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGrid1;
-    auto data2 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGrid2;
-    auto data3 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGrid3;
+    auto data1 = pkd->mdl->SetArray<real_t>(ephemeral) + fft->rgrid->nLocal * iGrid1;
+    auto data2 = pkd->mdl->SetArray<real_t>(ephemeral) + fft->rgrid->nLocal * iGrid2;
+    auto data3 = pkd->mdl->SetArray<real_t>(ephemeral) + fft->rgrid->nLocal * iGrid3;
     G.setupArray(data1,R1);
     G.setupArray(data2,R2);
     G.setupArray(data3,R3);

@@ -123,8 +123,8 @@ int smHopLink(SMX smx,SMF *smf) {
     /* the next particle will be remote and can be found in the group array */
     uint32_t *pl;
 
-    pkd->ga = ga = (struct smGroupArray *)(pkd->pLite);
-    pl = (uint32_t *)(((char *)pkd->pLite + 1ul*pkd->Local()*pkd->EphemeralBytes()) - (pkd->Local()+1)*sizeof(uint32_t));
+    pkd->ga = ga = pkd->Ephemeral<smGroupArray>();
+    pl = (uint32_t *)((pkd->Ephemeral<char>() + 1ul*pkd->Local()*pkd->EphemeralElementBytes()) - (pkd->Local()+1)*sizeof(uint32_t));
     assert((uint32_t *)ga < pl);
 
     ga[0].iGid = 0;
@@ -436,7 +436,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
 
 int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, blitz::TinyVector<double,3> dPeriod) {
     auto mdl = pkd->mdl;
-    struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
+    struct smGroupArray *ga = pkd->Ephemeral<smGroupArray>();
     int i;
 
     for (i=1; i<pkd->nGroups; ++i) {
@@ -611,7 +611,7 @@ public:
 
 int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double,3> dPeriod) {
     auto mdl = pkd->mdl;
-    EE *ee = (EE *)(pkd->pLite);
+    auto ee = pkd->Ephemeral<EE>();
     int gid, iRoot, i, j;
     int nEvaporated;
     double a = csmTime2Exp(pkd->csm,dTime);

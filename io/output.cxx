@@ -61,7 +61,7 @@ static int packGridK(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packCtx *ctx = (struct packCtx *)vctx;
     PKD pkd = ctx->pkd;
     if (pkd->mdl->Core() == 0) {
-        auto fftData = reinterpret_cast<COMPLEX *>(pkd->pLite) + ctx->iGrid * pkd->fft->kgrid->nLocal;
+        auto fftData = pkd->Ephemeral<COMPLEX>() + ctx->iGrid * pkd->fft->kgrid->nLocal;
         size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
         size_t nLeft = nLocal - ctx->iIndex;
         size_t n = nSize / sizeof(*fftData);
@@ -77,8 +77,8 @@ static int packGridR(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packCtx *ctx = (struct packCtx *)vctx;
     PKD pkd = ctx->pkd;
     if (pkd->mdl->Core() == 0) {
-        auto fftData = reinterpret_cast<float *>(pkd->pLite) + ctx->iGrid * pkd->fft->rgrid->nLocal;
-        auto pOutput = reinterpret_cast<float *>(vBuff);
+        auto fftData = pkd->Ephemeral<float>() + ctx->iGrid * pkd->fft->rgrid->nLocal;
+        auto pOutput = static_cast<float *>(vBuff);
         size_t nLocal = 1ul * pkd->fft->rgrid->a1 * pkd->fft->rgrid->n2 * pkd->fft->rgrid->nSlab;
         size_t n = nSize / sizeof(*fftData);
         size_t iOutput = 0;

@@ -359,6 +359,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.fPeriod = parameters.get_dPeriod();
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
     ps.nIntegerFactor = parameters.get_nIntegerFactor();
+    ps.nBucket = parameters.get_nBucket();
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
     print("Memory Models:{position}{unordered}{velocity}{acceleration}{potential}{groups}{mass}{density}{ball}{softening}{velsmooth}{mfm}{mfv}{new_sph}"

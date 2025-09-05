@@ -61,7 +61,7 @@ typedef struct smContext {
     ** are source inactive or because they are already present in the prioq.
     ** In this extra array is also space for a queue of particles, needed
     ** for the fast gas routines or for friends-of-friends.
-    ** This will point to the pLite array, so it will be destroyed after a tree
+    ** This will point to the Ephemeral array, so it will be destroyed after a tree
     ** build or domain decomposition.
     */
     struct smExtraArray *ea;

@@ -23,7 +23,7 @@ static void pkdDensityContrast(PKD pkd,double dTotalMass,int iGrid,bool k=false)
     auto fft = pkd->fft;
     GridInfo G(pkd->mdl,fft);
     int nGrid = fft->rgrid->n1;
-    auto data = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGrid;
+    auto data = pkd->mdl->SetArray(pkd->Ephemeral<real_t>()) + fft->rgrid->nLocal * iGrid;
     real_array_t R;
     G.setupArray(data,R);
     if (k) { // Delta(k): same as Delta(r) below, but apply normalization for the FFT (divide by nGrid^3)

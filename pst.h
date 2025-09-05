@@ -259,6 +259,7 @@ struct inInitializePStore {
     uint64_t nMinEphemeral;
     uint64_t nMinTotalStore;
     uint32_t nIntegerFactor;
+    uint32_t nBucket;
     int nEphemeralBytes;
     int nTreeBitsLo;
     int nTreeBitsHi;

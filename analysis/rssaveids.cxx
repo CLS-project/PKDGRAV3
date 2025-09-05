@@ -22,7 +22,7 @@ void ServiceRsSaveIds::Write(PST pst,void *vin,int nIn,int iGroup,const std::str
 }
 
 void pkdContext::RsIdSave(int iGroup,const std::string &filename,int iSegment,int nSegment) {
-    auto ids = static_cast<uint64_t *>(pLite);
+    auto ids = Ephemeral<uint64_t>();
     auto nBytes = nRsElements*sizeof(ids[0]);
     io_chunk_write(filename.c_str(), ids, nBytes, iSegment>0);
 }

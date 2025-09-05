@@ -363,7 +363,7 @@ void pstFinish(PST pst) {
 
 static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
     *ppkd = new pkdContext(
-        static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
+        static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nBucket,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
         in->nTreeBitsLo,in->nTreeBitsHi,
         in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,in->fPeriod,
         in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],

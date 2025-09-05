@@ -2386,11 +2386,11 @@ void mdlClass::Handler() {
     } while (sid != SRV_STOP);
 }
 
-void mdlClass::delete_shared_array(void *p,uint64_t nBytes) {
+void mdlClass::delete_shared_array(void *p,size_t nBytes) {
     if (Core()==0) munmap(p,nBytes);
 }
 
-uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore) {
+size_t mdlClass::new_shared_array(void **p, int nSegments, size_t *nElements,const size_t *nBytesPerElement,size_t nMinTotalStore) {
     auto gcd = [](int a, int b) {                      // Greatest common divisor
         while ( a != 0 ) {
             auto c = a;
@@ -2399,13 +2399,13 @@ uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements
         }
         return b;
     };
-    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+    size_t nPageSize = sysconf(_SC_PAGESIZE);
     auto align = [&gcd,nPageSize](auto &N,auto b) {     // Align elements to a page size boundary
         auto n = nPageSize / gcd(nPageSize,b);
         N += n-1;
         N -= N % n;
         assert(N*b%nPageSize == 0);
-        return N * b;
+        return N * b;                                   // N is passed by reference and contains the new count of elements
     };
 
     // Align each segment to a page boundary
@@ -2417,7 +2417,7 @@ uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements
         nMessageData += (nBytesSegment[i] = align(nElements[i],nBytesPerElement[i]));
     }
     ThreadBarrier();
-    uint64_t nTotalBytes = 0;
+    size_t nTotalBytes = 0;
     for (auto t=0; t<Cores(); ++t)  {
         assert(pmdl[t]->nMessageData == nMessageData);
         nTotalBytes += pmdl[t]->nMessageData;

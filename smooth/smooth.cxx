@@ -438,10 +438,10 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     if (pkd->bIntegerPosition) sentinel.raw_position<int32_t>() = TinyVector<int32_t,3>(INT32_MAX,INT32_MAX,INT32_MAX);
     else sentinel.raw_position<double>() = TinyVector<double,3>(HUGE_VAL,HUGE_VAL,HUGE_VAL);
     /*
-    ** Need to cast the pLite to an array of extra stuff.
+    ** Need to cast the Ephemeral to an array of extra stuff.
     */
-    assert(pkd->EphemeralBytes() >= sizeof(struct smExtraArray));
-    smx->ea = (struct smExtraArray *)(pkd->pLite); /* Used only for SPH */
+    assert(pkd->EphemeralElementBytes() >= sizeof(struct smExtraArray));
+    smx->ea = pkd->Ephemeral<struct smExtraArray>(); /* Used only for SPH */
     *psmx = smx;
     return (1);
 }

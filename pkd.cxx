@@ -312,7 +312,7 @@ void pkdContext::set_factor(std::uint32_t factor) {
 }
 
 pkdContext::pkdContext(mdl::mdlClass *mdl,
-                       int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
+                       int nStore,int nBucket,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
                        const TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
@@ -501,18 +501,22 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if (nEphemeral * mdl->Cores()*nEphemeralBytes < nMinEphemeral)
         nEphemeral = (nMinEphemeral + mdl->Cores()*nEphemeralBytes - 1) / (mdl->Cores()*nEphemeralBytes);
 
-    uint64_t nElements[3] = {uint64_t(nStore+1),nEphemeral,0};
-    uint64_t nBytesPerElement[3] = {particles.ParticleSize(),nEphemeralBytes,sizeof(uint64_t)};
-    void *pSegments[3];
-    storageSize = mdl->new_shared_array(pSegments,3,nElements,nBytesPerElement,nMinTotalStore);
+    // For the third storage we use a rather conservative minimum number of tree nodes
+    // Ideally we would have nStore/nBucket leaf nodes, and thus twice that total tree nodes.
+    // The buckets are not always full, and the tree is not completely balanced, so it will be more in practice.
+    uint64_t nTreeNodes = (nStore+1) / nBucket * 2;
+    TinyVector<size_t,3> nElements{uint64_t(nStore+1),nEphemeral,nTreeNodes};
+    TinyVector<size_t,3> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,tree.ElementSize()};
+    storageSize = mdl->new_shared_array(pSegments.data(),3,nElements.data(),nBytesPerElement.data(),nMinTotalStore);
+    // storageSize = mdl->new_shared_array(pSegments,nElements,nBytesPerElement,nMinTotalStore);
     if (storageSize == 0) {
         fprintf(stderr, "ERROR: unable to allocate main storage\n");
         abort();
     }
+    nSegmentSizeBytes = nElements * nBytesPerElement;
 
-    storageBase = pSegments[0];
+    assert(nElements[0] >= nStore);
     particles.setStore(pSegments[0],nStore);
-    this->pLite = pSegments[1];                 // Ephemeral storage
     /*
     ** Now we setup the node storage for the tree.  This storage is no longer
     ** continguous as the MDL now supports non-contiguous arrays.  We allocate
@@ -631,7 +635,7 @@ pkdContext::~pkdContext() {
     /* Only thread zero allocated this memory block  */
     mdl->ThreadBarrier();
     if (mdl->Core() == 0) {
-        mdl->delete_shared_array(storageBase,storageSize);
+        mdl->delete_shared_array(pSegments[0],storageSize);
     }
     free(pTempPRIVATE);
     if (pLightCone) {

@@ -221,11 +221,11 @@ static int cmpRadiusLite(const void *pva,const void *pvb) {
 }
 
 /*
-** Use the pLite structure to calculate the distance to each particle
+** Use the Ephemeral structure to calculate the distance to each particle
 ** Sort by distance when finished.
 */
 void pkdCalcDistance(PKD pkd, blitz::TinyVector<double,3> dCenter, int bPeriodic) {
-    auto pl = static_cast<distance *>(pkd->pLite);
+    auto ephemeral = pkd->Ephemeral<distance>();
     int i;
 
     /*
@@ -233,10 +233,10 @@ void pkdCalcDistance(PKD pkd, blitz::TinyVector<double,3> dCenter, int bPeriodic
     */
     for (i=0; i<pkd->Local(); ++i) {
         auto p = pkd->particles[i];
-        pl[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
-        pl[i].i = i;
+        ephemeral[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
+        ephemeral[i].i = i;
     }
-    qsort(pkd->pLite,pkd->Local(),sizeof(distance),cmpRadiusLite);
+    qsort(ephemeral,pkd->Local(),sizeof(distance),cmpRadiusLite);
 }
 
 /*
@@ -290,14 +290,14 @@ void pkdResetCOM(PKD pkd, blitz::TinyVector<double,3> r_com, blitz::TinyVector<d
 ** Count the number of elements that are interior to r2
 */
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
-    auto pl = static_cast<distance *>(pkd->pLite);
+    auto ephemeral = pkd->Ephemeral<distance>();
     uint64_t lo,hi,i,upper;
 
     lo = 0;
     hi = pkd->Local();
     while ( lo<hi ) {
         i = (lo+hi) / 2;
-        if ( pl[i].d2 >= r2o ) hi = i;
+        if ( ephemeral[i].d2 >= r2o ) hi = i;
         else lo = i+1;
     }
     upper = hi;
@@ -305,7 +305,7 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
     lo = 0;
     while ( lo<hi ) {
         i = (lo+hi) / 2;
-        if ( pl[i].d2 >= r2i ) hi = i;
+        if ( ephemeral[i].d2 >= r2i ) hi = i;
         else lo = i+1;
     }
 
@@ -334,7 +334,7 @@ double ell_distance2(const double *r,SHAPESBIN *pShape, double ba, double ca) {
 **     taking the algorithm from Nbin * Npart down to Npart.
 */
 static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN *shapesBins) {
-    auto pl = static_cast<distance *>(pkd->pLite);
+    auto ephemeral = pkd->Ephemeral<distance>();
     local_t n = pkd->Local();
     SHAPESBIN *pShape;
     int i, j, k;
@@ -348,15 +348,15 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
     ** The most efficient way to handle this is to do the calculations for all bins
     */
     for (i=iBin=0; i<n; i++) {
-        auto p = pkd->particles[pl[i].i];
+        auto p = pkd->particles[ephemeral[i].i];
         auto r = p.position();
         double m = p.mass();
 
         //double r = dRadii[iBin];
 
         /* Find the bin: Assume that the last particle was close to the correct bin */
-        while ( pl[i].d2<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
-        while ( pl[i].d2>dRadii[iBin]*dRadii[iBin] ) --iBin;
+        while ( ephemeral[i].d2<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
+        while ( ephemeral[i].d2>dRadii[iBin]*dRadii[iBin] ) --iBin;
 
         pShape = pkd->mdl->Acquire<SHAPESBIN>(CID_SHAPES,iBin,0);
         pShape->dMassEnclosed += m;
@@ -514,7 +514,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     using blitz::TinyVector;
     using blitz::dot;
     using blitz::cross;
-    auto pl = static_cast<distance *>(pkd->pLite);
+    auto ephemeral = pkd->Ephemeral<distance>();
     local_t n = pkd->Local();
     double r0, r, r2;
     int i,iBin;
@@ -555,8 +555,8 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
         r2 = r*r;
         assert( r > r0 );
 
-        while ( pl[i].d2 <= r2 && i<n) {
-            auto P = pkd->particles[pl[i].i];
+        while ( ephemeral[i].d2 <= r2 && i<n) {
+            auto P = pkd->particles[ephemeral[i].i];
             auto m = P.mass();
             auto v = P.velocity();
             const auto r = P.position();
@@ -592,8 +592,8 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
         r = dRadii[iBin];
         r2 = r*r;
         assert( r > r0 );
-        while ( pl[i].d2 <= r2 && i<n) {
-            auto P = pkd->particles[pl[i].i];
+        while ( ephemeral[i].d2 <= r2 && i<n) {
+            auto P = pkd->particles[ephemeral[i].i];
             double m = P.mass();
             auto v = P.velocity();
             const auto r = P.position();

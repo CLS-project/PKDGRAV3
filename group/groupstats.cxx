@@ -429,7 +429,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
     double f2;
     int bLocal; /* a flip-flop which toggles when the first remote group is encountered, used as a consistency check only */
 
-    assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+sizeof(ShrinkStruct)) < 1ul*pkd->EphemeralBytes()*pkd->FreeStore());
+    assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+sizeof(ShrinkStruct)) < 1ul*pkd->EphemeralElementBytes()*pkd->FreeStore());
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
     dAccumulate = (double *)(&pkd->tinyGroupTable[pkd->nGroups]);
     /*

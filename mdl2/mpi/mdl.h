@@ -21,6 +21,7 @@
 #include <boost/container/small_vector.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/barrier.hpp>
+#include <boost/qvm/vec.hpp>
 #include "mdlstubs.h"
 #include "mdlbase.h"
 #include <stdio.h>
@@ -44,6 +45,7 @@
 #include <memory>
 #include <tuple>
 #include <vector>
+#include <array>
 #include <list>
 #include <map>
 #include <optional>
@@ -257,6 +259,12 @@ public:
         else nMessageData = nmemb * sizeof(T);
         return static_cast<T *>(exchangeArray(vdata));
     }
+    template<typename T>
+    auto SetArray(T *vdata,size_t nmemb=0) {
+        if constexpr (std::is_void_v<T>) nMessageData = 0;
+        else nMessageData = nmemb * sizeof(T);
+        return static_cast<T *>(exchangeArray(vdata));
+    }
 
     class mpiClass *mpi;
 protected:
@@ -441,8 +449,8 @@ public:
 
     int swaplocal( void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
     int swapglobal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
-    uint64_t new_shared_array(void **p, int nSegments,  uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore=0);
-    void delete_shared_array(void *p,uint64_t nBytes);
+    size_t new_shared_array(void **p, int nSegments,  size_t *nElements,const size_t *nBytesPerElement,size_t nMinTotalStore=0);
+    void delete_shared_array(void *p,size_t nBytes);
 
     double NumAccess(int cid) {
         return cache[cid]->nAccess;

@@ -34,7 +34,7 @@ void ServiceRsExtract::Write(PST pst,void *vin,int nIn,int iGroup,const std::str
 }
 
 void pkdContext::RsExtract(const std::string &filename, int iSegment, uint64_t *pOrds)  {
-    auto pOrders_first = static_cast<uint64_t *>(pLite);
+    auto pOrders_first = Ephemeral<uint64_t>();
     auto pOrders_last = pOrders_first + nRsElements;
     if (!std::is_sorted(pOrders_first,pOrders_last)) std::sort(pOrders_first,pOrders_last);
 
