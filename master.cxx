@@ -1461,6 +1461,10 @@ void MSR::DomainDecompOld(int iRung) {
 }
 
 void MSR::DomainDecomp(int iRung) {
+    if (iRung > parameters.get_iMaxRungDomainDecomp()) {
+        print_detail("Skipping Domain Decomposition, as rung {rung} is above the maximum defined by iMaxRungDomainDecomp ({maxrung}).\n", "rung"_a=iRung, "maxrung"_a=parameters.get_iMaxRungDomainDecomp());
+        return;
+    }
     DomainDecompOld(iRung);
 }
 

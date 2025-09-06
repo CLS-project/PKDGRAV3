@@ -49,7 +49,7 @@ float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
     float u = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         u = T * SPHoptions->TuFac;
-        if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
+        if (SPHoptions->useIsentropic) u = SPHEOSconvertInternalEnergytoEntropicFunction(rho, u, iMat, SPHoptions);
     }
     else {
 #ifdef HAVE_EOSLIB_H
