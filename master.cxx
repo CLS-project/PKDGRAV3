@@ -668,9 +668,15 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
         }
     }
 
-    ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
+    // The load_module function relies on peek(256) which is not guaranteed to return 256 bytes.
+    // We seek to the start of the file and back to the current position as a workaround (best effort)
+    auto where = PyObject_CallMethod(pFile, "tell", nullptr);
+    if (!where) { PyErr_Print(); abort(); }
+    Py_XDECREF(PyObject_CallMethod(pFile, "seek", "n", (Py_ssize_t)0));
+    Py_XDECREF(PyObject_CallMethod(pFile, "seek", "O", where));
+    Py_DECREF(where);
 
-    // Restore the interpreter state
+    // Restore the interpreter state so that functions that reference variables will still work
     PyObject *args = PyTuple_Pack(1, pFile);
     PyObject *result = PyObject_CallObject(pDill_load_module, args);
     Py_DECREF(args);
@@ -679,6 +685,8 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
 
     PyObject_CallMethod(pFile, "close", NULL);
     Py_DECREF(pFile);
+
+    ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
