@@ -164,7 +164,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     ** log file entry.
     */
     if (LogInterval()) {
-        std::string filename = std::string(OutName()) + ".log";
+        auto filename = MakePath(OutName(),".log");
         log.open(filename,std::ios::app);
         if (!log.is_open()) {
             print_error("Failed to open log file: {}\n",filename);

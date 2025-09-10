@@ -22,6 +22,9 @@
 #include <complex>
 #define COMPLEX std::complex<float>
 
+#include "fmt/format.h"
+using namespace fmt::literals;        // Gives us ""_a and ""_format literals
+
 void ServiceSaveGroupStats::Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) {
     pst->plcl->pkd->GroupStatsSave(iGroup,filename,iSegment,nSegment);
 }
@@ -148,12 +151,9 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
                int iPartner,int nPartner, const char *fname, int iGrid ) {
     mdlPack unpack;
     asyncFileInfo info;
-    char achOutFile[256];
-    strcpy(achOutFile,fname);
-    int n = strlen(achOutFile);
-    snprintf(achOutFile+n,sizeof(achOutFile)-n,".%d",iProcessor);
+    auto achOutFile = fmt::format(fname,"i"_a=iProcessor);
     io_init(&info,4,1024*1024,IO_AIO|IO_LIBAIO);
-    if (io_create(&info,achOutFile) < 0) { perror(fname); abort(); }
+    if (io_create(&info,achOutFile.c_str()) < 0) { perror(fname); abort(); }
 
     switch (eOutputType) {
     case OUT_TINY_GROUP:

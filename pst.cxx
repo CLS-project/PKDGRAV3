@@ -40,6 +40,7 @@
 #ifdef USE_ITT
     #include "ittnotify.h"
 #endif
+#include "fmt/format.h"
 #include "mdl.h"
 #include "pst.h"
 #include "pkd.h"
@@ -711,21 +712,8 @@ int pstWriteASCII(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 
-static void makeName( char *achOutName, size_t nBytes, const char *inName, int iIndex,const char *prefix ) {
-    char *p;
-
-    strcpy( achOutName, inName );
-    p = strstr( achOutName, "&I" );
-    if ( p ) {
-        int n = p - achOutName;
-        snprintf( p, nBytes-n, "%s%d", prefix, iIndex );
-        strcat( p, inName + n + 2 );
-    }
-    else {
-        int n = strlen(achOutName);
-        p = achOutName + n;
-        snprintf(p,nBytes-n,".%s%d", prefix, iIndex);
-    }
+static std::string makeName(std::string_view inName, int iIndex) {
+    return fmt::format(inName, fmt::arg("i", iIndex));
 }
 
 int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -753,9 +741,8 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PATH_MAX];
-        makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"");
-        pkdCheckpoint(pkd,achOutFile);
+        auto achOutFile = makeName(in->achOutFile,pkd->mdl->Self());
+        pkdCheckpoint(pkd,achOutFile.c_str());
     }
     return 0;
 }
@@ -773,7 +760,6 @@ int pstSendArray(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    char achOutFile[PATH_MAX];
     auto in = static_cast<struct inWrite *>(vin);
     FIO fio;
     int i;
@@ -805,23 +791,22 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         LCL *plcl = pst->plcl;
         if (in->nProcessors!=0) {
+            auto achOutFile = makeName(in->achOutFile,in->iIndex);
             if (in->bHDF5) {
 #ifdef USE_HDF5
-                makeName(achOutFile,sizeof(achOutFile),in->achOutFile,in->iIndex,"");
-                fio = fioHDF5Create(achOutFile,in->mFlags);
+                fio = fioHDF5Create(achOutFile.c_str(),in->mFlags);
 #else
                 fio = NULL; /* Should never happen */
 #endif
             }
             else {
-                if (strstr(in->achOutFile, "&I" )) {
-                    makeName(achOutFile,sizeof(achOutFile),in->achOutFile,in->iIndex,"");
-                    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
+                if (achOutFile != makeName(in->achOutFile,in->iIndex+1)) {
+                    fio = fioTipsyCreatePart(achOutFile.c_str(),0,in->mFlags&FIO_FLAG_CHECKPOINT,
                                              in->bStandard, pst->plcl->pkd->particles.present(PKD_FIELD::oNewSph) ? in->dTime : in->dExp,
                                              in->nGas, in->nDark, in->nStar, plcl->nWriteStart);
                 }
                 else {
-                    fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
+                    fio = fioTipsyAppend(achOutFile.c_str(),in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
                     if (fio) {
                         fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
                     }
@@ -829,7 +814,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
             }
             if (fio==NULL) {
                 fprintf(stderr,"ERROR: unable to create file for output\n");
-                perror(in->achOutFile);
+                perror(achOutFile.c_str());
                 mdlassert(pst->mdl,fio!=NULL);
             }
 
@@ -2355,10 +2340,8 @@ int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PATH_MAX];
-        if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"lcp.");
-        else achOutFile[0] = 0;
-        pkdLightConeOpen(pkd, achOutFile, in->nSideHealpix);
+        auto achOutFile = makeName(in->achOutFileLcp, pkd->mdl->Self());
+        pkdLightConeOpen(pkd, achOutFile.c_str(), in->nSideHealpix);
     }
     return 0;
 }
@@ -2373,10 +2356,8 @@ int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PATH_MAX];
-        if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"hpb.");
-        else achOutFile[0] = 0;
-        pkdLightConeClose(pst->plcl->pkd,achOutFile);
+        auto achOutFile = makeName(in->achOutFileHpb,pkd->mdl->Self());
+        pkdLightConeClose(pst->plcl->pkd,achOutFile.c_str());
     }
     return 0;
 }

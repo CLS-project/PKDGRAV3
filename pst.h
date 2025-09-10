@@ -1263,11 +1263,11 @@ int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 struct inLightConeOpen {
     int nSideHealpix;
-    char achOutFile[PATH_MAX];
+    char achOutFileLcp[PATH_MAX];
 };
 int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inLightConeClose {
-    char achOutFile[PATH_MAX];
+    char achOutFileHpb[PATH_MAX];
 };
 int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut);
 

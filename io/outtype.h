@@ -104,7 +104,7 @@ typedef struct pkdout {
 #ifdef __cplusplus
 extern "C" {
 #endif
-PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int iType);
+PKDOUT pkdOpenOutASCII(PKD pkd,const char *pszFileName,const char *mode,int iFile,int iType);
 void pkdCloseOutASCII(PKD pkd,PKDOUT ctx);
 void pkdOutHdr(PKD pkd,PKDOUT ctx,uint64_t N);
 void pkdOutASCII(PKD pkd,PKDOUT ctx,int iType,int iDim);

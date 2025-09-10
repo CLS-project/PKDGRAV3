@@ -652,7 +652,7 @@ void pkdFreeOutASCII(PKD pkd,PKDOUT ctx) {
  * File I/O routines
 \******************************************************************************/
 
-PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int iType) {
+PKDOUT pkdOpenOutASCII(PKD pkd,const char *pszFileName,const char *mode,int iFile,int iType) {
     PKDOUT ctx;
 
     ctx = new struct pkdout; assert(ctx!=NULL);
