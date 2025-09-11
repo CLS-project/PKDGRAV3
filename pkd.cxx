@@ -112,21 +112,19 @@ using blitz::min;
 static void initLightBallOffsets(PKD pkd,double mrLCP) {
     Bound bnd(TinyVector<double,3>(-0.5),TinyVector<double,3>(0.5));
     double min2;
-    int ix,iy,iz,l,nBox,nBoxMax;
+    int ix,iy,iz,l;
 
     pkd->nLayerMax = ceil(mrLCP);
-    pkd->nBoxLC = (int *)malloc(pkd->nLayerMax*sizeof(int));
-    assert(pkd->nBoxLC != NULL);
+    pkd->nBoxLC.clear();
 
-    pkd->lcOffset0 = NULL;
-    pkd->lcOffset1 = NULL;
-    pkd->lcOffset2 = NULL;
+    pkd->lcOffset0.clear();
+    pkd->lcOffset1.clear();
+    pkd->lcOffset2.clear();
     /*
     ** Set up the light cone offsets such that they proceed from the inner 8
     ** unit boxes outward layer by layer so that we can skip checks of the
     ** outer layers if we want.
     */
-    nBox = nBoxMax = 0;
     for (l=0; l<pkd->nLayerMax; ++l) {
         for (ix=-l; ix<=l+1; ++ix) {
             for (iy=-l; iy<=l+1; ++iy) {
@@ -135,20 +133,10 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
                     TinyVector<double,3> r(ix - 0.5, iy - 0.5, iz - 0.5);
                     min2 = bnd.mindist(r);
                     if (min2 < mrLCP*mrLCP) {
-                        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f> min2:%f\n",nBox,l,r[0],r[1],r[2],min2);
-                        if (nBox == nBoxMax) {
-                            nBoxMax += 100;
-                            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset0 != NULL);
-                            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset1 != NULL);
-                            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset2 != NULL);
-                        }
-                        pkd->lcOffset0[nBox] = r[0];
-                        pkd->lcOffset1[nBox] = r[1];
-                        pkd->lcOffset2[nBox] = r[2];
-                        ++nBox;
+                        if (pkd->Self()==0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f> min2:%f\n",pkd->lcOffset0.size(),l,r[0],r[1],r[2],min2);
+                        pkd->lcOffset0.push_back(r[0]);
+                        pkd->lcOffset1.push_back(r[1]);
+                        pkd->lcOffset2.push_back(r[2]);
                     }
                 }
             }
@@ -156,15 +144,12 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
         /*
         ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
         */
-        pkd->nBoxLC[l] = nBox;
+        pkd->nBoxLC.push_back(pkd->lcOffset0.size());
     }
 }
 
 static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3> h,double alpha,double mrLCP) {
-    int l,ix,iy,iz,nBox,nBoxMax;
-    int *xy;
-    int *xz;
-    int *yz;
+    int l,ix,iy,iz;
     double hm = sqrt(h[0]*h[0] + h[1]*h[1] + h[2]*h[2]);
     double min2;
 
@@ -179,16 +164,13 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
     assert(h[1] > 0);
     assert(h[2] > 0);
 
-    pkd->nBoxLC = (int *)malloc(pkd->nLayerMax*sizeof(int));
-    assert(pkd->nBoxLC != NULL);
+    pkd->nBoxLC.clear();
 
-    xy = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-    assert(xy != NULL);
-    xz = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-    assert(xz != NULL);
-    yz = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-    assert(yz != NULL);
-    for (int j=0; j<pkd->nLayerMax*pkd->nLayerMax; ++j) xy[j] = xz[j] = yz[j] = 1; // by default all projected cells need to be checked
+    // by default all projected cells need to be checked
+    std::vector<char> xy(pkd->nLayerMax*pkd->nLayerMax,true);
+    std::vector<char> xz(pkd->nLayerMax*pkd->nLayerMax,true);
+    std::vector<char> yz(pkd->nLayerMax*pkd->nLayerMax,true);
+
     double alpha_xy = atan2(tan(alpha),sqrt(h[0]*h[0] + h[1]*h[1])); // angle projected onto the xy plane
     double alpha_xz = atan2(tan(alpha),sqrt(h[0]*h[0] + h[2]*h[2])); // angle projected onto the xz plane
     double alpha_yz = atan2(tan(alpha),sqrt(h[1]*h[1] + h[2]*h[2])); // angle projected onto the xy plane
@@ -210,20 +192,19 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
         for (int i=0; i<pkd->nLayerMax; ++i) {
             double a1 = atan2(j,i+1);
             double a2 = atan2(j+1,i);
-            if (beta_xy > a2 + alpha_xy || beta_xy < a1 - alpha_xy) xy[j*pkd->nLayerMax+i] = 0; // doesn't intersect
-            if (beta_xz > a2 + alpha_xz || beta_xz < a1 - alpha_xz) xz[j*pkd->nLayerMax+i] = 0; // doesn't intersect
-            if (beta_yz > a2 + alpha_yz || beta_yz < a1 - alpha_yz) yz[j*pkd->nLayerMax+i] = 0; // doesn't intersect
+            if (beta_xy > a2 + alpha_xy || beta_xy < a1 - alpha_xy) xy[j*pkd->nLayerMax+i] = false; // doesn't intersect
+            if (beta_xz > a2 + alpha_xz || beta_xz < a1 - alpha_xz) xz[j*pkd->nLayerMax+i] = false; // doesn't intersect
+            if (beta_yz > a2 + alpha_yz || beta_yz < a1 - alpha_yz) yz[j*pkd->nLayerMax+i] = false; // doesn't intersect
         }
     }
-    pkd->lcOffset0 = NULL;
-    pkd->lcOffset1 = NULL;
-    pkd->lcOffset2 = NULL;
+    pkd->lcOffset0.clear();
+    pkd->lcOffset1.clear();
+    pkd->lcOffset2.clear();
     /*
     ** Set up the light cone offsets such that they proceed from the inner 8
     ** unit boxes outward layer by layer so that we can skip checks of the
     ** outer layers if we want.
     */
-    nBox = nBoxMax = 0;
     for (l=0; l<pkd->nLayerMax; ++l) {
         for (ix=0; ix<=l; ++ix) {
             for (iy=0; iy<=l; ++iy) {
@@ -234,39 +215,19 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
                         Bound bnd(TinyVector<double,3>(-0.5),TinyVector<double,3>(0.5));
                         min2 = bnd.mindist(r);
                         if (min2 > mrLCP*mrLCP) continue;
-                        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-                        if (nBox == nBoxMax) {
-                            nBoxMax += 100;
-                            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset0 != NULL);
-                            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset1 != NULL);
-                            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset2 != NULL);
-                        }
-                        pkd->lcOffset0[nBox] = r[0];
-                        pkd->lcOffset1[nBox] = r[1];
-                        pkd->lcOffset2[nBox] = r[2];
-                        ++nBox;
+                        if (pkd->Self()==0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n",pkd->lcOffset0.size(),l,r[0],r[1],r[2]);
+                        pkd->lcOffset0.push_back(r[0]);
+                        pkd->lcOffset1.push_back(r[1]);
+                        pkd->lcOffset2.push_back(r[2]);
                         if (bBowtie) {
                             /*
                             ** Now include also the -,-,- octant for checks, as we will be producing a bowtie.
                             */
                             for (int j=0; j<3; ++j) r[j] = -r[j];
-                            if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-                            if (nBox == nBoxMax) {
-                                nBoxMax += 100;
-                                pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-                                assert(pkd->lcOffset0 != NULL);
-                                pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-                                assert(pkd->lcOffset1 != NULL);
-                                pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-                                assert(pkd->lcOffset2 != NULL);
-                            }
-                            pkd->lcOffset0[nBox] = r[0];
-                            pkd->lcOffset1[nBox] = r[1];
-                            pkd->lcOffset2[nBox] = r[2];
-                            ++nBox;
+                            if (pkd->Self()==0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n",pkd->lcOffset0.size(),l,r[0],r[1],r[2]);
+                            pkd->lcOffset0.push_back(r[0]);
+                            pkd->lcOffset1.push_back(r[1]);
+                            pkd->lcOffset2.push_back(r[2]);
                         }
                     }
                 }
@@ -275,7 +236,7 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
         /*
         ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
         */
-        pkd->nBoxLC[l] = nBox;
+        pkd->nBoxLC.push_back(pkd->lcOffset0.size());
     }
     /*
     ** Add more boxes to get to a multiple of the vector width.
@@ -284,23 +245,13 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
     */
     l = pkd->nLayerMax - 1;
     double r[3] = {2*l + 0.5, 2*l + 0.5, 2*l + 0.5};
-    while (nBox%dvec::width()) {
-        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-        if (nBox == nBoxMax) {
-            nBoxMax += 100;
-            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-            assert(pkd->lcOffset0 != NULL);
-            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-            assert(pkd->lcOffset1 != NULL);
-            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-            assert(pkd->lcOffset2 != NULL);
-        }
-        pkd->lcOffset0[nBox] = r[0];
-        pkd->lcOffset1[nBox] = r[1];
-        pkd->lcOffset2[nBox] = r[2];
-        ++nBox;
+    while (pkd->lcOffset0.size()%dvec::width()) {
+        if (pkd->Self()==0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n",pkd->lcOffset0.size(),l,r[0],r[1],r[2]);
+        pkd->lcOffset0.push_back(r[0]);
+        pkd->lcOffset1.push_back(r[1]);
+        pkd->lcOffset2.push_back(r[2]);
     }
-    pkd->nBoxLC[l] = nBox;
+    pkd->nBoxLC.push_back(pkd->lcOffset0.size());
 }
 
 void pkdContext::set_factor(std::uint32_t factor) {

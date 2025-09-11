@@ -507,10 +507,8 @@ public:
     ** Light cone variables.
     */
     int nLayerMax;
-    int *nBoxLC;
-    double *lcOffset0;
-    double *lcOffset1;
-    double *lcOffset2;
+    std::vector<int> nBoxLC;
+    std::vector<double> lcOffset0, lcOffset1, lcOffset2;
     asyncFileInfo afiLightCone;
     LIGHTCONEP *pLightCone;
     int nLightCone, nLightConeMax;
