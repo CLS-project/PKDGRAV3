@@ -224,7 +224,7 @@ int main(int argc,char **argv) {
 #endif
 #ifndef CCC
     /* no stdout buffering */
-    setbuf(stdout,(char *) NULL);
+    setvbuf(stdout,NULL,_IONBF,0);
 #endif
 
     return mdl::Launch(master,worker_init,worker_done,argc,argv);

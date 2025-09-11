@@ -570,10 +570,11 @@ NextCell:
     */
     for (pn=0; pn<pkd->Local(); ++pn) {
         auto p = pkd->particles[pn];
-        if ( (i = p.group()) != 0 ) {
-            if (pkd->ga[i].iMinPart == 0xffffffff) {
-                pkd->ga[i].iMinPart = pn;
-                pkd->ga[i].minPot = (float)pkd->Self(); /* this makes the reference particle be in the lowest processor number */
+        const auto gid = p.group();
+        if (gid) {
+            if (pkd->ga[gid].iMinPart == 0xffffffff) {
+                pkd->ga[gid].iMinPart = pn;
+                pkd->ga[gid].minPot = (float)pkd->Self(); /* this makes the reference particle be in the lowest processor number */
             }
         }
         /*

@@ -505,7 +505,6 @@ int64_t MSR::parallel_write_count() {
 
 void MSR::stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size) {
     ServiceFileSizes::input hdr;
-
     marshal_string(hdr.filename, filename_template);
     hdr.nSimultaneous = hdr.nTotalActive = parallel_read_count();
     hdr.iReaderWriter = 0;
@@ -2076,7 +2075,6 @@ void print_grid(int width, int nThreads, const std::unique_ptr<T[]> &data, M T::
 }
 
 void MSR::Hostname() {
-    int i;
     std::unique_ptr<ServiceHostname::output[]> out {new ServiceHostname::output[nThreads]};
     mdl->RunService<ServiceHostname>(out.get());
     print("Host Names:\n");
@@ -2086,7 +2084,6 @@ void MSR::Hostname() {
 }
 
 void MSR::MemStatus() {
-    int i;
     if (parameters.get_bVDetails()) {
         std::unique_ptr<struct outMemStatus[]> out {new struct outMemStatus[nThreads]};
         pstMemStatus(pst,0,0,out.get(),nThreads*sizeof(struct outMemStatus));
@@ -2434,7 +2431,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
         achFile += ".finelog";
         fpFineLog = fopen(achFile.c_str(),"a");
         assert(fpFineLog != NULL);
-        setbuf(fpFineLog,(char *) NULL); /* no buffering */
+        setvbuf(fpFineLog, NULL, _IONBF, 0); // Disable buffering
 
         /* Write the header */
         fprintf(fpFineLog, "#First line:\n#dStep dTime ");

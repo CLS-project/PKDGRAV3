@@ -1059,9 +1059,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             // If we have no particle order convert directly to Integerized positions.
             // We do this to save space as an "Integer" particle is small.
             if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
-                integerParticle *b = ((integerParticle *)in->pBase) + in->iStart + i;
-                integerParticle temp;
-                memcpy(&temp,b,sizeof(temp));
+                integerParticle temp = reinterpret_cast<integerParticle *>(in->pBase)[in->iStart + i];
                 Vel[2] = temp.v[2];
                 Vel[1] = temp.v[1];
                 Vel[0] = temp.v[0];
@@ -1071,9 +1069,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 r[0] = temp.r[0];
             }
             else {
-                expandParticle *b = ((expandParticle *)in->pBase) + in->iStart + i;
-                expandParticle temp;
-                memcpy(&temp,b,sizeof(temp));
+                expandParticle temp = reinterpret_cast<expandParticle *>(in->pBase)[in->iStart + i];
                 Vel[2] = temp.v[2];
                 Vel[1] = temp.v[1];
                 Vel[0] = temp.v[0];
@@ -1408,9 +1404,7 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         blitz::TinyVector<int,3> index(0,0,fft->rgrid->rs[myProc] + fft->rgrid->rn[myProc]);
         float inGrid = 1.0 / in->nGrid;
         for (i=nLocal-1; i>=0; --i) {
-            basicParticle  *b = &pbBase->b + i;
-            basicParticle temp;
-            memcpy(&temp,b,sizeof(temp));
+            basicParticle temp = (&pbBase->b)[i];
             if (index[0]>0) --index[0];
             else {
                 index[0] = in->nGrid-1;

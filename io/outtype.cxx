@@ -68,13 +68,11 @@ static int getType(int iType) {
         return OUTTYPE_FLOAT;
 
     case OUT_CACHEFLUX_ARRAY:
-        return OUTTYPE_INTEGER;
     case OUT_CACHECOLL_ARRAY:
-        return OUTTYPE_INTEGER;
     case OUT_AVOIDEDFLUXES_ARRAY:
-        return OUTTYPE_INTEGER;
     case OUT_COMPUTEDFLUXES_ARRAY:
         return OUTTYPE_INTEGER;
+
     case OUT_RUNGDEST_ARRAY:
         return OUTTYPE_RUNGDEST;
 
@@ -304,7 +302,6 @@ extern uint64_t hilbert3d(float x,float y,float z);
 static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     assert(0);
     int iRung;
-    float x,y,z;
     int64_t lKey;
     auto P = pkd->particles[p];
     const auto &RungDest = P.RungDest();

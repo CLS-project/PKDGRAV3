@@ -368,7 +368,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** There are other particles in the tree -- just not active.mdlN
     */
     auto pRoot = pkd->tree[ROOT];
-    auto nTree = pRoot->count();
+    // auto nTree = pRoot->count();
     helper->initialize_local();
     /*
     ** Start particle caching space (cell cache is already active).

@@ -30,7 +30,8 @@
 #include "analysis.h"
 #include "ic/ic.h"
 
-#define SHAPES
+//#define SHAPES
+#ifdef SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
 #define USE_PCS_LIN /* USE_PCS_LIN USE_TSC_LIN USE_CIC_LIN USE_NGP_LIN */
 static void transpose(double mat[3][3],double trans_mat[3][3]) {
@@ -42,7 +43,6 @@ static void transpose(double mat[3][3],double trans_mat[3][3]) {
         }
     }
 }
-
 
 #define ROTATE(a,i,j,k,l) g=a[i][j];h=a[k][l];a[i][j]=g-s*(h+g*tau);\
         a[k][l]=h+s*(g-h*tau);
@@ -123,6 +123,7 @@ static void jacobi(double a[4][4],int n,double d[4],double v[4][4], int *nrot) {
     }
     printf("<error in jacobi>\n") ;
 }
+#endif
 
 /*
 ** Combiner cache functions
