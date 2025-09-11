@@ -53,7 +53,8 @@ class clList : public ListCL<CL_PART_PER_BLK,64> {
 public:
     using ListCL<CL_PART_PER_BLK,64>::append;
     typedef ListCL<CL_PART_PER_BLK,64> free_list;
-    clList(free_list &freeList) {setFreeList(freeList);}
+    clList() = default;
+    clList(List::list_type &freeList) : ListCL<CL_PART_PER_BLK,64>(freeList) {}
 
     void append(uint32_t iCache,uint32_t idCell,uint32_t iCell,
                 uint32_t idLower,uint32_t iLower,uint32_t idUpper,uint32_t iUpper,uint32_t nc,float cOpen,float m,float fourh2,
