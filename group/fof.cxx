@@ -41,7 +41,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,std::vector<int> &S,double fBall2,TinyVector<
                            uint32_t iTail,uint32_t *Fifo,int *pbCurrFofContained,
                            const Bound::coord_type fMinFofContained,const Bound::coord_type fMaxFofContained) {
     double min2,dx,dy,dz,fDist2;
-    int iCell,pj,j;
+    int iCell,pj;
     uint32_t iPartGroup;
 
     S.clear(); // It would be weird if the stack was not empty
@@ -76,15 +76,8 @@ uint32_t pkdFofGatherLocal(PKD pkd,std::vector<int> &S,double fBall2,TinyVector<
                 p.set_group(iGroup);
                 Fifo[iTail++] = pj;
                 if (*pbCurrFofContained) {
-                    for (j=0; j<3; ++j) {
-                        if (p_r[j] < fMinFofContained[j]) {
-                            *pbCurrFofContained = 0;
-                            break;
-                        }
-                        else if (p_r[j] > fMaxFofContained[j]) {
-                            *pbCurrFofContained = 0;
-                            break;
-                        }
+                    if (blitz::any(p_r < fMinFofContained) || blitz::any(p_r > fMaxFofContained)) {
+                        *pbCurrFofContained = 0;
                     }
                 }
             }
@@ -411,7 +404,7 @@ void updateInteriorBound(Bound &ibnd,const Bound &bnd) {
 
 void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,int nBucket) {
     uint32_t iGroup;
-    int pn,i,j;
+    int pn,i;
     uint32_t iHead;
     uint32_t iTail;
     const uint32_t uGroupMax = (pkd->bNoParticleOrder)?IGROUPMAX:0xffffffff;
@@ -443,18 +436,16 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
         if (idLo == idSelf) {
             c = pkd->tree[iCellLo];
             auto bnd = c->bound();
-            for (j=0; j<3; ++j) {
-                if (fabs(bndSelf.fCenter[j]-bnd.fCenter[j]) > bnd.fMax[j]) {
-                    /*
-                    ** Check bounds against this sibling.
-                    */
-                    updateInteriorBound(pkd->bndInterior,bnd);
-                    id = idUp;
-                    assert(id == idSelf);
-                    iCell = iCellUp;
-                    c = pkd->tree[iCell];
-                    goto NextCell;
-                }
+            if (blitz::any(blitz::abs(bndSelf.center() - bnd.center()) > bnd.apothem())) {
+                /*
+                ** Check bounds against this sibling.
+                */
+                updateInteriorBound(pkd->bndInterior,bnd);
+                id = idUp;
+                assert(id == idSelf);
+                iCell = iCellUp;
+                c = pkd->tree[iCell];
+                goto NextCell;
             }
         }
         assert(idUp == idSelf);
@@ -474,7 +465,7 @@ NextCell:
     */
     if (bPeriodic) {
         Bound rbnd;
-        for (j=0; j<3; ++j) rbnd.fMax[j] = bndTop->fMax[j];
+        for (auto j=0; j<3; ++j) rbnd.fMax[j] = bndTop->fMax[j];
         for (ix=-1; ix<=1; ++ix) {
             fOffset[0] = ix*pkd->fPeriod[0];
             for (iy=-1; iy<=1; ++iy) {
@@ -525,15 +516,8 @@ NextCell:
         p.set_group(iGroup);
         bCurrFofContained = 1;
         auto p_r = p.position();
-        for (j=0; j<3; ++j) {
-            if (p_r[j] < fMinFofContained[j]) {
-                bCurrFofContained = 0;
-                break;
-            }
-            else if (p_r[j] > fMaxFofContained[j]) {
-                bCurrFofContained = 0;
-                break;
-            }
+        if (blitz::any(p_r < fMinFofContained) || blitz::any(p_r > fMaxFofContained)) {
+            bCurrFofContained = 0;
         }
         while (iHead < iTail) {
             p_r = pkd->particles[Fifo[iHead++]].position();
