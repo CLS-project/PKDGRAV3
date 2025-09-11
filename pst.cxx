@@ -20,7 +20,7 @@
 #else
     #include "pkd_config.h"
 #endif
-
+#include <algorithm>
 #include <math.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -518,20 +518,13 @@ int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(*pout) * pst->nLeaves;
 }
 
-static void _SwapClasses(PKD pkd, int id) {
-    PARTCLASS *pClass;
-    int n;
-    int rID;
-
-    pClass = new PARTCLASS[PKD_MAX_CLASSES];
-    assert(pClass!=NULL);
-
-    n = pkd->particles.getClasses( PKD_MAX_CLASSES, pClass );
-    rID = pkd->mdl->ReqService(id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
-    n = pkd->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(*pClass),pClass);
+static void swap_classes(PKD pkd, int id) {
+    auto pClass = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
+    int n = pkd->particles.getClasses( PKD_MAX_CLASSES, pClass.get() );
+    int rID = pkd->mdl->ReqService(id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
+    n = pkd->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(PARTCLASS),pClass.get());
     n = n / sizeof(PARTCLASS);
-    pkd->particles.setClasses( n, pClass, 0 );
-    delete [] pClass;
+    pkd->particles.setClasses( n, pClass.get(), 0 );
 }
 
 int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -597,7 +590,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             /*
              * Now shove them over to the remote processor.
             */
-            _SwapClasses(pkd,id);
+            swap_classes(pkd,id);
             inswap = mdl->Self();
             rID = pst->mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
             pkdSwapAll(pkd, id);
@@ -1999,25 +1992,20 @@ int pstGetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn==0);
     if (pst->nLeaves > 1) {
-        auto outUp = new PARTCLASS[PKD_MAX_CLASSES];
+        auto outUp = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
         int rID = pst->mdl->ReqService(pst->idUpper,PST_GETCLASSES,vin,nIn);
         nOut = pstGetClasses(pst->pstLower,vin,nIn,out,nOut);
-        nUp = pst->mdl->GetReply(rID,PKD_MAX_CLASSES*(sizeof(*outUp)),outUp);
+        nUp = pst->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(outUp[0]),outUp.get());
         n = nUp / sizeof(PARTCLASS);
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nUp);
         nUp = n;
         n = nOut / sizeof(PARTCLASS);
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)== nOut);
         for ( i=0; i<nUp; i++ ) {
-            for ( j=0; j<n; j++ ) {
-                if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft && outUp[i].iMat==out[j].iMat && outUp[i].accFac==out[j].accFac && outUp[i].eSpecies==out[j].eSpecies)
-                    break;
-            }
-            if ( j == n ) {
+            if (std::find(out, out + n, outUp[i]) == out + n) {
                 out[n++] = outUp[i];
             }
         }
-        delete [] outUp;
     }
     else {
         n = plcl->pkd->particles.getClasses(PKD_MAX_CLASSES,out);

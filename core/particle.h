@@ -25,6 +25,7 @@
 #include <functional>
 #include <type_traits>
 #include <iterator>
+#include <tuple>
 #include <boost/hana/define_struct.hpp>
 #include "blitz/array.h"
 #include "datastore.h"
@@ -76,20 +77,14 @@ struct PARTCLASS {
     int         iMat;     /* newSPH material id */
     float       accFac;   /* Acceleration factor to facilitate fixed particles*/
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
-
-    bool operator <(const PARTCLASS &b) const {
-        if ( fMass < b.fMass ) return true;
-        else if ( fMass > b.fMass ) return false;
-        else if ( fSoft < b.fSoft ) return true;
-        else if ( fSoft > b.fSoft ) return false;
-        else if ( iMat  < b.iMat  ) return true;
-        else if ( iMat  > b.iMat  ) return false;
-        else if ( accFac < b.accFac ) return true;
-        else if ( accFac > b.accFac ) return false;
-        else return eSpecies < b.eSpecies;
+    auto key() const noexcept {
+        return std::tie(fMass, fSoft, iMat, accFac, eSpecies);
     }
-    bool operator==(const PARTCLASS &b) const {
-        return fMass==b.fMass && fSoft==b.fSoft && iMat==b.iMat && accFac==b.accFac && eSpecies==b.eSpecies;
+    bool operator<(const PARTCLASS& rhs) const noexcept {
+        return key() < rhs.key();
+    }
+    bool operator==(const PARTCLASS& rhs) const noexcept {
+        return key() == rhs.key();
     }
     PARTCLASS() = default;
     PARTCLASS(FIO_SPECIES eSpecies,float fMass,float fSoft,int iMat,float accFac)

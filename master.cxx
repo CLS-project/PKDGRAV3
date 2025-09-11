@@ -1061,7 +1061,7 @@ void MSR::SwapClasses(int id) {
     int n;
     int rID;
 
-    std::unique_ptr<PARTCLASS[]> pClass {new PARTCLASS[PKD_MAX_CLASSES]};
+    auto pClass = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
     n = plcl->pkd->particles.getClasses( PKD_MAX_CLASSES, pClass.get() );
     rID = pst0->mdl->ReqService(id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
     n = pst0->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(PARTCLASS),pClass.get());
