@@ -30,20 +30,21 @@
 #include "core/remote.h"
 
 #include <algorithm>
+#include <vector>
 
 using blitz::TinyVector;
 using blitz::sum;
 using blitz::dot;
 using blitz::any;
 
-uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,TinyVector<double,3> r,uint32_t iGroup,
+uint32_t pkdFofGatherLocal(PKD pkd,std::vector<int> &S,double fBall2,TinyVector<double,3> r,uint32_t iGroup,
                            uint32_t iTail,uint32_t *Fifo,int *pbCurrFofContained,
                            const Bound::coord_type fMinFofContained,const Bound::coord_type fMaxFofContained) {
     double min2,dx,dy,dz,fDist2;
-    int sp = 0;
     int iCell,pj,j;
     uint32_t iPartGroup;
 
+    S.clear(); // It would be weird if the stack was not empty
     auto kdn = pkd->tree[iCell = ROOT];
     while (1) {
         auto bnd = kdn->bound();
@@ -55,7 +56,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,TinyVector<double,3> r,u
         ** We have an intersection to test.
         */
         if (kdn->is_cell()) {
-            S[sp++] = kdn->rchild();
+            S.emplace_back(kdn->rchild());
             kdn = pkd->tree[iCell = kdn->lchild()];
             continue;
         }
@@ -89,8 +90,11 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,TinyVector<double,3> r,u
             }
         }
 NoIntersect:
-        if (sp) kdn = pkd->tree[iCell = S[--sp]];
-        else break;
+        if (S.empty()) break;
+        else {
+            kdn = pkd->tree[iCell = S.back()];
+            S.pop_back();
+        }
     }
     return (iTail);
 }
@@ -135,7 +139,7 @@ static void iOpenRemoteFof(PKD pkd,treeStore::NodePointer k,clTile &tile,float d
     }
 }
 
-static void addChildFof(PKD pkd, remoteTree &tree, clList *cl, int iChild, int id, TinyVector<float,3> fOffset) {
+static void addChildFof(PKD pkd, remoteTree &tree, clList &cl, int iChild, int id, TinyVector<float,3> fOffset) {
     auto c = tree(iChild,id);
     auto c_r = c->position();
     auto cbnd = c->bound();
@@ -143,8 +147,8 @@ static void addChildFof(PKD pkd, remoteTree &tree, clList *cl, int iChild, int i
     auto cOpen = blitz::sum(cbnd.apothem()); /* Manhatten metric */
     auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
     const auto &SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
-    cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,c->count(),cOpen,
-               c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,SPHbob);
+    cl.append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,c->count(),cOpen,
+              c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,SPHbob);
 }
 
 void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBucket) {
@@ -155,7 +159,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     int iRemote;
     int i,j,ix,iy,iz,bRep;
     int idSelf,iTop,iCell,id,iSib,iCheckCell,iCheckLower;
-    int jTile,M,iStack;
+    int jTile,M;
     TinyVector<float,3> fOffset;
 
     remoteTree tree(pkd->mdl,pkd->tree,CID_CELL);
@@ -169,8 +173,8 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     auto ri = std::make_unique<TinyVector<double,3>[]>(M);
     auto piGroup = std::make_unique<uint32_t[]>(M);
 
-    iStack = 0;
-    pkd->cl->clear();
+    pkd->S.clear();
+    pkd->cl.clear();
 
     auto bndSelf = pkd->tree[ROOT]->bound();
     idSelf = pkd->mdl->Self();
@@ -229,17 +233,18 @@ NextCell:
     ** The checklist is ready for a bound-bound walk of the remote particles.
     */
     while (1) {
+        clList clSib(pkd->clFreeList);
         while (1) {
             /*
             ** Process the Checklist for the cell pointed to by k.
             */
-            pkd->S[iStack+1].cl->clear();
+            clSib.clear(); // NOLINT(bugprone-use-after-move)
             do {
-                for (auto &tile : *pkd->cl) {
+                for (auto &tile : pkd->cl) {
                     iOpenRemoteFof(pkd,k,tile,dTau2);
                 }
-                pkd->clNew->clear();
-                for (auto &tile : *pkd->cl) {
+                clList clNew(pkd->clFreeList);
+                for (auto &tile : pkd->cl) {
 
                     auto nBlocks = tile.count() / tile.width;
                     for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
@@ -251,7 +256,7 @@ NextCell:
                                 /*
                                 ** This checkcell stays on the checklist.
                                 */
-                                pkd->S[iStack+1].cl->append(blk,jTile);
+                                clSib.append(blk,jTile);
                                 break;
                             case 1:
                                 /*
@@ -327,8 +332,8 @@ NextCell:
                                 fOffset[1] = blk.yOffset[jTile];
                                 fOffset[2] = blk.zOffset[jTile];
 
-                                addChildFof(pkd,tree,pkd->clNew,blk.iLower[jTile],blk.idLower[jTile],fOffset);
-                                addChildFof(pkd,tree,pkd->clNew,blk.iUpper[jTile],blk.idUpper[jTile],fOffset);
+                                addChildFof(pkd,tree,clNew,blk.iLower[jTile],blk.idLower[jTile],fOffset);
+                                addChildFof(pkd,tree,clNew,blk.iUpper[jTile],blk.idUpper[jTile],fOffset);
                                 break;
                             case 10:
                                 /*
@@ -341,8 +346,8 @@ NextCell:
                         } /* end of for (jTile) */
                     } /* end of for (nLeft) */
                 } /* end of CL_LOOP */
-                std::swap(pkd->cl,pkd->clNew);
-            } while (pkd->cl->count());
+                pkd->cl = std::move(clNew);
+            } while (pkd->cl.count());
             /*
             ** Done processing of the Checklist.
             ** Now prepare to proceed to the next deeper
@@ -356,27 +361,26 @@ NextCell:
             ** Push the sibling onto the stack.
             */
             c = pkd->tree[iSib];
-            pkd->cl->clone(*pkd->S[iStack+1].cl);
-            ++iStack;
-            assert(iStack < pkd->nMaxStack);
-            pkd->S[iStack].iNodeIndex = iSib;
+            pkd->cl = clSib; // make a copy of this clecklist
+            pkd->S.emplace_back(pkd->clFreeList);
+            pkd->S.back().cl = std::move(clSib);
+            pkd->S.back().iNodeIndex = iSib;
         }
         /*
         ** Now the checklist should be empty and we should have dealt with all
         ** links going across the processor domains for this bucket.
         */
-        assert(pkd->S[iStack+1].cl->count()==0);
+        assert(clSib.count()==0);
         /*
         ** Get the next cell to process from the stack.
         */
-        if (iStack == -1) break;  /* we are done! */
-        k = pkd->tree[iCell = pkd->S[iStack].iNodeIndex];
+        if (pkd->S.empty()) break; // we are done!
+        k = pkd->tree[iCell = pkd->S.back().iNodeIndex];
         /*
         ** Grab the checklist from the stack.
         */
-        std::swap(pkd->cl,pkd->S[iStack].cl);
-
-        --iStack;
+        pkd->cl = std::move(pkd->S.back().cl);
+        pkd->S.pop_back();
     }
 }
 
@@ -415,7 +419,8 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     int bCurrFofContained;
 
     assert(pkd->particles.present(PKD_FIELD::oGroup) || pkd->bNoParticleOrder); /* Validate memory model */
-    auto S = new int[1024]; assert(S);
+    std::vector<int> S;
+    S.reserve(1024);
     /*
     ** Set up the bounds for the FOF groups that are certainly contained in the domain.
     ** This is a little trickier for domains which could potentially overlap a bit.
@@ -559,7 +564,6 @@ NextCell:
     }
     pkd->nLocalGroups = iGroup-1;
     pkd->nGroups = pkd->nLocalGroups + 1;
-    delete [] S;  /* this stack is no longer needed */
     Fifo = NULL;  /* done with the Fifo, can use the storage for other stuff now */
     /*
     ** Create initial group table. The assert below is a very minimal requirement as it doesn't account for remote

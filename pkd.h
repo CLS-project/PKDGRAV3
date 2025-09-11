@@ -155,13 +155,22 @@ typedef struct partLightCone {
 /*
 ** Components required for tree walking.
 */
-typedef struct CheckStack {
-    clList *cl;
+struct CSTACK {
+    using list_type = typename clList::list_type; // the boost::intrusive::list alias
+    // CSTACK() = default;
+    explicit CSTACK(list_type& freeList) : cl(freeList) {}
+    // clList is non-copyable (intrusive); but movable
+    CSTACK(const CSTACK &) = delete;
+    CSTACK &operator=(const CSTACK &) = delete;
+    CSTACK(CSTACK &&) noexcept = default;
+    CSTACK &operator=(CSTACK &&) noexcept = default;
+
+    clList cl;
     LOCR L;
     float dirLsum;
     float normLsum;
     int iNodeIndex;
-} CSTACK;
+};
 
 #if defined(USE_SIMD) && !defined(__CUDACC__)
 typedef struct {
@@ -520,14 +529,12 @@ public:
     /*
     ** Tree walk variables.
     */
-    int nMaxStack;
-    CSTACK *S;
+    std::vector<CSTACK> S;
     ilpList ilp;
     ilcList ilc;
     ilcList ill;
     clList::free_list clFreeList;
-    clList *cl;
-    clList *clNew;
+    clList cl;
     double dFlop;
     double dFlopSingleCPU, dFlopDoubleCPU;
     double dFlopSingleGPU, dFlopDoubleGPU;

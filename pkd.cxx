@@ -564,19 +564,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     */
     this->ew.nMaxEwhLoop = 0;
     /*
-    ** Allocate Checklist.
-    */
-    this->cl = new clList(clFreeList);
-    this->clNew = new clList(clFreeList);
-    /*
     ** Allocate the stack.
     */
-    this->nMaxStack = 30;
-    this->S = new CSTACK[this->nMaxStack];
-    assert(this->S != NULL);
-    for (ism=0; ism<this->nMaxStack; ++ism) {
-        this->S[ism].cl = new clList(clFreeList);
-    }
     this->ga = NULL;
 
     this->profileBins = NULL;
@@ -620,15 +609,6 @@ pkdContext::~pkdContext() {
     /*
     ** Free checklist.
     */
-    delete cl;
-    delete clNew;
-    /*
-    ** Free Stack.
-    */
-    for (ism=0; ism<nMaxStack; ++ism) {
-        delete S[ism].cl;
-    }
-    delete [] S;
     if (ew.nMaxEwhLoop) {
         delete [] ewt.hx.f;
         delete [] ewt.hy.f;
@@ -667,15 +647,11 @@ pkdContext::~pkdContext() {
 }
 
 size_t pkdClCount(PKD pkd) {
-    size_t nCount = pkd->cl->count();
-    int i;
-    for (i=0; i<pkd->nMaxStack; ++i)
-        nCount += pkd->S[i].cl->count();
-    return nCount;
+    return pkd->cl.count() + pkd->clFreeList.count();
 }
 
 size_t pkdClMemory(PKD pkd) {
-    return pkd->cl->memory();
+    return pkd->cl.memory() + pkd->clFreeList.memory();
 }
 
 size_t pkdIlpMemory(PKD pkd) {
