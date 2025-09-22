@@ -17,6 +17,39 @@ if (APPLE)
   link_directories(/usr/local/lib)
 endif(APPLE)
 
+option(ENABLE_CLANG_TIDY "Run clang-tidy during builds" OFF)
+if(ENABLE_CLANG_TIDY)
+  # Common names + Homebrew path
+  find_program(CLANG_TIDY_EXE
+    NAMES clang-tidy clang-tidy-19 clang-tidy-18 clang-tidy-17
+    PATHS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin
+    NO_DEFAULT_PATH
+  )
+  # Fallback to system PATH as well
+  if(NOT CLANG_TIDY_EXE)
+    find_program(CLANG_TIDY_EXE NAMES clang-tidy clang-tidy-19 clang-tidy-18 clang-tidy-17)
+  endif()
+
+  if(CLANG_TIDY_EXE)
+    message(STATUS "clang-tidy found: ${CLANG_TIDY_EXE}")
+    # Make sure compile_commands.json exists (handy for IDEs and manual runs too)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+    # Treat selected diagnostics as errors; also pass the build dir for compile flags
+    set(CLANG_TIDY_ARGS
+      -p=${CMAKE_BINARY_DIR}
+      -quiet
+      -checks=-*,bugprone-*,-bugprone-easily-swappable-parameters,-bugprone-narrowing-conversions,-bugprone-implicit-widening-of-multiplication-result
+      -warnings-as-errors=clang-analyzer-deadcode.DeadStores
+      -extra-arg=-Wno-unknown-warning-option
+    )
+    # Apply globally to all C++ targets (CMake 3.6+)
+    set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} ${CLANG_TIDY_ARGS})
+  else()
+    message(WARNING "ENABLE_CLANG_TIDY=ON but clang-tidy was not found")
+  endif()
+endif()
+
 project(pkdgrav3 VERSION 3.4)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
@@ -160,8 +193,10 @@ check_symbol_exists(backtrace execinfo.h USE_BT)
 #AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
 check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
-add_subdirectory(fmt)
-add_subdirectory(blitz)
+add_subdirectory(fmt EXCLUDE_FROM_ALL)
+set_target_properties(fmt PROPERTIES SKIP_LINTING TRUE CXX_CLANG_TIDY "")
+add_subdirectory(blitz EXCLUDE_FROM_ALL)
+set_target_properties(blitz PROPERTIES SKIP_LINTING TRUE CXX_CLANG_TIDY "")
 add_subdirectory(mdl2)
 add_subdirectory(cuda)
 add_subdirectory(metal)
@@ -182,6 +217,11 @@ add_custom_command(
         -o ${CMAKE_CURRENT_BINARY_DIR}/parse.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/parse.pyx
     VERBATIM
+)
+set_source_files_properties(
+  ${CMAKE_CURRENT_BINARY_DIR}/parse.cpp
+  PROPERTIES GENERATED TRUE SKIP_LINTING TRUE
+  CXX_CLANG_TIDY ""
 )
 
 add_custom_command(
@@ -236,6 +276,11 @@ add_custom_command(
         ${CMAKE_CURRENT_SOURCE_DIR}/modules/accuracy.py
     VERBATIM
 )
+set_source_files_properties(
+  ${CMAKE_CURRENT_BINARY_DIR}/modules/accuracy.cpp
+  PROPERTIES GENERATED TRUE SKIP_LINTING TRUE
+  CXX_CLANG_TIDY ""
+)
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/accuracy.cpp)
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/ephemeral.cpp
@@ -244,6 +289,11 @@ add_custom_command(
         -o ${CMAKE_CURRENT_BINARY_DIR}/modules/ephemeral.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/modules/ephemeral.pyx
     VERBATIM
+)
+set_source_files_properties(
+  ${CMAKE_CURRENT_BINARY_DIR}/modules/ephemeral.cpp
+  PROPERTIES GENERATED TRUE SKIP_LINTING TRUE
+  CXX_CLANG_TIDY ""
 )
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/ephemeral.cpp)
 add_custom_command(
@@ -256,6 +306,11 @@ add_custom_command(
         ${CMAKE_CURRENT_SOURCE_DIR}/modules/PKDGRAV.py
     VERBATIM
 )
+set_source_files_properties(
+  ${CMAKE_CURRENT_BINARY_DIR}/modules/PKDGRAV.cpp
+  PROPERTIES GENERATED TRUE SKIP_LINTING TRUE
+  CXX_CLANG_TIDY ""
+)
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/PKDGRAV.cpp)
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp
@@ -265,6 +320,11 @@ add_custom_command(
         -o ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/modules/cosmology.py
     VERBATIM
+)
+set_source_files_properties(
+  ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp
+  PROPERTIES GENERATED TRUE SKIP_LINTING TRUE
+  CXX_CLANG_TIDY ""
 )
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp)
 
