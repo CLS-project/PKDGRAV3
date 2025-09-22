@@ -1810,7 +1810,7 @@ int mpiClass::Launch() {
     pRequestTargets.resize(2 * log2(1.0 * Threads()) + Cores(), -1);
 
     /* Make sure that MPI supports enough tags */
-    rc = MPI_Comm_get_attr(commMDL,MPI_TAG_UB, &piTagUB, &flag);
+    rc = MPI_Comm_get_attr(commMDL,MPI_TAG_UB, static_cast<void *>(&piTagUB), &flag);
     if (rc==MPI_SUCCESS && flag) {
         assert(Cores()*MDL_TAG_THREAD_OFFSET < *piTagUB);
         assert(pRequestTargets.size()*MDL_TAG_THREAD_OFFSET < *piTagUB);
