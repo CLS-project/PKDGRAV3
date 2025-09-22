@@ -2935,12 +2935,11 @@ void pkdInitializeEOS(PKD pkd) {
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions *SPHoptions, int bGPU) {
     if (bGPU) {
 #ifdef USE_CUDA
-        auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
         // Only one thread needs to transfer the SPHoptions to the GPU
         if (pkd->mdl->Core()==0) {
             SPHOptionsGPU SPHoptionsGPU;
             copySPHOptionsGPU(SPHoptions, &SPHoptionsGPU);
-            cuda->setupSPHOptions(&SPHoptionsGPU);
+            pkd->cudaClient->setupSPHOptions(&SPHoptionsGPU);
         }
         pkd->mdl->ThreadBarrier();
 #endif
