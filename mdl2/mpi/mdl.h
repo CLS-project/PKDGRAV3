@@ -18,6 +18,7 @@
 #ifndef MDL_HINCLUDED
 #define MDL_HINCLUDED
 #include <boost/circular_buffer.hpp>
+#include <boost/container/small_vector.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/barrier.hpp>
 #include "mdlstubs.h"
@@ -271,7 +272,7 @@ protected:
     void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
     void **pSegments;
-    uint64_t *nBytesSegment;
+    boost::container::small_vector<uint64_t, 8> nBytesSegment;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;
 

@@ -435,6 +435,7 @@ public:
 // I/O
 public:
     void Restore(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
+    void GroupStatsSave(int iGroup,const std::string &filename,int iSegment,int nSegment);
 
 // Rockstar Analysis
 protected:

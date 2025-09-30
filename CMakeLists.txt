@@ -3,6 +3,9 @@ cmake_policy(VERSION 3.14...3.22)
 if(POLICY CMP0144)
     cmake_policy(SET CMP0144 NEW)
 endif()
+if(POLICY CMP0094)
+    cmake_policy(SET CMP0094 NEW)
+endif()
 include(CheckLanguage)
 include(CheckFunctionExists)
 include(CheckCXXCompilerFlag)
@@ -234,15 +237,6 @@ add_custom_command(
     VERBATIM
 )
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/accuracy.cpp)
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.cpp ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.h
-    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/modules/checkpoint.pyx
-    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
-        -o ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/modules/checkpoint.pyx
-    VERBATIM
-)
-target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/modules/checkpoint.cpp)
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/modules/ephemeral.cpp
     MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/modules/ephemeral.pyx

@@ -108,6 +108,11 @@ flag="fnddc"
 default=0.1
 help="Fraction of Active Particles for no DD dimension choice"
 
+["Gravity, Domains, Trees".iMaxRungDomainDecomp]
+flag="MaxRungDomainDecomp"
+default=2147483648
+help="Rung above which no domain decomposition is performed."
+
 ################################################################################
 ########## Analysis
 ################################################################################

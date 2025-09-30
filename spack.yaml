@@ -1,0 +1,16 @@
+spack:
+  view: true
+
+  concretizer:
+    unify: when_possible
+
+  repos:
+  - ./spack_repo
+
+  specs:
+  - pkdgrav3@develop
+  - pkdgrav3-python@develop
+  develop:
+    pkdgrav3:
+      path: .
+      spec: pkdgrav3@develop~cuda

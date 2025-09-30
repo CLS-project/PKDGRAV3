@@ -70,8 +70,6 @@ using namespace pyrameters::literals; // Gives us ""_key literals
 #include "smooth/smoothfcn.h"
 #include "io/fio.h"
 #include "SPH/SPHOptions.h"
-#define CYTHON_EXTERN_C extern "C++"
-#include "modules/checkpoint.h"
 
 #include "core/setadd.h"
 #include "core/swapall.h"
@@ -82,6 +80,7 @@ using namespace pyrameters::literals; // Gives us ""_key literals
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "io/restore.h"
+#include "io/output.h"
 #include "initlightcone.h"
 
 #ifdef HAVE_ROCKSTAR
@@ -420,7 +419,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
 /// @param bParallel True if parallel reading/writing is enabled
 /// @param nParallel number of threads to use for parallel reading/writing
 /// @return Actual number of threads to use for parallel reading/writing
-int64_t MSR::parallel_count(bool bParallel,int64_t nParallel) {
+int64_t MSR::parallel_count(int64_t nParallel,bool bParallel) {
     if (!bParallel) return 1; // Parallel reading/writing is disabled, use 1 thread
     else if (nParallel<1) return nThreads; // Use maximum number of threads
     else return std::min(nParallel,int64_t(nThreads)); // Use specified number of threads (if less than maximum)
@@ -429,13 +428,13 @@ int64_t MSR::parallel_count(bool bParallel,int64_t nParallel) {
 /// @brief Return the number of threads to use for parallel reading
 /// @return Number of threads to use for parallel reading
 int64_t MSR::parallel_read_count() {
-    return parallel_count(parameters.get_bParaRead(),parameters.get_nParaRead());
+    return parallel_count(parameters.get_nParaRead(),parameters.get_bParaRead());
 }
 
 /// @brief Return the number of threads to use for parallel writing
 /// @return Number of threads to use for parallel writing
 int64_t MSR::parallel_write_count() {
-    return parallel_count(parameters.get_bParaWrite(),parameters.get_nParaWrite());
+    return parallel_count(parameters.get_nParaWrite(),parameters.get_bParaWrite());
 }
 
 void MSR::stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size) {
@@ -1462,6 +1461,10 @@ void MSR::DomainDecompOld(int iRung) {
 }
 
 void MSR::DomainDecomp(int iRung) {
+    if (iRung > parameters.get_iMaxRungDomainDecomp()) {
+        print_detail("Skipping Domain Decomposition, as rung {rung} is above the maximum defined by iMaxRungDomainDecomp ({maxrung}).\n", "rung"_a=iRung, "maxrung"_a=parameters.get_iMaxRungDomainDecomp());
+        return;
+    }
     DomainDecompOld(iRung);
 }
 
@@ -3068,7 +3071,7 @@ int MSR::NewTopStepKDK(
 
     if (!uRung && parameters.get_bFindGroups()) {
         GroupStats();
-        HopWrite(BuildName(iStep,".fofstats").c_str());
+        WriteGroupStats(BuildName(iStep,".fofstats"));
     }
 
     if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
@@ -3397,22 +3400,25 @@ void MSR::ChemCompInit() {
 
 /* END Gas routines */
 
-void MSR::HopWrite(const char *fname) {
+void MSR::WriteGroupStats(const std::string_view &fname) {
+    WriteGroupStats(fname, parallel_write_count());
+}
+
+void MSR::WriteGroupStats(const std::string_view &fname, int nParallel) {
     double dsec;
 
     if (parameters.get_bVStep())
         print("Writing group statistics to {}\n", fname);
     TimerStart(TIMER_IO);
 
-    /* This is the new parallel binary format */
-    struct inOutput out;
-    out.eOutputType = OUT_TINY_GROUP;
-    out.iPartner = -1;
-    out.nPartner = -1;
-    out.iProcessor = 0;
-    out.nProcessor = parallel_write_count();
-    strcpy(out.achOutFile,fname);
-    pstOutput(pst,&out,sizeof(out),NULL,0);
+    ServiceSaveGroupStats::input hdr;
+    strncpy(hdr.io.filename,fname.data(),sizeof(hdr.io.filename));
+    hdr.io.nSimultaneous = nParallel;
+    hdr.io.nSegment = hdr.io.iThread = 0; // setup later
+    hdr.io.iReaderWriter = 0;
+    if (hdr.io.nSimultaneous>1) strcat(hdr.io.filename,".{i}");
+    mdl->RunService(PST_SAVE_GROUP_STATS,sizeof(hdr),&hdr);
+
     TimerStop(TIMER_IO);
     dsec = TimerGet(TIMER_IO);
     if (parameters.get_bVStep())
@@ -4126,7 +4132,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         Reorder();
         //sprintf(achFile,"%s.fof",OutName());
         //OutArray(achFile,OUT_GROUP_ARRAY);
-        HopWrite(BuildName(iStep,".fofstats").c_str());
+        WriteGroupStats(BuildName(iStep,".fofstats"));
     }
     if ( parameters.get_bFindHopGroups() ) {
         ActiveRung(0,1); /* Activate all particles */
@@ -4135,7 +4141,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         Hop(dTime,dDelta);
         Reorder();
         //OutArray(BuildName(iStep,".hopgrp").c_str(),OUT_GROUP_ARRAY);
-        HopWrite(BuildName(iStep,".hopstats").c_str());
+        WriteGroupStats(BuildName(iStep,".hopstats"));
     }
 
     if (parameters.get_bDoAccOutput()) {
