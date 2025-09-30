@@ -38,7 +38,7 @@ void pkdContext::RsHaloIdStart(uint64_t nElements,bool bAppend)  {
 }
 void pkdContext::RsHaloIdFinish(uint64_t nElements) { }
 void pkdContext::RsHaloIdRead(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
-    auto ids = static_cast<uint64_t *>(pLite);
+    auto ids = Ephemeral<uint64_t>();
     ifstream fhalo(filename,ios_base::in | ios_base::binary);                   assert(fhalo.good());
     ifstream fpart(filename,ios_base::in | ios_base::binary);                   assert(fpart.good());
 

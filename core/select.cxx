@@ -16,10 +16,10 @@
  */
 #include "select.h"
 
-static_assert(std::is_void<ServiceCountSelected::input>()  || std::is_standard_layout<ServiceCountSelected::input>());
-static_assert(std::is_void<ServiceCountSelected::output>() || std::is_standard_layout<ServiceCountSelected::output>());
+static_assert(std::is_void_v<ServiceCountSelected::input>  || std::is_standard_layout_v<ServiceCountSelected::input>);
+static_assert(std::is_void_v<ServiceCountSelected::output> || std::is_standard_layout_v<ServiceCountSelected::output>);
 int ServiceCountSelected::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    static_assert(std::is_void<input>());
+    static_assert(std::is_void_v<input>);
     auto out  = static_cast<output *>(vout);
     auto pkd = pst->plcl->pkd;
     assert(nOut==sizeof(output));
@@ -27,8 +27,8 @@ int ServiceCountSelected::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelActives::input>()  || std::is_standard_layout<ServiceSelActives::input>());
-static_assert(std::is_void<ServiceSelActives::output>() || std::is_standard_layout<ServiceSelActives::output>());
+static_assert(std::is_void_v<ServiceSelActives::input>  || std::is_standard_layout_v<ServiceSelActives::input>);
+static_assert(std::is_void_v<ServiceSelActives::output> || std::is_standard_layout_v<ServiceSelActives::output>);
 int ServiceSelActives::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -39,8 +39,8 @@ int ServiceSelActives::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelBlackholes::input>()  || std::is_standard_layout<ServiceSelBlackholes::input>());
-static_assert(std::is_void<ServiceSelBlackholes::output>() || std::is_standard_layout<ServiceSelBlackholes::output>());
+static_assert(std::is_void_v<ServiceSelBlackholes::input>  || std::is_standard_layout_v<ServiceSelBlackholes::input>);
+static_assert(std::is_void_v<ServiceSelBlackholes::output> || std::is_standard_layout_v<ServiceSelBlackholes::output>);
 int ServiceSelBlackholes::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -51,8 +51,8 @@ int ServiceSelBlackholes::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelSpecies::input>()  || std::is_standard_layout<ServiceSelSpecies::input>());
-static_assert(std::is_void<ServiceSelSpecies::output>() || std::is_standard_layout<ServiceSelSpecies::output>());
+static_assert(std::is_void_v<ServiceSelSpecies::input>  || std::is_standard_layout_v<ServiceSelSpecies::input>);
+static_assert(std::is_void_v<ServiceSelSpecies::output> || std::is_standard_layout_v<ServiceSelSpecies::output>);
 int ServiceSelSpecies::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -63,8 +63,8 @@ int ServiceSelSpecies::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelGroup::input>()  || std::is_standard_layout<ServiceSelGroup::input>());
-static_assert(std::is_void<ServiceSelGroup::output>() || std::is_standard_layout<ServiceSelGroup::output>());
+static_assert(std::is_void_v<ServiceSelGroup::input>  || std::is_standard_layout_v<ServiceSelGroup::input>);
+static_assert(std::is_void_v<ServiceSelGroup::output> || std::is_standard_layout_v<ServiceSelGroup::output>);
 int ServiceSelGroup::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -75,8 +75,8 @@ int ServiceSelGroup::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelMass::input>()  || std::is_standard_layout<ServiceSelMass::input>());
-static_assert(std::is_void<ServiceSelMass::output>() || std::is_standard_layout<ServiceSelMass::output>());
+static_assert(std::is_void_v<ServiceSelMass::input>  || std::is_standard_layout_v<ServiceSelMass::input>);
+static_assert(std::is_void_v<ServiceSelMass::output> || std::is_standard_layout_v<ServiceSelMass::output>);
 int ServiceSelMass::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -87,8 +87,8 @@ int ServiceSelMass::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelPhaseDensity::input>()  || std::is_standard_layout<ServiceSelPhaseDensity::input>());
-static_assert(std::is_void<ServiceSelPhaseDensity::output>() || std::is_standard_layout<ServiceSelPhaseDensity::output>());
+static_assert(std::is_void_v<ServiceSelPhaseDensity::input>  || std::is_standard_layout_v<ServiceSelPhaseDensity::input>);
+static_assert(std::is_void_v<ServiceSelPhaseDensity::output> || std::is_standard_layout_v<ServiceSelPhaseDensity::output>);
 int ServiceSelPhaseDensity::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -99,8 +99,8 @@ int ServiceSelPhaseDensity::Service(PST pst,void *vin,int nIn,void *vout,int nOu
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelById::input>()  || std::is_standard_layout<ServiceSelById::input>());
-static_assert(std::is_void<ServiceSelById::output>() || std::is_standard_layout<ServiceSelById::output>());
+static_assert(std::is_void_v<ServiceSelById::input>  || std::is_standard_layout_v<ServiceSelById::input>);
+static_assert(std::is_void_v<ServiceSelById::output> || std::is_standard_layout_v<ServiceSelById::output>);
 int ServiceSelById::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -111,8 +111,8 @@ int ServiceSelById::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelBox::input>()  || std::is_standard_layout<ServiceSelBox::input>());
-static_assert(std::is_void<ServiceSelBox::output>() || std::is_standard_layout<ServiceSelBox::output>());
+static_assert(std::is_void_v<ServiceSelBox::input>  || std::is_standard_layout_v<ServiceSelBox::input>);
+static_assert(std::is_void_v<ServiceSelBox::output> || std::is_standard_layout_v<ServiceSelBox::output>);
 int ServiceSelBox::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -123,8 +123,8 @@ int ServiceSelBox::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelSphere::input>()  || std::is_standard_layout<ServiceSelSphere::input>());
-static_assert(std::is_void<ServiceSelSphere::output>() || std::is_standard_layout<ServiceSelSphere::output>());
+static_assert(std::is_void_v<ServiceSelSphere::input>  || std::is_standard_layout_v<ServiceSelSphere::input>);
+static_assert(std::is_void_v<ServiceSelSphere::output> || std::is_standard_layout_v<ServiceSelSphere::output>);
 int ServiceSelSphere::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
@@ -135,8 +135,8 @@ int ServiceSelSphere::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(output);
 }
 
-static_assert(std::is_void<ServiceSelCylinder::input>()  || std::is_standard_layout<ServiceSelCylinder::input>());
-static_assert(std::is_void<ServiceSelCylinder::output>() || std::is_standard_layout<ServiceSelCylinder::output>());
+static_assert(std::is_void_v<ServiceSelCylinder::input>  || std::is_standard_layout_v<ServiceSelCylinder::input>);
+static_assert(std::is_void_v<ServiceSelCylinder::output> || std::is_standard_layout_v<ServiceSelCylinder::output>);
 int ServiceSelCylinder::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);

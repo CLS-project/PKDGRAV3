@@ -18,12 +18,12 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceDumpTrees::input>()  || std::is_trivial<ServiceDumpTrees::input>());
-static_assert(std::is_void<ServiceDumpTrees::output>() || std::is_trivial<ServiceDumpTrees::output>());
+static_assert(std::is_void_v<ServiceDumpTrees::input>  || std::is_trivial_v<ServiceDumpTrees::input>);
+static_assert(std::is_void_v<ServiceDumpTrees::output> || std::is_trivial_v<ServiceDumpTrees::output>);
 
 int ServiceDumpTrees::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<input *>(vin);
-    static_assert(std::is_void<output>());
+    static_assert(std::is_void_v<output>);
     auto pkd = pst->plcl->pkd;
     pkdDumpTrees(pkd,in->bOnlyVA,in->uRungDD);
     return 0;

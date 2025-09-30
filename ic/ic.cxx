@@ -1059,9 +1059,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             // If we have no particle order convert directly to Integerized positions.
             // We do this to save space as an "Integer" particle is small.
             if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
-                integerParticle *b = ((integerParticle *)in->pBase) + in->iStart + i;
-                integerParticle temp;
-                memcpy(&temp,b,sizeof(temp));
+                integerParticle temp = reinterpret_cast<integerParticle *>(in->pBase)[in->iStart + i];
                 Vel[2] = temp.v[2];
                 Vel[1] = temp.v[1];
                 Vel[0] = temp.v[0];
@@ -1071,9 +1069,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 r[0] = temp.r[0];
             }
             else {
-                expandParticle *b = ((expandParticle *)in->pBase) + in->iStart + i;
-                expandParticle temp;
-                memcpy(&temp,b,sizeof(temp));
+                expandParticle temp = reinterpret_cast<expandParticle *>(in->pBase)[in->iStart + i];
                 Vel[2] = temp.v[2];
                 Vel[1] = temp.v[1];
                 Vel[0] = temp.v[0];
@@ -1101,10 +1097,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
                 if (pkd->particles.present(PKD_FIELD::oParticleID)) {
                     auto &ID = pgas.ParticleID();
-                    ID += in->nGrid*in->nGrid*in->nGrid;
+                    ID += uint64_t(1) * in->nGrid * in->nGrid * in->nGrid;
                 }
                 if (!pkd->bNoParticleOrder)
-                    pgas.set_order(pgas.order() + in->nGrid*in->nGrid*in->nGrid);
+                    pgas.set_order(pgas.order() + uint64_t(1) * in->nGrid * in->nGrid * in->nGrid);
 
                 // Use N-GenIC trick to keep the centre of mass of the original
                 // particle at its original position. This is needed for displaced
@@ -1233,7 +1229,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         /* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
         iUnderBeg = iOverBeg = 0;
         for (iProc=0; iProc<myProc; ++iProc) {
-            uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+            uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * in->nGrid * in->nGrid;
             if (nOnNode>nPerNode) iOverBeg += nOnNode - nPerNode;
             else iUnderBeg += nPerNode - nOnNode;
         }
@@ -1248,7 +1244,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             iOverEnd = iOverBeg + nLocal - nPerNode;
             for (iProc=0; iProc<mdl->Procs(); ++iProc) {
                 rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
-                uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+                uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * in->nGrid * in->nGrid;
                 if (nOnNode<nPerNode) {
                     iUnderEnd = iUnderBeg + nPerNode - nOnNode;
                     /* The transfer condition */
@@ -1272,7 +1268,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             iUnderEnd = iUnderBeg + nPerNode - nLocal;
             for (iProc=0; iProc<mdl->Procs(); ++iProc) {
                 scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
-                uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+                uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * in->nGrid * in->nGrid;
                 if (nOnNode>nPerNode) {
                     iOverEnd = iOverBeg + nOnNode - nPerNode;
                     if (iOverEnd>iUnderBeg && iOverBeg<iUnderEnd) {
@@ -1408,9 +1404,7 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         blitz::TinyVector<int,3> index(0,0,fft->rgrid->rs[myProc] + fft->rgrid->rn[myProc]);
         float inGrid = 1.0 / in->nGrid;
         for (i=nLocal-1; i>=0; --i) {
-            basicParticle  *b = &pbBase->b + i;
-            basicParticle temp;
-            memcpy(&temp,b,sizeof(temp));
+            basicParticle temp = (&pbBase->b)[i];
             if (index[0]>0) --index[0];
             else {
                 index[0] = in->nGrid-1;

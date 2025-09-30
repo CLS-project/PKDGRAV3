@@ -50,11 +50,12 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
 
 class ServiceSaveGroupStats : public ServiceOutput {
 public:
+    static constexpr std::string_view name = "SaveGroupStats";
     using input = ServiceOutput::input;
     using output = void;
 
     explicit ServiceSaveGroupStats(PST pst)
-        : ServiceOutput(pst,PST_SAVE_GROUP_STATS,sizeof(input)) {}
+        : ServiceOutput(pst,PST_SAVE_GROUP_STATS,name,sizeof(input)) {}
 protected:
     virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
 };

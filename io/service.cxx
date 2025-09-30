@@ -21,7 +21,7 @@ using namespace fmt::literals;
 #include <sys/stat.h>
 #include <unistd.h>
 
-static_assert(std::is_void<ServiceFileSizes::input>()  || std::is_standard_layout<ServiceFileSizes::input>());
+static_assert(std::is_void_v<ServiceFileSizes::input>  || std::is_standard_layout_v<ServiceFileSizes::input>);
 
 int ServiceFileSizes::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = pst->mdl;
@@ -68,7 +68,7 @@ uint64_t ServiceFileSizes::GetSize(const std::string &filename,uint64_t file_siz
     return file_size;
 }
 
-static_assert(std::is_void<ServiceIO::input>()  || std::is_standard_layout<ServiceIO::input>());
+static_assert(std::is_void_v<ServiceIO::input>  || std::is_standard_layout_v<ServiceIO::input>);
 
 int ServiceIO::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = pst->mdl;
@@ -117,9 +117,9 @@ int ServiceIO::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 // Make sure that the communication structure is "standard" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceInput::input>()  || std::is_standard_layout<ServiceInput::input>());
-static_assert(std::is_void<ServiceInput::io_elements>()  || std::is_standard_layout<ServiceInput::io_elements>());
-static_assert(std::is_void<ServiceInput::output>() || std::is_standard_layout<ServiceInput::output>());
+static_assert(std::is_void_v<ServiceInput::input>  || std::is_standard_layout_v<ServiceInput::input>);
+static_assert(std::is_void_v<ServiceInput::io_elements>  || std::is_standard_layout_v<ServiceInput::io_elements>);
+static_assert(std::is_void_v<ServiceInput::output> || std::is_standard_layout_v<ServiceInput::output>);
 
 auto get_elements = [](auto pst,auto hdr) {
     auto iBeg = hdr->iBeg, iEnd = hdr->iEnd, nElements = hdr->iEnd-hdr->iBeg;

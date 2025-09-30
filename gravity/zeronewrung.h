@@ -18,6 +18,7 @@
 
 class ServiceZeroNewRung : public TraversePST {
 public:
+    static constexpr std::string_view name = "ZeroNewRung";
     struct input {
         uint8_t uRung;
         uint8_t uRungLo;
@@ -28,7 +29,7 @@ public:
     };
     typedef void output;
     explicit ServiceZeroNewRung(PST pst)
-        : TraversePST(pst,PST_ZERONEWRUNG,sizeof(input),"ZeroNewRung") {}
+        : TraversePST(pst,PST_ZERONEWRUNG,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

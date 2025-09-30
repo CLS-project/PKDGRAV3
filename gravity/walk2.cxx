@@ -49,7 +49,7 @@
 #include "../SPH/SPHEOS.h"
 #include "../SPH/SPHpredict.h"
 
-static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, blitz::TinyVector<float,3> fOffset) {
+static void addChild(PKD pkd, int iCache, clList &cl, int iChild, int id, blitz::TinyVector<float,3> fOffset) {
     auto c = (id == pkd->Self()) ? pkd->tree[iChild] :
              pkd->tree[pkd->mdl->Fetch<KDN>(iCache,iChild,id)];
     auto nc = (c->is_remote()||c->is_top_tree()) ? 1000000000 : c->count();
@@ -58,9 +58,9 @@ static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, blitz:
     auto cbnd = c->bound();
     auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
     const auto &SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
-    cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-               c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,
-               SPHbob);
+    cl.append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
+              c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,
+              SPHbob);
 
 }
 /*
@@ -70,6 +70,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
                             struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                             double dTime,int bEwald,bool bGPU,
                             double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
+    using std::swap; // For ADL of std::swap
     treeStore::NodePointer c(pkd->tree);
     int id,iCell,iSib,iCheckCell,iCheckLower;
     FMOMR monoPole;
@@ -82,7 +83,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     blitz::TinyVector<float,3> fOffset;
     float dirLsum,normLsum;
     float fMass,fSoft;
-    int iStack;
     int j,jTile,pj,nActive,nTotActive;
     static const blitz::TinyVector<float,3> fZero3(0,0,0);
     int iCidPart;
@@ -90,7 +90,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     double dFlop;
 
     pkd->dFlop = 0.0; /* Flops are accumulated here! */
-    iStack = -1;
+    pkd->S.clear();
+    pkd->S.reserve(40); // Start with a sensible stack size
 
     /*
     ** Clear monopole sentinel and local expansion and the timestepping sums.
@@ -167,16 +168,16 @@ found_it:
             ** For cells which will remain on the checklist for a further deeper level of
             ** level of the tree we will be using the stack cl (even if no push happens later).
             */
-            pkd->S[iStack+1].cl->clear();
 #ifdef USE_SIMD_FMM
             pkd->ill.clear();
 #endif
+            clList clSib(pkd->clFreeList);
             do {
-                for (auto &tile : *pkd->cl) {
+                for (auto &tile : pkd->cl) {
                     iOpenOutcomeSIMD(pkd,k,tile,dThetaMin,SPHoptions);
                 }
-                pkd->clNew->clear();
-                for (auto &tile : *pkd->cl) {
+                clList clNew(pkd->clFreeList);
+                for (auto &tile : pkd->cl) {
                     auto nBlocks = tile.count() / tile.width;
                     for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
                         int n = iBlock<nBlocks ? tile.width : tile.count() - nBlocks*tile.width;
@@ -187,7 +188,7 @@ found_it:
                                 /*
                                 ** This checkcell stays on the checklist.
                                 */
-                                pkd->S[iStack+1].cl->append(blk,jTile);
+                                clSib.append(blk,jTile);
                                 break;
                             case 1:
                                 /*
@@ -333,18 +334,18 @@ found_it:
                                     if (p.have_newsph()) {
                                         float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
                                         float limitedBallSize = std::min(SPHoptions->ballSizeLimit,fBallFactor * p.ball());
-                                        pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
-                                                           r,                   // center of mass
-                                                           fOffset,             // fOffset
-                                                           Bound(r,r),          // zero size box at r
-                                                           SPHBOB(r,limitedBallSize));
+                                        clNew.append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                     r,                   // center of mass
+                                                     fOffset,             // fOffset
+                                                     Bound(r,r),          // zero size box at r
+                                                     SPHBOB(r,limitedBallSize));
                                     }
                                     else {
-                                        pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
-                                                           r,                   // center of mass
-                                                           fOffset,             // fOffset
-                                                           Bound(r,r),          // zero size box at r
-                                                           SPHBOB(r,0.0));
+                                        clNew.append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                     r,                   // center of mass
+                                                     fOffset,             // fOffset
+                                                     Bound(r,r),          // zero size box at r
+                                                     SPHBOB(r,0.0));
                                     }
                                     if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) pkd->mdl->Release(iCidPart,&p);
                                 }
@@ -362,8 +363,8 @@ found_it:
                                 fOffset[1] = blk.yOffset[jTile];
                                 fOffset[2] = blk.zOffset[jTile];
 
-                                addChild(pkd,blk.iCache[jTile],pkd->clNew,blk.iLower[jTile],blk.idLower[jTile],fOffset);
-                                addChild(pkd,blk.iCache[jTile],pkd->clNew,blk.iUpper[jTile],blk.idUpper[jTile],fOffset);
+                                addChild(pkd,blk.iCache[jTile],clNew,blk.iLower[jTile],blk.idLower[jTile],fOffset);
+                                addChild(pkd,blk.iCache[jTile],clNew,blk.iUpper[jTile],blk.idUpper[jTile],fOffset);
 
                                 break;
                             case 4:
@@ -465,8 +466,8 @@ found_it:
                         }
                     }
                 } /* end of CL_LOOP */
-                std::swap(pkd->cl,pkd->clNew);
-            } while (pkd->cl->count());
+                pkd->cl = std::move(clNew);
+            } while (pkd->cl.count());
             /*
             ** Now calculate the local expansion.
             */
@@ -506,18 +507,6 @@ found_it:
                 */
                 iSib = iCell+1;
                 c = pkd->tree[iSib];
-                if ((c->min_rung()<=ts->uRungHi && c->max_rung() >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->is_marked()) || (SPHoptions->useNNflags && c->is_NN())) {
-                    /*
-                    ** Sibling is active so we need to clone the checklist!
-                    */
-                    pkd->cl->clone(*pkd->S[iStack+1].cl);
-                }
-                else {
-                    /*
-                    ** Otherwise we can simple grab it.
-                    */
-                    std::swap(pkd->cl,pkd->S[iStack+1].cl);
-                }
                 /*
                 ** Test whether the sibling is active as well.
                 ** If not we don't push it onto the stack, but we
@@ -525,33 +514,41 @@ found_it:
                 ** hit the sibling.
                 */
                 if ((c->min_rung()<=ts->uRungHi && c->max_rung() >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->is_marked()) || (SPHoptions->useNNflags && c->is_NN())) {
+                    // Sibling is active so we need to clone the checklist!
+                    pkd->cl = clSib;
                     /*
                     ** Sibling is active as well.
                     ** Push Checklist for the sibling onto the stack
                     ** before proceeding deeper in the tree.
                     */
-                    ++iStack;
-                    assert(iStack < pkd->nMaxStack);
-                    pkd->S[iStack].iNodeIndex = iSib;
+                    pkd->S.emplace_back(pkd->clFreeList);
+                    pkd->S.back().cl = std::move(clSib);
+                    pkd->S.back().iNodeIndex = iSib;
                     /*
                     ** At this point, the ILP is normally empty if you never do P-P except when reaching a bucket.
                     ** Softened multi-poles are also an exception.
                     */
-                    //ilpCheckPt(pkd->ilp,&pkd->S[iStack].PartChkPt);
-                    //ilcCheckPt(pkd->ilc,&pkd->S[iStack].CellChkPt);
+                    //ilpCheckPt(pkd->ilp,&pkd->S.back().PartChkPt);
+                    //ilcCheckPt(pkd->ilc,&pkd->S.back().CellChkPt);
                     assert(pkd->ilp.count()==0);
                     assert(pkd->ilc.count()==0);
                     /*
                     ** Note here we already have the correct elements in S[iStack] (iStack+1 was used previously), just need to add one.
                     */
-                    pkd->S[iStack].L = L;
-                    pkd->S[iStack].dirLsum = dirLsum;
-                    pkd->S[iStack].normLsum = normLsum;
+                    pkd->S.back().L = L;
+                    pkd->S.back().dirLsum = dirLsum;
+                    pkd->S.back().normLsum = normLsum;
                     c_r = c->position();
-                    momShiftLocr(&pkd->S[iStack].L,
+                    momShiftLocr(&pkd->S.back().L,
                                  c_r[0] - xParent,
                                  c_r[1] - yParent,
                                  c_r[2] - zParent);
+                }
+                else {
+                    /*
+                    ** Otherwise we can simple grab it.
+                    */
+                    pkd->cl = std::move(clSib);
                 }
             }
             else {
@@ -560,7 +557,7 @@ found_it:
                 ** No need to push anything onto the stack here.
                 ** We can simply grab it the checklist from the Stack.
                 */
-                std::swap(pkd->cl,pkd->S[iStack+1].cl);
+                pkd->cl = std::move(clSib);
                 /*
                 ** Move onto processing the sibling.
                 */
@@ -595,26 +592,26 @@ found_it:
             nTotActive += nActive;
         }
         /* Get the next cell to process from the stack */
-        if (iStack == -1) goto doneCheckList;
-        k = pkd->tree[iCell = pkd->S[iStack].iNodeIndex];
+        if (pkd->S.empty()) goto doneCheckList;
+        k = pkd->tree[iCell = pkd->S.back().iNodeIndex];
         k_r = k->position();
         /*
         ** Pop the Checklist from the top of the stack,
         ** also getting the state of the interaction list.
         */
-        //ilpRestore(pkd->ilp,&pkd->S[iStack].PartChkPt);
-        //ilcRestore(pkd->ilc,&pkd->S[iStack].CellChkPt);
+        //ilpRestore(pkd->ilp,&pkd->S.back().PartChkPt);
+        //ilcRestore(pkd->ilc,&pkd->S.back().CellChkPt);
         pkd->ilp.clear();
         pkd->ilc.clear();
         /*
         ** Grab the checklist from the stack.
         */
-        assert(pkd->cl->count() == 0);
-        std::swap(pkd->cl,pkd->S[iStack].cl);
-        L = pkd->S[iStack].L;
-        dirLsum = pkd->S[iStack].dirLsum;
-        normLsum = pkd->S[iStack].normLsum;
-        --iStack;
+        assert(pkd->cl.count() == 0);
+        pkd->cl = std::move(pkd->S.back().cl);
+        L = pkd->S.back().L;
+        dirLsum = pkd->S.back().dirLsum;
+        normLsum = pkd->S.back().normLsum;
+        pkd->S.pop_back();
     }
 doneCheckList:
 #ifdef USE_CUDA
@@ -704,7 +701,7 @@ int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double 
         pkd->hopGroups[gid].bNeedGrav = 0;
         pkd->ilp.clear();
         pkd->ilc.clear();
-        pkd->cl->clear();
+        pkd->cl.clear();
         iRootSelf = pkd->hopGroups[gid].iAllRoots;
         for (i=iRootSelf; i<iRootSelf + pkd->hopGroups[gid].nRemote+1; ++i) {
             for (j=0; j<3; ++j) fOffset[j] = 0.0f;
@@ -755,7 +752,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
         */
         pkd->ilp.clear();
         pkd->ilc.clear();
-        pkd->cl->clear();
+        pkd->cl.clear();
 
         /*
         ** Add all replicas of the entire box to the Checklist.
@@ -788,7 +785,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
         if (!pkd->tree[iLocalRoot2]->is_active(uRungLo,uRungHi)) return 0;
         pkd->ilp.clear();
         pkd->ilc.clear();
-        pkd->cl->clear();
+        pkd->cl.clear();
         /*
         ** Add all replicas of the entire box to the Checklist.
         ** We add at least one box (0,0,0). The root cell is alway on processor 0.
@@ -833,7 +830,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime, double dThetaMin,double *pdFlop,doub
         if (gd[i].nLocal == 0) continue;
         pkd->ilp.clear();
         pkd->ilc.clear();
-        pkd->cl->clear();
+        pkd->cl.clear();
 #if 1
         for (k=1; k < gd[i].nTreeRoots; k++) {
             fOffset = 0.0f;

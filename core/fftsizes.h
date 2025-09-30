@@ -18,6 +18,7 @@
 
 class ServiceFftSizes : public TraverseCombinePST {
 public:
+    static constexpr std::string_view name = "FftSizes";
     struct input {
         int nx,ny,nz;
     };
@@ -27,7 +28,7 @@ public:
         int nMaxY;
     };
     explicit ServiceFftSizes(PST pst)
-        : TraverseCombinePST(pst,PST_GETFFTMAXSIZES,sizeof(input),sizeof(output),"FftSizes") {}
+        : TraverseCombinePST(pst,PST_GETFFTMAXSIZES,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Combine(void *vout,void *vout2);

@@ -158,12 +158,12 @@ public:
         PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
-    void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
-    void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
-    void OutArray(const char *pszFile,int iType,int iFileType);
-    void OutArray(const char *pszFile,int iType);
-    void OutVector(const char *pszFile,int iType,int iFileType);
-    void OutVector(const char *pszFile,int iType);
+    void Write(std::string_view FileName,double dTime,int bCheckpoint);
+    void OutASCII(std::string_view File,int iType,int nDims,int iFileType);
+    void OutArray(std::string_view File,int iType,int iFileType);
+    void OutArray(std::string_view File,int iType);
+    void OutVector(std::string_view File,int iType,int iFileType);
+    void OutVector(std::string_view File,int iType);
     void Output(int iStep, double dTime, double dDelta, int bCheckpoint);
     void OutputFineStatistics(double dStep, double dTime);
 
@@ -364,7 +364,7 @@ protected:
     static double Time();
     static void Leader();
     static void Trailer();
-    static void MakePath(std::string_view dir,std::string_view base,char *path);
+    std::string MakePath(std::string_view base,std::string_view ext = {});
 
     double getTime(double dExpansion); // Return simulation time
     double getVfactor(double dTime);
@@ -429,10 +429,12 @@ protected:
         return iCurrMaxRung;
     }
 
-    std::string BuildName(std::string_view path,int iStep,std::string_view type = {});
-    std::string BuildName(  int iStep,std::string_view type = {}); // With achOutPath
-    std::string BuildIoName(int iStep,std::string_view type = {}); // With achIoPath
-    std::string BuildCpName(int iStep,std::string_view type = {}); // With achCpPath
+    std::string BuildName(      std::string_view path,int iStep,std::string_view type = {});
+    std::string BuildNameWithI( std::string_view path,int iStep,std::string_view type = {});
+    std::string BuildName(      int iStep,std::string_view type = {}); // With achOutPath
+    std::string BuildNameWithI( int iStep,std::string_view type = {}); // With achOutPath: ensure {i}
+    std::string BuildIoName(    int iStep,std::string_view type = {}); // With achIoPath
+    std::string BuildCpName(    int iStep); // With achCpPath
 
     int ReadOuts(double dTime);
     void Exit(int status);
@@ -443,7 +445,7 @@ protected:
     void SetClasses();
     void SwapClasses(int id);
     void OneNodeRead(struct inReadFile *in, FIO fio);
-    void AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int bDouble);
+    void AllNodeWrite(std::string_view FileName, double dTime, double dvFac, int bDouble);
     uint64_t CalcWriteStart();
     void SwitchTheta(double);
     double getTheta(double dTime);
@@ -496,7 +498,7 @@ protected:
     void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
     void AddDelParticles();
     void InitSph(double dTime,double dDelta, bool bRestart);
-    uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
+    uint64_t CountDistance(double dRadius2Outer,double dRadius2Inner=0.0);
 
     // Meshless hydrodynamics
     void MeshlessGradients(double dTime, double dDelta);
@@ -595,7 +597,7 @@ public:
         const PROFILEBIN **pBins, int *pnBins, double *r,
         double dMinRadius, double dLogRadius, double dMaxRadius,
         int nPerBin, int nBins, int nAccuracy );
-    void OutputGrid(const char *filename, bool k=false, int iGrid=0, int nParaWrite=0);
+    void OutputGrid(std::string_view filename, bool k=false, int iGrid=0, int nParaWrite=0);
 
     uint64_t CountSelected();
     uint64_t SelSpecies(uint64_t mSpecies,int setIfTrue=true,int clearIfFalse=true);

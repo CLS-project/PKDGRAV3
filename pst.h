@@ -72,6 +72,163 @@ typedef struct pstContext {
 #define PST_SERVICES        100
 #define PST_MAX_FILES           16384
 
+namespace Legacy {
+inline constexpr std::string_view SetAdd = "SetAdd";
+inline constexpr std::string_view FileSizes = "FileSizes";
+inline constexpr std::string_view ReadFile = "ReadFile";
+inline constexpr std::string_view DomainDecomp = "DomainDecomp";
+inline constexpr std::string_view CalcBound = "CalcBound";
+inline constexpr std::string_view CombineBound = "CombineBound";
+inline constexpr std::string_view Weight = "Weight";
+inline constexpr std::string_view WeightWrap = "WeightWrap";
+inline constexpr std::string_view FreeStore = "FreeStore";
+inline constexpr std::string_view ColRejects = "ColRejects";
+inline constexpr std::string_view SwapRejects = "SwapRejects";
+inline constexpr std::string_view ColOrdRejects = "ColOrdRejects";
+inline constexpr std::string_view Reorder = "Reorder";
+inline constexpr std::string_view DomainOrder = "DomainOrder";
+inline constexpr std::string_view LocalOrder = "LocalOrder";
+inline constexpr std::string_view CompressASCII = "CompressASCII";
+inline constexpr std::string_view SendParticles = "SendParticles";
+inline constexpr std::string_view SendArray = "SendArray";
+inline constexpr std::string_view WriteASCII = "WriteASCII";
+inline constexpr std::string_view Write = "Write";
+inline constexpr std::string_view Output = "Output";
+inline constexpr std::string_view OutputSend = "OutputSend";
+inline constexpr std::string_view SaveGroupStats = "SaveGroupStats";
+inline constexpr std::string_view Checkpoint = "Checkpoint";
+inline constexpr std::string_view Restore = "Restore";
+inline constexpr std::string_view BuildTree = "BuildTree";
+inline constexpr std::string_view DistribTopTree = "DistribTopTree";
+inline constexpr std::string_view DumpTrees = "DumpTrees";
+inline constexpr std::string_view TreeInitMarked = "TreeInitMarked";
+inline constexpr std::string_view CalcRoot = "CalcRoot";
+inline constexpr std::string_view DistribRoot = "DistribRoot";
+inline constexpr std::string_view EnforcePeriodic = "EnforcePeriodic";
+inline constexpr std::string_view Smooth = "Smooth";
+inline constexpr std::string_view Gravity = "Gravity";
+inline constexpr std::string_view LightCone = "LightCone";
+inline constexpr std::string_view CalcEandL = "CalcEandL";
+inline constexpr std::string_view Drift = "Drift";
+inline constexpr std::string_view ComputePrimVars = "ComputePrimVars";
+inline constexpr std::string_view WakeParticles = "WakeParticles";
+inline constexpr std::string_view FluxStats = "FluxStats";
+inline constexpr std::string_view GrackleInit = "GrackleInit";
+inline constexpr std::string_view CoolingUpdate = "CoolingUpdate";
+inline constexpr std::string_view CoolingUpdateZ = "CoolingUpdateZ";
+inline constexpr std::string_view CoolingInit = "CoolingInit";
+inline constexpr std::string_view CoolingHydReion = "CoolingHydReion";
+inline constexpr std::string_view ChemCompInit = "ChemCompInit";
+inline constexpr std::string_view BhPlaceSeed = "BhPlaceSeed";
+inline constexpr std::string_view BhReposition = "BhReposition";
+inline constexpr std::string_view BhInit = "BhInit";
+inline constexpr std::string_view BhAccretion = "BhAccretion";
+inline constexpr std::string_view ROParticleCache = "ROParticleCache";
+inline constexpr std::string_view ParticleCacheFinish = "ParticleCacheFinish";
+inline constexpr std::string_view Kick = "Kick";
+inline constexpr std::string_view KickTree = "KickTree";
+inline constexpr std::string_view SetSoft = "SetSoft";
+inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
+inline constexpr std::string_view SetTotal = "SetTotal";
+inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
+inline constexpr std::string_view SwapAll = "SwapAll";
+inline constexpr std::string_view ActiveOrder = "ActiveOrder";
+inline constexpr std::string_view InitCosmology = "InitCosmology";
+inline constexpr std::string_view InitLightCone = "InitLightCone";
+inline constexpr std::string_view ZeroNewRung = "ZeroNewRung";
+inline constexpr std::string_view ActiveRung = "ActiveRung";
+inline constexpr std::string_view CountRungs = "CountRungs";
+inline constexpr std::string_view AccelStep = "AccelStep";
+inline constexpr std::string_view StarForm = "StarForm";
+inline constexpr std::string_view StarFormInit = "StarFormInit";
+inline constexpr std::string_view DensityStep = "DensityStep";
+inline constexpr std::string_view CorrectEnergy = "CorrectEnergy";
+inline constexpr std::string_view ReSmooth = "ReSmooth";
+inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
+inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
+inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
+inline constexpr std::string_view UpdateRung = "UpdateRung";
+inline constexpr std::string_view OrdWeight = "OrdWeight";
+inline constexpr std::string_view SetWriteStart = "SetWriteStart";
+inline constexpr std::string_view AddWriteStart = "AddWriteStart";
+inline constexpr std::string_view CountSpecies = "CountSpecies";
+inline constexpr std::string_view RemoveDeleted = "RemoveDeleted";
+inline constexpr std::string_view ColNParts = "ColNParts";
+inline constexpr std::string_view NewOrder = "NewOrder";
+inline constexpr std::string_view SetNParts = "SetNParts";
+inline constexpr std::string_view NewFof = "NewFof";
+inline constexpr std::string_view FofPhases = "FofPhases";
+inline constexpr std::string_view FofFinishUp = "FofFinishUp";
+inline constexpr std::string_view HopLink = "HopLink";
+inline constexpr std::string_view HopJoin = "HopJoin";
+inline constexpr std::string_view HopFinishUp = "HopFinishUp";
+inline constexpr std::string_view HopTreeBuild = "HopTreeBuild";
+inline constexpr std::string_view HopGravity = "HopGravity";
+inline constexpr std::string_view HopUnbind = "HopUnbind";
+inline constexpr std::string_view GroupRelocate = "GroupRelocate";
+inline constexpr std::string_view GroupStats = "GroupStats";
+inline constexpr std::string_view InitializePStore = "InitializePStore";
+inline constexpr std::string_view GetFFTMaxSizes = "GetFFTMaxSizes";
+inline constexpr std::string_view GenerateIC = "GenerateIC";
+inline constexpr std::string_view LocalGenerateIC = "LocalGenerateIC";
+inline constexpr std::string_view MoveIC = "MoveIC";
+inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
+inline constexpr std::string_view HostName = "HostName";
+inline constexpr std::string_view MemStatus = "MemStatus";
+inline constexpr std::string_view GetClasses = "GetClasses";
+inline constexpr std::string_view SetClasses = "SetClasses";
+inline constexpr std::string_view SwapClasses = "SwapClasses";
+inline constexpr std::string_view CountSelected = "CountSelected";
+inline constexpr std::string_view SelSpecies = "SelSpecies";
+inline constexpr std::string_view SelMass = "SelMass";
+inline constexpr std::string_view SelById = "SelById";
+inline constexpr std::string_view SelPhaseDensity = "SelPhaseDensity";
+inline constexpr std::string_view SelGroup = "SelGroup";
+inline constexpr std::string_view SelBox = "SelBox";
+inline constexpr std::string_view SelSphere = "SelSphere";
+inline constexpr std::string_view SelCylinder = "SelCylinder";
+inline constexpr std::string_view SelBlackHoles = "SelBlackHoles";
+inline constexpr std::string_view SelActives = "SelActives";
+inline constexpr std::string_view Profile = "Profile";
+inline constexpr std::string_view CalcDistance = "CalcDistance";
+inline constexpr std::string_view CalcCOM = "CalcCOM";
+inline constexpr std::string_view CalcMtot = "CalcMtot";
+inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
+inline constexpr std::string_view ResetCOM = "ResetCOM";
+inline constexpr std::string_view InitializeEOS = "InitializeEOS";
+inline constexpr std::string_view UpdateGasValues = "UpdateGasValues";
+inline constexpr std::string_view TreeUpdateFlagBounds = "TreeUpdateFlagBounds";
+inline constexpr std::string_view GridCreateFFT = "GridCreateFFT";
+inline constexpr std::string_view GridDeleteFFT = "GridDeleteFFT";
+inline constexpr std::string_view AddLinearSignal = "AddLinearSignal";
+inline constexpr std::string_view MeasureLinPk = "MeasureLinPk";
+inline constexpr std::string_view SetLinGrid = "SetLinGrid";
+inline constexpr std::string_view LinearKick = "LinearKick";
+inline constexpr std::string_view AssignMass = "AssignMass";
+inline constexpr std::string_view DensityContrast = "DensityContrast";
+inline constexpr std::string_view WindowCorrection = "WindowCorrection";
+inline constexpr std::string_view Interlace = "Interlace";
+inline constexpr std::string_view GridBinK = "GridBinK";
+inline constexpr std::string_view BispectrumSelect = "BispectrumSelect";
+inline constexpr std::string_view BispectrumCalculate = "BispectrumCalculate";
+inline constexpr std::string_view TotalMass = "TotalMass";
+inline constexpr std::string_view GetMinDt = "GetMinDt";
+inline constexpr std::string_view SetGlobalDt = "SetGlobalDt";
+inline constexpr std::string_view LightConeOpen = "LightConeOpen";
+inline constexpr std::string_view LightConeClose = "LightConeClose";
+inline constexpr std::string_view LightConeVel = "LightConeVel";
+inline constexpr std::string_view GetParticles = "GetParticles";
+inline constexpr std::string_view GetOrdSplits = "GetOrdSplits";
+inline constexpr std::string_view RsReorderIds = "RsReorderIds";
+inline constexpr std::string_view RsHaloCount = "RsHaloCount";
+inline constexpr std::string_view RsHaloLoadIds = "RsHaloLoadIds";
+inline constexpr std::string_view RsLoadIds = "RsLoadIds";
+inline constexpr std::string_view RsSaveIds = "RsSaveIds";
+inline constexpr std::string_view RsExtract = "RsExtract";
+inline constexpr std::string_view IgnoreSigBus = "IgnoreSigBus";
+}
+
+
 enum pst_service {
     PST_SRV_STOP=0, /* service 0 is always STOP and handled by MDL */
     PST_SETADD,
@@ -259,6 +416,7 @@ struct inInitializePStore {
     uint64_t nMinEphemeral;
     uint64_t nMinTotalStore;
     uint32_t nIntegerFactor;
+    uint32_t nBucket;
     int nEphemeralBytes;
     int nTreeBitsLo;
     int nTreeBitsHi;
@@ -983,16 +1141,6 @@ struct inTreeUpdateFlagBounds {
 };
 int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut);
 
-/* PST_COUNTDISTANCE */
-struct inCountDistance {
-    double dRadius2Inner;
-    double dRadius2Outer;
-};
-struct outCountDistance {
-    uint64_t nCount;
-};
-int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
-
 /* PST_GRID_CREATE_FFT */
 struct inGridCreateFFT {
     int nGrid;
@@ -1115,11 +1263,11 @@ int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 struct inLightConeOpen {
     int nSideHealpix;
-    char achOutFile[PATH_MAX];
+    char achOutFileLcp[PATH_MAX];
 };
 int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inLightConeClose {
-    char achOutFile[PATH_MAX];
+    char achOutFileHpb[PATH_MAX];
 };
 int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut);
 

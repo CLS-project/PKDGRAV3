@@ -83,7 +83,7 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
 
     GridInfo G(pkd->mdl,fft);
     complex_array_t K;
-    G.setupArray(pkd->mdl->SetArray<FFTW3(real)>(pkd->pLite),K);
+    G.setupArray(pkd->mdl->SetArray(pkd->Ephemeral<FFTW3(real)>()),K);
     NoiseGenerator ng(iSeed,bFixed,fPhase);
     ng.FillNoise(K,fft->rgrid->n3);
     for ( auto index=K.begin(); index!=K.end(); ++index ) {
@@ -157,10 +157,10 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
      * in memory, the other ones are defined in order to
      * have an explicit naming in the code
      */
-    auto cDelta_lin_field = pkd->mdl->SetArray<FFTW3(complex)>(pkd->pLite,klast.i);
+    auto cDelta_lin_field = pkd->mdl->SetArray(pkd->Ephemeral<FFTW3(complex)>(),klast.i);
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
-    auto cForceY = pkd->mdl->SetArray<FFTW3(complex)>(cDelta_lin_field + fft->kgrid->nLocal,klast.i);
-    auto cForceZ = pkd->mdl->SetArray<FFTW3(complex)>(cForceY          + fft->kgrid->nLocal,klast.i);
+    auto cForceY = pkd->mdl->SetArray(cDelta_lin_field + fft->kgrid->nLocal,klast.i);
+    auto cForceZ = pkd->mdl->SetArray(cForceY          + fft->kgrid->nLocal,klast.i);
 
     int idx, i, j, jj, k, kk;
     const int iNyquist = nGrid / 2 ;
@@ -291,9 +291,9 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=3) {
     assert(iAssignment>=0 && iAssignment<=3);
 
     int iLocal = pkd->mdl->Core() ? 0 : pkd->fft->rgrid->nLocal;
-    auto forceX = pkd->mdl->SetArray<FFTW3(real)>(pkd->pLite,iLocal);
-    auto forceY = pkd->mdl->SetArray<FFTW3(real)>(forceX + pkd->fft->rgrid->nLocal,iLocal);
-    auto forceZ = pkd->mdl->SetArray<FFTW3(real)>(forceY + pkd->fft->rgrid->nLocal,iLocal);
+    auto forceX = pkd->mdl->SetArray(pkd->Ephemeral<FFTW3(real)>(),iLocal);
+    auto forceY = pkd->mdl->SetArray(forceX + pkd->fft->rgrid->nLocal,iLocal);
+    auto forceZ = pkd->mdl->SetArray(forceY + pkd->fft->rgrid->nLocal,iLocal);
     pkd->mdl->CacheInitialize(CID_GridLinFx,std::make_shared<mdl::arrayCACHEhelper>(forceX,iLocal));
     pkd->mdl->CacheInitialize(CID_GridLinFy,std::make_shared<mdl::arrayCACHEhelper>(forceY,iLocal));
     pkd->mdl->CacheInitialize(CID_GridLinFz,std::make_shared<mdl::arrayCACHEhelper>(forceZ,iLocal));
@@ -328,7 +328,7 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=3) {
             fetch_forces(pkd,CID_GridLinFy,nGrid,forcesY,ilower);
             fetch_forces(pkd,CID_GridLinFz,nGrid,forcesZ,ilower);
             for ( auto &p : *kdn) { // All particles in this tree cell
-                auto v = p.velocity();
+                auto &v = p.velocity();
                 float3_t r = p.position();
                 r = (r * ifPeriod + 0.5) * nGrid - flower; // Scale and shift to fit in subcube
                 v[0] += (dtOpen + dtClose) * force_interpolate(forcesX, r.data(), iAssignment);
@@ -381,7 +381,7 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
 
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
     mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last,0);
-    auto fftDataK = pkd->mdl->SetArray<FFTW3(complex)>(pkd->pLite,last.i);
+    auto fftDataK = pkd->mdl->SetArray(pkd->Ephemeral<FFTW3(complex)>(),last.i);
 
     for ( i=0; i<nBins; i++ ) {
         fK[i] = 0.0;

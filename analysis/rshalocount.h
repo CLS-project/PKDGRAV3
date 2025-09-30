@@ -20,8 +20,9 @@
 
 class ServiceRsHaloCount : public ServiceFileSizes {
 public:
+    static constexpr std::string_view name = "RsHaloCount";
     explicit ServiceRsHaloCount(PST pst)
-        : ServiceFileSizes(pst,PST_RS_HALO_COUNT,"RsHaloCount") {}
+        : ServiceFileSizes(pst,PST_RS_HALO_COUNT,name) {}
     virtual uint64_t GetSize(const std::string &filename,uint64_t file_size) override;
 };
 

@@ -20,7 +20,7 @@
 #else
     #include "pkd_config.h"
 #endif
-
+#include <algorithm>
 #include <math.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -40,6 +40,7 @@
 #ifdef USE_ITT
     #include "ittnotify.h"
 #endif
+#include "fmt/format.h"
 #include "mdl.h"
 #include "pst.h"
 #include "pkd.h"
@@ -79,256 +80,353 @@ void pstAddServices(PST pst,mdl::mdlClass * mdl) {
     nThreads = mdl->Threads();
 
     mdl->AddService(PST_READFILE,pst,(fcnService_t *)pstReadFile,
-                    sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),0);
+                    sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),0,
+                    Legacy::ReadFile);
     mdl->AddService(PST_COMPRESSASCII,pst,(fcnService_t *)pstCompressASCII,
-                    sizeof(struct inCompressASCII),sizeof(struct outCompressASCII));
+                    sizeof(struct inCompressASCII),sizeof(struct outCompressASCII),
+                    Legacy::CompressASCII);
     mdl->AddService(PST_WRITEASCII,pst,(fcnService_t *)pstWriteASCII,
-                    sizeof(struct inWriteASCII),0);
+                    sizeof(struct inWriteASCII),0,
+                    Legacy::WriteASCII);
     mdl->AddService(PST_WRITE,pst,(fcnService_t *)pstWrite,
-                    sizeof(struct inWrite),0);
+                    sizeof(struct inWrite),0,
+                    Legacy::Write);
     mdl->AddService(PST_SENDPARTICLES,pst,(fcnService_t *)pstSendParticles,
-                    sizeof(int),0);
+                    sizeof(int),0,
+                    Legacy::SendParticles);
     mdl->AddService(PST_SENDARRAY,pst,(fcnService_t *)pstSendArray,
-                    sizeof(struct inSendArray),0);
+                    sizeof(struct inSendArray),0,
+                    Legacy::SendArray);
     mdl->AddService(PST_CHECKPOINT,pst,(fcnService_t *)pstCheckpoint,
-                    sizeof(struct inWrite),0);
+                    sizeof(struct inWrite),0,
+                    Legacy::Checkpoint);
     mdl->AddService(PST_OUTPUT,pst,(fcnService_t *)pstOutput,
-                    sizeof(struct inOutput),0);
+                    sizeof(struct inOutput),0,
+                    Legacy::Output);
     mdl->AddService(PST_OUTPUT_SEND,pst,(fcnService_t *)pstOutputSend,
-                    sizeof(struct inOutputSend),0);
+                    sizeof(struct inOutputSend),0,
+                    Legacy::OutputSend);
     /*
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
     mdl->AddService(PST_BUILDTREE,pst,(fcnService_t *)pstBuildTree,
                     sizeof(struct inBuildTree),
-                    (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
+                    (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize(),
+                    Legacy::BuildTree);
     mdl->AddService(PST_TREEINITMARKED,pst,(fcnService_t *)pstTreeInitMarked,
-                    0,0);
+                    0,0,
+                    Legacy::TreeInitMarked);
     mdl->AddService(PST_HOP_LINK,pst,(fcnService_t *)pstHopLink,
-                    sizeof(struct inHopLink),sizeof(uint64_t));
+                    sizeof(struct inHopLink),sizeof(uint64_t),
+                    Legacy::HopLink);
     mdl->AddService(PST_HOP_JOIN,pst,(fcnService_t *)pstHopJoin,
-                    sizeof(struct inHopLink),sizeof(struct outHopJoin));
+                    sizeof(struct inHopLink),sizeof(struct outHopJoin),
+                    Legacy::HopJoin);
     mdl->AddService(PST_HOP_FINISH_UP,pst,(fcnService_t *)pstHopFinishUp,
-                    sizeof(struct inHopFinishUp),sizeof(uint64_t));
+                    sizeof(struct inHopFinishUp),sizeof(uint64_t),
+                    Legacy::HopFinishUp);
     mdl->AddService(PST_HOP_TREE_BUILD,pst,(fcnService_t *)pstHopTreeBuild,
-                    sizeof(struct inHopTreeBuild),0);
+                    sizeof(struct inHopTreeBuild),0,
+                    Legacy::HopTreeBuild);
     mdl->AddService(PST_HOP_GRAVITY,pst,(fcnService_t *)pstHopGravity,
-                    sizeof(struct inHopGravity),0);
+                    sizeof(struct inHopGravity),0,
+                    Legacy::HopGravity);
     mdl->AddService(PST_HOP_UNBIND,pst,(fcnService_t *)pstHopUnbind,
-                    sizeof(struct inHopUnbind),sizeof(struct outHopUnbind));
+                    sizeof(struct inHopUnbind),sizeof(struct outHopUnbind),
+                    Legacy::HopUnbind);
     mdl->AddService(PST_GROUP_RELOCATE,pst,(fcnService_t *)pstGroupRelocate,
-                    0,0);
+                    0,0,
+                    Legacy::GroupRelocate);
     mdl->AddService(PST_GROUP_STATS,pst,(fcnService_t *)pstGroupStats,
-                    sizeof(struct inGroupStats),0);
+                    sizeof(struct inGroupStats),0,
+                    Legacy::GroupStats);
     mdl->AddService(PST_SMOOTH,pst,(fcnService_t *)pstSmooth,
-                    sizeof(struct inSmooth),0);
+                    sizeof(struct inSmooth),0,
+                    Legacy::Smooth);
     mdl->AddService(PST_GRAVITY,pst,(fcnService_t *)pstGravity,
                     sizeof(struct inGravity),
-                    sizeof(struct outGravityReduct));
+                    sizeof(struct outGravityReduct),
+                    Legacy::Gravity);
     mdl->AddService(PST_CALCEANDL,pst,(fcnService_t *)pstCalcEandL,
-                    0,sizeof(struct outCalcEandL));
+                    0,sizeof(struct outCalcEandL),
+                    Legacy::CalcEandL);
     mdl->AddService(PST_DRIFT,pst,(fcnService_t *)pstDrift,
-                    sizeof(struct inDrift),0);
+                    sizeof(struct inDrift),0,
+                    Legacy::Drift);
     mdl->AddService(PST_COMPUTEPRIMVARS,pst,
                     (fcnService_t *) pstEndTimestepIntegration,
-                    sizeof(struct inEndTimestep),0);
+                    sizeof(struct inEndTimestep),0,
+                    Legacy::ComputePrimVars);
     mdl->AddService(PST_WAKEPARTICLES,pst,
                     (fcnService_t *) pstWakeParticles,
-                    sizeof(struct inDrift),0);
+                    sizeof(struct inDrift),0,
+                    Legacy::WakeParticles);
 #ifdef DEBUG_CACHED_FLUXES
     mdl->AddService(PST_FLUXSTATS,pst,
                     (fcnService_t *) pstFluxStats,
-                    0, sizeof(struct outFluxStats));
+                    0, sizeof(struct outFluxStats),
+                    Legacy::FluxStats);
 #endif
     mdl->AddService(PST_SETGLOBALDT,pst,
                     (fcnService_t *) pstSetGlobalDt,
-                    sizeof(struct outGetMinDt),0);
+                    sizeof(struct outGetMinDt),0,
+                    Legacy::SetGlobalDt);
 #ifdef COOLING
     mdl->AddService(PST_COOLINGUPDATE,pst,
                     (fcnService_t *) pstCoolingUpdate,
-                    sizeof(struct inCoolUpdate),0);
+                    sizeof(struct inCoolUpdate),0,
+                    Legacy::CoolingUpdate);
     mdl->AddService(PST_COOLINGUPDATEZ,pst,
                     (fcnService_t *) pstCoolingUpdateZ,
-                    sizeof(float),0);
+                    sizeof(float),0,
+                    Legacy::CoolingUpdateZ);
     mdl->AddService(PST_COOLINGINIT,pst,
                     (fcnService_t *) pstCoolingInit,
-                    sizeof(struct inCoolInit),0);
+                    sizeof(struct inCoolInit),0,
+                    Legacy::CoolingInit);
     mdl->AddService(PST_COOLINGHYDREION,pst,
                     (fcnService_t *) pstCoolingHydReion,
-                    0,0);
+                    0,0,
+                    Legacy::CoolingHydReion);
 #endif
 #ifdef GRACKLE
     mdl->AddService(PST_GRACKLEINIT,pst,
                     (fcnService_t *) pstGrackleInit,
-                    sizeof(struct inGrackleInit),0);
+                    sizeof(struct inGrackleInit),0,
+                    Legacy::GrackleInit);
 #endif
     mdl->AddService(PST_CHEMCOMPINIT,pst,
                     (fcnService_t *) pstChemCompInit,
-                    sizeof(struct inChemCompInit),0);
+                    sizeof(struct inChemCompInit),0,
+                    Legacy::ChemCompInit);
 #ifdef BLACKHOLES
     mdl->AddService(PST_BH_PLACESEED,pst,
                     (fcnService_t *) pstPlaceBHSeed,
-                    sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed));
+                    sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed),
+                    Legacy::PlaceBHSeed);
     mdl->AddService(PST_BH_INIT,pst,
                     (fcnService_t *) pstBHInit,
-                    sizeof(struct inPlaceBHSeed), 0);
+                    sizeof(struct inPlaceBHSeed), 0,
+                    Legacy::BHInit);
     mdl->AddService(PST_BH_REPOSITION,pst,
                     (fcnService_t *) pstBHReposition,
-                    0, 0);
+                    0, 0,
+                    Legacy::BHReposition);
     mdl->AddService(PST_BH_ACCRETION,pst,
                     (fcnService_t *) pstBHAccretion,
-                    sizeof(struct inBHAccretion), 0);
+                    sizeof(struct inBHAccretion), 0,
+                    Legacy::BHAccretion);
 #endif
     mdl->AddService(PST_GETMINDT,pst,
                     (fcnService_t *) pstGetMinDt,
-                    0, sizeof(struct outGetMinDt));
+                    0, sizeof(struct outGetMinDt),
+                    Legacy::GetMinDt);
     //
     mdl->AddService(PST_ROPARTICLECACHE,pst,(fcnService_t *)pstROParticleCache,
-                    0,0);
+                    0,0,
+                    Legacy::ROParticleCache);
     mdl->AddService(PST_PARTICLECACHEFINISH,pst,(fcnService_t *)pstParticleCacheFinish,
-                    0,0);
+                    0,0,
+                    Legacy::ParticleCacheFinish);
     mdl->AddService(PST_KICK,pst,(fcnService_t *)pstKick,
-                    sizeof(struct inKick),0);
+                    sizeof(struct inKick),0,
+                    Legacy::Kick);
     mdl->AddService(PST_KICKTREE,pst,(fcnService_t *)pstKickTree,
-                    sizeof(struct inKickTree),0);
+                    sizeof(struct inKickTree),0,
+                    Legacy::KickTree);
     mdl->AddService(PST_PHYSICALSOFT,pst,(fcnService_t *)pstPhysicalSoft,
-                    sizeof(struct inPhysicalSoft),0);
+                    sizeof(struct inPhysicalSoft),0,
+                    Legacy::PhysicalSoft);
     mdl->AddService(PST_SETTOTAL,pst,(fcnService_t *)pstSetTotal,
-                    0,sizeof(struct outSetTotal));
+                    0,sizeof(struct outSetTotal),
+                    Legacy::SetTotal);
     mdl->AddService(PST_SETWRITESTART,pst,(fcnService_t *)pstSetWriteStart,
-                    sizeof(struct inSetWriteStart),0);
+                    sizeof(struct inSetWriteStart),0,
+                    Legacy::SetWriteStart);
     mdl->AddService(PST_ADDWRITESTART,pst,(fcnService_t *)pstAddWriteStart,
-                    sizeof(struct inAddWriteStart),0);
+                    sizeof(struct inAddWriteStart),0,
+                    Legacy::AddWriteStart);
     mdl->AddService(PST_ONENODEREADINIT,pst,(fcnService_t *)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),
-                    nThreads*sizeof(int));
+                    nThreads*sizeof(int),
+                    Legacy::OneNodeReadInit);
     mdl->AddService(PST_ACTIVEORDER,pst,(fcnService_t *)pstActiveOrder,
-                    0,sizeof(uint64_t));
+                    0,sizeof(uint64_t),
+                    Legacy::ActiveOrder);
     mdl->AddService(PST_DENSITYSTEP,pst,(fcnService_t *)pstDensityStep,
-                    sizeof(struct inDensityStep),0);
+                    sizeof(struct inDensityStep),0,
+                    Legacy::DensityStep);
     mdl->AddService(PST_CORRECTENERGY,pst,(fcnService_t *)pstCorrectEnergy,
-                    sizeof(struct inCorrectEnergy),0);
+                    sizeof(struct inCorrectEnergy),0,
+                    Legacy::CorrectEnergy);
     mdl->AddService(PST_ACCELSTEP,pst,(fcnService_t *)pstAccelStep,
-                    sizeof(struct inAccelStep), 0);
+                    sizeof(struct inAccelStep), 0,
+                    Legacy::AccelStep);
 #ifdef STAR_FORMATION
     mdl->AddService(PST_STARFORM,pst,
                     (fcnService_t *) pstStarForm,
-                    sizeof(struct inStarForm),sizeof(struct outStarForm));
+                    sizeof(struct inStarForm),sizeof(struct outStarForm),
+                    Legacy::StarForm);
 #endif
 #if defined(STAR_FORMATION) || defined(FEEDBACK)
     mdl->AddService(PST_STARFORMINIT,pst,
                     (fcnService_t *) pstStarFormInit,
-                    sizeof(struct inStarFormInit),sizeof(struct outStarForm));
+                    sizeof(struct inStarFormInit),sizeof(struct outStarForm),
+                    Legacy::StarFormInit);
 #endif
     mdl->AddService(PST_RESMOOTH,pst,(fcnService_t *) pstReSmooth,
-                    sizeof(struct inSmooth),sizeof(struct outSmooth));
+                    sizeof(struct inSmooth),sizeof(struct outSmooth),
+                    Legacy::ReSmooth);
 #ifdef OPTIM_SMOOTH_NODE
     mdl->AddService(PST_RESMOOTHNODE,pst,(fcnService_t *) pstReSmoothNode,
-                    sizeof(struct inSmooth),sizeof(struct outSmooth));
+                    sizeof(struct inSmooth),sizeof(struct outSmooth),
+                    Legacy::ReSmoothNode);
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
     mdl->AddService(PST_REORDERINNODES,pst,(fcnService_t *) pstReorderWithinNodes,
-                    0,0);
+                    0,0,
+                    Legacy::ReorderInNodes);
 #endif
 #ifdef STELLAR_EVOLUTION
     mdl->AddService(PST_STELLAREVOLUTIONINIT,pst,
                     (fcnService_t *) pstStellarEvolutionInit,
-                    sizeof(struct inStellarEvolutionInit),0);
+                    sizeof(struct inStellarEvolutionInit),0,
+                    Legacy::StellarEvolutionInit);
 #endif
     mdl->AddService(PST_COLNPARTS,pst,(fcnService_t *)pstColNParts,
-                    0,nThreads*sizeof(struct outColNParts));
+                    0,nThreads*sizeof(struct outColNParts),
+                    Legacy::ColNParts);
     mdl->AddService(PST_NEWORDER,pst,(fcnService_t *)pstNewOrder,
-                    nThreads*sizeof(uint64_t),0);
+                    nThreads*sizeof(uint64_t),0,
+                    Legacy::NewOrder);
     mdl->AddService(PST_SETNPARTS,pst,(fcnService_t *)pstSetNParts,
-                    sizeof(struct inSetNParts),0);
+                    sizeof(struct inSetNParts),0,
+                    Legacy::SetNParts);
     mdl->AddService(PST_NEW_FOF,pst,(fcnService_t *)pstNewFof,
-                    sizeof(struct inNewFof),0);
+                    sizeof(struct inNewFof),0,
+                    Legacy::NewFof);
     mdl->AddService(PST_FOF_PHASES,pst,(fcnService_t *)pstFofPhases,
-                    0,sizeof(struct outFofPhases));
+                    0,sizeof(struct outFofPhases),
+                    Legacy::FofPhases);
     mdl->AddService(PST_FOF_FINISH_UP,pst,(fcnService_t *)pstFofFinishUp,
-                    sizeof(struct inFofFinishUp),sizeof(uint64_t));
+                    sizeof(struct inFofFinishUp),sizeof(uint64_t),
+                    Legacy::FofFinishUp);
     mdl->AddService(PST_INITIALIZEPSTORE,pst,(fcnService_t *)pstInitializePStore,
-                    sizeof(struct inInitializePStore),sizeof(struct outInitializePStore));
+                    sizeof(struct inInitializePStore),sizeof(struct outInitializePStore),
+                    Legacy::InitializePStore);
 #ifdef MDL_FFTW
     mdl->AddService(PST_GENERATEIC,pst,(fcnService_t *)pstGenerateIC,
-                    sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
+                    sizeof(struct inGenerateIC),sizeof(struct outGenerateIC),
+                    Legacy::GenerateIC);
     mdl->AddService(PLT_GENERATEIC,pst,(fcnService_t *)pltGenerateIC,
-                    sizeof(struct inGenerateICthread),sizeof(struct outGenerateIC));
+                    sizeof(struct inGenerateICthread),sizeof(struct outGenerateIC),
+                    Legacy::LocalGenerateIC);
     mdl->AddService(PLT_MOVEIC,pst,(fcnService_t *)pltMoveIC,
-                    sizeof(struct inMoveIC),0);
+                    sizeof(struct inMoveIC),0,
+                    Legacy::MoveIC);
     mdl->AddService(PST_MOVEIC,pst,(fcnService_t *)pstMoveIC,
-                    sizeof(struct inGenerateIC),0);
+                    sizeof(struct inGenerateIC),0,
+                    Legacy::LocalMoveIC);
 #endif
     mdl->AddService(PST_MEMSTATUS,pst,(fcnService_t *)pstMemStatus,
-                    0,nThreads*sizeof(struct outMemStatus));
+                    0,nThreads*sizeof(struct outMemStatus),
+                    Legacy::MemStatus);
     mdl->AddService(PST_GETCLASSES,pst,(fcnService_t *)pstGetClasses,
-                    0, PKD_MAX_CLASSES*sizeof(PARTCLASS));
+                    0, PKD_MAX_CLASSES*sizeof(PARTCLASS),
+                    Legacy::GetClasses);
     mdl->AddService(PST_SETCLASSES,pst,(fcnService_t *)pstSetClasses,
-                    PKD_MAX_CLASSES*sizeof(PARTCLASS), 0);
+                    PKD_MAX_CLASSES*sizeof(PARTCLASS), 0,
+                    Legacy::SetClasses);
     mdl->AddService(PST_SWAPCLASSES,pst,(fcnService_t *)pstSwapClasses,
                     PKD_MAX_CLASSES*sizeof(PARTCLASS),
-                    PKD_MAX_CLASSES*sizeof(PARTCLASS));
+                    PKD_MAX_CLASSES*sizeof(PARTCLASS),
+                    Legacy::SwapClasses);
     mdl->AddService(PST_PROFILE,pst,(fcnService_t *)pstProfile,
-                    sizeof(struct inProfile), 0);
+                    sizeof(struct inProfile), 0,
+                    Legacy::Profile);
     mdl->AddService(PST_CALCDISTANCE,pst,(fcnService_t *)pstCalcDistance,
-                    sizeof(struct inCalcDistance), 0);
+                    sizeof(struct inCalcDistance), 0,
+                    Legacy::CalcDistance);
     mdl->AddService(PST_CALCCOM,pst,(fcnService_t *)pstCalcCOM,
-                    sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
+                    sizeof(struct inCalcCOM), sizeof(struct outCalcCOM),
+                    Legacy::CalcCOM);
     mdl->AddService(PST_CALCMTOT,pst,(fcnService_t *)pstCalcMtot,
-                    sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
+                    sizeof(struct inCalcMtot), sizeof(struct outCalcMtot),
+                    Legacy::CalcMtot);
     mdl->AddService(PST_SETSPHOPTIONS,pst,(fcnService_t *)pstSetSPHoptions,
-                    sizeof(struct inSetSPHoptions), 0);
+                    sizeof(struct inSetSPHoptions), 0,
+                    Legacy::SetSPHoptions);
     mdl->AddService(PST_RESETCOM,pst,(fcnService_t *)pstResetCOM,
-                    sizeof(struct inResetCOM), 0);
+                    sizeof(struct inResetCOM), 0,
+                    Legacy::ResetCOM);
     mdl->AddService(PST_INITIALIZEEOS,pst,(fcnService_t *)pstInitializeEOS,
-                    0, 0);
+                    0, 0,
+                    Legacy::InitializeEOS);
     mdl->AddService(PST_UPDATEGASVALUES,pst,(fcnService_t *)pstUpdateGasValues,
-                    sizeof(struct inUpdateGasValues), 0);
+                    sizeof(struct inUpdateGasValues), 0,
+                    Legacy::UpdateGasValues);
     mdl->AddService(PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
                     sizeof(struct inTreeUpdateFlagBounds),
-                    (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
-    mdl->AddService(PST_COUNTDISTANCE,pst,(fcnService_t *)pstCountDistance,
-                    sizeof(struct inCountDistance), sizeof(struct outCountDistance));
+                    (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize(),
+                    Legacy::TreeUpdateFlagBounds);
 #ifdef MDL_FFTW
     mdl->AddService(PST_GRID_CREATE_FFT,pst,(fcnService_t *)pstGridCreateFFT,
-                    sizeof(struct inGridCreateFFT), 0);
+                    sizeof(struct inGridCreateFFT), 0,
+                    Legacy::GridCreateFFT);
     mdl->AddService(PST_GRID_DELETE_FFT,pst,(fcnService_t *)pstGridDeleteFFT,
-                    0, 0);
+                    0, 0,
+                    Legacy::GridDeleteFFT);
     mdl->AddService(PST_ADD_LINEAR_SIGNAL,pst,(fcnService_t *)pstAddLinearSignal,
-                    sizeof(struct inAddLinearSignal), 0);
+                    sizeof(struct inAddLinearSignal), 0,
+                    Legacy::AddLinearSignal);
     mdl->AddService(PST_ASSIGN_MASS,pst,(fcnService_t *)pstAssignMass,
-                    sizeof(struct inAssignMass), 0);
+                    sizeof(struct inAssignMass), 0,
+                    Legacy::AssignMass);
     mdl->AddService(PST_DENSITY_CONTRAST,pst,(fcnService_t *)pstDensityContrast,
-                    sizeof(struct inDensityContrast), 0);
+                    sizeof(struct inDensityContrast), 0,
+                    Legacy::DensityContrast);
     mdl->AddService(PST_WINDOW_CORRECTION,pst,(fcnService_t *)pstWindowCorrection,
-                    sizeof(struct inWindowCorrection), 0);
+                    sizeof(struct inWindowCorrection), 0,
+                    Legacy::WindowCorrection);
     mdl->AddService(PST_INTERLACE,pst,(fcnService_t *)pstInterlace,
-                    sizeof(struct inInterlace), 0);
+                    sizeof(struct inInterlace), 0,
+                    Legacy::Interlace);
     mdl->AddService(PST_GRID_BIN_K,pst,(fcnService_t *)pstGridBinK,
-                    sizeof(struct inGridBinK), sizeof(struct outGridBinK));
+                    sizeof(struct inGridBinK), sizeof(struct outGridBinK),
+                    Legacy::GridBinK);
     mdl->AddService(PST_BISPECTRUM_SELECT,pst,(fcnService_t *)pstBispectrumSelect,
-                    sizeof(struct inBispectrumSelect), 0);
+                    sizeof(struct inBispectrumSelect), 0,
+                    Legacy::BispectrumSelect);
     mdl->AddService(PST_BISPECTRUM_CALCULATE,pst,(fcnService_t *)pstBispectrumCalculate,
-                    sizeof(struct inBispectrumCalculate), sizeof(double));
+                    sizeof(struct inBispectrumCalculate), sizeof(double),
+                    Legacy::BispectrumCalculate);
     mdl->AddService(PST_LINEARKICK, pst,(fcnService_t *)pstLinearKick,
-                    sizeof(struct inLinearKick), 0);
+                    sizeof(struct inLinearKick), 0,
+                    Legacy::LinearKick);
     mdl->AddService(PST_SETLINGRID, pst,(fcnService_t *)pstSetLinGrid,
-                    sizeof(struct inSetLinGrid), 0);
+                    sizeof(struct inSetLinGrid), 0,
+                    Legacy::SetLinGrid);
     mdl->AddService(PST_MEASURELINPK,pst,(fcnService_t *)pstMeasureLinPk,
-                    sizeof(struct inMeasureLinPk), sizeof(struct outMeasureLinPk));
+                    sizeof(struct inMeasureLinPk), sizeof(struct outMeasureLinPk),
+                    Legacy::MeasureLinPk);
 #endif
     mdl->AddService(PST_TOTALMASS,pst,(fcnService_t *)pstTotalMass,
-                    0, sizeof(struct outTotalMass));
+                    0, sizeof(struct outTotalMass),
+                    Legacy::TotalMass);
     mdl->AddService(PST_LIGHTCONE_OPEN,pst,(fcnService_t *)pstLightConeOpen,
-                    sizeof(struct inLightConeOpen), 0);
+                    sizeof(struct inLightConeOpen), 0,
+                    Legacy::LightConeOpen);
     mdl->AddService(PST_LIGHTCONE_CLOSE,pst,(fcnService_t *)pstLightConeClose,
-                    sizeof(struct inLightConeClose), 0);
+                    sizeof(struct inLightConeClose), 0,
+                    Legacy::LightConeClose);
     mdl->AddService(PST_LIGHTCONEVEL,pst,(fcnService_t *)pstLightConeVel,
-                    sizeof(struct inLightConeVel),0);
+                    sizeof(struct inLightConeVel),0,
+                    Legacy::LightConeVel);
     mdl->AddService(PST_GET_PARTICLES,pst,(fcnService_t *)pstGetParticles,
                     sizeof(uint64_t)*GET_PARTICLES_MAX,
-                    sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
+                    sizeof(struct outGetParticles)*GET_PARTICLES_MAX,
+                    Legacy::GetParticles);
 }
 
 void pstInitialize(PST *ppst,mdl::mdlClass *mdl,LCL *plcl) {
@@ -363,7 +461,7 @@ void pstFinish(PST pst) {
 
 static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
     *ppkd = new pkdContext(
-        static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
+        static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nBucket,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
         in->nTreeBitsLo,in->nTreeBitsHi,
         in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,in->fPeriod,
         in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
@@ -420,20 +518,13 @@ int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(*pout) * pst->nLeaves;
 }
 
-static void _SwapClasses(PKD pkd, int id) {
-    PARTCLASS *pClass;
-    int n;
-    int rID;
-
-    pClass = new PARTCLASS[PKD_MAX_CLASSES];
-    assert(pClass!=NULL);
-
-    n = pkd->particles.getClasses( PKD_MAX_CLASSES, pClass );
-    rID = pkd->mdl->ReqService(id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
-    n = pkd->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(*pClass),pClass);
+static void swap_classes(PKD pkd, int id) {
+    auto pClass = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
+    int n = pkd->particles.getClasses( PKD_MAX_CLASSES, pClass.get() );
+    int rID = pkd->mdl->ReqService(id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
+    n = pkd->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(PARTCLASS),pClass.get());
     n = n / sizeof(PARTCLASS);
-    pkd->particles.setClasses( n, pClass, 0 );
-    delete [] pClass;
+    pkd->particles.setClasses( n, pClass.get(), 0 );
 }
 
 int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -499,7 +590,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             /*
              * Now shove them over to the remote processor.
             */
-            _SwapClasses(pkd,id);
+            swap_classes(pkd,id);
             inswap = mdl->Self();
             rID = pst->mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
             pkdSwapAll(pkd, id);
@@ -614,21 +705,8 @@ int pstWriteASCII(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 
-static void makeName( char *achOutName, size_t nBytes, const char *inName, int iIndex,const char *prefix ) {
-    char *p;
-
-    strcpy( achOutName, inName );
-    p = strstr( achOutName, "&I" );
-    if ( p ) {
-        int n = p - achOutName;
-        snprintf( p, nBytes-n, "%s%d", prefix, iIndex );
-        strcat( p, inName + n + 2 );
-    }
-    else {
-        int n = strlen(achOutName);
-        p = achOutName + n;
-        snprintf(p,nBytes-n,".%s%d", prefix, iIndex);
-    }
+static std::string makeName(std::string_view inName, int iIndex) {
+    return fmt::format(inName, fmt::arg("i", iIndex));
 }
 
 int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -656,9 +734,8 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PATH_MAX];
-        makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"");
-        pkdCheckpoint(pkd,achOutFile);
+        auto achOutFile = makeName(in->achOutFile,pkd->mdl->Self());
+        pkdCheckpoint(pkd,achOutFile.c_str());
     }
     return 0;
 }
@@ -676,7 +753,6 @@ int pstSendArray(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    char achOutFile[PATH_MAX];
     auto in = static_cast<struct inWrite *>(vin);
     FIO fio;
     int i;
@@ -708,23 +784,22 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         LCL *plcl = pst->plcl;
         if (in->nProcessors!=0) {
+            auto achOutFile = makeName(in->achOutFile,in->iIndex);
             if (in->bHDF5) {
 #ifdef USE_HDF5
-                makeName(achOutFile,sizeof(achOutFile),in->achOutFile,in->iIndex,"");
-                fio = fioHDF5Create(achOutFile,in->mFlags);
+                fio = fioHDF5Create(achOutFile.c_str(),in->mFlags);
 #else
                 fio = NULL; /* Should never happen */
 #endif
             }
             else {
-                if (strstr(in->achOutFile, "&I" )) {
-                    makeName(achOutFile,sizeof(achOutFile),in->achOutFile,in->iIndex,"");
-                    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
+                if (achOutFile != makeName(in->achOutFile,in->iIndex+1)) {
+                    fio = fioTipsyCreatePart(achOutFile.c_str(),0,in->mFlags&FIO_FLAG_CHECKPOINT,
                                              in->bStandard, pst->plcl->pkd->particles.present(PKD_FIELD::oNewSph) ? in->dTime : in->dExp,
                                              in->nGas, in->nDark, in->nStar, plcl->nWriteStart);
                 }
                 else {
-                    fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
+                    fio = fioTipsyAppend(achOutFile.c_str(),in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
                     if (fio) {
                         fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
                     }
@@ -732,7 +807,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
             }
             if (fio==NULL) {
                 fprintf(stderr,"ERROR: unable to create file for output\n");
-                perror(in->achOutFile);
+                perror(achOutFile.c_str());
                 mdlassert(pst->mdl,fio!=NULL);
             }
 
@@ -1917,25 +1992,20 @@ int pstGetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     mdlassert(pst->mdl,nIn==0);
     if (pst->nLeaves > 1) {
-        auto outUp = new PARTCLASS[PKD_MAX_CLASSES];
+        auto outUp = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
         int rID = pst->mdl->ReqService(pst->idUpper,PST_GETCLASSES,vin,nIn);
         nOut = pstGetClasses(pst->pstLower,vin,nIn,out,nOut);
-        nUp = pst->mdl->GetReply(rID,PKD_MAX_CLASSES*(sizeof(*outUp)),outUp);
+        nUp = pst->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(outUp[0]),outUp.get());
         n = nUp / sizeof(PARTCLASS);
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nUp);
         nUp = n;
         n = nOut / sizeof(PARTCLASS);
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)== nOut);
         for ( i=0; i<nUp; i++ ) {
-            for ( j=0; j<n; j++ ) {
-                if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft && outUp[i].iMat==out[j].iMat && outUp[i].accFac==out[j].accFac && outUp[i].eSpecies==out[j].eSpecies)
-                    break;
-            }
-            if ( j == n ) {
+            if (std::find(out, out + n, outUp[i]) == out + n) {
                 out[n++] = outUp[i];
             }
         }
-        delete [] outUp;
     }
     else {
         n = plcl->pkd->particles.getClasses(PKD_MAX_CLASSES,out);
@@ -2177,26 +2247,6 @@ int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return nOut;
 }
 
-int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inCountDistance *>(vin);
-    auto out = static_cast<struct outCountDistance *>(vout);
-    struct outCountDistance outUpper;
-
-    assert( nIn==sizeof(struct inCountDistance) );
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_COUNTDISTANCE,vin,nIn);
-        pstCountDistance(pst->pstLower,vin,nIn,vout,nOut);
-        nOut = pst->mdl->GetReply(rID,outUpper);
-        assert(nOut==sizeof(struct outCountDistance));
-        out->nCount += outUpper.nCount;
-    }
-    else {
-        out->nCount = pkdCountDistance(plcl->pkd,in->dRadius2Inner,in->dRadius2Outer);
-    }
-    return sizeof(struct outCountDistance);
-}
-
 #ifdef MDL_FFTW
 int pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
@@ -2278,10 +2328,8 @@ int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PATH_MAX];
-        if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"lcp.");
-        else achOutFile[0] = 0;
-        pkdLightConeOpen(pkd, achOutFile, in->nSideHealpix);
+        auto achOutFile = makeName(in->achOutFileLcp, pkd->mdl->Self());
+        pkdLightConeOpen(pkd, achOutFile.c_str(), in->nSideHealpix);
     }
     return 0;
 }
@@ -2296,10 +2344,8 @@ int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        char achOutFile[PATH_MAX];
-        if (in->achOutFile[0]) makeName(achOutFile,sizeof(achOutFile),in->achOutFile,pkd->mdl->Self(),"hpb.");
-        else achOutFile[0] = 0;
-        pkdLightConeClose(pst->plcl->pkd,achOutFile);
+        auto achOutFile = makeName(in->achOutFileHpb,pkd->mdl->Self());
+        pkdLightConeClose(pst->plcl->pkd,achOutFile.c_str());
     }
     return 0;
 }

@@ -18,6 +18,7 @@
 
 class ServiceSetSoft : public TraversePST {
 public:
+    static constexpr std::string_view name = "SetSoft";
     struct input {
         double dSoft;
         input() = default;
@@ -25,7 +26,7 @@ public:
     };
     typedef void output;
     explicit ServiceSetSoft(PST pst)
-        : TraversePST(pst,PST_SETSOFT,sizeof(input),"SetSoft") {}
+        : TraversePST(pst,PST_SETSOFT,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

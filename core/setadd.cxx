@@ -18,8 +18,8 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceSetAdd::input>()  || std::is_trivial<ServiceSetAdd::input>());
-static_assert(std::is_void<ServiceSetAdd::output>() || std::is_trivial<ServiceSetAdd::output>());
+static_assert(std::is_void_v<ServiceSetAdd::input>  || std::is_trivial_v<ServiceSetAdd::input>);
+static_assert(std::is_void_v<ServiceSetAdd::output> || std::is_trivial_v<ServiceSetAdd::output>);
 
 // This is a weird service. Normally we use TraversePST, but here
 // we are actually setting up the PST structure.

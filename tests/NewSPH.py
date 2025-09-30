@@ -5,7 +5,7 @@ import numpy as np
 import unittest
 import xmlrunner
 import PKDGRAV as msr
-from PKDGRAV import HYDRO_MODEL
+from PKDGRAV import HYDRO_MODEL,PKD_FIELD
 from importlib.machinery import SourceFileLoader
 
 @unittest.skipIf(not os.path.isfile('collision.par'), "missing collision.par")
@@ -27,8 +27,8 @@ class TestNewSPHRead(unittest.TestCase):
         msr.load(self.params['achInFile'])
         msr.reorder()
         # Get scalar values
-        rho = msr.get_array(field=msr.FIELD_DENSITY,time=0.0)
-        fBall = msr.get_array(field=msr.FIELD_BALL,time=0.0)
+        rho = msr.get_array(field=PKD_FIELD.FIELD_DENSITY,time=0.0)
+        fBall = msr.get_array(field=PKD_FIELD.FIELD_BALL,time=0.0)
         relDiff_rho = np.abs((self.rho - rho) / self.rho)
         relDiff_fBall = np.abs((self.fBall - fBall) / self.fBall)
         print("Maximum relative density deviation = {}".format(np.max(relDiff_rho)))
@@ -65,15 +65,15 @@ class TestNewSPHStep(unittest.TestCase):
         msr.simulate()
         msr.reorder()
         # Get vector values
-        pos = msr.get_array(field=msr.FIELD_POSITION,time=0.0)
-        vel = msr.get_array(field=msr.FIELD_VELOCITY,time=0.0)
-        acc = msr.get_array(field=msr.FIELD_ACCELERATION,time=0.0)
+        pos = msr.get_array(field=PKD_FIELD.FIELD_POSITION,time=0.0)
+        vel = msr.get_array(field=PKD_FIELD.FIELD_VELOCITY,time=0.0)
+        acc = msr.get_array(field=PKD_FIELD.FIELD_ACCELERATION,time=0.0)
         relDiff_pos = np.abs(np.linalg.norm(self.pos - pos, axis=1) / np.linalg.norm(self.pos, axis=1))
         relDiff_vel = np.abs(np.linalg.norm(self.vel - vel, axis=1) / np.linalg.norm(self.vel, axis=1))
         relDiff_acc = np.abs(np.linalg.norm(self.acc - acc, axis=1) / np.linalg.norm(self.acc, axis=1))
         # Get scalar values
-        rho = msr.get_array(field=msr.FIELD_DENSITY,time=0.0)
-        fBall = msr.get_array(field=msr.FIELD_BALL,time=0.0)
+        rho = msr.get_array(field=PKD_FIELD.FIELD_DENSITY,time=0.0)
+        fBall = msr.get_array(field=PKD_FIELD.FIELD_BALL,time=0.0)
         relDiff_rho = np.abs((self.rho - rho) / self.rho)
         relDiff_fBall = np.abs((self.fBall - fBall) / self.fBall)
         print("Maximum relative position deviation = {}".format(np.max(relDiff_pos)))

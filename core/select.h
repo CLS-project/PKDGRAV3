@@ -18,15 +18,17 @@
 
 class ServiceCountSelected : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "CountSelected";
     typedef void input;
     explicit ServiceCountSelected(PST pst)
-        : TraverseCount(pst,PST_COUNTSELECTED,"CountSelected") {}
+        : TraverseCount(pst,PST_COUNTSELECTED,name) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelActives : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelActives";
     struct input {
         int setIfTrue;
         int clearIfFalse;
@@ -35,12 +37,13 @@ public:
             : setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelActives(PST pst)
-        : TraverseCount(pst,PST_SELACTIVES,sizeof(input),"SelectActives") {}
+        : TraverseCount(pst,PST_SELACTIVES,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 class ServiceSelBlackholes : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelBlackholes";
     struct input {
         int setIfTrue;
         int clearIfFalse;
@@ -49,13 +52,14 @@ public:
             : setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelBlackholes(PST pst)
-        : TraverseCount(pst,PST_SELBLACKHOLES,sizeof(input),"SelectBlackholes") {}
+        : TraverseCount(pst,PST_SELBLACKHOLES,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelSpecies : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelSpecies";
     struct input {
         uint64_t mSpecies;
         int setIfTrue;
@@ -65,13 +69,14 @@ public:
             : mSpecies(mSpecies), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelSpecies(PST pst)
-        : TraverseCount(pst,PST_SELSPECIES,sizeof(input),"SelSpecies") {}
+        : TraverseCount(pst,PST_SELSPECIES,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelGroup : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelGroup";
     struct input {
         uint64_t iGroup;
         int setIfTrue;
@@ -81,13 +86,14 @@ public:
             : iGroup(iGroup), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelGroup(PST pst)
-        : TraverseCount(pst,PST_SELGROUP,sizeof(input),"SelGroup") {}
+        : TraverseCount(pst,PST_SELGROUP,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelMass : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelMass";
     struct input {
         double dMinMass;
         double dMaxMass;
@@ -98,13 +104,14 @@ public:
             : dMinMass(dMinMass), dMaxMass(dMaxMass), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelMass(PST pst)
-        : TraverseCount(pst,PST_SELMASS,sizeof(input),"SelMass") {}
+        : TraverseCount(pst,PST_SELMASS,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelPhaseDensity : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelPhaseDensity";
     struct input {
         double dMinDensity;
         double dMaxDensity;
@@ -115,13 +122,14 @@ public:
             : dMinDensity(dMinDensity), dMaxDensity(dMaxDensity), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelPhaseDensity(PST pst)
-        : TraverseCount(pst,PST_SELPHASEDENSITY,sizeof(input),"SelPhaseDensity") {}
+        : TraverseCount(pst,PST_SELPHASEDENSITY,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelById : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelById";
     struct input {
         uint64_t idStart;
         uint64_t idEnd;
@@ -132,13 +140,14 @@ public:
             : idStart(idStart), idEnd(idEnd), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelById(PST pst)
-        : TraverseCount(pst,PST_SELBYID,sizeof(input),"SelById") {}
+        : TraverseCount(pst,PST_SELBYID,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelBox : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelBox";
     struct input {
         blitz::TinyVector<double,3> dCenter;
         blitz::TinyVector<double,3> dSize;
@@ -154,13 +163,14 @@ public:
             : dCenter{p0,p1,p2}, dSize{s0,s1,s2}, setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelBox(PST pst)
-        : TraverseCount(pst,PST_SELBOX,sizeof(input),"SelBox") {}
+        : TraverseCount(pst,PST_SELBOX,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelSphere : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelSphere";
     struct input {
         blitz::TinyVector<double,3> r;
         double dRadius;
@@ -175,13 +185,14 @@ public:
             : r{r0,r1,r2}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelSphere(PST pst)
-        : TraverseCount(pst,PST_SELSPHERE,sizeof(input),"SelSphere") {}
+        : TraverseCount(pst,PST_SELSPHERE,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
 class ServiceSelCylinder : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "SelCylinder";
     struct input {
         blitz::TinyVector<double,3> dP1, dP2;
         double dRadius;
@@ -199,7 +210,7 @@ public:
             : dP1{ra0,ra1,ra2}, dP2{rb0,rb1,rb2}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelCylinder(PST pst)
-        : TraverseCount(pst,PST_SELCYLINDER,sizeof(input),"SelCylinder") {}
+        : TraverseCount(pst,PST_SELCYLINDER,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };

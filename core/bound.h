@@ -269,8 +269,8 @@ inline std::ostream &operator<<(std::ostream &os, const BoundBaseMinMax<D> &b) {
     using Bound = BoundBaseCenter<double>;
     using IntegerBound = BoundBaseCenter<std::int32_t>;
 #endif
-static_assert(std::is_standard_layout<Bound>());
-static_assert(std::is_standard_layout<IntegerBound>());
+static_assert(std::is_standard_layout_v<Bound>);
+static_assert(std::is_standard_layout_v<IntegerBound>);
 
 template<typename T> struct bound_type {};
 template<> struct bound_type<double>        {using type = Bound;};

@@ -21,6 +21,7 @@
     #include "pkd_config.h"
 #endif
 
+#include <new>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -367,7 +368,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** There are other particles in the tree -- just not active.mdlN
     */
     auto pRoot = pkd->tree[ROOT];
-    auto nTree = pRoot->count();
+    // auto nTree = pRoot->count();
     helper->initialize_local();
     /*
     ** Start particle caching space (cell cache is already active).
@@ -436,11 +437,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     auto sentinel = pkd->particles[smx->pSentinel];
     if (pkd->bIntegerPosition) sentinel.raw_position<int32_t>() = TinyVector<int32_t,3>(INT32_MAX,INT32_MAX,INT32_MAX);
     else sentinel.raw_position<double>() = TinyVector<double,3>(HUGE_VAL,HUGE_VAL,HUGE_VAL);
-    /*
-    ** Need to cast the pLite to an array of extra stuff.
-    */
-    assert(pkd->EphemeralBytes() >= sizeof(struct smExtraArray));
-    smx->ea = (struct smExtraArray *)(pkd->pLite); /* Used only for SPH */
     *psmx = smx;
     return (1);
 }

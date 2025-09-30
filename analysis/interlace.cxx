@@ -20,6 +20,7 @@
 using namespace gridinfo;
 
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource) {
+    auto ephemeral = pkd->Ephemeral<real_t>();
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
     auto iNyquist = nGrid / 2;
@@ -27,21 +28,20 @@ void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource) {
     GridInfo G(pkd->mdl,fft);
 
     complex_array_t K1,K2;
-    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGridTarget;
-    auto data2 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGridSource;
+    auto data1 = pkd->mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridTarget;
+    auto data2 = pkd->mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridSource;
     G.setupArray(data1,K1);
     G.setupArray(data2,K2);
 
     for ( auto index=K1.begin(); index!=K1.end(); ++index ) {
-        auto v1 = *index;
+        const auto v1 = *index;
         auto pos = index.position();
         auto i = pos[0]; // i is positive; j and k can be negative
         auto j = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
         auto k = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
         float theta = M_PI/nGrid * (i + j + k);
         auto v2 = K2(index.position()) * complex_t(cosf(theta),sinf(theta));
-        v1 = complex_t(0.5) * (v1 + v2);
-        *index = v1;
+        *index = complex_t(0.5) * (v1 + v2);
     }
 }
 

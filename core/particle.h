@@ -25,6 +25,7 @@
 #include <functional>
 #include <type_traits>
 #include <iterator>
+#include <tuple>
 #include <boost/hana/define_struct.hpp>
 #include "blitz/array.h"
 #include "datastore.h"
@@ -48,11 +49,11 @@
 
 /* Regular particle with order and all the goodies */
 struct PARTICLE {
-uint64_t  uRung      :  IRUNGBITS;
+    uint64_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
+    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
 #ifdef NN_FLAG_IN_PARTICLE
     uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
 #endif
@@ -64,9 +65,9 @@ static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
 #define IGROUPMAX ((1<<IGROUPBITS)-1)
 
 typedef struct uparticle {
-uint32_t  uRung      :  IRUNGBITS;
+    uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
-uint32_t  iGroup     :  IGROUPBITS;
+    uint32_t  iGroup     :  IGROUPBITS;
 } UPARTICLE;
 static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 
@@ -76,26 +77,20 @@ struct PARTCLASS {
     int         iMat;     /* newSPH material id */
     float       accFac;   /* Acceleration factor to facilitate fixed particles*/
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
-
-    bool operator <(const PARTCLASS &b) const {
-        if ( fMass < b.fMass ) return true;
-        else if ( fMass > b.fMass ) return false;
-        else if ( fSoft < b.fSoft ) return true;
-        else if ( fSoft > b.fSoft ) return false;
-        else if ( iMat  < b.iMat  ) return true;
-        else if ( iMat  > b.iMat  ) return false;
-        else if ( accFac < b.accFac ) return true;
-        else if ( accFac > b.accFac ) return false;
-        else return eSpecies < b.eSpecies;
+    auto key() const noexcept {
+        return std::tie(fMass, fSoft, iMat, accFac, eSpecies);
     }
-    bool operator==(const PARTCLASS &b) const {
-        return fMass==b.fMass && fSoft==b.fSoft && iMat==b.iMat && accFac==b.accFac && eSpecies==b.eSpecies;
+    bool operator<(const PARTCLASS& rhs) const noexcept {
+        return key() < rhs.key();
+    }
+    bool operator==(const PARTCLASS& rhs) const noexcept {
+        return key() == rhs.key();
     }
     PARTCLASS() = default;
     PARTCLASS(FIO_SPECIES eSpecies,float fMass,float fSoft,int iMat,float accFac)
         : fMass(fMass), fSoft(fSoft), iMat(iMat), accFac(accFac), eSpecies(eSpecies) {}
 };
-static_assert(std::is_trivial<PARTCLASS>());
+static_assert(std::is_trivially_copyable_v<PARTCLASS>);
 
 namespace meshless {
 namespace hana = boost::hana;
@@ -197,7 +192,7 @@ struct FIELDS {
 #endif
 
 #ifdef BLACKHOLES
-        // This could ideally be stored in a temporal buffer (pLite), but it has some
+        // This could ideally be stored in a temporal buffer (Ephemeral), but it has some
         // limitations as it has to be shared when doing mdlAcquire.
         (BH_ACCRETOR, BHAccretor),
 #endif

@@ -45,6 +45,7 @@
 #include "io/service.h"
 #include "io/restore.h"
 
+#include "analysis/analysis.h"
 #ifdef HAVE_ROCKSTAR
     #include "analysis/rshalocount.h"
     #include "analysis/rshaloloadids.h"
@@ -138,6 +139,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
     mdl->AddService(std::make_unique<ServiceGetOrdSplits>(pst));
     mdl->AddService(std::make_unique<ServiceSaveGroupStats>(pst));
+    mdl->AddService(std::make_unique<ServiceCountDistance>(pst));
 #ifdef HAVE_ROCKSTAR
     mdl->AddService(std::make_unique<ServiceRsHaloCount>(pst));
     mdl->AddService(std::make_unique<ServiceRsHaloLoadIds>(pst));
@@ -222,7 +224,7 @@ int main(int argc,char **argv) {
 #endif
 #ifndef CCC
     /* no stdout buffering */
-    setbuf(stdout,(char *) NULL);
+    setvbuf(stdout,NULL,_IONBF,0);
 #endif
 
     return mdl::Launch(master,worker_init,worker_done,argc,argv);

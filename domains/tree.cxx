@@ -418,8 +418,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     double fSoft,d2,dih2,b;
     SPHBOB fBoB(0.0);
     float m, fMass, fBall;
-    int pj,nDepth,ism;
-    const int nMaxStackIncrease = 1;
+    int pj;
 
     /* If the tree is empty, we just create a sensible moment and we are done. */
     auto pkdn = pkd->tree[iNode];
@@ -434,26 +433,12 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         return;
     }
 
-    nDepth = 1;
+    std::vector<int> S;
+    S.reserve(100); // Start with a sensible stack size
     while (1) {
         while ((pkdn=pkd->tree[iNode])->is_cell()) {
-            pkd->S[nDepth-1].iNodeIndex = iNode;
+            S.push_back(iNode);
             iNode = pkdn->lchild();
-            ++nDepth;
-            /*
-            ** Is this the deepest in the tree so far? We might need to have more stack
-            ** elements for the tree walk!
-            ** nMaxStack == nDepth guarantees that there is at least one deeper
-            ** stack entry available than what is needed to walk the tree.
-            */
-            if (nDepth > pkd->nMaxStack) {
-                pkd->S = static_cast<CSTACK *>(realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
-                assert(pkd->S != NULL);
-                for (ism=pkd->nMaxStack; ism<(pkd->nMaxStack+nMaxStackIncrease); ++ism) {
-                    pkd->S[ism].cl = new clList(pkd->clFreeList);
-                }
-                pkd->nMaxStack += nMaxStackIncrease;
-            }
         }
 
         // Now calculate all bucket quantities!
@@ -600,8 +585,9 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         ** or to the parent.
         */
         while ((iNode & 1) || iNode==iRoot ) {
-            if ( --nDepth == 0) return; /* exit point!!! */
-            iNode = pkd->S[nDepth-1].iNodeIndex;
+            if (S.empty()) return; // exit point
+            iNode = S.back();
+            S.pop_back();
             /*
             ** Now combine quantities from each of the children (2) of
             ** this cell to form the quantities for this cell.

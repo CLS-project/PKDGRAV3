@@ -18,10 +18,11 @@
 
 class ServiceIgnoreSIGBUS : public TraversePST {
 public:
+    static constexpr std::string_view name = "IgnoreSIGBUS";
     typedef void input;
     typedef void output;
     explicit ServiceIgnoreSIGBUS(PST pst)
-        : TraversePST(pst,PST_IGNORE_SIGBUS,0,"IgnoreSIGBUS") {}
+        : TraversePST(pst,PST_IGNORE_SIGBUS,name) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

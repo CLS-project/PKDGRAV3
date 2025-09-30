@@ -22,6 +22,7 @@
 #endif
 #include <math.h>
 #include "group.h"
+#include <algorithm>
 
 /*
 ** We are about to renumber the groups locally. Each group has the new ID in iNewGid.
@@ -52,16 +53,6 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bI
         }
         mdl->FinishCache(CID_GROUP);
     }
-}
-
-static int smga_cmp(const void *a0, const void *b0) {
-    struct smGroupArray *a = (struct smGroupArray *)a0;
-    struct smGroupArray *b = (struct smGroupArray *)b0;
-    if (a->id.iPid < b->id.iPid)     return -1;
-    if (a->id.iPid > b->id.iPid)     return +1;
-    if (a->id.iIndex < b->id.iIndex) return -1;
-    if (a->id.iIndex > b->id.iIndex) return +1;
-    return 0;
 }
 
 /* Put the groups back in "group" order  */
@@ -119,7 +110,7 @@ static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
             ++pkd->nLocalGroups;
         }
     }
-    qsort(ga+1,nGroups-1,sizeof(struct smGroupArray),smga_cmp);
+    std::sort(ga+1,ga+nGroups);
     for (i=1; i<nGroups; ++i) if (ga[i].id.iPid == -1) ga[i].id.iPid = pkd->Self();
     gid = 0; /* Sentinal node always as iPid=idSelf, iIndex == -1 */
     ga[0].id.iPid = pkd->Self();

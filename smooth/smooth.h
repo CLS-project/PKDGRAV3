@@ -34,11 +34,6 @@ struct hashElement {
     struct hashElement *coll;
 };
 
-struct smExtraArray {
-    uint32_t iIndex;
-    char bDone;
-};
-
 typedef struct smContext {
     PKD pkd;
     PARTICLE *pSentinel;
@@ -56,15 +51,6 @@ typedef struct smContext {
     int bSearchGasOnly;
     blitz::TinyVector<double,3> rLast; /* For the snake */
     PQ *pq;
-    /*
-    ** Flags to mark local particles which are inactive either because they
-    ** are source inactive or because they are already present in the prioq.
-    ** In this extra array is also space for a queue of particles, needed
-    ** for the fast gas routines or for friends-of-friends.
-    ** This will point to the pLite array, so it will be destroyed after a tree
-    ** build or domain decomposition.
-    */
-    struct smExtraArray *ea;
     /*
     ** Flags to mark local particles which are finished in the processing
     ** of the smFastGas routine. They have updated their densities.

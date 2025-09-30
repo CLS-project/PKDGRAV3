@@ -30,6 +30,10 @@ struct smGroupArray {
     };
     float minPot;
     uint32_t iMinPart;
+
+    bool operator<(const smGroupArray& other) const {
+        return id < other.id;
+    }
 };
 
 int pkdGroupCombineDuplicateIds(PKD pkd,int nGroups, struct smGroupArray *ga,int bIndexIsGID);

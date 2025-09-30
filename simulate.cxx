@@ -164,7 +164,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     ** log file entry.
     */
     if (LogInterval()) {
-        std::string filename = std::string(OutName()) + ".log";
+        auto filename = MakePath(OutName(),".log");
         log.open(filename,std::ios::app);
         if (!log.is_open()) {
             print_error("Failed to open log file: {}\n",filename);
@@ -483,12 +483,12 @@ static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
 static void validate_path(const char *name,const std::string_view &path) {
     if (path.length()) {
         using namespace fmt::literals;
-        auto r1 = fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".dat");
-        if (r1 == fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".XXX"))
+        auto r1 = fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".dat","kind"_a="dat");
+        if (r1 == fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".XXX","kind"_a="XXX"))
             throw fmt::format_error(std::string(name) + ": " + std::string(path));
-        if (r1 == fmt::format(path,"name"_a="name","step"_a=9,"type"_a=".dat"))
+        if (r1 == fmt::format(path,"name"_a="name","step"_a=9,"type"_a=".dat","kind"_a="dat"))
             throw fmt::format_error(std::string(name) + ": " + std::string(path));
-        if (r1 == fmt::format(path,"name"_a="XXXX","step"_a=1,"type"_a=".dat"))
+        if (r1 == fmt::format(path,"name"_a="XXXX","step"_a=1,"type"_a=".dat","kind"_a="dat"))
             throw fmt::format_error(std::string(name) + ": " + std::string(path));
     }
 }
