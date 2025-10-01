@@ -1767,14 +1767,11 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
         ** and mdlFetch them from that thread
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
-            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE,pj,id)];
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Fetch<PARTICLE>(CID_PARTICLE,pj,id)];
             ++nParticles;
 
             // Shortcut if necessary flag already set, as the test will pass in the end
-            if ((SPHoptions->doSetDensityFlags && p.marked()) || (SPHoptions->doSetNNflags && p.NN_flag())) {
-                if (id != pkd->Self()) pkd->mdl->Release(CID_PARTICLE,&p);
-                continue;
-            }
+            if ((SPHoptions->doSetDensityFlags && p.marked()) || (SPHoptions->doSetNNflags && p.NN_flag())) continue;
 
             // Get position and ball size of particle p
             auto pr = p.position();
@@ -1819,7 +1816,6 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
                 // Check that density flag is set if applicable
                 if (SPHoptions->doSetDensityFlags) assert(p.marked());
             }
-            if (id != pkd->Self()) pkd->mdl->Release(CID_PARTICLE,&p);
         }
     }
     assert(nParticles == pkd->nGas);
