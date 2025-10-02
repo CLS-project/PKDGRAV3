@@ -285,7 +285,8 @@ struct FIELDS {
         (float, oldRho),       // Rho corresponding to where u is at
         (float, expImb2),      // exp(-imbalance^2)
         (float, T),            // Temperature
-        (blitz::TinyVector<float,3>, vpred)  // predicted velocities
+        (blitz::TinyVector<float,3>, vpred),  // predicted velocities
+        (int, maxGroupSize)  // Maximum group size for dynamic group sizes
     );
 }; // FIELDS
 

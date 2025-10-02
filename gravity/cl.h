@@ -32,13 +32,7 @@
     ((float,xOffset))((float,yOffset))((float,zOffset))((float,xCenter))((float,yCenter))((float,zCenter))\
     ((float,xMax))((float,yMax))((float,zMax))((int32_t,iOpen))
 
-#if SPHBALLOFBALLS
-    #define CL_FIELDS_BALLS_SEQ ((float,fBoBr))((float,fBoBxCenter))((float,fBoByCenter))((float,fBoBzCenter))
-#elif SPHBOXOFBALLS
-    #define CL_FIELDS_BALLS_SEQ ((float,fBoBxMin))((float,fBoByMin))((float,fBoBzMin))((float,fBoBxMax))((float,fBoByMax))((float,fBoBzMax))
-#else
-    #define CL_FIELDS_BALLS_SEQ
-#endif
+#define CL_FIELDS_BALLS_SEQ ((float,fBoBr))((float,fBoBxCenter))((float,fBoByCenter))((float,fBoBzCenter))((float,fBoBxMin))((float,fBoByMin))((float,fBoBzMin))((float,fBoBxMax))((float,fBoByMax))((float,fBoBzMax))
 
 #define CL_FIELDS_SEQ CL_FIELDS_PARAMS_SEQ CL_FIELDS_BALLS_SEQ
 
@@ -63,26 +57,18 @@ public:
         auto fCenter = bnd.center();
         auto fMax = bnd.apothem();
         append(iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r[0],r[1],r[2],
-               fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],fMax[0],fMax[1],fMax[2],0
-#if SPHBALLOFBALLS
-               ,bob.fBoBr,bob.fBoBCenter[0],bob.fBoBCenter[1],bob.fBoBCenter[2]
-#elif SPHBOXOFBALLS
-               ,bob.fBoBMin[0],bob.fBoBMin[1],bob.fBoBMin[2],bob.fBoBMax[0],bob.fBoBMax[1],bob.fBoBMax[2]
-#endif
-              );
+               fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],fMax[0],fMax[1],fMax[2],0,
+               bob.fBoBr,bob.fBoBCenter[0],bob.fBoBCenter[1],bob.fBoBCenter[2],
+               bob.fBoBMin[0],bob.fBoBMin[1],bob.fBoBMin[2],bob.fBoBMax[0],bob.fBoBMax[1],bob.fBoBMax[2]);
     }
     void append(clBlock &B, int Bi) {
         append(B.iCache[Bi],B.idCell[Bi],B.iCell[Bi],
                B.idLower[Bi],B.iLower[Bi],B.idUpper[Bi],B.iUpper[Bi],
                B.nc[Bi], B.cOpen[Bi], B.m[Bi], B.fourh2[Bi],
                B.x[Bi], B.y[Bi], B.z[Bi],B.xOffset[Bi],B.yOffset[Bi],B.zOffset[Bi],
-               B.xCenter[Bi],B.yCenter[Bi],B.zCenter[Bi],B.xMax[Bi],B.yMax[Bi],B.zMax[Bi],B.iOpen[Bi]
-#if SPHBALLOFBALLS
-               ,B.fBoBr[Bi],B.fBoBxCenter[Bi],B.fBoByCenter[Bi],B.fBoBzCenter[Bi]
-#elif SPHBOXOFBALLS
-               ,B.fBoBxMin[Bi],B.fBoByMin[Bi],B.fBoBzMin[Bi],B.fBoBxMax[Bi],B.fBoByMax[Bi],B.fBoBzMax[Bi]
-#endif
-              );
+               B.xCenter[Bi],B.yCenter[Bi],B.zCenter[Bi],B.xMax[Bi],B.yMax[Bi],B.zMax[Bi],B.iOpen[Bi],
+               B.fBoBr[Bi],B.fBoBxCenter[Bi],B.fBoByCenter[Bi],B.fBoBzCenter[Bi],
+               B.fBoBxMin[Bi],B.fBoByMin[Bi],B.fBoBzMin[Bi],B.fBoBxMax[Bi],B.fBoByMax[Bi],B.fBoBzMax[Bi]);
     }
 };
 

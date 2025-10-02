@@ -289,6 +289,23 @@ void pkdParticleWorkDone(workParticle *wp) {
                         calcSDot(wp->pInfoIn[i], wp->pInfoOut[i], Gamma, &NewSphStr.SDotxx, &NewSphStr.SDotyy, &NewSphStr.SDotxy, &NewSphStr.SDotxz, &NewSphStr.SDotyz, &wp->pInfoOut[i].strainJ2Dot);
                     }
                 }
+                if (wp->SPHoptions->doDensity && !wp->SPHoptions->useNNflags && !wp->SPHoptions->useDensityFlags) {
+                    int newMaxGroupSize = NewSph.maxGroupSize;
+                    if (wp->ilp->count() > wp->SPHoptions->upperGroupSizeThreshold) {
+                        newMaxGroupSize /= 2;
+                    }
+                    else if (wp->ilp->count() < wp->SPHoptions->lowerGroupSizeThreshold) {
+                        newMaxGroupSize *= 2;
+                    }
+                    else if (wp->SPHoptions->nPredictRung == 0 && wp->kick->bKickOpen) {
+                        // On the density pass with open kick on rung 0, increase the maximum group
+                        // size of those particles inbetween the thresholds. If it is not good,
+                        // they get put down to the lower size in the next step again, but with this,
+                        // we get rid of unnecessarily small groups over time.
+                        newMaxGroupSize *= 2;
+                    }
+                    NewSph.maxGroupSize = std::min(wp->SPHoptions->maxGroupSize, std::max(1,newMaxGroupSize));
+                }
             }
 
             if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces) {

@@ -18,81 +18,67 @@
 #ifndef SPHOPTIONS_HINCLUDED
 #define SPHOPTIONS_HINCLUDED
 #include "blitz/array.h"
-#define SPHBALLOFBALLS 0
-#define SPHBOXOFBALLS 1
-
-//#if !(SPHBALLOFBALLS | SPHBOXOFBALLS) | (SPHBALLOFBALLS & SPHBOXOFBALLS)
-#if (SPHBALLOFBALLS & SPHBOXOFBALLS)
-    #error "Define either SPHBALLOFBALLS or SPHBOXOFBALLS in SPHOptions.h"
-#endif
 
 #include <stdint.h>
 class pkd_parameters;
 
 #include <assert.h>
 
-struct SPHBallOfBalls {
-    blitz::TinyVector<float,3> fBoBCenter;
-    float fBoBr;       /* Ball of Balls radius */
-    SPHBallOfBalls() = default;
-    SPHBallOfBalls(blitz::TinyVector<float,3> center,float r) : fBoBCenter(center), fBoBr(r) {}
-    SPHBallOfBalls(float r) : fBoBCenter(blitz::TinyVector<float,3>(0.0)),fBoBr(r) {}
+struct SPHBOB {
+    blitz::TinyVector<float,3> fBoBCenter;  // Ball of Balls center
+    float fBoBr;                            // Ball of Balls radius
+    blitz::TinyVector<float,3> fBoBMin;     // Box of Balls lower bound
+    blitz::TinyVector<float,3> fBoBMax;     // Box of Balls upper bound
+    SPHBOB() = default;
+    SPHBOB(blitz::TinyVector<float,3> center, float r, blitz::TinyVector<float,3> fBoBMin,blitz::TinyVector<float,3> fBoBMax) : fBoBCenter(center), fBoBr(r), fBoBMin(fBoBMin), fBoBMax(fBoBMax) {}
+    SPHBOB(blitz::TinyVector<float,3> center, float r) : fBoBCenter(center), fBoBr(r), fBoBMin(center-r), fBoBMax(center+r) {}
+    SPHBOB(float r) : fBoBCenter(blitz::TinyVector<float,3>(0.0)), fBoBr(r), fBoBMin(blitz::TinyVector<float,3>(-r)), fBoBMax(blitz::TinyVector<float,3>(r)) {}
 
-    auto combine(SPHBallOfBalls BoB2) const {
+    auto combine(SPHBOB BoB2) const {
         using V = blitz::TinyVector<double,3>;
+        // Combine Boxes of Balls
+        V newfBoBMin = blitz::min(fBoBMin,BoB2.fBoBMin);
+        V newfBoBMax = blitz::max(fBoBMax,BoB2.fBoBMax);
+
+        // Combine Balls of Balls
+        V newfBoBCenter = blitz::TinyVector<float,3>(0.0);
+        float newfBoBr = 0.0;
         V difference = fBoBCenter - BoB2.fBoBCenter;
         double length = sqrt(blitz::dot(difference,difference));
-        if (length == 0.0) return *this;
-        V direction = difference / length;
-        V point1 = fBoBCenter + direction * fBoBr;
-        V point2 = BoB2.fBoBCenter - direction * BoB2.fBoBr;
-        V radiusvec = (point1 - point2) / 2.0f;
-        V midpoint = point2 + radiusvec;
-        double radius = sqrt(blitz::dot(radiusvec,radiusvec));
-        assert(radius >= fBoBr || radius >= BoB2.fBoBr);
-        if (radius < fBoBr)           return *this; // Ball 2 is completely inside Ball 1
-        else if (radius < BoB2.fBoBr) return BoB2;  // Ball 1 is completely inside Ball 2
-        else return SPHBallOfBalls(midpoint,radius);
+        if (length == 0.0) {
+            // The two centers coincide, choose larger radius.
+            newfBoBCenter = fBoBCenter;
+            newfBoBr = std::max(fBoBr, BoB2.fBoBr);
+        }
+        else {
+            V direction = difference / length;
+            V point1 = fBoBCenter + direction * fBoBr;
+            V point2 = BoB2.fBoBCenter - direction * BoB2.fBoBr;
+            V radiusvec = (point1 - point2) / 2.0f;
+            V midpoint = point2 + radiusvec;
+            double radius = sqrt(blitz::dot(radiusvec,radiusvec));
+            assert(radius >= fBoBr || radius >= BoB2.fBoBr);
+            if (radius < fBoBr) {
+                // Ball 2 is completely inside Ball 1
+                newfBoBCenter = fBoBCenter;
+                newfBoBr = fBoBr;
+            }
+            else if (radius < BoB2.fBoBr) {
+                // Ball 1 is completely inside Ball 2
+                newfBoBCenter = BoB2.fBoBCenter;
+                newfBoBr = BoB2.fBoBr;
+            }
+            else {
+                newfBoBCenter = midpoint;
+                newfBoBr = radius;
+            }
+        }
+        return SPHBOB(newfBoBCenter, newfBoBr, newfBoBMin, newfBoBMax);
     }
-    auto combine(blitz::TinyVector<float,3> center,float r) const {
-        return combine(SPHBallOfBalls(center,r));
-    }
-
-};
-
-struct SPHBoxOfBalls {
-    blitz::TinyVector<float,3> fBoBMin;
-    blitz::TinyVector<float,3> fBoBMax;
-    SPHBoxOfBalls() = default;
-    SPHBoxOfBalls(blitz::TinyVector<float,3> fBoBMin,blitz::TinyVector<float,3> fBoBMax) : fBoBMin(fBoBMin),fBoBMax(fBoBMax) {}
-    SPHBoxOfBalls(blitz::TinyVector<float,3> center,float r) : fBoBMin(center-r),fBoBMax(center+r) {}
-    SPHBoxOfBalls(float r) : fBoBMin(blitz::TinyVector<float,3>(-r)),fBoBMax(blitz::TinyVector<float,3>(r)) {}
-    auto combine(SPHBoxOfBalls rhs) const {
-        return SPHBoxOfBalls(blitz::min(fBoBMin,rhs.fBoBMin),blitz::max(fBoBMax,rhs.fBoBMax));
-    }
-    auto combine(blitz::TinyVector<float,3> center,float r) const {
-        return combine(SPHBoxOfBalls(center,r));
-    }
-
-};
-
-struct SPHVoidOfBalls {
-    SPHVoidOfBalls() = default;
-    SPHVoidOfBalls(blitz::TinyVector<float,3> center,float r) {}
-    SPHVoidOfBalls(float r) {}
-    auto combine(SPHVoidOfBalls rhs) const { return SPHVoidOfBalls(); }
-    auto combine(blitz::TinyVector<float,3> center,float r) const {
-        return combine(SPHVoidOfBalls(center,r));
+    auto combine(blitz::TinyVector<float,3> center, float r) const {
+        return combine(SPHBOB(center,r));
     }
 };
-
-#if SPHBALLOFBALLS
-    using SPHBOB = SPHBallOfBalls;
-#elif SPHBOXOFBALLS
-    using SPHBOB = SPHBoxOfBalls;
-#else
-    using SPHBOB = SPHVoidOfBalls;
-#endif
 
 struct pkdKickParameters;
 
@@ -125,6 +111,9 @@ typedef struct {
     float externalAccelerationX;
     float externalAccelerationY;
     float externalAccelerationZ;
+    int maxGroupSize;
+    int lowerGroupSizeThreshold;
+    int upperGroupSizeThreshold;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doDensityCorrection : 1;
