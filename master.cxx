@@ -1226,7 +1226,7 @@ void MSR::AllNodeWrite(std::string_view FileName, double dTime, double dvFac, in
                 | (parameters.has_dSoft()?FIO_FLAG_GLOBAL_SOFT:0)
                 | (parameters.get_bMemUnordered()?FIO_FLAG_UNORDERED:0);
 
-    if (!in.bHDF5 && strstr(in.achOutFile,"&I")==0) {
+    if (!in.bHDF5 && fmt::format(in.achOutFile,fmt::arg("i",0)) == in.achOutFile) {
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,

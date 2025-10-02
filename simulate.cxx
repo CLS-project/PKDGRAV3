@@ -480,19 +480,52 @@ static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
 //   {type} - replaced with the file type, including the leading dot
 // The default is:
 //   {name}.{step:05d}{type}
-static void validate_path(const char *name,const std::string_view &path) {
-    if (path.length()) {
-        using namespace fmt::literals;
-        auto r1 = fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".dat","kind"_a="dat");
-        if (r1 == fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".XXX","kind"_a="XXX"))
-            throw fmt::format_error(std::string(name) + ": " + std::string(path));
-        if (r1 == fmt::format(path,"name"_a="name","step"_a=9,"type"_a=".dat","kind"_a="dat"))
-            throw fmt::format_error(std::string(name) + ": " + std::string(path));
-        if (r1 == fmt::format(path,"name"_a="XXXX","step"_a=1,"type"_a=".dat","kind"_a="dat"))
-            throw fmt::format_error(std::string(name) + ": " + std::string(path));
-    }
-}
+template<typename... ExtraArgs>
+static void validate_path(const char *name,
+                          const std::string_view &path,
+                          ExtraArgs&&... extra) {
+    if (path.empty()) return;
 
+    // helper: construct store with specific values for required fields
+    auto make_store = [&](std::string_view nm,
+                          int step,
+                          std::string_view type,
+                          std::string_view kind,
+    auto&&... overrides) {
+        fmt::dynamic_format_arg_store<fmt::format_context> s;
+        s.push_back(fmt::arg("name", nm));
+        s.push_back(fmt::arg("step", step));
+        s.push_back(fmt::arg("type", type));
+        s.push_back(fmt::arg("kind", kind));
+        // extras
+        (s.push_back(std::forward<ExtraArgs>(extra)), ...);
+        // additional overrides (only for optional keys)
+        (s.push_back(std::forward<decltype(overrides)>(overrides)), ...);
+        return s;
+    };
+
+    // Base case
+    std::string r1;
+    try {
+        r1 = fmt::vformat(path, make_store("name", 1, ".dat", "dat"));
+    }
+    catch (const fmt::format_error &) {
+        throw fmt::format_error(std::string(name) + ": " + std::string(path));
+    }
+
+    // Check required fields: changing them must change output
+    auto check_required = [&](auto keyname, auto name, auto step, auto type, auto kind) {
+        auto s2 = make_store(name, step, type, kind);
+        auto r2 = fmt::vformat(path, s2);
+        if (r1 == r2) {
+            throw fmt::format_error(std::string(name) + ": missing required field {" + keyname + "} in " + std::string(path));
+        }
+    };
+
+    check_required("name",      "XXXX", 1, ".dat", "dat");
+    check_required("step",      "name", 9, ".dat", "dat");
+    check_required("type/kind", "name", 1, ".XXX", "XXX");
+}
 /*
 ** This routine validates the given parameters and makes any adjustments.
 */
@@ -500,8 +533,10 @@ int MSR::ValidateParameters() {
     int success = 1;
     try {
         validate_path("achOutPath",       parameters.get_achOutPath("type"_key=nullptr,"kind"_key=nullptr));
+        // Generally it is possible to specify the file segment for output file with {i}
+        validate_path("achIoPath",        parameters.get_achIoPath("type"_key=nullptr,"kind"_key=nullptr),fmt::arg("i",0));
+        // The checkpoint path is used for multiple file checkpoints, so {i} is assumed (and cannot be specified)
         validate_path("achCheckpointPath",parameters.get_achCheckpointPath("type"_key=nullptr,"kind"_key=nullptr));
-        validate_path("achIoPath",        parameters.get_achIoPath("type"_key=nullptr,"kind"_key=nullptr));
     }
     catch (fmt::format_error &e) {
         print_error("ERROR: {}\n{}",e.what(),

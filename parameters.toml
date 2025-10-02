@@ -347,6 +347,10 @@ docs='''
 If specified, this will override the path for Tipsy outputs.
 It otherwise behaves exactly like :ref:`achOutPath <achOutPath>`.
 This is useful if you want outputs to be stored in a different directory for example.
+It is also possible to include ``{i}`` which is used when parallel writing, and
+causes parallel Tipsy files to be written to separate files instead of a single file.
+Like :ref:`achOutPath <achOutPath>` you must specify all fields, for example::
+  {name}.{step:05d}{type}.{i}
 '''
 
 ["I/O Parameters".achCheckpointPath]
