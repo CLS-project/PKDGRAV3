@@ -70,7 +70,7 @@ template <>
 struct fmt::formatter<DeferFormat> {
     // Capture any format spec after ':' up to the closing '}'
     template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx) {
+    constexpr auto parse(ParseContext &ctx) {
         auto it  = ctx.begin();
         auto end = ctx.end();
 
@@ -88,7 +88,7 @@ struct fmt::formatter<DeferFormat> {
     }
 
     template <typename FormatContext>
-    auto format(const DeferFormat& d, FormatContext& ctx) const {
+    auto format(const DeferFormat &d, FormatContext &ctx) const {
         auto out = ctx.out();
         // Re-emit the original placeholder, preserving any specs
         if (specs_.empty()) {
@@ -4026,7 +4026,7 @@ double MSR::Read(std::string_view achInFile) {
         dsec = TimerGet(TIMER_NONE);
         print("Converting u complete, Wallclock: {:.5f} secs.\n", dsec);
         if (parameters.get_bWriteIC() || (NoSteps())) {
-            Output(iStartStep, dTime, 0.0, 0);
+            Write(BuildIoName(iStartStep).c_str(),dTime,0);
         }
         if (NoSteps()) std::_Exit(EXIT_FAILURE); // For now. this will be replaced sood.
     }
