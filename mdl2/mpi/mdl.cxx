@@ -1696,11 +1696,6 @@ int mpiClass::Launch() {
 #ifdef HAVE_SIGNAL_H
     signal(SIGINT,TERM_handler);
 #endif
-#ifdef MDL_FFTW
-    if (Cores()>1) FFTW3(init_threads)();
-    FFTW3(mpi_init)();
-    if (Cores()>1) FFTW3(plan_with_nthreads)(Cores());
-#endif
 
 #ifdef USE_ITT
     __itt_task_end(domain);
@@ -1737,6 +1732,12 @@ int mpiClass::Launch() {
         layout.nCores -= n;
 #endif
     }
+
+#ifdef MDL_FFTW
+    if (Cores()>1) FFTW3(init_threads)();
+    FFTW3(mpi_init)();
+    if (Cores()>1) FFTW3(plan_with_nthreads)(Cores());
+#endif
 
     /* Construct the thread/processor map */
     iProcToThread.resize(Procs()+1);
@@ -1835,7 +1836,7 @@ int mpiClass::Launch() {
         for (i = iCoreMPI+1; i < Cores(); ++i) {
             auto thread = worker_threads.create_thread([this,i]() { pmdl[i]->WorkerThread();});
 #ifdef USE_HWLOC
-            if (t) { // If requested, bind the new thread to the specific core
+            if (t && bDedicated==1) { // If requested, bind the new thread to the specific core
                 icpu = hwloc_bitmap_next(set_proc,icpu);
                 hwloc_bitmap_only(set_thread,icpu);
                 hwloc_set_thread_cpubind(topology,thread->native_handle(),set_thread,HWLOC_CPUBIND_THREAD);
@@ -1849,7 +1850,7 @@ int mpiClass::Launch() {
     __itt_task_end(domain);
 #endif
 #ifdef USE_HWLOC
-    if (bDedicated) {
+    if (bDedicated==1) {
         hwloc_bitmap_free(set_thread);
         hwloc_bitmap_free(set_proc);
         hwloc_topology_destroy(topology);
@@ -2675,7 +2676,7 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
         // and the FFTW threads can make full use of the CPU.
         enqueue(trans);
     }
-    if (Cores()>1) mpi->ThreadBarrierWait();
+    if (Cores()>1 || iCoreMPI<0) mpi->ThreadBarrierWait();
 }
 
 void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
@@ -2690,7 +2691,7 @@ void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
         // and the FFTW threads can make full use of the CPU.
         enqueue(trans);
     }
-    if (Cores()>1) mpi->ThreadBarrierWait();
+    if (Cores()>1 || iCoreMPI<0) mpi->ThreadBarrierWait();
 }
 #endif
 
