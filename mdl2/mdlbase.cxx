@@ -154,9 +154,9 @@ int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
     return l-1;
 }
 
-void mdlBASE::AddService(int sid, void *p1,
-                         fcnService_t *fcnService,
-                         int nInBytes, int nOutBytes, std::string_view service_name) {
+int mdlBASE::AddService(int sid, void *p1,
+                        fcnService_t *fcnService,
+                        int nInBytes, int nOutBytes, std::string_view service_name) {
     if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
     if (sid >= services.size()) services.resize(sid+9);
@@ -166,9 +166,10 @@ void mdlBASE::AddService(int sid, void *p1,
     if (!result.second) {
         throw std::runtime_error("Service name already exists: " + std::string(service_name));
     }
+    return sid;
 }
 
-void mdlBASE::AddService(std::unique_ptr<BasicService> &&service) {
+int mdlBASE::AddService(std::unique_ptr<BasicService> service) {
     auto sid = service->getServiceID();
     if (service->getMaxBytesIn()  > nMaxInBytes)  nMaxInBytes  = service->getMaxBytesIn();
     if (service->getMaxBytesOut() > nMaxOutBytes) nMaxOutBytes = service->getMaxBytesOut();
@@ -179,6 +180,7 @@ void mdlBASE::AddService(std::unique_ptr<BasicService> &&service) {
         throw std::runtime_error("Service name already exists: " + std::string(service->getServiceName()));
     }
     services[sid] = std::move(service);
+    return sid;
 }
 
 int mdlBASE::RunService(int sid,int nIn, void *pIn, void *pOut) {

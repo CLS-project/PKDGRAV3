@@ -228,8 +228,13 @@ public:
     char **GetArgv() const { return argv; }
 
     void yield();
-    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, std::string_view service_name);
-    void AddService(std::unique_ptr<BasicService> &&service);
+    int AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, std::string_view service_name);
+    int AddService(std::unique_ptr<BasicService> service);
+    template <class T, class... Args>
+    int AddService(Args&&... args) {
+        static_assert(std::is_base_of_v<BasicService, T>,"T must derive from BasicService");
+        return AddService(std::make_unique<T>(std::forward<Args>(args)...));
+    }
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
     int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
     int  RunService(int sid, int nIn, void *pIn, ServiceBufferOut &out) { return RunService(sid,nIn,pIn,out.data());}
