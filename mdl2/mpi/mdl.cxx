@@ -193,7 +193,13 @@ MPI_Request *mpiClass::newRequest(mdlMessageMPI *message,MPI_Request request) {
 // Open the cache by posting the receive if required
 void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
+#ifdef MPI_RECV_PER_RANK
+        for (auto &msg : msgCacheReceive) {
+            msg->action(this);
+        }
+#else
         msgCacheReceive->action(this);
+#endif
         countCacheInflight.resize(Procs(),0);
         PendingRequests.set_capacity(Threads()); // This is very conservative, but uses some memory
 #ifdef DEBUG_COUNT_CACHE
@@ -210,7 +216,7 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
 // Post the recieve. Receive will continue to be reposted as message are recieved.
 void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
     auto request = newRequest(message);
-    MPI_Recv_init(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
+    MPI_Recv_init(message->getBuffer(),iCacheBufSize, MPI_BYTE, message->source,
                   MDL_TAG_CACHECOM, commMDL, request);
     MPI_Start(request);
 }
@@ -1777,7 +1783,13 @@ int mpiClass::Launch() {
     nOpenCaches = 0;
     iReplyBufSize = sizeof(CacheHeader) + MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
+#ifdef MPI_RECV_PER_RANK
+    for (auto i=0; i<Procs(); ++i) {
+        msgCacheReceive.emplace_back(std::make_unique<mdlMessageCacheReceive>(iCacheBufSize,i));
+    }
+#else
     msgCacheReceive = std::make_unique<mdlMessageCacheReceive>(iCacheBufSize);
+#endif
 
     n = Procs();
     if (n > 256) n = 256;

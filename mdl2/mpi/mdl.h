@@ -521,7 +521,11 @@ protected:
 #endif
     MPI_Request *newRequest(mdlMessageMPI *message,MPI_Request request=MPI_REQUEST_NULL);
 
+#ifdef MPI_RECV_PER_RANK
+    std::vector<std::unique_ptr<mdlMessageCacheReceive>> msgCacheReceive;
+#else
     std::unique_ptr<mdlMessageCacheReceive> msgCacheReceive;
+#endif
     std::vector<uint32_t> countCacheInflight;
 #ifdef DEBUG_COUNT_CACHE
     std::vector<uint64_t> countCacheSend, countCacheRecv;
