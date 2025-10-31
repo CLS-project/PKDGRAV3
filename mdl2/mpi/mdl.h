@@ -86,6 +86,12 @@ static const auto mdl_check_mask = 0x7f;
 
 #define MDL_CACHE_DATA_SIZE (4096)
 
+enum class MPI_RECV_MODE {
+    TOTAL = 0,
+    PER_RANK = 1
+};
+
+
 //*****************************************************************************
 
 // This tell the cach how to marshall data
@@ -349,6 +355,7 @@ public:
                       int argc=0, char **argv=0);
     virtual ~mdlClass();
     void SetCacheMaxInflight(int iMax);
+    void SetMpiRecvCount(int count, MPI_RECV_MODE mode=MPI_RECV_MODE::TOTAL);
 
     void SetCacheSize(int cacheSize) {
         this->cacheSize = cacheSize;
@@ -502,6 +509,9 @@ protected:
     int iCacheMaxInflight = 0;
     int iCacheBufSize;  /* Cache input buffer size */
     int iReplyBufSize;  /* Cache reply buffer size */
+    MPI_RECV_MODE mpi_recv_mode;    // TOTAL or PER_RANK
+    int mpi_recv_count;             // Number of outstanding receives to post
+
     std::vector<MPI_Request>    SendReceiveRequests;
     std::vector<MPI_Status>     SendReceiveStatuses;
     std::vector<int>            SendReceiveAvailable;
@@ -521,11 +531,7 @@ protected:
 #endif
     MPI_Request *newRequest(mdlMessageMPI *message,MPI_Request request=MPI_REQUEST_NULL);
 
-#ifdef MPI_RECV_PER_RANK
     std::vector<std::unique_ptr<mdlMessageCacheReceive>> msgCacheReceive;
-#else
-    std::unique_ptr<mdlMessageCacheReceive> msgCacheReceive;
-#endif
     std::vector<uint32_t> countCacheInflight;
 #ifdef DEBUG_COUNT_CACHE
     std::vector<uint64_t> countCacheSend, countCacheRecv;
@@ -615,6 +621,11 @@ public:
                       int argc=0, char **argv=0);
     virtual ~mpiClass();
     void SetCacheMaxInflight(int iMax) {iCacheMaxInflight = iMax;}
+    void SetMpiRecvCount(int count, MPI_RECV_MODE mode=MPI_RECV_MODE::TOTAL) {
+        assert(count>=1 && (mode==MPI_RECV_MODE::TOTAL || mode==MPI_RECV_MODE::PER_RANK));
+        this->mpi_recv_count = count;
+        this->mpi_recv_mode  = mode;
+    }
     int Launch();
 #ifdef USE_CUDA
     bool CudaActive() {return cuda.isActive(); }

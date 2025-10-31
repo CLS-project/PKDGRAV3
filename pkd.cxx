@@ -265,7 +265,7 @@ void pkdContext::set_factor(std::uint32_t factor) {
 pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nStore,int nBucket,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
-                       int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
+                       int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,mdl::MPI_RECV_MODE mpi_recv_mode,int mpi_recv_count,
                        const TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
                        uint64_t mMemoryModel, uint32_t nIntegerFactor) : mdl(mdl),
     pLightCone(nullptr), pHealpixData(nullptr), csm(nullptr) {
@@ -493,6 +493,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     if ( iCacheSize > 0 ) mdl->SetCacheSize(iCacheSize);
     mdl->SetCacheMaxInflight(iCacheMaxInflight);
+    mdl->SetMpiRecvCount(mpi_recv_count,mpi_recv_mode);
 
     // This is cheeserific - chooses the largest specified
 #if defined(USE_CUDA)

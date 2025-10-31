@@ -423,6 +423,8 @@ struct inInitializePStore {
     int iCacheSize;
     int iCacheMaxInflight;
     int iWorkQueueSize;
+    mdl::MPI_RECV_MODE mpi_recv_mode;
+    int mpi_recv_count;
 };
 struct outInitializePStore {
     int nSizeParticle;

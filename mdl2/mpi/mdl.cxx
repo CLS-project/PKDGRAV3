@@ -193,13 +193,27 @@ MPI_Request *mpiClass::newRequest(mdlMessageMPI *message,MPI_Request request) {
 // Open the cache by posting the receive if required
 void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
-#ifdef MPI_RECV_PER_RANK
+        if (msgCacheReceive.size()==0) {
+            switch (mpi_recv_mode) {
+            case mdl::MPI_RECV_MODE::TOTAL:
+                for (auto i=0; i<mpi_recv_count; ++i) {
+                    msgCacheReceive.emplace_back(std::make_unique<mdlMessageCacheReceive>(iCacheBufSize,MPI_ANY_SOURCE));
+                }
+                break;
+            case mdl::MPI_RECV_MODE::PER_RANK:
+                for (auto i=0; i<Procs(); ++i) {
+                    for (auto j=0; j<mpi_recv_count; ++j) {
+                        msgCacheReceive.emplace_back(std::make_unique<mdlMessageCacheReceive>(iCacheBufSize,i));
+                    }
+                }
+                break;
+            default:
+                throw std::runtime_error("Unknown MPI receive mode");
+            }
+        }
         for (auto &msg : msgCacheReceive) {
             msg->action(this);
         }
-#else
-        msgCacheReceive->action(this);
-#endif
         countCacheInflight.resize(Procs(),0);
         PendingRequests.set_capacity(Threads()); // This is very conservative, but uses some memory
 #ifdef DEBUG_COUNT_CACHE
@@ -1022,6 +1036,10 @@ void mdlClass::SetCacheMaxInflight(int iMax) {
     if (Core()==0) mpi->SetCacheMaxInflight(iMax);
 }
 
+void mdlClass::SetMpiRecvCount(int count, MPI_RECV_MODE mode) {
+    if (Core()==0) mpi->SetMpiRecvCount(count, mode);
+}
+
 /*****************************************************************************\
 *
 * The following is the MPI thread only functions
@@ -1029,7 +1047,7 @@ void mdlClass::SetCacheMaxInflight(int iMax) {
 \*****************************************************************************/
 
 mpiClass::mpiClass(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
-    : mdlClass(this,fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv) {
+    : mdlClass(this,fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv), mpi_recv_mode(MPI_RECV_MODE::TOTAL), mpi_recv_count(1) {
 }
 
 mpiClass::~mpiClass() {
@@ -1783,13 +1801,6 @@ int mpiClass::Launch() {
     nOpenCaches = 0;
     iReplyBufSize = sizeof(CacheHeader) + MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
-#ifdef MPI_RECV_PER_RANK
-    for (auto i=0; i<Procs(); ++i) {
-        msgCacheReceive.emplace_back(std::make_unique<mdlMessageCacheReceive>(iCacheBufSize,i));
-    }
-#else
-    msgCacheReceive = std::make_unique<mdlMessageCacheReceive>(iCacheBufSize);
-#endif
 
     n = Procs();
     if (n > 256) n = 256;

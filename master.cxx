@@ -421,6 +421,8 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.iCacheSize  = parameters.get_iCacheSize();
     ps.iCacheMaxInflight = parameters.get_iCacheMaxInflight();
     ps.iWorkQueueSize  = parameters.get_iWorkQueueSize();
+    ps.mpi_recv_mode = mdl::MPI_RECV_MODE(parameters.get_iMpiRecvMode());
+    ps.mpi_recv_count = parameters.get_nMpiRecvCount();
     ps.fPeriod = parameters.get_dPeriod();
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
     ps.nIntegerFactor = parameters.get_nIntegerFactor();

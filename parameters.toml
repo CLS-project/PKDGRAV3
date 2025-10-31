@@ -1944,6 +1944,28 @@ flag="wqs"
 default=0
 help="size of the MDL work queue"
 
+["Debugging/Testing/Diagnostics".iMpiRecvMode]
+flag="mpirm"
+default=0
+private=true
+help="Either total or per rank"
+docs='''
+Controls how ``nMpiRecvCount`` is interpreted. Values are:
+- ``MPI_RECV_MODE.TOTAL``: Total number of posted receives
+- ``MPI_RECV_MODE.PER_RANK``: Number of posted receives per rank
+'''
+
+["Debugging/Testing/Diagnostics".nMpiRecvCount]
+flag="mpirc"
+default=1
+private=true
+help="Number of posted cache receives. See iMpiRecvMode"
+docs='''
+This is either the total number of posted MPI receives,
+or the number of posted receives per rank depending on
+``iMpiRecvMode``.
+'''
+
 ["Debugging/Testing/Diagnostics".bGPU]
 flag="gpu"
 default=true

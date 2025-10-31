@@ -14,6 +14,11 @@ from cosmology cimport Cosmology
 from ephemeral cimport EphemeralMemory
 import ephemeral
 
+cdef extern from "mdl.h" namespace "mdl" nogil:
+    cpdef enum class MPI_RECV_MODE:
+        TOTAL
+        PER_RANK
+
 cdef extern from "blitz/array.h" namespace "blitz" nogil:
     cdef cppclass BLITZ1 "1":
         pass
