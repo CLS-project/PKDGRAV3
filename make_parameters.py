@@ -49,16 +49,20 @@ def emit_proto(section,parameters_h,parameters_pxi,enumerations_pxi,enumerations
           item_type = get_types(default[0])[0]
           c_type = f'blitz::TinyVector<{item_type},{len(default)}>'
           i_type = f'TinyVector[{item_type},BLITZ{len(default)}]'
-      type_name = v['name'] if 'name' in v else k.upper()
+      # Types may optionally have a type name (e.g., a predefined enum type) instead of int64_t, etc.
+      if 'name' in v:   type_name = v['name']
+      # An enumeration must have a type name because we create it, so default to the uppercase key
+      elif 'enum' in v: type_name = k.upper()
+      else:             type_name = None
       print("    template <typename... Args>",file=parameters_h)
-      if 'enum' in v:
+      if type_name is not None:
         print(f'    auto get_{k:{w}}(Args... rest) const {{ return {type_name}(get<{c_type}>({name},rest...)); }}',file=parameters_h)
       else:
         print(f'    auto get_{k:{w}}(Args... rest) const {{ return get<{c_type}>({name},rest...); }}',file=parameters_h)
       print(f'        {i_type:<7} get_{k}()',file=parameters_pxi)
       print(f'    bool has_{k:{w}}() const {{ return has(str_{k}); }}',file=parameters_h)
       print(f'        bool    has_{k}()',file=parameters_pxi)
-      if 'enum' in v:
+      if type_name is not None:
         print(f'    auto set_{k:{w}}(const {type_name} &value) {{ set<{c_type}>({name},{c_type}(value)); return value; }}',file=parameters_h)
       else:
         print(f'    auto set_{k:{w}}(const {c_type} &value) {{ set<{c_type}>({name},value); return value; }}',file=parameters_h)
