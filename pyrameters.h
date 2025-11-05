@@ -122,15 +122,21 @@ private:
     template<typename T>
     T convert_to_C(const char *name, PyObject *v) const {
         if constexpr (is_blitz_tinyvector<T>::value) {
-            if (PyList_Check(v)) {
-                Py_ssize_t size = PyList_Size(v);
+            if (PySequence_Check(v)) { // Must be a sequence
+                PyObject *seq = PySequence_Fast(v, name);
+                if (!seq) throw std::domain_error(name);
+                Py_ssize_t size = PySequence_Fast_GET_SIZE(seq);
                 T result;
-                if (result.length() != size) throw std::domain_error(name);
-                for (Py_ssize_t i = 0; i < size; ++i) {
-                    PyObject *item = PyList_GetItem(v, i);
-                    result[i] = convert_to_C<typename T::T_numtype>(name, item);
+                if (result.length() != size) { // of a fixed size (like TinyVector)
+                    Py_DECREF(seq);
+                    throw std::domain_error(name);
                 }
-                return result; // small, but NRVO should be able to optimize this anyway
+                PyObject **items = PySequence_Fast_ITEMS(seq);
+                for (Py_ssize_t i = 0; i < size; ++i) {
+                    result[i] = convert_to_C<typename T::T_numtype>(name, items[i]);
+                }
+                Py_DECREF(seq);
+                return result;
             }
             else return T(convert_to_C<typename T::T_numtype>(name,v));
         }
@@ -148,13 +154,17 @@ private:
         }
         else if constexpr (is_std_vector<T>::value) {
             T result;
-            if (PyList_Check(v)) {
-                Py_ssize_t size = PyList_Size(v);
-                result.resize(size);
+            if (PySequence_Check(v)) { // Must be a sequence
+                PyObject *seq = PySequence_Fast(v, name);
+                if (!seq) throw std::domain_error(name);
+                Py_ssize_t size = PySequence_Fast_GET_SIZE(seq);
+                result.reserve(size);
+                PyObject **items = PySequence_Fast_ITEMS(seq);
                 for (Py_ssize_t i = 0; i < size; ++i) {
-                    PyObject *item = PyList_GetItem(v, i);
-                    result[i] = convert_to_C<typename T::value_type>(name, item);
+                    result.emplace_back(convert_to_C<typename T::value_type>(name, items[i]));
                 }
+                Py_DECREF(seq);
+                return result;
             }
             else if (v != Py_None) result.push_back(convert_to_C<typename T::value_type>(name,v));
             return result; // uses NVRO or move semantics
