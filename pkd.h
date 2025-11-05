@@ -510,9 +510,10 @@ public:
     int nLayerMax;
     std::vector<int> nBoxLC;
     std::vector<double> lcOffset0, lcOffset1, lcOffset2;
-    asyncFileInfo afiLightCone;
-    LIGHTCONEP *pLightCone;
-    int nLightCone, nLightConeMax;
+    asyncFileInfo afiLightCone[8];
+    int nLightConeMax, mLightConeOctants;
+    blitz::TinyVector<LIGHTCONEP *,8> pLightCone;
+    blitz::TinyVector<int,8> nLightCone;
     int64_t nHealpixPerDomain;
     int64_t nSideHealpix;
     healpixData *pHealpixData;
@@ -802,7 +803,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo);
-void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP);
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP,int mOctants);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                   double dDelta, int iMaxRung,

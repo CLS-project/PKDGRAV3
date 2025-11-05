@@ -293,13 +293,30 @@ std::string MSR::BuildName(std::string_view path,int iStep,std::string_view type
                             "step"_a=iStep,
                             "type"_a=type,
                             "kind"_a=kind,
+                            "octant"_a=DeferFormat{"octant"}, // Defers the evaluation of octant (if present)
                             "i"_a=DeferFormat{"i"}); // Defers the evaluation of i (if present)
-    make_directories(name);
+    // If the octant field is present then we may need to create multiple directories
+    if (fmt::format(name,"octant"_a=0,"i"_a=DeferFormat{"i"}) != name) {
+        int mask = 0;
+        if (parameters.has_lstLightConeOctants()) {
+            auto octants = parameters.get_lstLightConeOctants();
+            for (auto o : octants) mask |= (1 << o);
+        }
+        else mask = 1; // weird, write to "octant 0"
+        for (auto octant=0; octant<8; ++octant) {
+            if (mask & (1<<octant)) {
+                make_directories(fmt::format(name,"octant"_a=octant,"i"_a=DeferFormat{"i"}));
+            }
+        }
+    }
+    else {
+        make_directories(name);
+    }
     return name;
 }
 std::string MSR::BuildNameWithI(std::string_view path,int iStep,std::string_view type) {
     auto name = BuildName(path,iStep,type);
-    // If the string does not contain and 'i' field, then we append ".{i}"
+    // If the string does not contain an 'i' field, then we append ".{i}"
     if (fmt::format(name,"i"_a=0) == name) name += ".{i}";
     return name;
 }
@@ -310,8 +327,16 @@ std::string MSR::BuildName(int iStep,std::string_view type) {
 }
 std::string MSR::BuildNameWithI(int iStep,std::string_view type) {
     auto name = BuildName(iStep,type);
-    // If the string does not contain and 'i' field, then we append ".{i}"
+    // If the string does not contain an 'i' field, then we append ".{i}"
     if (fmt::format(name,"i"_a=0) == name) name += ".{i}";
+    return name;
+}
+std::string MSR::BuildNameWithOI(int iStep,std::string_view type) {
+    auto name = BuildName(iStep,type);
+    // If the string does not contain an 'octant' field, then we append ".{octant}"
+    if (fmt::format(name,"octant"_a=0,"i"_a=DeferFormat{"i"}) == name) name += ".{octant}";
+    // If the string does not contain an 'i' field, then we append ".{i}"
+    if (fmt::format(name,"i"_a=0,"octant"_a=DeferFormat{"octant"}) == name) name += ".{i}";
     return name;
 }
 
@@ -2571,6 +2596,13 @@ void MSR::InitCosmology(CSM csm) {
         in.dBoxSize = parameters.get_dBoxSize();
         in.dRedshiftLCP = parameters.get_dRedshiftLCP();
         in.hLCP = parameters.get_hLCP();
+        in.mOctants = 0;
+        if (parameters.get_bLightConeParticles() ) {
+            if (parameters.has_lstLightConeOctants()) {
+                auto octants = parameters.get_lstLightConeOctants();
+                for (auto o : octants) in.mOctants |= (1 << o);
+            }
+        }
         mdl->RunService(PST_INITLIGHTCONE,sizeof(in),&in);
     }
 }
@@ -2743,7 +2775,13 @@ void MSR::LightConeOpen(int iStep) {
     if (parameters.get_bLightCone()) {
         struct inLightConeOpen lc;
         if (parameters.get_bLightConeParticles() ) {
-            auto filename = BuildNameWithI(iStep,".lcp");
+            auto filename = [&]() {
+                if (parameters.has_lstLightConeOctants()) {
+                    auto octants = parameters.get_lstLightConeOctants();
+                    return BuildNameWithOI(iStep, ".lcp");
+                }
+                else return BuildNameWithI(iStep, ".lcp");
+            }();
             marshal_string(lc.achOutFileLcp,filename);
         }
         else lc.achOutFileLcp[0] = 0;

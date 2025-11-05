@@ -56,6 +56,8 @@
 #include <algorithm>
 #include <boost/range/adaptor/reversed.hpp>
 #include <gsl/gsl_spline.h>
+#include "fmt/format.h"  // This will be part of c++20
+using namespace fmt::literals;        // Gives us ""_a and ""_format literals
 
 #ifdef USE_ITT
     #include "ittnotify.h"
@@ -268,13 +270,13 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,mdl::MPI_RECV_MODE mpi_recv_mode,int mpi_recv_count,
                        const TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
                        uint64_t mMemoryModel, uint32_t nIntegerFactor) : mdl(mdl),
-    pLightCone(nullptr), pHealpixData(nullptr), csm(nullptr) {
+    pLightCone((LIGHTCONEP *)nullptr), pHealpixData(nullptr), csm(nullptr) {
     PARTICLE *p;
     uint32_t pi;
     int j,ism;
 
     set_factor(nIntegerFactor);
-    io_init(&afiLightCone,0,0,IO_AIO|IO_LIBAIO);
+    for (auto o=0; o<8; ++o) io_init(&afiLightCone[o],0,0,IO_AIO|IO_LIBAIO);
 
 #define RANDOM_SEED 1
     srand(RANDOM_SEED);
@@ -575,15 +577,9 @@ pkdContext::~pkdContext() {
         mdl->delete_shared_array(pSegments[0],storageSize);
     }
     free(pTempPRIVATE);
-    if (pLightCone) {
-#ifdef _MSC_VER
-        _aligned_free(pLightCone);
-#else
-        free(pLightCone);
-#endif
-    }
+    for (auto octant=0; octant<8; ++octant) if (pLightCone[octant]) free(pLightCone[octant]);
     if (pHealpixData) free(pHealpixData);
-    io_free(&afiLightCone);
+    for (auto o=0; o<8; ++o) io_free(&afiLightCone[o]);
     if (csm) {
         csmFinish(csm);
         csm = NULL;
@@ -1947,10 +1943,10 @@ void pkdCalcEandL(PKD pkd,double &T,double &U,double &Eth,TinyVector<double,3> &
     }
 }
 
-static void flushLightCone(PKD pkd) {
-    size_t count = pkd->nLightCone * sizeof(LIGHTCONEP);
-    io_write(&pkd->afiLightCone,pkd->pLightCone,count);
-    pkd->nLightCone = 0;
+static void flushLightCone(PKD pkd, int octant) {
+    size_t count = pkd->nLightCone[octant] * sizeof(LIGHTCONEP);
+    io_write(&pkd->afiLightCone[octant],pkd->pLightCone[octant],count);
+    pkd->nLightCone[octant] = 0;
 }
 
 class HealpixHelper : public mdl::arrayCACHEhelper {
@@ -1979,9 +1975,11 @@ public:
 void pkdLightConeClose(PKD pkd,const char *healpixname) {
     int i;
     size_t nWrite;
-    if (pkd->afiLightCone.fd > 0) {
-        flushLightCone(pkd);
-        io_close(&pkd->afiLightCone);
+    for (auto octant=0; octant<8; ++octant) {
+        if (pkd->afiLightCone[octant].fd > 0) {
+            flushLightCone(pkd,octant);
+            io_close(&pkd->afiLightCone[octant]);
+        }
     }
     if (pkd->nSideHealpix) {
         assert(healpixname && healpixname[0]);
@@ -2004,15 +2002,21 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
     }
 }
 
-void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
+void pkdLightConeOpen(PKD pkd,const char *name_template,int nSideHealpix) {
+    int mOctants = pkd->mLightConeOctants;
     int i;
-    if (fname[0]) {
-        if (io_create(&pkd->afiLightCone,fname) < 0) {
-            perror(fname);
+    auto mask = (mOctants == 0) ? 1 : mOctants;
+    for (auto octant=0; octant<8; ++octant) {
+        if ( (mask & (1<<octant)) == 0  || name_template[0] == '\0') {
+            pkd->afiLightCone[octant].fd = -1;
+            continue;
+        }
+        auto fname = fmt::format(name_template,"octant"_a=octant,"i"_a=pkd->mdl->Self());
+        if (io_create(&pkd->afiLightCone[octant],fname.c_str()) < 0) {
+            perror(fname.c_str());
             abort();
         }
     }
-    else pkd->afiLightCone.fd = -1;
 
     pkd->nSideHealpix = nSideHealpix;
     if (pkd->nSideHealpix) {
@@ -2034,21 +2038,25 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bParticleOutput) {
     auto P = pkd->particles[p];
     const auto &v = P.velocity();
-    if (pkd->afiLightCone.fd>0 && bParticleOutput) {
-        LIGHTCONEP *pLC = pkd->pLightCone;
-        pLC[pkd->nLightCone].id = P.order();
-        pLC[pkd->nLightCone].pos[0] = r[0];
-        pLC[pkd->nLightCone].pos[1] = r[1];
-        pLC[pkd->nLightCone].pos[2] = r[2];
-        /*
-        ** Convert momentum (a^2 * x_dot to physical peculiar velocity (a * x_dot in sim units)
-        ** This is easy to do now, and somewhat more involved to do later.
-        */
-        pLC[pkd->nLightCone].vel[0] = v[0]*dvFac;
-        pLC[pkd->nLightCone].vel[1] = v[1]*dvFac;
-        pLC[pkd->nLightCone].vel[2] = v[2]*dvFac;
-        pLC[pkd->nLightCone].pot    = fPot;
-        if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
+    if (bParticleOutput) {
+        auto octant = pkd->mLightConeOctants==0 ? 0 : (((r[0]<0)?4:0) + ((r[1]<0)?2:0) + ((r[2]<0)?1:0));
+        if (pkd->afiLightCone[octant].fd>0) {
+            auto pLC = pkd->pLightCone[octant];
+            auto nLightCone = pkd->nLightCone[octant];
+            pLC[nLightCone].id = P.order();
+            pLC[nLightCone].pos[0] = r[0];
+            pLC[nLightCone].pos[1] = r[1];
+            pLC[nLightCone].pos[2] = r[2];
+            /*
+            ** Convert momentum (a^2 * x_dot to physical peculiar velocity (a * x_dot in sim units)
+            ** This is easy to do now, and somewhat more involved to do later.
+            */
+            pLC[nLightCone].vel[0] = v[0]*dvFac;
+            pLC[nLightCone].vel[1] = v[1]*dvFac;
+            pLC[nLightCone].vel[2] = v[2]*dvFac;
+            pLC[nLightCone].pot    = fPot;
+            if (++pkd->nLightCone[octant] == pkd->nLightConeMax) flushLightCone(pkd,octant);
+        }
     }
     if (pkd->nSideHealpix) {
         int64_t iPixel = vec2pix_ring64(pkd->nSideHealpix, r);
@@ -2424,13 +2432,13 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
 /*
 ** Initialize Lightcone stuff.
 */
-void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP) {
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP,int mOctants) {
 #ifdef __linux__
     uint64_t nPageSize = sysconf(_SC_PAGESIZE);
 #else
     uint64_t nPageSize = 512;
 #endif
-
+    pkd->mLightConeOctants = mOctants;
     /*
     ** Initialize Lookup table for converting lightcone velocities to physical (sim units)
     */
@@ -2450,25 +2458,24 @@ void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSiz
     /*
     ** allocate enough space for light cone particle output
     */
-    uint64_t nLightConeBytes = (1024*1024*16);
+    uint64_t nLightConeBytes = (1024*1024*2);
     pkd->nLightConeMax = nLightConeBytes / sizeof(LIGHTCONEP);
-    pkd->nLightCone = 0;
-    if (bLightConeParticles) {
-        void *v;
-#ifdef _MSC_VER
-        pkd->pLightCone = _aligned_malloc(nLightConeBytes, nPageSize);
-#else
-        if (posix_memalign(&v, nPageSize, nLightConeBytes)) pkd->pLightCone = NULL;
-        else pkd->pLightCone = static_cast<LIGHTCONEP *>(v);
-#endif
-        mdlassert(pkd->mdl,pkd->pLightCone != NULL);
-        io_init(&pkd->afiLightCone,8,2*1024*1024,IO_AIO|IO_LIBAIO);
+    pkd->nLightCone = 0; // array of 8 octants
+    auto mask = pkd->mLightConeOctants==0 ? 1 : pkd->mLightConeOctants;
+    for (auto octant=0; octant<8; ++octant) {
+        if (bLightConeParticles && (mask & (1<<octant))) {
+            void *v;
+            if (posix_memalign(&v, nPageSize, nLightConeBytes)) pkd->pLightCone[octant] = NULL;
+            else pkd->pLightCone[octant] = static_cast<LIGHTCONEP *>(v);
+            mdlassert(pkd->mdl,pkd->pLightCone[octant] != NULL);
+            io_init(&pkd->afiLightCone[octant],8,2*1024*1024,IO_AIO|IO_LIBAIO);
+        }
+        else {
+            pkd->afiLightCone[octant].nBuffers = 0;
+            pkd->pLightCone[octant] = NULL;
+        }
+        pkd->afiLightCone[octant].fd = -1;
     }
-    else {
-        pkd->afiLightCone.nBuffers = 0;
-        pkd->pLightCone = NULL;
-    }
-    pkd->afiLightCone.fd = -1;
     pkd->pHealpixData = NULL;
 }
 

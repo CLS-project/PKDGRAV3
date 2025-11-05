@@ -2329,8 +2329,7 @@ int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = pst->plcl->pkd;
-        auto achOutFile = makeName(in->achOutFileLcp, pkd->mdl->Self());
-        pkdLightConeOpen(pkd, achOutFile.c_str(), in->nSideHealpix);
+        pkdLightConeOpen(pkd, in->achOutFileLcp, in->nSideHealpix);
     }
     return 0;
 }

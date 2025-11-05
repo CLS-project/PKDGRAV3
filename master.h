@@ -433,6 +433,7 @@ protected:
     std::string BuildNameWithI( std::string_view path,int iStep,std::string_view type = {});
     std::string BuildName(      int iStep,std::string_view type = {}); // With achOutPath
     std::string BuildNameWithI( int iStep,std::string_view type = {}); // With achOutPath: ensure {i}
+    std::string BuildNameWithOI(int iStep,std::string_view type = {}); // With achOutPath: ensure {octant} and {i}
     std::string BuildIoName(    int iStep,std::string_view type = {}); // With achIoPath
     std::string BuildCpName(    int iStep); // With achCpPath
 

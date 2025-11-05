@@ -217,6 +217,32 @@ flag="bbt"
 default=false
 help="output +++ and --- octants of the cone; a bowtie"
 
+["Analysis"."Light Cone".lstLightConeOctants]
+flag="octants"
+type=0
+default=[0]
+omitted="all"
+help="List of lightcone octants to output separately"
+docs='''
+Normally when a light cone sphere is output, all octants are written
+to the same set of files. This is a list of octants to output.
+The default filename is contructed by appending ".lcp.{octant}.{i}".
+Examples::
+
+ lstLightConeOctants = [0,1,2]   # Output octants 0,1 and 2
+ lstLightConeOctants = range(3)  # same thing
+
+The octants are numbered as follows:
+ - ``0``: x>=0, y>=0, z>=0
+ - ``1``: x>=0, y>=0, z<0
+ - ``2``: x>=0, y<0, z>=0
+ - ``3``: x>=0, y<0, z<0
+ - ``4``: x<0, y>=0, z>=0
+ - ``5``: x<0, y>=0, z<0
+ - ``6``: x<0, y<0, z>=0
+ - ``7``: x<0, y<0, z<0
+'''
+
 ["Analysis"."Light Cone".sqdegLCP]
 flag="sqdeg"
 default=50.0
@@ -1951,8 +1977,8 @@ private=true
 help="Either total or per rank"
 docs='''
 Controls how ``nMpiRecvCount`` is interpreted. Values are:
-- ``MPI_RECV_MODE.TOTAL``: Total number of posted receives
-- ``MPI_RECV_MODE.PER_RANK``: Number of posted receives per rank
+ - ``MPI_RECV_MODE.TOTAL``: Total number of posted receives
+ - ``MPI_RECV_MODE.PER_RANK``: Number of posted receives per rank
 '''
 
 ["Debugging/Testing/Diagnostics".nMpiRecvCount]

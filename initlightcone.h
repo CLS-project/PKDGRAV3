@@ -22,6 +22,7 @@ public:
     struct input {
         int bBowtie;
         int bLightConeParticles;
+        int mOctants;
         double dBoxSize;
         double dRedshiftLCP;
         double alphaLCP;
