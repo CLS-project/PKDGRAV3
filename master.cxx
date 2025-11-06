@@ -2796,8 +2796,12 @@ void MSR::LightConeOpen(int iStep) {
 void MSR::LightConeClose(int iStep) {
     if (parameters.get_bLightCone()) {
         struct inLightConeClose lc;
-        auto filename = BuildNameWithI(iStep,".hpb");
-        marshal_string(lc.achOutFileHpb,filename);
+        // BuildName actually creates directories, so only do so if we are making the maps
+        if (parameters.get_nSideHealpix()) {
+            auto filename = BuildNameWithI(iStep,".hpb");
+            marshal_string(lc.achOutFileHpb,filename);
+        }
+        else lc.achOutFileHpb[0] = 0;
         pstLightConeClose(pst,&lc,sizeof(lc),NULL,0);
     }
 }
