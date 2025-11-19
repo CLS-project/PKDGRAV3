@@ -260,6 +260,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
+
+if(INSTRUMENT_MPI)
+    target_sources(${PROJECT_NAME} PRIVATE core/cachestats.cxx)
+endif()
 add_executable(tostd utility/tostd.c io/fio.c)
 #add_executable(psout utility/psout.c cosmo.c)
 

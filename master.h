@@ -139,6 +139,10 @@ protected:
     void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
     void Restore(const std::string &filename,int nSizeParticle);
     void PrintStat(const STAT &ps,char const *pszPrefix,int p);
+#ifdef INSTRUMENT_MPI
+    void PrintStat(const WelfordStats<double> &ps,char const *pszPrefix,int p);
+#endif
+
 public:
     int64_t parallel_count(int64_t nParallel,bool bParallel=true);
     int64_t parallel_read_count();

@@ -32,6 +32,9 @@
 #include <stdint.h>
 #include "mpi.h"
 #include "mdlfft.h"
+#ifdef INSTRUMENT_MPI
+    #include "WelfordStats.h"
+#endif
 #include "arc.h"
 #include "mpimessages.h"
 #include "gpu/mdlgpu.h"
@@ -42,6 +45,7 @@
     #include "metal/mdlmetal.h"
 #endif
 #include "rwlock.h"
+#include <chrono>
 #include <memory>
 #include <tuple>
 #include <vector>
@@ -643,6 +647,34 @@ public:
     void enqueue(mdlMessage &M);
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
     void ThreadBarrierWait();
+public:
+#ifdef INSTRUMENT_MPI
+    struct {
+        ticks ticks_cache_open;         // Tick counter when the first cache was opened
+        ticks ticks_cache_close;        // Tick counter when the last cache was closed
+        std::chrono::time_point<std::chrono::high_resolution_clock> time_cache_open;  // Time point when the first cache was opened
+        std::chrono::time_point<std::chrono::high_resolution_clock> time_cache_close; // Time point when the last cache was closed
+        WelfordStats<double> mpi_loop;  // Statistics on the time spent in an MPI loop iteration
+        WelfordStats<double> mpi_test;  // Statistics on the time spent in an MPI test iteration
+        WelfordStats<double> gpu_test;  // Statistics on the time spent in a GPU test iteration
+        WelfordStats<double> msg_test;  // Statistics on the time spent in a message test iteration
+        WelfordStats<double> cache_request; // Statistics on the time spent processing a cache request
+        WelfordStats<double> cache_reply;   // Statistics on the time spent between the send and recv
+    } cache_stats;
+public:
+    std::tuple<WelfordStats<double>, WelfordStats<double>, WelfordStats<double>, WelfordStats<double>>
+    get_cache_stats() {
+        auto total_ticks = elapsed(getticks(), cache_stats.ticks_cache_open);
+        auto total_seconds = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - cache_stats.time_cache_open).count();
+        auto seconds_per_tick = total_seconds / total_ticks;
+        return {
+            cache_stats.mpi_loop * seconds_per_tick,
+            cache_stats.mpi_test * seconds_per_tick,
+            cache_stats.gpu_test * seconds_per_tick,
+            cache_stats.msg_test *seconds_per_tick
+        };
+    }
+#endif
 };
 int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc=0,char **argv=nullptr);
 } // namespace mdl

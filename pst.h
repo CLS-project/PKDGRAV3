@@ -401,6 +401,7 @@ enum pst_service {
     PST_RS_SAVE_IDS,
     PST_RS_EXTRACT,
     PST_IGNORE_SIGBUS,
+    PST_CACHESTATS,
 };
 
 void pstAddServices(PST,mdl::mdlClass *);

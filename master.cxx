@@ -121,6 +121,9 @@ private:
 #include "io/restore.h"
 #include "io/output.h"
 #include "initlightcone.h"
+#ifdef INSTRUMENT_MPI
+    #include "core/cachestats.h"
+#endif
 
 #ifdef HAVE_ROCKSTAR
 #include "analysis/rshalocount.h"
@@ -2163,6 +2166,18 @@ void MSR::PrintStat(const STAT &ps,char const *pszPrefix,int p) {
     }
 }
 
+#ifdef INSTRUMENT_MPI
+void MSR::PrintStat(const WelfordStats<double> &in_seconds,char const *pszPrefix,int p) {
+    auto us = in_seconds * 1e6;
+    const char *minmax = "max";
+    print("{} {}={:>8.{prec}f} avg={:>8.{prec}f} std-dev={:8.{prec}f}\n", pszPrefix, minmax,
+          us.max(), us.mean_value(),
+          us.stddev(),
+          "prec"_a = p);
+}
+#endif
+
+
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      double dTime, double dDelta, double dStep, double dTheta,
                      int bKickClose,int bKickOpen,int bEwald,int bGravStep,
@@ -2313,6 +2328,10 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         }
     }
     if (parameters.get_bVStep()) {
+#ifdef INSTRUMENT_MPI
+        ServiceCacheStats::output stats;
+        auto n = mdl->RunService<ServiceCacheStats>(&stats);
+#endif
         /*
         ** Output some info...
         */
@@ -2351,6 +2370,13 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         PrintStat(outr.sCellNumAccess, "  C-cache access:",1);
         PrintStat(outr.sPartMissRatio, "  P-cache miss %:",2);
         PrintStat(outr.sCellMissRatio, "  C-cache miss %:",2);
+#ifdef INSTRUMENT_MPI
+        print("  (cache timeing statistics are given in microseconds)\n");
+        PrintStat(stats.mpi_loop,      "   MPI Loop time:",3);
+        PrintStat(stats.mpi_test,      "   MPI Test time:",3);
+        PrintStat(stats.gpu_test,      "   GPU Test time:",3);
+        PrintStat(stats.msg_test,      "   MSG Test time:",3);
+#endif
     }
     if (outr.nTilesTotal > 0) {
         print("Total tiles processed: {:.5e}, on the GPU: {:.5e}, ratio: {:.2f} %\n",(double)outr.nTilesTotal,(double)(outr.nTilesTotal - outr.nTilesCPU),100.0 - ((double)outr.nTilesCPU)/((double)outr.nTilesTotal)*100.0);

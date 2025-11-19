@@ -41,7 +41,9 @@
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "core/ignoresigbus.h"
-
+#ifdef INSTRUMENT_MPI
+    #include "core/cachestats.h"
+#endif
 #include "io/service.h"
 #include "io/restore.h"
 
@@ -161,6 +163,9 @@ void *worker_init(MDL vmdl) {
     mdl->AddService<OldDD::ServiceWeight>(pst);
     mdl->AddService<OldDD::ServiceWeightWrap>(pst);
     mdl->AddService<OldDD::ServiceOrdWeight>(pst);
+#ifdef INSTRUMENT_MPI
+    mdl->AddService<ServiceCacheStats>(pst);
+#endif
     return pst;
 }
 

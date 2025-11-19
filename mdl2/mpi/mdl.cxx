@@ -222,6 +222,16 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
         std::fill(countCacheSend.begin(),countCacheSend.end(),0);
         std::fill(countCacheRecv.begin(),countCacheRecv.end(),0);
 #endif
+#ifdef INSTRUMENT_MPI
+        cache_stats.time_cache_open = std::chrono::high_resolution_clock::now();
+        cache_stats.ticks_cache_open = getticks();
+        cache_stats.mpi_loop.reset();
+        cache_stats.mpi_test.reset();
+        cache_stats.gpu_test.reset();
+        cache_stats.msg_test.reset();
+        cache_stats.cache_request.reset();
+        cache_stats.cache_reply.reset();
+#endif
     }
     ++nOpenCaches;
     message->sendBack();
@@ -1028,6 +1038,10 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
             if (dynamic_cast<mdlMessageCacheReceive *>(*i) != nullptr)
                 MPI_Cancel(&SendReceiveRequests[i-SendReceiveMessages.begin()]);
         }
+#ifdef INSTRUMENT_MPI
+        cache_stats.time_cache_close = std::chrono::high_resolution_clock::now();
+        cache_stats.ticks_cache_close = getticks();
+#endif
     }
     message->sendBack();
 }
@@ -1550,6 +1564,9 @@ void mpiClass::FinishReceiveReply(mdlMessageReceiveReply *send, MPI_Request requ
 void mpiClass::finishRequests() {
     int nDone = 1; // Prime the loop; we keep trying as long as we get work
     // If there are MPI send/recieve message pending then check if they are complete
+#ifdef INSTRUMENT_MPI
+    auto start = getticks();
+#endif
     while (!SendReceiveRequests.empty() && nDone) {
         // Here we keep track of entries that we can reuse in newRequest()
         assert(SendReceiveAvailable.size()==0);
@@ -1597,11 +1614,19 @@ void mpiClass::finishRequests() {
                 SendReceiveAvailable.clear();
             }
         }
+#ifdef INSTRUMENT_MPI
+        if (nOpenCaches) {
+            auto now = getticks();
+            cache_stats.mpi_test += elapsed(now,start);
+            start = now;
+        }
+#endif
     }
 }
 void mpiClass::processMessages() {
     /* These are messages from other threads */
-    while (!queueMPInew.empty()) {
+    int count = 0;
+    while (!queueMPInew.empty() && count++ < 10) {
         mdlMessage &M = queueMPInew.dequeue();
         M.action(this); // Action normally sends it back, but not always (see finish() below)
     }
@@ -1611,6 +1636,9 @@ void mpiClass::processMessages() {
 ** any requests from the thread queue, and track MPI completions.
 */
 int mpiClass::checkMPI() {
+#ifdef INSTRUMENT_MPI
+    auto start = getticks();
+#endif
     gpu.flushCompleted();
     /* Start any CUDA work packages */
 #ifdef USE_CUDA
@@ -1619,8 +1647,19 @@ int mpiClass::checkMPI() {
 #ifdef USE_METAL
     metal.launch();
 #endif
+#ifdef INSTRUMENT_MPI
+    auto gpu_ticks = getticks();
+    if (nOpenCaches) cache_stats.gpu_test += elapsed(gpu_ticks,start);
+#endif
     processMessages();
+#ifdef INSTRUMENT_MPI
+    auto msg_ticks = getticks();
+    if (nOpenCaches) cache_stats.msg_test += elapsed(msg_ticks,gpu_ticks);
+#endif
     finishRequests(); // Check for non-block MPI requests (send, receive, barrier, etc.)
+#ifdef INSTRUMENT_MPI
+    if (nOpenCaches) cache_stats.mpi_loop += elapsed(getticks(),start);
+#endif
     return nActiveCores;
 }
 

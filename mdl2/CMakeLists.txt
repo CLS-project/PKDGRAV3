@@ -11,6 +11,9 @@ endif()
 include(CheckLanguage)
 include(FindPkgConfig)
 
+
+option(INSTRUMENT_MPI "Enable fine grained timing for MPI instrumentation" OFF)
+
 # Option to enable or disable cpptrace
 option(USE_CPPTRACE "Enable cpptrace for backtrace support" ON)
 if (USE_CPPTRACE)
@@ -181,6 +184,7 @@ endif (APPLE AND METAL AND FOUNDATION AND QUARTZCORE)
 if(hasParent)
   set(USE_CUDA ${USE_CUDA} PARENT_SCOPE)
   set(USE_METAL ${USE_METAL} PARENT_SCOPE)
+  set(INSTRUMENT_MPI ${INSTRUMENT_MPI} PARENT_SCOPE)
 endif(hasParent)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
