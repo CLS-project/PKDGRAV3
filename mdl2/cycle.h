@@ -164,6 +164,23 @@ INLINE_ELAPSED(__inline__)
 
 /*----------------------------------------------------------------*/
 /*
+ * ARM cycle counter
+ */
+#if defined(__aarch64__) && !defined(__APPLE__) && !defined(HAVE_TICK_COUNTER)
+#include "stdint.h"
+typedef uint64_t ticks;
+
+static __inline__ ticks getticks(void) {
+    uint64_t v;
+    asm volatile("isb; mrs %0, cntvct_el0" : "=r"(v));
+    return v;
+}
+INLINE_ELAPSED(__inline__)
+#define HAVE_TICK_COUNTER
+#endif
+
+/*----------------------------------------------------------------*/
+/*
  * Pentium cycle counter
  */
 #if (defined(__GNUC__) || defined(__ICC)) && defined(__i386__)  && !defined(HAVE_TICK_COUNTER)
