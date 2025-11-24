@@ -1623,13 +1623,14 @@ void mpiClass::finishRequests() {
 #endif
     }
 }
-void mpiClass::processMessages() {
+int mpiClass::processMessages() {
     /* These are messages from other threads */
     int count = 0;
-    while (!queueMPInew.empty() && count++ < 10) {
+    while (!queueMPInew.empty() && ++count < 10) {
         mdlMessage &M = queueMPInew.dequeue();
         M.action(this); // Action normally sends it back, but not always (see finish() below)
     }
+    return count;
 }
 /*
 ** This routine must be called often by the MPI thread. It will drain
@@ -1651,10 +1652,10 @@ int mpiClass::checkMPI() {
     auto gpu_ticks = getticks();
     if (nOpenCaches) cache_stats.gpu_test += elapsed(gpu_ticks,start);
 #endif
-    processMessages();
+    int nMsgs = processMessages();
 #ifdef INSTRUMENT_MPI
     auto msg_ticks = getticks();
-    if (nOpenCaches) cache_stats.msg_test += elapsed(msg_ticks,gpu_ticks);
+    if (nOpenCaches && nMsgs) cache_stats.msg_test += elapsed(msg_ticks,gpu_ticks);
 #endif
     finishRequests(); // Check for non-block MPI requests (send, receive, barrier, etc.)
 #ifdef INSTRUMENT_MPI

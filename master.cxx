@@ -2170,10 +2170,23 @@ void MSR::PrintStat(const STAT &ps,char const *pszPrefix,int p) {
 void MSR::PrintStat(const WelfordStats<double> &in_seconds,char const *pszPrefix,int p) {
     auto us = in_seconds * 1e6;
     const char *minmax = "max";
-    print("{} {}={:>8.{prec}f} avg={:>8.{prec}f} std-dev={:8.{prec}f}\n", pszPrefix, minmax,
+    print("{} {}={:>8.{prec}f} avg={:>8.{prec}f} std-dev={:8.{prec}f} {}\n", pszPrefix, minmax,
           us.max(), us.mean_value(),
           us.stddev(),
           "prec"_a = p);
+
+    static constexpr size_t bin_width = 1; // Bin the histogram entries by this width
+    // Find the index of the start of the all-zero tail
+    auto rit = std::find_if(std::rbegin(us.histogram), std::rend(us.histogram), [](int x) { return x != 0; });
+    auto idx = (rit == std::rend(us.histogram)) ? 0 : std::distance(rit,std::rend(us.histogram));
+    // Output the histogram and truncate the all-zero tail. Output log2 scale (plus 1)
+    fmt::print("      ",idx);
+    for (int i = 0; i < idx; i += bin_width) {
+        uint64_t s = std::accumulate(us.histogram + i, us.histogram + std::min(i + bin_width, size_t(idx)), uint64_t{0});
+        s = s ? 64u - __builtin_clzll(s) : 0u; // log2(s)+1 or 0
+        fmt::print(" {:>2}", s);
+    }
+    fmt::print("\n");
 }
 #endif
 

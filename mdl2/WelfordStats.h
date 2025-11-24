@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <limits>
+#include <algorithm>
 #include <type_traits>
 #include <ostream>
 
@@ -17,6 +18,7 @@ struct WelfordStats {
     long double M2;
     T min_val;
     T max_val;
+    uint64_t histogram[64];
 
     // Default constructor
     constexpr WelfordStats()
@@ -24,7 +26,8 @@ struct WelfordStats {
           mean(0),
           M2(0),
           min_val(std::numeric_limits<T>::max()),
-          max_val(std::numeric_limits<T>::lowest())
+          max_val(std::numeric_limits<T>::lowest()),
+          histogram{}
     {}
 
     // Merging constructor: merges b into a
@@ -52,16 +55,36 @@ struct WelfordStats {
         mean += delta / n;
         long double delta2 = x - mean;
         M2 += delta * delta2;
+
+        // Histogram update only for integers
+        if constexpr (std::is_integral<T>::value) {
+            auto ux = static_cast<unsigned long>(x);
+            uint64_t bin = ux ? 63u - __builtin_clzll(ux) : 0u;
+            histogram[bin]++;
+        }
     }
 
     // Merge another stats object
     void merge(const WelfordStats& other) {
         if (other.n == 0) return;
-        if (n == 0) { *this = other; return; }
+        if (n == 0) {
+            *this = other;
+            return;
+        }
 
+        // merge min/max
         if (other.min_val < min_val) min_val = other.min_val;
         if (other.max_val > max_val) max_val = other.max_val;
 
+        // merge histogram
+        if constexpr (std::is_integral<T>::value) {
+            std::transform(std::begin(histogram), std::end(histogram),
+                           std::begin(other.histogram),
+                           std::begin(histogram),
+                           std::plus<uint64_t>());
+        }
+
+        // merge Welford stats
         long double n_total = n + other.n;
         long double delta = other.mean - mean;
 
@@ -108,11 +131,21 @@ struct WelfordStats {
         return *this;
     }
 
-    // * long double (non-mutating scale)
-    WelfordStats operator*(long double k) const {
-        WelfordStats tmp = *this;
-        tmp *= k;
-        return tmp;
+    // * (non-mutating scale, returns common type)
+    template<class K>
+    auto operator*(K k) const
+    -> WelfordStats<std::common_type_t<T,K>> {
+        using R = std::common_type_t<T,K>;
+        WelfordStats<R> out;
+
+        out.n = n;
+        out.mean  = static_cast<R>(mean) * static_cast<R>(k);
+        out.M2    = static_cast<R>(M2)   * static_cast<R>(k) * static_cast<R>(k);
+        out.min_val = static_cast<R>(min_val) * static_cast<R>(k);
+        out.max_val = static_cast<R>(max_val) * static_cast<R>(k);
+        std::copy(std::begin(histogram),std::end(histogram),std::begin(out.histogram));
+
+        return out;
     }
 
     // Accessors

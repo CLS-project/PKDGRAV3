@@ -32,9 +32,33 @@
 #include <stdint.h>
 #include "mpi.h"
 #include "mdlfft.h"
+
+
+
 #ifdef INSTRUMENT_MPI
-    #include "WelfordStats.h"
+#include "WelfordStats.h"
+using StatsAccum = WelfordStats<uint64_t>;
+#else
+struct StatsAccum {
+    template <typename T>
+    StatsAccum &operator+=(T) { return *this; }
+};
 #endif
+class Instrument {
+public:
+    Instrument(StatsAccum &accumulator)
+        : acc_(accumulator), start_(getticks()) {}
+
+    ~Instrument() {
+        auto end = getticks();
+        acc_ += elapsed(end, start_);
+    }
+    void reset() {}
+
+private:
+    StatsAccum &acc_;
+    ticks start_;
+};
 #include "arc.h"
 #include "mpimessages.h"
 #include "gpu/mdlgpu.h"
@@ -618,7 +642,7 @@ protected:
     void flush_element(CacheHeader *pHdr,int iLineSize);
     void queue_local_flush(CacheHeader *ph);
     virtual int checkMPI();
-    void processMessages();
+    int processMessages();
     void finishRequests();
 public:
     explicit mpiClass(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
@@ -648,19 +672,20 @@ public:
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
     void ThreadBarrierWait();
 public:
-#ifdef INSTRUMENT_MPI
+    // The following are only used in MPI instrumentation is enabled (INSTRUMENT_MPI)
     struct {
         ticks ticks_cache_open;         // Tick counter when the first cache was opened
         ticks ticks_cache_close;        // Tick counter when the last cache was closed
         std::chrono::time_point<std::chrono::high_resolution_clock> time_cache_open;  // Time point when the first cache was opened
         std::chrono::time_point<std::chrono::high_resolution_clock> time_cache_close; // Time point when the last cache was closed
-        WelfordStats<double> mpi_loop;  // Statistics on the time spent in an MPI loop iteration
-        WelfordStats<double> mpi_test;  // Statistics on the time spent in an MPI test iteration
-        WelfordStats<double> gpu_test;  // Statistics on the time spent in a GPU test iteration
-        WelfordStats<double> msg_test;  // Statistics on the time spent in a message test iteration
-        WelfordStats<double> cache_request; // Statistics on the time spent processing a cache request
-        WelfordStats<double> cache_reply;   // Statistics on the time spent between the send and recv
+        StatsAccum mpi_loop;  // Statistics on the time spent in an MPI loop iteration
+        StatsAccum mpi_test;  // Statistics on the time spent in an MPI test iteration
+        StatsAccum gpu_test;  // Statistics on the time spent in a GPU test iteration
+        StatsAccum msg_test;  // Statistics on the time spent in a message test iteration
+        StatsAccum cache_request; // Statistics on the time spent processing a cache request
+        StatsAccum cache_reply;   // Statistics on the time spent between the send and recv
     } cache_stats;
+#ifdef INSTRUMENT_MPI
 public:
     std::tuple<WelfordStats<double>, WelfordStats<double>, WelfordStats<double>, WelfordStats<double>>
     get_cache_stats() {
