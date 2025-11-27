@@ -2170,7 +2170,7 @@ void MSR::PrintStat(const STAT &ps,char const *pszPrefix,int p) {
 void MSR::PrintStat(const WelfordStats<double> &in_seconds,char const *pszPrefix,int p) {
     auto us = in_seconds * 1e6;
     const char *minmax = "max";
-    print("{} {}={:>8.{prec}f} avg={:>8.{prec}f} std-dev={:8.{prec}f} {}\n", pszPrefix, minmax,
+    print("{} {}={:>8.{prec}f} avg={:>8.{prec}f} std-dev={:8.{prec}f}\n", pszPrefix, minmax,
           us.max(), us.mean_value(),
           us.stddev(),
           "prec"_a = p);
@@ -2911,6 +2911,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
 
     if ((OutInterval() > 0 &&
             (bGlobalOutput
+             || iStep == iStep_list.front()
              || iStop
              || iStep == nSteps
              || (iStep%OutInterval() == 0))) ) {
