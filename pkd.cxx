@@ -462,7 +462,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     TinyVector<size_t,3> nElements{uint64_t(nStore+1),nEphemeral,nTreeNodes};
     TinyVector<size_t,3> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,tree.ElementSize()};
     storageSize = mdl->new_shared_array(pSegments.data(),3,nElements.data(),nBytesPerElement.data(),nMinTotalStore);
-    // storageSize = mdl->new_shared_array(pSegments,nElements,nBytesPerElement,nMinTotalStore);
     if (storageSize == 0) {
         fprintf(stderr, "ERROR: unable to allocate main storage\n");
         abort();
@@ -573,9 +572,7 @@ pkdContext::~pkdContext() {
 
     /* Only thread zero allocated this memory block  */
     mdl->ThreadBarrier();
-    if (mdl->Core() == 0) {
-        mdl->delete_shared_array(pSegments[0],storageSize);
-    }
+    mdl->delete_shared_array(pSegments[0],storageSize);
     free(pTempPRIVATE);
     for (auto octant=0; octant<8; ++octant) if (pLightCone[octant]) free(pLightCone[octant]);
     if (pHealpixData) free(pHealpixData);
