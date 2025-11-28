@@ -1970,6 +1970,16 @@ flag="wqs"
 default=0
 help="size of the MDL work queue"
 
+["Debugging/Testing/Diagnostics".bMpiRDMA]
+flag="rdma"
+default=false
+private=true
+help="Enable or disable RDMA for contingous MDL array caches"
+docs='''
+MDL caches that have continguous arrays (e.g., particle or ephemeral) can
+use MPI one-sided communication (RDMA). This is an experimental feature.
+'''
+
 ["Debugging/Testing/Diagnostics".iMpiRecvMode]
 flag="mpirm"
 default=0

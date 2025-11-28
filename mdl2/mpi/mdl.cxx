@@ -143,8 +143,24 @@ CACHE *mdlClass::CacheInitialize(int cid,std::shared_ptr<CACHEhelper> helper) {
     /* Nobody should start using this cache until all threads have started it! */
     ThreadBarrier(true);
 
+    std::byte *first = nullptr;
+    size_t offset = 0;
+    // If the arrays for each thread are adjacent in memory then we can use RDMA
+    if (c->adjacent()) {
+        auto *mdl0 = pmdl[0];
+        auto c0 = mdl0->cache[cid].get();
+        first = static_cast<std::byte *>(c0->get_element(0)); // First element of the buffer accross all cores
+        offset = c0->cache_helper->data_size() * c0->cache_helper->elements();
+        if (Cores()>1) {
+            auto *omdl = pmdl[1];
+            auto oc = omdl->cache[cid].get();
+            offset = static_cast<std::byte *>(oc->get_element(0)) - first;
+            // for(auto i = 2; i < Cores(); ++i) { // Check all sizes are correct
+            // }
+        }
+    }
     /* We might need to resize the cache buffer */
-    enqueueAndWait(mdlMessageCacheOpen());
+    enqueueAndWait(mdlMessageCacheOpen(cid,first,offset));
 
     return (c);
 }
@@ -159,7 +175,7 @@ CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,std::shared_p
     ThreadBarrier(true);
 
     /* We might need to resize the cache buffer */
-    enqueueAndWait(mdlMessageCacheOpen());
+    enqueueAndWait(mdlMessageCacheOpen(cid));
 
     return c;
 }
@@ -232,6 +248,12 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
         cache_stats.cache_request.reset();
         cache_stats.cache_reply.reset();
 #endif
+    }
+    if (mpi_RDMA && message->size && cache_win[message->cid] == MPI_WIN_NULL) {
+        cache_win_size[message->cid] = message->size;
+        MPI_Win_create(message->base, message->size * Cores(), 1, MPI_INFO_NULL,
+                       commMDL, &cache_win[message->cid]);
+        MPI_Win_lock_all(MPI_MODE_NOCHECK, cache_win[message->cid]);
     }
     ++nOpenCaches;
     message->sendBack();
@@ -356,7 +378,7 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, bool bLock,bool bModif
     if (uCore < Cores() && !c->modify() ) {
         mdlClass *omdl = pmdl[uCore];
         auto c = omdl->cache[cid].get();
-        return c->getElement(uIndex); // Careful; we don't allow updates here (see ReadLock)
+        return c->get_element(uIndex); // Careful; we don't allow updates here (see ReadLock)
     }
     // Retreive the element from the ARC cache. If it is not present then the ARC class will
     // call invokeRequest to initiate the fetch, then finishRequest to copy the result into the cache
@@ -428,12 +450,25 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
         expedite_flush(iProc);
     }
     else {
-        CacheRequestRendezvous[iCoreFrom] = true; // The REQUEST and RESPONSE need to Rendezvous
         ++countCacheInflight[iProc];
 #ifdef DEBUG_COUNT_CACHE
         message->header.sequence = countCacheSend[iProc]++;
 #endif
-        MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
+        auto cid = message->header.cid;
+        if (cache_win[cid] != MPI_WIN_NULL) {
+            auto c = cache[cid].get();
+            int iCore = message->header.idTo - ProcToThread(iProc);
+            size_t cache_line_size = (size_t(1) << c->nLineBits) * c->cache_helper->data_size();
+            size_t disp = cache_line_size * message->header.iLine + iCore * cache_win_size[cid];
+            MPI_Rget(message->pLine, cache_line_size, MPI_BYTE,
+                     iProc, disp, cache_line_size, MPI_BYTE,
+                     cache_win[message->header.cid],
+                     newRequest(message));
+        }
+        else {
+            CacheRequestRendezvous[iCoreFrom] = true; // The REQUEST and RESPONSE need to Rendezvous
+            MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
+        }
     }
 }
 
@@ -443,6 +478,7 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
 // but this is NOT ALWAYS THE CASE. What we do is to rendezvous with the REPLY message. If this SEND completes
 // before the the REPLY message is received (actually before it is processed), then it will clear the
 // rendezvous flag. If the flag is clear here then we send back the request (with response data).
+// RDMA (MPI_Rget) messages never rendezvous (there is nothing to redezvous with) and are just sent back.
 void mpiClass::FinishCacheRequest(mdlMessageCacheRequest *message, MPI_Request request, MPI_Status status) {
     int iProc = message->getRankTo();
     assert(iProc!=Proc());
@@ -999,7 +1035,7 @@ void mdlClass::FinishCache(int cid) {
 
     TimeAddComputing();
     FlushCache(cid);
-    enqueueAndWait(mdlMessageCacheClose());
+    enqueueAndWait(mdlMessageCacheClose(cid));
     ThreadBarrier();
     c->close();
     TimeAddSynchronizing();
@@ -1008,6 +1044,12 @@ void mdlClass::FinishCache(int cid) {
 // Close the cache by cancelling the recieve (if there are no more open caches)
 void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
     assert(nOpenCaches > 0);
+
+    if (cache_win[message->cid] != MPI_WIN_NULL) {
+        MPI_Win_unlock_all(cache_win[message->cid]);
+        MPI_Win_free(&cache_win[message->cid]);
+    }
+
     --nOpenCaches;
     if (nOpenCaches == 0) {
         // Make sure that there are no cache message inflight at this point; that would potentially be bad.
@@ -1054,6 +1096,10 @@ void mdlClass::SetMpiRecvCount(int count, MPI_RECV_MODE mode) {
     if (Core()==0) mpi->SetMpiRecvCount(count, mode);
 }
 
+void mdlClass::SetMpiRDMA(bool rdma) {
+    if (Core()==0) mpi->SetMpiRDMA(rdma);
+}
+
 /*****************************************************************************\
 *
 * The following is the MPI thread only functions
@@ -1061,7 +1107,7 @@ void mdlClass::SetMpiRecvCount(int count, MPI_RECV_MODE mode) {
 \*****************************************************************************/
 
 mpiClass::mpiClass(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
-    : mdlClass(this,fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv), mpi_recv_mode(MPI_RECV_MODE::TOTAL), mpi_recv_count(1) {
+    : mdlClass(this,fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv), mpi_recv_mode(MPI_RECV_MODE::TOTAL), mpi_recv_count(1),mpi_RDMA(false) {
 }
 
 mpiClass::~mpiClass() {
@@ -1655,7 +1701,7 @@ int mpiClass::checkMPI() {
     int nMsgs = processMessages();
 #ifdef INSTRUMENT_MPI
     auto msg_ticks = getticks();
-    if (nOpenCaches && nMsgs) cache_stats.msg_test += elapsed(msg_ticks,gpu_ticks);
+    // if (nOpenCaches && nMsgs) cache_stats.msg_test += elapsed(msg_ticks,gpu_ticks);
 #endif
     finishRequests(); // Check for non-block MPI requests (send, receive, barrier, etc.)
 #ifdef INSTRUMENT_MPI
@@ -2160,6 +2206,8 @@ void mdlClass::init(bool bDiag) {
     cache.reserve(MDL_DEFAULT_CACHEIDS);
     while (cache.size() < MDL_DEFAULT_CACHEIDS)
         cache.emplace_back(std::make_unique<CACHE>(this,cache.size()));
+    cache_win.resize(MDL_DEFAULT_CACHEIDS,MPI_WIN_NULL);
+    cache_win_size.resize(MDL_DEFAULT_CACHEIDS,0);
     nFlushOutBytes = 0;
 
     for (int i=0; i<9; ++i) coreFlushBuffers.enqueue(new mdlMessageFlushFromCore);
@@ -2501,6 +2549,7 @@ size_t mdlClass::new_shared_array(void **p, int nSegments, size_t *nElements,con
         }
         ThreadBarrier();
     }
+    // auto localStorageSize = std::inner_product(nElements, nElements+nSegments, nBytesPerElement, size_t(0));
 
     if (Core()==0) {
         nTotalBytes = 0;

@@ -464,7 +464,7 @@ static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
         static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nBucket,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
         in->nTreeBitsLo,in->nTreeBitsHi,
         in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,
-        in->mpi_recv_mode,in->mpi_recv_count,in->fPeriod,
+        in->mpi_recv_mode,in->mpi_recv_count,in->mpi_RDMA,in->fPeriod,
         in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
         in->mMemoryModel,in->nIntegerFactor);
 }

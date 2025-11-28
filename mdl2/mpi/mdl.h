@@ -153,6 +153,7 @@ protected:
     virtual bool  modify() {return bModify; }
     virtual void *get_element(uint32_t i) {return nullptr;}
     virtual void *get_element(uint32_t uHash, void *pKey) {return nullptr;}
+    virtual bool   adjacent() { return false; }
 public:
     explicit CACHEhelper(uint32_t nDataSize, uint32_t nElements, bool bModify=false)
         : nElements(nElements), nDataSize(nDataSize), nPackSize(nDataSize), nFlushSize(nDataSize), nCacheSize(nDataSize), bModify(bModify) {}
@@ -177,6 +178,7 @@ public:
     virtual void *get_element(uint32_t i) override {
         return pArray + static_cast<size_t>(i) * data_size();
     }
+    virtual bool adjacent() override { return true; }
 };
 
 class hashCACHEhelper : public CACHEhelper {
@@ -238,10 +240,11 @@ class CACHE : private ARChelper {
     bool isActive() {return cache_helper.get() != nullptr; }
     bool modify() {assert(cache_helper); return cache_helper->modify();}
     uint32_t key_size() {return arc_cache->key_size();}
-    void *getElement(int i) {return cache_helper->get_element(i);}
-    void *WriteLock(int iIndex) {rwlock.lock_write(); return getElement(iIndex);}
+    auto *get_element(int i) {return cache_helper->get_element(i);}
+    auto adjacent() { return cache_helper->adjacent(); }
+    void *WriteLock(int iIndex) {rwlock.lock_write(); return get_element(iIndex);}
     void WriteUnlock(const void *p) {rwlock.unlock_write();}
-    void *ReadLock(int iIndex) {rwlock.lock_read(); return getElement(iIndex);}
+    void *ReadLock(int iIndex) {rwlock.lock_read(); return get_element(iIndex);}
     void ReadUnlock(const void *p) {rwlock.unlock_read();}
 public:
     explicit CACHE(mdlClass *mdl,uint16_t iCID);
@@ -337,6 +340,8 @@ protected:
 
     mdlMessageQueue queueCacheReply; // Replies to cache requests
     std::vector< std::unique_ptr<CACHE>>cache;
+    std::vector<MPI_Win> cache_win;
+    std::vector<size_t> cache_win_size;
     mdlMessageQueue wqCacheFlush;
 
     int nFlushOutBytes;
@@ -384,6 +389,7 @@ public:
     virtual ~mdlClass();
     void SetCacheMaxInflight(int iMax);
     void SetMpiRecvCount(int count, MPI_RECV_MODE mode=MPI_RECV_MODE::TOTAL);
+    void SetMpiRDMA(bool rdma);
 
     void SetCacheSize(int cacheSize) {
         this->cacheSize = cacheSize;
@@ -539,6 +545,7 @@ protected:
     int iReplyBufSize;  /* Cache reply buffer size */
     MPI_RECV_MODE mpi_recv_mode;    // TOTAL or PER_RANK
     int mpi_recv_count;             // Number of outstanding receives to post
+    bool mpi_RDMA;
 
     std::vector<MPI_Request>    SendReceiveRequests;
     std::vector<MPI_Status>     SendReceiveStatuses;
@@ -653,6 +660,9 @@ public:
         assert(count>=1 && (mode==MPI_RECV_MODE::TOTAL || mode==MPI_RECV_MODE::PER_RANK));
         this->mpi_recv_count = count;
         this->mpi_recv_mode  = mode;
+    }
+    void SetMpiRDMA(bool rdma) {
+        this->mpi_RDMA = rdma;
     }
     int Launch();
 #ifdef USE_CUDA

@@ -426,6 +426,7 @@ struct inInitializePStore {
     int iWorkQueueSize;
     mdl::MPI_RECV_MODE mpi_recv_mode;
     int mpi_recv_count;
+    bool mpi_RDMA;
 };
 struct outInitializePStore {
     int nSizeParticle;

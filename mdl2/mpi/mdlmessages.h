@@ -112,12 +112,21 @@ public:
 };
 
 class mdlMessageCacheOpen : public mdlMessage {
+    friend class mpiClass;
+    int cid;
+    std::byte *base;
+    size_t size;
 public:
+    mdlMessageCacheOpen(int cid,std::byte *base=nullptr,size_t size=0)
+        : cid(cid), base(base), size(size) {}
     virtual void action(class mpiClass *mdl);
 };
 
 class mdlMessageCacheClose : public mdlMessage {
+    friend class mpiClass;
+    int cid;
 public:
+    mdlMessageCacheClose(int cid) : cid(cid) {}
     virtual void action(class mpiClass *mdl);
 };
 
