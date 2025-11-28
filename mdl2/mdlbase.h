@@ -35,9 +35,9 @@ static inline ticks getticks(void) {
     return t;
 }
 
-static inline double elapsed(ticks t1, ticks t0) {
-    return ((double)t1.tv_sec - (double)t0.tv_sec) * 1.0E9 +
-           ((double)t1.tv_nsec - (double)t0.tv_nsec);
+static inline uint64_t elapsed(ticks t1, ticks t0) {
+    return (t1.tv_sec - t0.tv_sec) * uint64_t(1e9) +
+           (t1.tv_nsec - t0.tv_nsec);
 }
 #define HAVE_TICK_COUNTER
 #endif
