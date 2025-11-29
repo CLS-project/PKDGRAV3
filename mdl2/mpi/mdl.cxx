@@ -456,7 +456,7 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
 #endif
         auto cid = message->header.cid;
         if (cache_win[cid] != MPI_WIN_NULL) {
-            auto c = cache[cid].get();
+            auto c = pmdl[0]->cache[cid].get(); // Any thread will do
             int iCore = message->header.idTo - ProcToThread(iProc);
             size_t cache_line_size = (size_t(1) << c->nLineBits) * c->cache_helper->data_size();
             size_t disp = cache_line_size * message->header.iLine + iCore * cache_win_size[cid];
