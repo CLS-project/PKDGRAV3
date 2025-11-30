@@ -18,10 +18,11 @@
 
 class ServiceInitCosmology : public TraversePST {
 public:
+    static constexpr std::string_view name = "InitCosmology";
     typedef struct csmVariables input;
     typedef void output;
     explicit ServiceInitCosmology(PST pst)
-        : TraversePST(pst,PST_INITCOSMOLOGY,sizeof(input),"InitCosmology") {}
+        : TraversePST(pst,PST_INITCOSMOLOGY,name) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

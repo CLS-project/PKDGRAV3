@@ -48,6 +48,7 @@
 #cmakedefine BOUND_USES_MINMAX 1
 #cmakedefine NEW_REORDER 1
 #cmakedefine HAVE_ROCKSTAR 1
+#cmakedefine INSTRUMENT_MPI 1
 
 #cmakedefine USE_SIMD 1
 #ifdef USE_SIMD

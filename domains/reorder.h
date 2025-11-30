@@ -23,6 +23,7 @@ namespace NewDD {
 
 class ServiceReorder : public TraversePST {
 public:
+    static constexpr std::string_view name = "Reorder";
     using dd_offset_type = mdl::mdlClass::dd_offset_type;
     struct input {
         uint64_t nPerProc;
@@ -33,7 +34,7 @@ public:
     };
     typedef void output;
     explicit ServiceReorder(PST pst)
-        : TraversePST(pst,PST_REORDER,sizeof(input),"Reorder") {}
+        : TraversePST(pst,PST_REORDER,name,sizeof(input)) {}
 protected:
     virtual int OffNode(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int  AtNode(PST pst,void *vin,int nIn,void *vout,int nOut) override;

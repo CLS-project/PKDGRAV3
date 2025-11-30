@@ -15,15 +15,24 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
+#include "pkd_config.h"
 #include "output.h"
+#include "io/iochunk.h"
 #include "pst.h"
 #include <complex>
 #define COMPLEX std::complex<float>
+
+#include "fmt/format.h"
+using namespace fmt::literals;        // Gives us ""_a and ""_format literals
+
+void ServiceSaveGroupStats::Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) {
+    pst->plcl->pkd->GroupStatsSave(iGroup,filename,iSegment,nSegment);
+}
+
+void pkdContext::GroupStatsSave(int iGroup,const std::string &filename,int iSegment,int nSegment) {
+    auto nBytes = nLocalGroups * sizeof(TinyGroupTable);
+    io_chunk_write(filename.c_str(), tinyGroupTable+1, nBytes, iSegment>0);
+}
 
 /* Generic context: all things/stuff from iIndex (starts at zero) */
 struct packCtx {
@@ -55,7 +64,7 @@ static int packGridK(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packCtx *ctx = (struct packCtx *)vctx;
     PKD pkd = ctx->pkd;
     if (pkd->mdl->Core() == 0) {
-        auto fftData = reinterpret_cast<COMPLEX *>(pkd->pLite) + ctx->iGrid * pkd->fft->kgrid->nLocal;
+        auto fftData = pkd->Ephemeral<COMPLEX>() + ctx->iGrid * pkd->fft->kgrid->nLocal;
         size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
         size_t nLeft = nLocal - ctx->iIndex;
         size_t n = nSize / sizeof(*fftData);
@@ -71,8 +80,8 @@ static int packGridR(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packCtx *ctx = (struct packCtx *)vctx;
     PKD pkd = ctx->pkd;
     if (pkd->mdl->Core() == 0) {
-        auto fftData = reinterpret_cast<float *>(pkd->pLite) + ctx->iGrid * pkd->fft->rgrid->nLocal;
-        auto pOutput = reinterpret_cast<float *>(vBuff);
+        auto fftData = pkd->Ephemeral<float>() + ctx->iGrid * pkd->fft->rgrid->nLocal;
+        auto pOutput = static_cast<float *>(vBuff);
         size_t nLocal = 1ul * pkd->fft->rgrid->a1 * pkd->fft->rgrid->n2 * pkd->fft->rgrid->nSlab;
         size_t n = nSize / sizeof(*fftData);
         size_t iOutput = 0;
@@ -142,12 +151,9 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
                int iPartner,int nPartner, const char *fname, int iGrid ) {
     mdlPack unpack;
     asyncFileInfo info;
-    char achOutFile[256];
-    strcpy(achOutFile,fname);
-    int n = strlen(achOutFile);
-    snprintf(achOutFile+n,sizeof(achOutFile)-n,".%d",iProcessor);
+    auto achOutFile = fmt::format(fname,"i"_a=iProcessor);
     io_init(&info,4,1024*1024,IO_AIO|IO_LIBAIO);
-    if (io_create(&info,achOutFile) < 0) { perror(fname); abort(); }
+    if (io_create(&info,achOutFile.c_str()) < 0) { perror(fname); abort(); }
 
     switch (eOutputType) {
     case OUT_TINY_GROUP:

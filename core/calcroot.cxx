@@ -33,8 +33,8 @@ static void pkdCalcRoot(PKD pkd,uint32_t uRoot,blitz::TinyVector<double,3> com,M
 }
 
 // Ensure the communication structures are "standard" so that they can be moved around with "memcpy" (required by MDL)
-static_assert(std::is_void<ServiceCalcRoot::input>()  || std::is_standard_layout<ServiceCalcRoot::input>());
-static_assert(std::is_void<ServiceCalcRoot::output>() || std::is_standard_layout<ServiceCalcRoot::output>());
+static_assert(std::is_void_v<ServiceCalcRoot::input>  || std::is_standard_layout_v<ServiceCalcRoot::input>);
+static_assert(std::is_void_v<ServiceCalcRoot::output> || std::is_standard_layout_v<ServiceCalcRoot::output>);
 
 int ServiceCalcRoot::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);

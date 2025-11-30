@@ -195,10 +195,10 @@ class List : public boost::intrusive::list<Tile<B,N>,boost::intrusive::constant_
 public:
     typedef Tile<B,N> tile_type;
     typedef typename tile_type::block_type block_type;
-protected:
     typedef boost::intrusive::list<Tile<B,N>,boost::intrusive::constant_time_size<true>> list_type;
-    list_type freeListDefault;
-    list_type *freeList;
+protected:
+    list_type freeListDefault;  // In case we have a private "free list"
+    list_type *freeList;        // This can be the private free list, or a global shared free list
     struct delete_disposer {
         void operator()(tile_type *delete_this) {  delete delete_this;  }
     };
@@ -215,14 +215,6 @@ protected:
             return tile.nRefs==0;
         }
     };
-    struct releaseone {
-        list_type &free, &busy;
-        explicit releaseone(list_type &free,list_type &busy) : free(free), busy(busy) {}
-        void operator() (Tile<B,N> *tile) {
-            if (--tile->nRefs) busy.push_back(*tile);
-            else free.push_back(*tile);
-        }
-    };
     void newTile() {
         if (freeList->size()) {                  // Pull a tile from the free list if we have any
             auto &t = freeList->front();
@@ -233,23 +225,90 @@ protected:
         else this->push_back(* new tile_type);
         this->back().nRefs = 1;
     }
-    void setFreeList(list_type &newFreeList) { freeList = &newFreeList; }
 public:
     static constexpr int max_blocks = N;
     static constexpr int max_interactions = N * B::width;
-    std::size_t memory() { return (freeList->size() + this->size()) * sizeof(tile_type); }
+    std::size_t memory() { return (freeListDefault.size() + this->size()) * sizeof(tile_type); }
     std::size_t count() { return this->size() ? this->back().count() + (this->size()-1) * max_interactions : 0; }
     void clear() {
         this->clear_and_dispose(move_disposer(*freeList));
-        //this->clear_and_dispose(releaseone(freeList,busyList));
+    }
+    void shrink_to_fit() {
+        freeListDefault.clear_and_dispose(delete_disposer());
     }
     List() : freeList(&freeListDefault) {}
+    List(list_type &freeList) : freeList(&freeList) {}
     ~List() {
-        this->clear_and_dispose(delete_disposer());
-        freeList->clear_and_dispose(delete_disposer());
+        clear();
+        shrink_to_fit(); // Delete our own free list. There will be no elements if using a shared list.
     }
+
+    // Copy constructor
+    List(const List & other) {
+        if (other.freeList == &other.freeListDefault)
+            freeList = &freeListDefault;
+        else freeList = other.freeList; // keep shared/external association
+        clone(other);
+    }
+
+    // Copy assignment
+    List& operator=(const List & other) {
+        if (this != &other) {
+            clear();
+            clone(other);
+        }
+        return *this;
+    }
+
+    // Move constructor. We need to:
+    // - move elements in the active list
+    // - move elements in our local free list (if any)
+    // - update the free list pointer
+    List(List&& other) noexcept(
+        std::is_nothrow_move_constructible_v<list_type>)
+        : list_type(std::move(static_cast<list_type &>(other))),
+          freeListDefault(std::move(other.freeListDefault)),
+          freeList(nullptr) {
+        if (other.freeList == &other.freeListDefault)
+            freeList = &freeListDefault;
+        else freeList = other.freeList; // keep shared/external association
+        // We leave the other freeList unchanged so it will continue to use the shared or its own free list.
+        // Typically the destructor will be called and the local free list is cleaned up, and the shared ignored.
+    }
+
+    // Move assignment. Safest here is to perform a swap of the active list, and the default free list.
+    List& operator=(List&& other) noexcept(
+        std::is_nothrow_move_assignable_v<list_type>) {
+        if (this != &other) this->swap(other);
+        return *this;
+    }
+
+    void swap(List& other) noexcept(
+        noexcept(std::declval<list_type &>().swap(std::declval<list_type &>())) ) {
+        using std::swap;
+
+        // swap the base part
+        list_type& self_base  = *this;
+        list_type& other_base = other;
+        self_base.swap(other_base);
+
+        // swap the member free list
+        swap(freeListDefault, other.freeListDefault);
+
+        // Now set the free list, preserving shared/external association
+        list_type* new_freeList_self  = (other.freeList == &other.freeListDefault)  ? &freeListDefault : other.freeList;
+        list_type* new_freeList_other = (freeList       == &freeListDefault)        ? &other.freeListDefault : freeList;
+        freeList = new_freeList_self;
+        other.freeList = new_freeList_other;
+    }
+
+    // ADL-enabled non-member swap
+    friend void swap(List& a, List& b) noexcept(noexcept(a.swap(b))) {
+        a.swap(b);
+    }
+
     auto &clone(const list_type &rhs) {
-        this->clear_and_dispose(move_disposer(*freeList));
+        clear();
         for (auto const &tile : rhs) {
             newTile();
             memcpy(this->back().data(),tile.data(),sizeof(block_type) * tile_type::num_blocks);
@@ -262,14 +321,6 @@ public:
         return this->back().create();
     }
 
-};
-struct saveone {
-    int i;
-    explicit saveone(int i) : i(i) {}
-    template <typename ZipView>
-    void operator() (const ZipView &t) const {
-        boost::fusion::at_c<0>(t).s[i] = boost::fusion::at_c<1>(t);
-    }
 };
 
 template<typename RESULT,typename BLOCK> struct EvalBlock;
@@ -312,6 +363,8 @@ template<int N,int M> using Tile##NAME = ilist::Tile<Block##NAME<N>,M>;         
 template<int N,int M>                                                                                       \
 class List##NAME : public ilist::List<Block##NAME<N>,M> {                                                   \
 public:                                                                                                     \
+    List##NAME() = default;                                                                                \
+    List##NAME(typename ilist::List<Block##NAME<N>,M>::list_type &freeList) : ilist::List<Block##NAME<N>,M>(freeList) {} \
     void append(ILIST_FIELD_PROTOS(FIELDS_SEQ)) {                                                           \
         Block##NAME<N> *b; int i;                                                                           \
         std::tie(b,i) = this->create();                                                                     \

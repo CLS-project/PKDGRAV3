@@ -23,23 +23,26 @@
 #include <vector>
 #include "blitz/array.h"
 
-typedef struct {
+struct basicParticle {
     blitz::TinyVector<float,3> dr;
     blitz::TinyVector<float,3> v;
-} basicParticle;
+    basicParticle() = default;
+};
 
-typedef struct {
+struct expandParticle {
     uint64_t ix : 21;
     uint64_t iy : 21;
     uint64_t iz : 21;
     blitz::TinyVector<float,3> dr;
     blitz::TinyVector<float,3> v;
-} expandParticle;
+    expandParticle() = default;
+};
 
-typedef struct {
+struct integerParticle {
     blitz::TinyVector<int32_t,3> r;
     blitz::TinyVector<float,3> v;
-} integerParticle;
+    integerParticle() = default;
+};
 
 typedef union {
     basicParticle b;

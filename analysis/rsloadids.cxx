@@ -32,7 +32,7 @@ void pkdContext::RsIdStart(uint64_t nElements,bool bAppend)  {
 }
 void pkdContext::RsIdFinish(uint64_t nElements) { }
 void pkdContext::RsIdRead(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
-    auto ids = static_cast<uint64_t *>(pLite);
+    auto ids = Ephemeral<uint64_t>();
     auto nRead = iEnd - iBeg;
     auto nBytes = nRead * sizeof(uint64_t);
     auto iOffset = iBeg * sizeof(uint64_t);

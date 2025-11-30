@@ -32,7 +32,7 @@ protected:
     MessagePC *pc;
 protected:
     template<class MESSAGE>
-    void flush(MESSAGE *&M) {
+    void flush(MESSAGE * &M) {
         if (M) {
             M->prepare();
             mdl.enqueue(*M);
@@ -40,7 +40,7 @@ protected:
         }
     }
     template<class MESSAGE,class QUEUE,class TILE>
-    int queue(MESSAGE *&M,QUEUE &Q, workParticle *work, TILE &tile, bool bGravStep) {
+    int queue(MESSAGE * &M,QUEUE &Q, workParticle *work, TILE &tile, bool bGravStep) {
         if (M) { // If we are in the middle of building data for a kernel
             if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
             flush(M); // The buffer is full, so send it
@@ -53,6 +53,7 @@ protected:
     }
 public:
     explicit MetalClient(mdl::mdlClass &mdl);
+    virtual ~MetalClient();
     void flushMETAL();
     int queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
         return queue(pp,freePP,work,tile,bGravStep);

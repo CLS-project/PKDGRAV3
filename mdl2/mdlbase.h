@@ -64,6 +64,8 @@ typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 #include "mdlbt.h"
 #include <vector>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <memory>
 #include <initializer_list>
 #define MAX_NODE_NAME_LENGTH      256
@@ -138,15 +140,14 @@ private:
     int nOutBytes;
     int service_id;
     std::string service_name;
+protected:
+    void setServiceId(int id) { service_id = id; }
 public:
-    explicit BasicService(int service_id, int nInBytes, int nOutBytes, const char *service_name="")
+    explicit BasicService(int service_id, std::string_view service_name, int nInBytes, int nOutBytes=0)
         : nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
-    explicit BasicService(int service_id, int nInBytes, const char *service_name="")
-        : nInBytes(nInBytes), nOutBytes(0), service_id(service_id),service_name(service_name) {}
-    explicit BasicService(int service_id, const char *service_name="")
-        : nInBytes(0), nOutBytes(0), service_id(service_id),service_name(service_name) {}
     virtual ~BasicService() = default;
     int getServiceID()  {return service_id;}
+    std::string_view getServiceName() const {return service_name;}
     int getMaxBytesIn() {return nInBytes;}
     int getMaxBytesOut() {return nOutBytes;}
 protected:
@@ -178,6 +179,7 @@ public:
     int nMaxInBytes;
     int nMaxOutBytes;
     std::vector< std::unique_ptr<BasicService>> services;
+    std::unordered_map<std::string_view,int> service_map;
 
     /* Maps a give process (Proc) to the first global thread ID */
     std::vector<int> iProcToThread; /* [0,nProcs] (note inclusive extra element) */
@@ -226,14 +228,51 @@ public:
     char **GetArgv() const { return argv; }
 
     void yield();
-    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name="");
-    void AddService(std::unique_ptr<BasicService> &&service);
+    int AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, std::string_view service_name);
+    int AddService(std::unique_ptr<BasicService> service);
+    template <class T, class... Args>
+    int AddService(Args&&... args) {
+        static_assert(std::is_base_of_v<BasicService, T>,"T must derive from BasicService");
+        return AddService(std::make_unique<T>(std::forward<Args>(args)...));
+    }
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
     int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
     int  RunService(int sid, int nIn, void *pIn, ServiceBufferOut &out) { return RunService(sid,nIn,pIn,out.data());}
     int  RunService(int sid, ServiceBuffer &b, ServiceBufferOut &out) { return RunService(sid,b.size(),b.data(),out.data());}
     int  RunService(int sid, ServiceBufferOut &out) { return RunService(sid,0,nullptr,out.data());}
     int  RunService(int sid, void *pOut=nullptr) { return RunService(sid,0,nullptr,pOut); }
+public:
+    int  RunService(std::string_view service_name, int nIn, void *pIn, void *pOut=nullptr);
+    int  RunService(std::string_view service_name, ServiceBuffer &b, void *pOut=nullptr) { return RunService(service_name,b.size(),b.data(),pOut);}
+    int  RunService(std::string_view service_name, int nIn, void *pIn, ServiceBufferOut &out) { return RunService(service_name,nIn,pIn,out.data());}
+    int  RunService(std::string_view service_name, ServiceBuffer &b, ServiceBufferOut &out) { return RunService(service_name,b.size(),b.data(),out.data());}
+    int  RunService(std::string_view service_name, ServiceBufferOut &out) { return RunService(service_name,0,nullptr,out.data());}
+    int  RunService(std::string_view service_name, void *pOut=nullptr) { return RunService(service_name,0,nullptr,pOut); }
+public:
+    template<typename T>
+    int  RunService(int nIn, void *pIn, void *pOut=nullptr) {
+        return RunService(T::name, nIn, pIn, pOut);
+    }
+    template<typename T>
+    int  RunService(ServiceBuffer &b, void *pOut=nullptr) {
+        return RunService<T>(b.size(), b.data(), pOut);
+    }
+    template<typename T>
+    int  RunService(int nIn, void *pIn, ServiceBufferOut &out) {
+        return RunService<T>(nIn, pIn, out.data());
+    }
+    template<typename T>
+    int  RunService(ServiceBuffer &b, ServiceBufferOut &out) {
+        return RunService<T>(b.size(), b.data(), out.data());
+    }
+    template<typename T>
+    int  RunService(ServiceBufferOut &out) {
+        return RunService<T>(0, nullptr, out.data());
+    }
+    template<typename T>
+    int  RunService(void *pOut=nullptr) {
+        return RunService<T>(0, nullptr, pOut);
+    }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
 };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);

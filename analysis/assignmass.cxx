@@ -105,7 +105,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
 
     mdlGridCoord first, last;
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-    auto fftData = reinterpret_cast<FFTW3(real) *>(pkd->pLite);
+    auto fftData = pkd->Ephemeral<FFTW3(real)>();
     fftData = pkd->mdl->SetArray<FFTW3(real)>(fftData + iGrid*fft->rgrid->nLocal,last.i);
     for ( int i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
     pkd->mdl->CacheInitialize(CID_PK,std::make_shared<HelperPk>(fftData,last.i));
@@ -205,7 +205,7 @@ void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
     assert(iGrid == 0);
 
     complex_array_t K1;
-    auto data1 = pkd->mdl->SetArray<real_t>(pkd->pLite) + fft->rgrid->nLocal * iGrid;
+    auto data1 = pkd->mdl->SetArray(pkd->Ephemeral<real_t>()) + fft->rgrid->nLocal * iGrid;
     G.setupArray(data1,K1);
 
     for ( auto index=K1.begin(); index!=K1.end(); ++index ) {

@@ -183,8 +183,8 @@ TEST_F(SwapLocalTest, SwapLocalBasic) {
 void *worker_init(MDL vmdl) {
     auto mdl = static_cast<mdl::mdlClass *>(vmdl);
     auto ctx = new worker::Context(mdl);
-    mdl->AddService(worker::SET_ADD,ctx,(fcnService_t *)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd),0);
-    mdl->AddService(test::swaplocal::SERVICE,ctx,(fcnService_t *)test::swaplocal::test, 0,sizeof(std::uint64_t));
+    mdl->AddService(worker::SET_ADD,ctx,(fcnService_t *)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd),0,"SetAdd");
+    mdl->AddService(test::swaplocal::SERVICE,ctx,(fcnService_t *)test::swaplocal::test, 0,sizeof(std::uint64_t),"SwapLocal");
     return ctx;
 }
 

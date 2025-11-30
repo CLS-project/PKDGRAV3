@@ -38,8 +38,9 @@ class mdlMessageCacheReceive : public mdlMessageMPI, public FlushBuffer, public 
 protected:
     friend class mdlClass;
     friend class mpiClass;
+    int source;
 public:
-    mdlMessageCacheReceive(uint32_t nSize) : FlushBuffer(nSize,CacheMessageType::UNKNOWN) {}
+    mdlMessageCacheReceive(uint32_t nSize,int source=MPI_ANY_SOURCE) : FlushBuffer(nSize,CacheMessageType::UNKNOWN), source(source) {}
     virtual void action(class mpiClass *mpi) override;
     virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) override;
 };

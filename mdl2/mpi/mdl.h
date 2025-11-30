@@ -21,6 +21,7 @@
 #include <boost/container/small_vector.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/barrier.hpp>
+#include <boost/qvm/vec.hpp>
 #include "mdlstubs.h"
 #include "mdlbase.h"
 #include <stdio.h>
@@ -31,6 +32,33 @@
 #include <stdint.h>
 #include "mpi.h"
 #include "mdlfft.h"
+
+
+
+#ifdef INSTRUMENT_MPI
+#include "WelfordStats.h"
+using StatsAccum = WelfordStats<uint64_t>;
+#else
+struct StatsAccum {
+    template <typename T>
+    StatsAccum &operator+=(T) { return *this; }
+};
+#endif
+class Instrument {
+public:
+    Instrument(StatsAccum &accumulator)
+        : acc_(accumulator), start_(getticks()) {}
+
+    ~Instrument() {
+        auto end = getticks();
+        acc_ += elapsed(end, start_);
+    }
+    void reset() {}
+
+private:
+    StatsAccum &acc_;
+    ticks start_;
+};
 #include "arc.h"
 #include "mpimessages.h"
 #include "gpu/mdlgpu.h"
@@ -41,9 +69,11 @@
     #include "metal/mdlmetal.h"
 #endif
 #include "rwlock.h"
+#include <chrono>
 #include <memory>
 #include <tuple>
 #include <vector>
+#include <array>
 #include <list>
 #include <map>
 #include <optional>
@@ -83,6 +113,12 @@ static const auto mdl_check_mask = 0x7f;
 //     } CacheHeadernew;
 
 #define MDL_CACHE_DATA_SIZE (4096)
+
+enum class MPI_RECV_MODE {
+    TOTAL = 0,
+    PER_RANK = 1
+};
+
 
 //*****************************************************************************
 
@@ -258,6 +294,12 @@ public:
         else nMessageData = nmemb * sizeof(T);
         return static_cast<T *>(exchangeArray(vdata));
     }
+    template<typename T>
+    auto SetArray(T *vdata,size_t nmemb=0) {
+        if constexpr (std::is_void_v<T>) nMessageData = 0;
+        else nMessageData = nmemb * sizeof(T);
+        return static_cast<T *>(exchangeArray(vdata));
+    }
 
     class mpiClass *mpi;
 protected:
@@ -342,6 +384,7 @@ public:
                       int argc=0, char **argv=0);
     virtual ~mdlClass();
     void SetCacheMaxInflight(int iMax);
+    void SetMpiRecvCount(int count, MPI_RECV_MODE mode=MPI_RECV_MODE::TOTAL);
 
     void SetCacheSize(int cacheSize) {
         this->cacheSize = cacheSize;
@@ -442,8 +485,8 @@ public:
 
     int swaplocal( void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
     int swapglobal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
-    uint64_t new_shared_array(void **p, int nSegments,  uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore=0);
-    void delete_shared_array(void *p,uint64_t nBytes);
+    size_t new_shared_array(void **p, int nSegments,  size_t *nElements,const size_t *nBytesPerElement,size_t nMinTotalStore=0);
+    void delete_shared_array(void *p,size_t nBytes);
 
     double NumAccess(int cid) {
         return cache[cid]->nAccess;
@@ -495,6 +538,9 @@ protected:
     int iCacheMaxInflight = 0;
     int iCacheBufSize;  /* Cache input buffer size */
     int iReplyBufSize;  /* Cache reply buffer size */
+    MPI_RECV_MODE mpi_recv_mode;    // TOTAL or PER_RANK
+    int mpi_recv_count;             // Number of outstanding receives to post
+
     std::vector<MPI_Request>    SendReceiveRequests;
     std::vector<MPI_Status>     SendReceiveStatuses;
     std::vector<int>            SendReceiveAvailable;
@@ -514,7 +560,7 @@ protected:
 #endif
     MPI_Request *newRequest(mdlMessageMPI *message,MPI_Request request=MPI_REQUEST_NULL);
 
-    std::unique_ptr<mdlMessageCacheReceive> msgCacheReceive;
+    std::vector<std::unique_ptr<mdlMessageCacheReceive>> msgCacheReceive;
     std::vector<uint32_t> countCacheInflight;
 #ifdef DEBUG_COUNT_CACHE
     std::vector<uint64_t> countCacheSend, countCacheRecv;
@@ -597,13 +643,18 @@ protected:
     void flush_element(CacheHeader *pHdr,int iLineSize);
     void queue_local_flush(CacheHeader *ph);
     virtual int checkMPI();
-    void processMessages();
+    int processMessages();
     void finishRequests();
 public:
     explicit mpiClass(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
                       int argc=0, char **argv=0);
     virtual ~mpiClass();
     void SetCacheMaxInflight(int iMax) {iCacheMaxInflight = iMax;}
+    void SetMpiRecvCount(int count, MPI_RECV_MODE mode=MPI_RECV_MODE::TOTAL) {
+        assert(count>=1 && (mode==MPI_RECV_MODE::TOTAL || mode==MPI_RECV_MODE::PER_RANK));
+        this->mpi_recv_count = count;
+        this->mpi_recv_mode  = mode;
+    }
     int Launch();
 #ifdef USE_CUDA
     bool CudaActive() {return cuda.isActive(); }
@@ -621,6 +672,35 @@ public:
     void enqueue(mdlMessage &M);
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
     void ThreadBarrierWait();
+public:
+    // The following are only used in MPI instrumentation is enabled (INSTRUMENT_MPI)
+    struct {
+        ticks ticks_cache_open;         // Tick counter when the first cache was opened
+        ticks ticks_cache_close;        // Tick counter when the last cache was closed
+        std::chrono::time_point<std::chrono::high_resolution_clock> time_cache_open;  // Time point when the first cache was opened
+        std::chrono::time_point<std::chrono::high_resolution_clock> time_cache_close; // Time point when the last cache was closed
+        StatsAccum mpi_loop;  // Statistics on the time spent in an MPI loop iteration
+        StatsAccum mpi_test;  // Statistics on the time spent in an MPI test iteration
+        StatsAccum gpu_test;  // Statistics on the time spent in a GPU test iteration
+        StatsAccum msg_test;  // Statistics on the time spent in a message test iteration
+        StatsAccum cache_request; // Statistics on the time spent processing a cache request
+        StatsAccum cache_reply;   // Statistics on the time spent between the send and recv
+    } cache_stats;
+#ifdef INSTRUMENT_MPI
+public:
+    std::tuple<WelfordStats<double>, WelfordStats<double>, WelfordStats<double>, WelfordStats<double>>
+    get_cache_stats() {
+        auto total_ticks = elapsed(getticks(), cache_stats.ticks_cache_open);
+        auto total_seconds = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - cache_stats.time_cache_open).count();
+        auto seconds_per_tick = total_seconds / total_ticks;
+        return {
+            cache_stats.mpi_loop * seconds_per_tick,
+            cache_stats.mpi_test * seconds_per_tick,
+            cache_stats.gpu_test * seconds_per_tick,
+            cache_stats.msg_test *seconds_per_tick
+        };
+    }
+#endif
 };
 int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc=0,char **argv=nullptr);
 } // namespace mdl

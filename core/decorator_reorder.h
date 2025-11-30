@@ -21,7 +21,7 @@ public:
     typedef void input;
     typedef void output;
     explicit ServiceReorderDecorator(PST pst)
-        : TraversePST(pst,PST_REORDERDECORATOR,0,0,"ReorderDecorator") {}
+        : TraversePST(pst,PST_REORDERDECORATOR,"ReorderDecorator",0,0) {}
 protected:
     int Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
         auto pkd = pst->plcl->pkd;

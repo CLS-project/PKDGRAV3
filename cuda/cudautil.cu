@@ -65,6 +65,15 @@ CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gp
     }
 }
 
+CudaClient::~CudaClient() {
+    while (!freeEwald.empty())    delete &freeEwald.dequeue();
+    while (!freePP.empty())       delete &freePP.dequeue();
+    while (!freePC.empty())       delete &freePC.dequeue();
+    while (!freeDen.empty())      delete &freeDen.dequeue();
+    while (!freeDenCorr.empty())  delete &freeDenCorr.dequeue();
+    while (!freeSPHForce.empty()) delete &freeSPHForce.dequeue();
+}
+
 void CudaClient::flushCUDA() {
     if (ewald) { cuda.enqueue(*ewald,gpu);        ewald = nullptr; }
     flush(pp);

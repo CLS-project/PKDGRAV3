@@ -14,6 +14,11 @@ from cosmology cimport Cosmology
 from ephemeral cimport EphemeralMemory
 import ephemeral
 
+cdef extern from "mdl.h" namespace "mdl" nogil:
+    cpdef enum class MPI_RECV_MODE:
+        TOTAL
+        PER_RANK
+
 cdef extern from "blitz/array.h" namespace "blitz" nogil:
     cdef cppclass BLITZ1 "1":
         pass
@@ -126,6 +131,8 @@ cdef extern from "master.h":
         # MSR() except +
         void testv(vector[PARTCLASS] &v)
         #tuple[double,double,int64_t,int64_t,int64_t,int64_t]
+        int64_t parallel_count(bool bParallel,int64_t nParallel)
+        int64_t parallel_count(bool bParallel)
         void *ReadCheckpoint(const char *filename, object kwargs,
                  object species, object classes, object step, object steps,
                  object time, object delta, object E, object U, object Utime)
@@ -166,6 +173,7 @@ cdef extern from "master.h":
         void OutputGrid(const char *filename, bool k, int iGrid, bool nParaWrite)
         void NewFof(double dTau,int nMinMembers)
         void GroupStats()
+        void WriteGroupStats(string fname, int nParallel)
         void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth)
         int ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric)
         void OutASCII(const char *pszFile,int iType,int nDims,int iFileType)

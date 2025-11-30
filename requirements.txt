@@ -4,5 +4,5 @@ numpy >= 1.7
 unittest-xml-reporting
 ddt
 nose
-dill
+dill >= 0.3.6
 cmake >= 3.24

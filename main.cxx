@@ -42,10 +42,13 @@
 #include "core/removedeleted.h"
 #include "core/ignoresigbus.h"
 #include "core/decorator_reorder.h"
-
+#ifdef INSTRUMENT_MPI
+    #include "core/cachestats.h"
+#endif
 #include "io/service.h"
 #include "io/restore.h"
 
+#include "analysis/analysis.h"
 #ifdef HAVE_ROCKSTAR
     #include "analysis/rshalocount.h"
     #include "analysis/rshaloloadids.h"
@@ -56,6 +59,8 @@
 #include "analysis/rsextract.h"
 
 #include "initlightcone.h"
+
+#include "io/output.h"
 
 #include "domains/calcbound.h"
 #include "domains/combinebound.h"
@@ -100,65 +105,69 @@ void *worker_init(MDL vmdl) {
     plcl->pkd = NULL;
     pstInitialize(&pst,mdl,plcl);
     pstAddServices(pst,mdl);
-    mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
-    mdl->AddService(std::make_unique<ServiceSwapAll>(pst));
-    mdl->AddService(std::make_unique<ServiceHostname>(pst));
-    mdl->AddService(std::make_unique<ServiceInitCosmology>(pst));
-    mdl->AddService(std::make_unique<ServiceInitLightcone>(pst));
-    mdl->AddService(std::make_unique<ServiceCalcRoot>(pst));
-    mdl->AddService(std::make_unique<ServiceCountSelected>(pst));
-    mdl->AddService(std::make_unique<ServiceSelBlackholes>(pst));
-    mdl->AddService(std::make_unique<ServiceSelSpecies>(pst));
-    mdl->AddService(std::make_unique<ServiceSelActives>(pst));
-    mdl->AddService(std::make_unique<ServiceSelGroup>(pst));
-    mdl->AddService(std::make_unique<ServiceSelMass>(pst));
-    mdl->AddService(std::make_unique<ServiceSelPhaseDensity>(pst));
-    mdl->AddService(std::make_unique<ServiceSelById>(pst));
-    mdl->AddService(std::make_unique<ServiceSelBox>(pst));
-    mdl->AddService(std::make_unique<ServiceSelSphere>(pst));
-    mdl->AddService(std::make_unique<ServiceSelCylinder>(pst));
-    mdl->AddService(std::make_unique<ServiceFftSizes>(pst));
-    mdl->AddService(std::make_unique<ServiceIgnoreSIGBUS>(pst));
-    mdl->AddService(std::make_unique<ServiceCountSpecies>(pst));
-    mdl->AddService(std::make_unique<ServiceRemoveDeleted>(pst));
-    mdl->AddService(std::make_unique<ServiceFileSizes>(pst));
-    mdl->AddService(std::make_unique<ServiceRestore>(pst));
-    mdl->AddService(std::make_unique<ServiceRestoreDecorator>(pst));
-    mdl->AddService(std::make_unique<ServiceCalcBound>(pst));
-    mdl->AddService(std::make_unique<ServiceCombineBound>(pst));
-    mdl->AddService(std::make_unique<ServiceDistribTopTree>(pst));
-    mdl->AddService(std::make_unique<ServiceDistribRoot>(pst));
-    mdl->AddService(std::make_unique<ServiceDumpTrees>(pst));
-    mdl->AddService(std::make_unique<ServiceEnforcePeriodic>(pst));
-    mdl->AddService(std::make_unique<ServiceFreeStore>(pst));
-    mdl->AddService(std::make_unique<ServiceSetSoft>(pst));
-    mdl->AddService(std::make_unique<ServiceActiveRung>(pst));
-    mdl->AddService(std::make_unique<ServiceCountRungs>(pst));
-    mdl->AddService(std::make_unique<ServiceUpdateRung>(pst));
-    mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
-    mdl->AddService(std::make_unique<ServiceGetOrdSplits>(pst));
+    mdl->AddService<ServiceSetAdd>(pst);
+    mdl->AddService<ServiceSwapAll>(pst);
+    mdl->AddService<ServiceHostname>(pst);
+    mdl->AddService<ServiceInitCosmology>(pst);
+    mdl->AddService<ServiceInitLightcone>(pst);
+    mdl->AddService<ServiceCalcRoot>(pst);
+    mdl->AddService<ServiceCountSelected>(pst);
+    mdl->AddService<ServiceSelBlackholes>(pst);
+    mdl->AddService<ServiceSelSpecies>(pst);
+    mdl->AddService<ServiceSelActives>(pst);
+    mdl->AddService<ServiceSelGroup>(pst);
+    mdl->AddService<ServiceSelMass>(pst);
+    mdl->AddService<ServiceSelPhaseDensity>(pst);
+    mdl->AddService<ServiceSelById>(pst);
+    mdl->AddService<ServiceSelBox>(pst);
+    mdl->AddService<ServiceSelSphere>(pst);
+    mdl->AddService<ServiceSelCylinder>(pst);
+    mdl->AddService<ServiceFftSizes>(pst);
+    mdl->AddService<ServiceIgnoreSIGBUS>(pst);
+    mdl->AddService<ServiceCountSpecies>(pst);
+    mdl->AddService<ServiceRemoveDeleted>(pst);
+    mdl->AddService<ServiceFileSizes>(pst);
+    mdl->AddService<ServiceRestore>(pst);
+    mdl->AddService<ServiceRestoreDecorator>(pst);
+    mdl->AddService<ServiceCalcBound>(pst);
+    mdl->AddService<ServiceCombineBound>(pst);
+    mdl->AddService<ServiceDistribTopTree>(pst);
+    mdl->AddService<ServiceDistribRoot>(pst);
+    mdl->AddService<ServiceDumpTrees>(pst);
+    mdl->AddService<ServiceEnforcePeriodic>(pst);
+    mdl->AddService<ServiceFreeStore>(pst);
+    mdl->AddService<ServiceSetSoft>(pst);
+    mdl->AddService<ServiceActiveRung>(pst);
+    mdl->AddService<ServiceCountRungs>(pst);
+    mdl->AddService<ServiceUpdateRung>(pst);
+    mdl->AddService<ServiceZeroNewRung>(pst);
+    mdl->AddService<ServiceGetOrdSplits>(pst);
+    mdl->AddService<ServiceCountDistance>(pst);
 #ifdef HAVE_ROCKSTAR
-    mdl->AddService(std::make_unique<ServiceRsHaloCount>(pst));
-    mdl->AddService(std::make_unique<ServiceRsHaloLoadIds>(pst));
+    mdl->AddService<ServiceRsHaloCount>(pst);
+    mdl->AddService<ServiceRsHaloLoadIds>(pst);
 #endif
-    mdl->AddService(std::make_unique<ServiceRsLoadIds>(pst));
-    mdl->AddService(std::make_unique<ServiceRsSaveIds>(pst));
-    mdl->AddService(std::make_unique<ServiceRsReorderIds>(pst));
-    mdl->AddService(std::make_unique<ServiceRsExtract>(pst));
-    mdl->AddService(std::make_unique<ServiceReorderDecorator>(pst));
-    mdl->AddService(std::make_unique<OldDD::ServiceDomainDecomp>(pst));
+    mdl->AddService<ServiceRsLoadIds>(pst);
+    mdl->AddService<ServiceRsSaveIds>(pst);
+    mdl->AddService<ServiceRsReorderIds>(pst);
+    mdl->AddService<ServiceRsExtract>(pst);
+    mdl->AddService<ServiceReorderDecorator>(pst);
+    mdl->AddService<OldDD::ServiceDomainDecomp>(pst);
 #ifdef NEW_REORDER
-    mdl->AddService(std::make_unique<NewDD::ServiceReorder>(pst));
+    mdl->AddService<NewDD::ServiceReorder>(pst);
 #else
-    mdl->AddService(std::make_unique<OldDD::ServiceDomainOrder>(pst));
-    mdl->AddService(std::make_unique<OldDD::ServiceLocalOrder>(pst));
+    mdl->AddService<OldDD::ServiceDomainOrder>(pst);
+    mdl->AddService<OldDD::ServiceLocalOrder>(pst);
 #endif
-    mdl->AddService(std::make_unique<OldDD::ServiceColRejects>(pst));
-    mdl->AddService(std::make_unique<OldDD::ServiceSwapRejects>(pst));
-    mdl->AddService(std::make_unique<OldDD::ServiceColOrdRejects>(pst));
-    mdl->AddService(std::make_unique<OldDD::ServiceWeight>(pst));
-    mdl->AddService(std::make_unique<OldDD::ServiceWeightWrap>(pst));
-    mdl->AddService(std::make_unique<OldDD::ServiceOrdWeight>(pst));
+    mdl->AddService<OldDD::ServiceColRejects>(pst);
+    mdl->AddService<OldDD::ServiceSwapRejects>(pst);
+    mdl->AddService<OldDD::ServiceColOrdRejects>(pst);
+    mdl->AddService<OldDD::ServiceWeight>(pst);
+    mdl->AddService<OldDD::ServiceWeightWrap>(pst);
+    mdl->AddService<OldDD::ServiceOrdWeight>(pst);
+#ifdef INSTRUMENT_MPI
+    mdl->AddService<ServiceCacheStats>(pst);
+#endif
     return pst;
 }
 
@@ -222,7 +231,7 @@ int main(int argc,char **argv) {
 #endif
 #ifndef CCC
     /* no stdout buffering */
-    setbuf(stdout,(char *) NULL);
+    setvbuf(stdout,NULL,_IONBF,0);
 #endif
 
     return mdl::Launch(master,worker_init,worker_done,argc,argv);

@@ -18,9 +18,10 @@
 
 class ServiceFreeStore : public TraverseCount<uint64_t> {
 public:
+    static constexpr std::string_view name = "FreeStore";
     typedef void input;
     explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
+        : TraverseCount(pst,PST_FREESTORE,name) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };

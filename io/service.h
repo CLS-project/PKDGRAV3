@@ -1,5 +1,5 @@
-#ifndef B52D0DB0_06A9_416B_A559_F5010B417974
-#define B52D0DB0_06A9_416B_A559_F5010B417974
+#ifndef SERVICE_H
+#define SERVICE_H
 /*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
  *  Copyright (c) 2001-2018 Joachim Stadel & Douglas Potter
  *
@@ -27,6 +27,7 @@ public:
     // The nElements in the header is the sum of the nElements in all files.
     // Finally iBeg is set to zero and iEnd is set to the total nElements.
     // As the service descends the PST, nSimultaneous, iBeg and iEnd are updated.
+    static constexpr std::string_view name = "InputOutput";
     struct input {
         uint32_t nSimultaneous; // Number at this level of the PST
         uint32_t iReaderWriter; // Index of the reader/write [0,nTotalActive)
@@ -35,8 +36,8 @@ public:
         char filename[PATH_MAX];
     };
     typedef void output;
-    explicit ServiceIO(PST pst,int service_id,int nInBytes=0,const char *name="InputOutput")
-        : TraversePST(pst,service_id,nInBytes+sizeof(input),name) {}
+    explicit ServiceIO(PST pst,int service_id,std::string_view service_name=name,int nInBytes=0)
+        : TraversePST(pst,service_id,service_name,nInBytes+sizeof(input)) {}
 private:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) final;
@@ -48,6 +49,7 @@ protected:
 
 class ServiceFileSizes : public TraversePST {
 public:
+    static constexpr std::string_view name = "FileSizes";
     struct input {
         uint32_t nTotalActive;  // Number of simultaneous readers/writers
         uint32_t nSimultaneous; // Number at this level of the PST
@@ -60,8 +62,8 @@ public:
         uint64_t nFileBytes : 40;
         uint64_t iFileIndex : 24;
     };
-    explicit ServiceFileSizes(PST pst,int service_id=PST_FILE_SIZES,const char *name="FileSizes")
-        : TraversePST(pst,service_id,sizeof(input),max_files*(sizeof(output)),name) {}
+    explicit ServiceFileSizes(PST pst,int service_id=PST_FILE_SIZES,std::string_view service_name=name)
+        : TraversePST(pst,service_id,service_name,sizeof(input),max_files*(sizeof(output))) {}
 private:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) final;
@@ -77,6 +79,7 @@ public:
     // The nElements in the header is the sum of the nElements in all files.
     // Finally iBeg is set to zero and iEnd is set to the total nElements.
     // As the service descends the PST, nSimultaneous, iBeg and iEnd are updated.
+    static constexpr std::string_view name = "Input";
     struct input {
         ServiceIO::input io;
         int nFiles;         // Number of different files
@@ -87,8 +90,8 @@ public:
     static constexpr int max_files = 100'000;
     using io_elements = uint64_t; // Read this many elements
     typedef void output;
-    explicit ServiceInput(PST pst,int service_id,int nInBytes=0,const char *name="Input")
-        : ServiceIO(pst,service_id,nInBytes+sizeof(input)+max_files*(sizeof(io_elements)),name) {}
+    explicit ServiceInput(PST pst,int service_id,std::string_view service_name=name,int nInBytes=0)
+        : ServiceIO(pst,service_id,service_name,nInBytes+sizeof(input)+max_files*(sizeof(io_elements))) {}
 protected:
     virtual int do_lower(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int do_upper(PST pst,void *vin,int nIn) override;
@@ -107,16 +110,17 @@ public:
     // The nElements in the header is the sum of the nElements in all files.
     // Finally iBeg is set to zero and iEnd is set to the total nElements.
     // As the service descends the PST, nSimultaneous, iBeg and iEnd are updated.
+    static constexpr std::string_view name = "Output";
     struct input {
         ServiceIO::input io;
     };
     typedef void output;
-    explicit ServiceOutput(PST pst,int service_id,int nInBytes=0,const char *name="Output")
-        : ServiceIO(pst,service_id,nInBytes+sizeof(input),name) {}
+    explicit ServiceOutput(PST pst,int service_id,std::string_view service_name=name,int nInBytes=0)
+        : ServiceIO(pst,service_id,service_name,nInBytes+sizeof(input)) {}
 protected:
     virtual void IO(PST pst,void *vin,int nIn,int iGroup,int iSegment,int nSegment) override;
 protected:
     virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) = 0;
 };
 
-#endif /* B52D0DB0_06A9_416B_A559_F5010B417974 */
+#endif /* SERVICE_H */

@@ -23,11 +23,12 @@
 
 class ServiceRsExtract : public ServiceOutput {
 public:
+    static constexpr std::string_view name = "RsExtract";
     using header = ServiceOutput::input;
     using input = uint64_t;
     using output = void;
     explicit ServiceRsExtract(PST pst)
-        : ServiceOutput(pst,PST_RS_EXTRACT,sizeof(header)+sizeof(input)*(pst->mdl->Threads()+1)) {}
+        : ServiceOutput(pst,PST_RS_EXTRACT,name,sizeof(header)+sizeof(input)*(pst->mdl->Threads()+1)) {}
 protected:
     virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
     // virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;

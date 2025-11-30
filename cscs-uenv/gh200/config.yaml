@@ -1,0 +1,7 @@
+name: pkdgrav3
+spack:
+  commit: releases/v0.22
+  repo: https://github.com/spack/spack.git
+store: /user-environment
+description: pkdgrav runtime environment
+

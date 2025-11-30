@@ -37,9 +37,9 @@
    ticks is an opaque typedef defined below, representing the current time.
    You extract the elapsed time between two calls to gettick() via:
 
-         double elapsed(ticks t1, ticks t0);
+         uint64_t elapsed(ticks t1, ticks t0);
 
-   which returns a double-precision variable in arbitrary units.  You
+   which returns a 64-bit integer variable in arbitrary units.  You
    are not expected to convert this into human units like seconds; it
    is intended only for *comparisons* of time intervals.
 
@@ -80,6 +80,7 @@
 
 /***************************************************************************/
 
+#include <stdint.h>
 #if TIME_WITH_SYS_TIME
     #include <sys/time.h>
     #include <time.h>
@@ -91,9 +92,9 @@
     #endif
 #endif
 
-#define INLINE_ELAPSED(INL) static INL double elapsed(ticks t1, ticks t0) \
+#define INLINE_ELAPSED(INL) static INL uint64_t elapsed(ticks t1, ticks t0) \
 {                                     \
-     return (double)(t1 - t0);                        \
+     return (uint64_t)(t1 - t0);                        \
 }
 
 /*----------------------------------------------------------------*/
@@ -119,10 +120,10 @@ static inline ticks getticks(void) {
     return t;
 }
 
-static inline double elapsed(ticks t1, ticks t0) { /* time in nanoseconds */
+static inline uint64_t elapsed(ticks t1, ticks t0) { /* time in nanoseconds */
     time_base_to_time(&t1, TIMEBASE_SZ);
     time_base_to_time(&t0, TIMEBASE_SZ);
-    return ((t1.tb_high - t0.tb_high) * 1e9 + (t1.tb_low - t0.tb_low));
+    return ((t1.tb_high - t0.tb_high) * uint64_t(1e9) + (t1.tb_low - t0.tb_low));
 }
 
 #define HAVE_TICK_COUNTER
@@ -164,6 +165,23 @@ INLINE_ELAPSED(__inline__)
 
 /*----------------------------------------------------------------*/
 /*
+ * ARM cycle counter
+ */
+#if defined(__aarch64__) && !defined(__APPLE__) && !defined(HAVE_TICK_COUNTER)
+#include "stdint.h"
+typedef uint64_t ticks;
+
+static __inline__ ticks getticks(void) {
+    uint64_t v;
+    asm volatile("isb; mrs %0, cntvct_el0" : "=r"(v));
+    return v;
+}
+INLINE_ELAPSED(__inline__)
+#define HAVE_TICK_COUNTER
+#endif
+
+/*----------------------------------------------------------------*/
+/*
  * Pentium cycle counter
  */
 #if (defined(__GNUC__) || defined(__ICC)) && defined(__i386__)  && !defined(HAVE_TICK_COUNTER)
@@ -200,8 +218,8 @@ static __inline ticks getticks(void) {
     return retval;
 }
 
-static __inline double elapsed(ticks t1, ticks t0) {
-    return (double)(t1.QuadPart - t0.QuadPart);
+static __inline uint64_t elapsed(ticks t1, ticks t0) {
+    return t1.QuadPart - t0.QuadPart;
 }
 
 #define HAVE_TICK_COUNTER
@@ -427,9 +445,9 @@ static inline ticks getticks(void) {
     return t;
 }
 
-static inline double elapsed(ticks t1, ticks t0) {
-    return (double)(t1.tv_sec - t0.tv_sec) * 1.0E9 +
-           (double)(t1.tv_nsec - t0.tv_nsec);
+static inline uint64_t elapsed(ticks t1, ticks t0) {
+    return (t1.tv_sec - t0.tv_sec) * uint64_t(1e9) +
+           (t1.tv_nsec - t0.tv_nsec);
 }
 #define HAVE_TICK_COUNTER
 #endif

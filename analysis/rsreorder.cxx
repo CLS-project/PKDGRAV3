@@ -26,9 +26,9 @@ int ServiceRsReorderIds::Service(PST pst,void *vin,int nIn,void *vout,int nOut) 
 using dd_offset_type = mdl::mdlClass::dd_offset_type;
 using ordinal_t = uint64_t;
 void pkdContext::RsReorder(uint64_t *globalOrds) {
-    auto pOrders_first = static_cast<ordinal_t *>(pLite);
+    auto pOrders_first = Ephemeral<ordinal_t>();
     auto pOrders_last = pOrders_first + nRsElements;
-    auto N = EphemeralBytes() * FreeStore() / sizeof(ordinal_t);
+    auto N = EphemeralElementBytes() * FreeStore() / sizeof(ordinal_t);
 
     // Order particles (this is in domain order)
     if (!std::is_sorted(pOrders_first,pOrders_last)) std::sort(pOrders_first,pOrders_last);

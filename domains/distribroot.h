@@ -18,13 +18,14 @@
 
 class ServiceDistribRoot : public TraversePST {
 public:
+    static constexpr std::string_view name = "DistribRoot";
     struct input {
         double r[3];
         MOMC momc;
     };
     typedef void output;
     explicit ServiceDistribRoot(PST pst)
-        : TraversePST(pst,PST_DISTRIBROOT,sizeof(input),"DistribRoot") {}
+        : TraversePST(pst,PST_DISTRIBROOT,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

@@ -20,10 +20,10 @@
 #else
     #include "pkd_config.h"
 #endif
+#include <algorithm>
 #include <math.h>
 #include "groupstats.h"
 #include "group.h"
-#include "core/vqsort.h"
 
 using blitz::TinyVector;
 using blitz::dot;
@@ -156,31 +156,6 @@ typedef struct {
     int nEnclosed;
 } ShrinkStruct;
 
-static void initShrink(void *vpkd, void *v) {
-    ShrinkStruct *g = (ShrinkStruct *)v;
-    int j;
-
-    g->fMass = 0.0;
-    for (j=0; j<3; j++) {
-        g->rcom[j] = 0.0;
-    }
-    g->nEnclosed = 0;
-}
-
-static void combShrink(void *vpkd, void *v1, const void *v2) {
-    ShrinkStruct *g1 = (ShrinkStruct *)v1;
-    const ShrinkStruct *g2 = (const ShrinkStruct *)v2;
-    float x;
-    int j;
-
-    g1->fMass += g2->fMass;
-    x = g2->fMass/g1->fMass;
-    for (j=0; j<3; j++) {
-        g1->rcom[j] = (1-x)*g1->rcom[j] + x*g2->rcom[j];
-    }
-    g1->nEnclosed += g2->nEnclosed;
-}
-
 class HelperShrink : public mdl::arrayCACHEhelper {
 protected:
     virtual void    init(void *dst) override final {
@@ -224,12 +199,13 @@ public:
 };
 
 
-typedef struct {
+struct MassRadius {
     float fMass;
     float dr;
-}  MassRadius;
-
-#define mrLessThan(a,b) (((MassRadius *)a)->dr < ((MassRadius *)b)->dr)
+    bool operator<(const MassRadius& other) const {
+        return dr < other.dr;
+    }
+};
 
 class HelperRoot : public mdl::arrayCACHEhelper {
 protected:
@@ -429,7 +405,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
     double f2;
     int bLocal; /* a flip-flop which toggles when the first remote group is encountered, used as a consistency check only */
 
-    assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+sizeof(ShrinkStruct)) < 1ul*pkd->EphemeralBytes()*pkd->FreeStore());
+    assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+sizeof(ShrinkStruct)) < 1ul*pkd->EphemeralElementBytes()*pkd->FreeStore());
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
     dAccumulate = (double *)(&pkd->tinyGroupTable[pkd->nGroups]);
     /*
@@ -960,7 +936,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
             mrFree[n].fMass = p.mass();
             mrFree[n].dr = sqrtf(r2);
         }
-        QSORT(sizeof(MassRadius),mrFree,n,mrLessThan);
+        std::sort(mrFree, mrFree + n);
         fMass = mrFree[0].fMass;
         for (i=1; i<n; ++i) {
             fMass += mrFree[i].fMass;
@@ -1015,7 +991,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,TinyVector<double,3> dPeriod,d
             mrFree[n].fMass = p.mass();
             mrFree[n].dr = sqrtf(r2);
         }
-        QSORT(sizeof(MassRadius),mrFree,n,mrLessThan);
+        std::sort(mrFree, mrFree + n);
         fMass = mrFree[i].fMass;
         for (i=1; i<n; ++i) {
             fMass += mrFree[i].fMass;

@@ -537,13 +537,13 @@ void *worker_init(MDL vmdl) {
     auto mdl = static_cast<mdl::mdlClass *>(vmdl);
     auto ctx = new worker::Context(mdl);
     mdl->SetCacheSize(cacheSize); // Small cache to make it faster to test
-    mdl->AddService(worker::SET_ADD,ctx,(fcnService_t *)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd),0);
-    mdl->AddService(test::hash::SERVICE,ctx,(fcnService_t *)test::hash::test, 0,sizeof(std::uint64_t));
-    mdl->AddService(test::ro::SERVICE,ctx,(fcnService_t *)test::ro::test,0,sizeof(std::uint64_t));
-    mdl->AddService(test::flush::SERVICE,ctx,(fcnService_t *)test::flush::test, 0,sizeof(std::uint64_t));
-    mdl->AddService(test::flush::after_read::SERVICE,ctx,(fcnService_t *)test::flush::after_read::test,0,sizeof(std::uint64_t));
-    mdl->AddService(test::advanced::ro::SERVICE,ctx,(fcnService_t *)test::advanced::ro::test,0,sizeof(std::uint64_t));
-    mdl->AddService(test::advanced::flush::SERVICE,ctx,(fcnService_t *)test::advanced::flush::test,0,sizeof(std::uint64_t));
+    mdl->AddService(worker::SET_ADD,ctx,(fcnService_t *)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd),0,"SetAdd");
+    mdl->AddService(test::hash::SERVICE,ctx,(fcnService_t *)test::hash::test, 0,sizeof(std::uint64_t),"Hash");
+    mdl->AddService(test::ro::SERVICE,ctx,(fcnService_t *)test::ro::test,0,sizeof(std::uint64_t),"RO");
+    mdl->AddService(test::flush::SERVICE,ctx,(fcnService_t *)test::flush::test, 0,sizeof(std::uint64_t),"Flush");
+    mdl->AddService(test::flush::after_read::SERVICE,ctx,(fcnService_t *)test::flush::after_read::test,0,sizeof(std::uint64_t),"FlushAfterRead");
+    mdl->AddService(test::advanced::ro::SERVICE,ctx,(fcnService_t *)test::advanced::ro::test,0,sizeof(std::uint64_t),"AdvancedRO");
+    mdl->AddService(test::advanced::flush::SERVICE,ctx,(fcnService_t *)test::advanced::flush::test,0,sizeof(std::uint64_t),"AdvancedFlush");
     return ctx;
 }
 

@@ -39,12 +39,8 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
     fmask T0,T1,T2,T3,T4,T6,T7;
     i32v P1,P2,P3,P4;
     fvec xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
-#if SPHBALLOFBALLS
     fvec distk2,distc2;
-#endif
-#if SPHBOXOFBALLS
     fvec box1xMin, box1xMax, box1yMin, box1yMax, box1zMin, box1zMax, box2xMin, box2xMax, box2yMin, box2yMax, box2zMin, box2zMax;
-#endif
     int i;
     i32v iOpen,iOpenA,iOpenB;
     fvec k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
@@ -77,16 +73,14 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
     k_notgrp = cvt_fvec(i32v(k->is_group())) == 0.0;
     k_Open = 1.5f*k_bMax*diCrit;
     const auto &SPHbob = k->have_BOB() ? k->BOB() : SPHBOB();
-#if SPHBALLOFBALLS
     fvec k_fBoBr2 = SPHbob.fBoBr * SPHbob.fBoBr;
     fvec blk_fBoBr2 = 0.0f;
     distk2 = HUGE_VALF;
     distc2 = HUGE_VALF;
-#endif
 
-    fmask intersect1, intersect2;
-    intersect1 = 0;
-    intersect2 = 0;
+    fmask bIntersectSource, bIntersectSink;
+    bIntersectSource = 0;
+    bIntersectSink = 0;
 
     n = (n + fvec::mask()) / fvec::width(); // Now number of blocks
     for (i=0; i<n; ++i) {
@@ -94,7 +88,6 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
 
         if (pkd->tree.present(KDN_FIELD::oNodeBOB)) {
             if (SPHoptions->doDensity || SPHoptions->doDensityCorrection || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
-#if SPHBALLOFBALLS
                 distk2 = 0.0f;
                 dx = SPHbob.fBoBCenter[0] - blk.xCenter.v[i] - blk.xOffset.v[i] - blk.xMax.v[i];
                 distk2 += maskz_mov(dx>0,dx*dx);
@@ -110,9 +103,8 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
                 distk2 += maskz_mov(dx>0,dx*dx);
                 dx = blk.zCenter.v[i] + blk.zOffset.v[i] - blk.zMax.v[i] - SPHbob.fBoBCenter[2];
                 distk2 += maskz_mov(dx>0,dx*dx);
-                intersect1 = distk2 < k_fBoBr2;
-#endif
-#if SPHBOXOFBALLS
+                fmask bIntersectSourceBall = distk2 < k_fBoBr2;
+
                 box1xMin = SPHbob.fBoBMin[0];
                 box1xMax = SPHbob.fBoBMax[0];
                 box1yMin = SPHbob.fBoBMin[1];
@@ -125,11 +117,11 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
                 box2yMax = blk.yCenter.v[i] + blk.yOffset.v[i] + blk.yMax.v[i];
                 box2zMin = blk.zCenter.v[i] + blk.zOffset.v[i] - blk.zMax.v[i];
                 box2zMax = blk.zCenter.v[i] + blk.zOffset.v[i] + blk.zMax.v[i];
-                intersect1 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
-#endif
+                fmask bIntersectSourceBox = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
+
+                bIntersectSource = bIntersectSourceBall & bIntersectSourceBox;
             }
             if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
-#if SPHBALLOFBALLS
                 blk_fBoBr2 = blk.fBoBr.v[i] * blk.fBoBr.v[i];
                 distc2 = 0.0f;
                 dx = k_xMinBnd - blk.fBoBxCenter.v[i] - blk.xOffset.v[i];
@@ -146,9 +138,8 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
                 distc2 += maskz_mov(dx>0,dx*dx);
                 dx = blk.fBoBzCenter.v[i] + blk.zOffset.v[i] - k_zMaxBnd;
                 distc2 += maskz_mov(dx>0,dx*dx);
-                intersect2 = distc2 < blk_fBoBr2;
-#endif
-#if SPHBOXOFBALLS
+                fmask bIntersectSinkBall = distc2 < blk_fBoBr2;
+
                 box1xMin = k_xMinBnd;
                 box1xMax = k_xMaxBnd;
                 box1yMin = k_yMinBnd;
@@ -161,8 +152,9 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
                 box2yMax = blk.fBoByMax.v[i] + blk.yOffset.v[i];
                 box2zMin = blk.fBoBzMin.v[i] + blk.zOffset.v[i];
                 box2zMax = blk.fBoBzMax.v[i] + blk.zOffset.v[i];
-                intersect2 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
-#endif
+                fmask bIntersectSinkBox = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
+
+                bIntersectSink = bIntersectSinkBall & bIntersectSinkBox;
             }
         }
         xc = blk.x.v[i] + blk.xOffset.v[i];
@@ -203,10 +195,10 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
         minbnd2 += maskz_mov(dx>0,dx*dx);
 
         T0 = blk.m.v[i] > 0.0f;
-        T1 = (d2>d2Open) & (minbnd2>fourh2) & ~intersect1 & ~intersect2;
+        T1 = (d2>d2Open) & (minbnd2>fourh2) & ~bIntersectSource & ~bIntersectSink;
         T2 = cvt_fvec(blk.iLower.v[i]) == 0.0;
         T3 = (walk_min_multipole > cvt_fvec(blk.nc.v[i])) | (mink2<=cOpen2);
-        T4 = (minbnd2 > fourh2) & ~intersect1 & ~intersect2;
+        T4 = (minbnd2 > fourh2) & ~bIntersectSource & ~bIntersectSink;
         T6 = cOpen > k_Open;
         T7 = k_notgrp;
         iOpenA = mask_mov(i32v(3),T2,i32v(1));

@@ -96,10 +96,17 @@ struct CALC {
 /*
 ** This is an important base type. Alter with care, or even better, leave it alone.
 */
-typedef struct {
+struct remoteID {
     int32_t  iPid;      /* A processor */
     int32_t  iIndex;    /* Index of item on the processor */
-} remoteID;
+    remoteID() = default;
+    remoteID(int32_t pid, int32_t index) : iPid(pid), iIndex(index) { }
+    bool operator<(const remoteID& other) const {
+        if (iPid != other.iPid)
+            return iPid < other.iPid;
+        return iIndex < other.iIndex;
+    }
+};
 
 #define PP_CUDA_MEMORY_LIMIT (2*1024*1024)
 

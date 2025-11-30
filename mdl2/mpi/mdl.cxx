@@ -193,7 +193,27 @@ MPI_Request *mpiClass::newRequest(mdlMessageMPI *message,MPI_Request request) {
 // Open the cache by posting the receive if required
 void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
-        msgCacheReceive->action(this);
+        if (msgCacheReceive.size()==0) {
+            switch (mpi_recv_mode) {
+            case mdl::MPI_RECV_MODE::TOTAL:
+                for (auto i=0; i<mpi_recv_count; ++i) {
+                    msgCacheReceive.emplace_back(std::make_unique<mdlMessageCacheReceive>(iCacheBufSize,MPI_ANY_SOURCE));
+                }
+                break;
+            case mdl::MPI_RECV_MODE::PER_RANK:
+                for (auto i=0; i<Procs(); ++i) {
+                    for (auto j=0; j<mpi_recv_count; ++j) {
+                        msgCacheReceive.emplace_back(std::make_unique<mdlMessageCacheReceive>(iCacheBufSize,i));
+                    }
+                }
+                break;
+            default:
+                throw std::runtime_error("Unknown MPI receive mode");
+            }
+        }
+        for (auto &msg : msgCacheReceive) {
+            msg->action(this);
+        }
         countCacheInflight.resize(Procs(),0);
         PendingRequests.set_capacity(Threads()); // This is very conservative, but uses some memory
 #ifdef DEBUG_COUNT_CACHE
@@ -201,6 +221,16 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
         countCacheRecv.resize(Procs());
         std::fill(countCacheSend.begin(),countCacheSend.end(),0);
         std::fill(countCacheRecv.begin(),countCacheRecv.end(),0);
+#endif
+#ifdef INSTRUMENT_MPI
+        cache_stats.time_cache_open = std::chrono::high_resolution_clock::now();
+        cache_stats.ticks_cache_open = getticks();
+        cache_stats.mpi_loop.reset();
+        cache_stats.mpi_test.reset();
+        cache_stats.gpu_test.reset();
+        cache_stats.msg_test.reset();
+        cache_stats.cache_request.reset();
+        cache_stats.cache_reply.reset();
 #endif
     }
     ++nOpenCaches;
@@ -210,7 +240,7 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
 // Post the recieve. Receive will continue to be reposted as message are recieved.
 void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
     auto request = newRequest(message);
-    MPI_Recv_init(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
+    MPI_Recv_init(message->getBuffer(),iCacheBufSize, MPI_BYTE, message->source,
                   MDL_TAG_CACHECOM, commMDL, request);
     MPI_Start(request);
 }
@@ -1014,12 +1044,20 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
             if (dynamic_cast<mdlMessageCacheReceive *>(*i) != nullptr)
                 MPI_Cancel(&SendReceiveRequests[i-SendReceiveMessages.begin()]);
         }
+#ifdef INSTRUMENT_MPI
+        cache_stats.time_cache_close = std::chrono::high_resolution_clock::now();
+        cache_stats.ticks_cache_close = getticks();
+#endif
     }
     message->sendBack();
 }
 
 void mdlClass::SetCacheMaxInflight(int iMax) {
     if (Core()==0) mpi->SetCacheMaxInflight(iMax);
+}
+
+void mdlClass::SetMpiRecvCount(int count, MPI_RECV_MODE mode) {
+    if (Core()==0) mpi->SetMpiRecvCount(count, mode);
 }
 
 /*****************************************************************************\
@@ -1029,7 +1067,7 @@ void mdlClass::SetCacheMaxInflight(int iMax) {
 \*****************************************************************************/
 
 mpiClass::mpiClass(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
-    : mdlClass(this,fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv) {
+    : mdlClass(this,fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv), mpi_recv_mode(MPI_RECV_MODE::TOTAL), mpi_recv_count(1) {
 }
 
 mpiClass::~mpiClass() {
@@ -1532,6 +1570,9 @@ void mpiClass::FinishReceiveReply(mdlMessageReceiveReply *send, MPI_Request requ
 void mpiClass::finishRequests() {
     int nDone = 1; // Prime the loop; we keep trying as long as we get work
     // If there are MPI send/recieve message pending then check if they are complete
+#ifdef INSTRUMENT_MPI
+    auto start = getticks();
+#endif
     while (!SendReceiveRequests.empty() && nDone) {
         // Here we keep track of entries that we can reuse in newRequest()
         assert(SendReceiveAvailable.size()==0);
@@ -1579,20 +1620,32 @@ void mpiClass::finishRequests() {
                 SendReceiveAvailable.clear();
             }
         }
+#ifdef INSTRUMENT_MPI
+        if (nOpenCaches) {
+            auto now = getticks();
+            cache_stats.mpi_test += elapsed(now,start);
+            start = now;
+        }
+#endif
     }
 }
-void mpiClass::processMessages() {
+int mpiClass::processMessages() {
     /* These are messages from other threads */
-    while (!queueMPInew.empty()) {
+    int count = 0;
+    while (!queueMPInew.empty() && ++count < 10) {
         mdlMessage &M = queueMPInew.dequeue();
         M.action(this); // Action normally sends it back, but not always (see finish() below)
     }
+    return count;
 }
 /*
 ** This routine must be called often by the MPI thread. It will drain
 ** any requests from the thread queue, and track MPI completions.
 */
 int mpiClass::checkMPI() {
+#ifdef INSTRUMENT_MPI
+    auto start = getticks();
+#endif
     gpu.flushCompleted();
     /* Start any CUDA work packages */
 #ifdef USE_CUDA
@@ -1601,8 +1654,19 @@ int mpiClass::checkMPI() {
 #ifdef USE_METAL
     metal.launch();
 #endif
-    processMessages();
+#ifdef INSTRUMENT_MPI
+    auto gpu_ticks = getticks();
+    if (nOpenCaches) cache_stats.gpu_test += elapsed(gpu_ticks,start);
+#endif
+    int nMsgs = processMessages();
+#ifdef INSTRUMENT_MPI
+    auto msg_ticks = getticks();
+    if (nOpenCaches && nMsgs) cache_stats.msg_test += elapsed(msg_ticks,gpu_ticks);
+#endif
     finishRequests(); // Check for non-block MPI requests (send, receive, barrier, etc.)
+#ifdef INSTRUMENT_MPI
+    if (nOpenCaches) cache_stats.mpi_loop += elapsed(getticks(),start);
+#endif
     return nActiveCores;
 }
 
@@ -1702,11 +1766,6 @@ int mpiClass::Launch() {
 #ifdef HAVE_SIGNAL_H
     signal(SIGINT,TERM_handler);
 #endif
-#ifdef MDL_FFTW
-    if (Cores()>1) FFTW3(init_threads)();
-    FFTW3(mpi_init)();
-    if (Cores()>1) FFTW3(plan_with_nthreads)(Cores());
-#endif
 
 #ifdef USE_ITT
     __itt_task_end(domain);
@@ -1743,6 +1802,12 @@ int mpiClass::Launch() {
         layout.nCores -= n;
 #endif
     }
+
+#ifdef MDL_FFTW
+    if (Cores()>1) FFTW3(init_threads)();
+    FFTW3(mpi_init)();
+    if (Cores()>1) FFTW3(plan_with_nthreads)(Cores());
+#endif
 
     /* Construct the thread/processor map */
     iProcToThread.resize(Procs()+1);
@@ -1784,7 +1849,6 @@ int mpiClass::Launch() {
     // is larger than the element size
     iReplyBufSize = sizeof(CacheHeader) + 2*MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
-    msgCacheReceive = std::make_unique<mdlMessageCacheReceive>(iCacheBufSize);
 
     n = Procs();
     if (n > 256) n = 256;
@@ -1818,7 +1882,7 @@ int mpiClass::Launch() {
     pRequestTargets.resize(2 * log2(1.0 * Threads()) + Cores(), -1);
 
     /* Make sure that MPI supports enough tags */
-    rc = MPI_Comm_get_attr(commMDL,MPI_TAG_UB, &piTagUB, &flag);
+    rc = MPI_Comm_get_attr(commMDL,MPI_TAG_UB, static_cast<void *>(&piTagUB), &flag);
     if (rc==MPI_SUCCESS && flag) {
         assert(Cores()*MDL_TAG_THREAD_OFFSET < *piTagUB);
         assert(pRequestTargets.size()*MDL_TAG_THREAD_OFFSET < *piTagUB);
@@ -1843,7 +1907,7 @@ int mpiClass::Launch() {
         for (i = iCoreMPI+1; i < Cores(); ++i) {
             auto thread = worker_threads.create_thread([this,i]() { pmdl[i]->WorkerThread();});
 #ifdef USE_HWLOC
-            if (t) { // If requested, bind the new thread to the specific core
+            if (t && bDedicated==1) { // If requested, bind the new thread to the specific core
                 icpu = hwloc_bitmap_next(set_proc,icpu);
                 hwloc_bitmap_only(set_thread,icpu);
                 hwloc_set_thread_cpubind(topology,thread->native_handle(),set_thread,HWLOC_CPUBIND_THREAD);
@@ -1857,7 +1921,7 @@ int mpiClass::Launch() {
     __itt_task_end(domain);
 #endif
 #ifdef USE_HWLOC
-    if (bDedicated) {
+    if (bDedicated==1) {
         hwloc_bitmap_free(set_thread);
         hwloc_bitmap_free(set_proc);
         hwloc_topology_destroy(topology);
@@ -1875,6 +1939,9 @@ int mpiClass::Launch() {
     drainMPI();
 
     worker_threads.join_all();
+    for (i = iCoreMPI+1; i < Cores(); ++i) {
+        delete pmdl[i];
+    }
     delete[] (pmdl-1);
 
     // Deallocate cache reply buffers
@@ -2350,12 +2417,12 @@ void mdlClass::CommitServices() {
     ThreadBarrier();
 }
 
-void mdlAddService(MDL cmdl,int sid,void *p1,
-                   fcnService_t *fcnService,
-                   int nInBytes,int nOutBytes) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdl->AddService(sid, p1, fcnService, nInBytes, nOutBytes);
-}
+// void mdlAddService(MDL cmdl,int sid,void *p1,
+//                    fcnService_t *fcnService,
+//                    int nInBytes,int nOutBytes) {
+//     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
+//     mdl->AddService(sid, p1, fcnService, nInBytes, nOutBytes);
+// }
 
 int mdlClass::ReqService(int id,int sid,void *vin,int nInBytes) {
     mdlMessageSendRequest request(Self(), sid, id, vin, nInBytes);
@@ -2390,11 +2457,11 @@ void mdlClass::Handler() {
     } while (sid != SRV_STOP);
 }
 
-void mdlClass::delete_shared_array(void *p,uint64_t nBytes) {
+void mdlClass::delete_shared_array(void *p,size_t nBytes) {
     if (Core()==0) munmap(p,nBytes);
 }
 
-uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore) {
+size_t mdlClass::new_shared_array(void **p, int nSegments, size_t *nElements,const size_t *nBytesPerElement,size_t nMinTotalStore) {
     auto gcd = [](int a, int b) {                      // Greatest common divisor
         while ( a != 0 ) {
             auto c = a;
@@ -2403,13 +2470,13 @@ uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements
         }
         return b;
     };
-    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+    size_t nPageSize = sysconf(_SC_PAGESIZE);
     auto align = [&gcd,nPageSize](auto &N,auto b) {     // Align elements to a page size boundary
         auto n = nPageSize / gcd(nPageSize,b);
         N += n-1;
         N -= N % n;
         assert(N*b%nPageSize == 0);
-        return N * b;
+        return N * b;                                   // N is passed by reference and contains the new count of elements
     };
 
     // Align each segment to a page boundary
@@ -2421,7 +2488,7 @@ uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements
         nMessageData += (nBytesSegment[i] = align(nElements[i],nBytesPerElement[i]));
     }
     ThreadBarrier();
-    uint64_t nTotalBytes = 0;
+    size_t nTotalBytes = 0;
     for (auto t=0; t<Cores(); ++t)  {
         assert(pmdl[t]->nMessageData == nMessageData);
         nTotalBytes += pmdl[t]->nMessageData;
@@ -2676,7 +2743,7 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
         // and the FFTW threads can make full use of the CPU.
         enqueue(trans);
     }
-    if (Cores()>1) mpi->ThreadBarrierWait();
+    if (Cores()>1 || iCoreMPI<0) mpi->ThreadBarrierWait();
 }
 
 void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
@@ -2691,7 +2758,7 @@ void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
         // and the FFTW threads can make full use of the CPU.
         enqueue(trans);
     }
-    if (Cores()>1) mpi->ThreadBarrierWait();
+    if (Cores()>1 || iCoreMPI<0) mpi->ThreadBarrierWait();
 }
 #endif
 

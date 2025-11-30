@@ -18,13 +18,14 @@
 
 class ServiceGetOrdSplits : public TraverseGatherPST<uint64_t> {
 public:
+    static constexpr std::string_view name = "GetOrdSplits";
     using input = void;
     // struct input {
     //     uint64_t iMinOrder;
     //     uint64_t iMaxOrder;
     // };
     explicit ServiceGetOrdSplits(PST pst)
-        : TraverseGatherPST(pst,PST_GET_ORD_SPLITS,0,sizeof(output)*pst->mdl->Threads(),"GetOrdSplits") {}
+        : TraverseGatherPST(pst,PST_GET_ORD_SPLITS,name,0,sizeof(output)*pst->mdl->Threads()) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) final;
 };

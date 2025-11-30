@@ -287,6 +287,7 @@ void io_read(asyncFileInfo *info, void *buf, size_t count) {
     info->iFilePosition += count;
 }
 
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
 static void finish_read(asyncFileInfo *info, char *p, size_t offset, int i) {
     auto src = info->pBuffer[i];
     if (info->iOffset[i] >= offset) {
@@ -297,7 +298,7 @@ static void finish_read(asyncFileInfo *info, char *p, size_t offset, int i) {
         memcpy(p,src+nSkip,info->nExpected[i]-nSkip);
     }
 }
-
+#endif
 
 void io_read(asyncFileInfo *info, void *buf, size_t count,size_t offset) {
     auto p = static_cast<char *>(buf);

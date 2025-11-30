@@ -59,6 +59,8 @@
 #include <algorithm>
 #include <boost/range/adaptor/reversed.hpp>
 #include <gsl/gsl_spline.h>
+#include "fmt/format.h"  // This will be part of c++20
+using namespace fmt::literals;        // Gives us ""_a and ""_format literals
 
 #ifdef USE_ITT
     #include "ittnotify.h"
@@ -115,21 +117,19 @@ using blitz::min;
 static void initLightBallOffsets(PKD pkd,double mrLCP) {
     Bound bnd(TinyVector<double,3>(-0.5),TinyVector<double,3>(0.5));
     double min2;
-    int ix,iy,iz,l,nBox,nBoxMax;
+    int ix,iy,iz,l;
 
     pkd->nLayerMax = ceil(mrLCP);
-    pkd->nBoxLC = (int *)malloc(pkd->nLayerMax*sizeof(int));
-    assert(pkd->nBoxLC != NULL);
+    pkd->nBoxLC.clear();
 
-    pkd->lcOffset0 = NULL;
-    pkd->lcOffset1 = NULL;
-    pkd->lcOffset2 = NULL;
+    pkd->lcOffset0.clear();
+    pkd->lcOffset1.clear();
+    pkd->lcOffset2.clear();
     /*
     ** Set up the light cone offsets such that they proceed from the inner 8
     ** unit boxes outward layer by layer so that we can skip checks of the
     ** outer layers if we want.
     */
-    nBox = nBoxMax = 0;
     for (l=0; l<pkd->nLayerMax; ++l) {
         for (ix=-l; ix<=l+1; ++ix) {
             for (iy=-l; iy<=l+1; ++iy) {
@@ -138,20 +138,10 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
                     TinyVector<double,3> r(ix - 0.5, iy - 0.5, iz - 0.5);
                     min2 = bnd.mindist(r);
                     if (min2 < mrLCP*mrLCP) {
-                        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f> min2:%f\n",nBox,l,r[0],r[1],r[2],min2);
-                        if (nBox == nBoxMax) {
-                            nBoxMax += 100;
-                            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset0 != NULL);
-                            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset1 != NULL);
-                            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset2 != NULL);
-                        }
-                        pkd->lcOffset0[nBox] = r[0];
-                        pkd->lcOffset1[nBox] = r[1];
-                        pkd->lcOffset2[nBox] = r[2];
-                        ++nBox;
+                        if (pkd->Self()==0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f> min2:%f\n",pkd->lcOffset0.size(),l,r[0],r[1],r[2],min2);
+                        pkd->lcOffset0.push_back(r[0]);
+                        pkd->lcOffset1.push_back(r[1]);
+                        pkd->lcOffset2.push_back(r[2]);
                     }
                 }
             }
@@ -159,15 +149,12 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
         /*
         ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
         */
-        pkd->nBoxLC[l] = nBox;
+        pkd->nBoxLC.push_back(pkd->lcOffset0.size());
     }
 }
 
 static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3> h,double alpha,double mrLCP) {
-    int l,ix,iy,iz,nBox,nBoxMax;
-    int *xy;
-    int *xz;
-    int *yz;
+    int l,ix,iy,iz;
     double hm = sqrt(h[0]*h[0] + h[1]*h[1] + h[2]*h[2]);
     double min2;
 
@@ -182,16 +169,13 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
     assert(h[1] > 0);
     assert(h[2] > 0);
 
-    pkd->nBoxLC = (int *)malloc(pkd->nLayerMax*sizeof(int));
-    assert(pkd->nBoxLC != NULL);
+    pkd->nBoxLC.clear();
 
-    xy = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-    assert(xy != NULL);
-    xz = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-    assert(xz != NULL);
-    yz = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-    assert(yz != NULL);
-    for (int j=0; j<pkd->nLayerMax*pkd->nLayerMax; ++j) xy[j] = xz[j] = yz[j] = 1; // by default all projected cells need to be checked
+    // by default all projected cells need to be checked
+    std::vector<char> xy(pkd->nLayerMax*pkd->nLayerMax,true);
+    std::vector<char> xz(pkd->nLayerMax*pkd->nLayerMax,true);
+    std::vector<char> yz(pkd->nLayerMax*pkd->nLayerMax,true);
+
     double alpha_xy = atan2(tan(alpha),sqrt(h[0]*h[0] + h[1]*h[1])); // angle projected onto the xy plane
     double alpha_xz = atan2(tan(alpha),sqrt(h[0]*h[0] + h[2]*h[2])); // angle projected onto the xz plane
     double alpha_yz = atan2(tan(alpha),sqrt(h[1]*h[1] + h[2]*h[2])); // angle projected onto the xy plane
@@ -213,20 +197,19 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
         for (int i=0; i<pkd->nLayerMax; ++i) {
             double a1 = atan2(j,i+1);
             double a2 = atan2(j+1,i);
-            if (beta_xy > a2 + alpha_xy || beta_xy < a1 - alpha_xy) xy[j*pkd->nLayerMax+i] = 0; // doesn't intersect
-            if (beta_xz > a2 + alpha_xz || beta_xz < a1 - alpha_xz) xz[j*pkd->nLayerMax+i] = 0; // doesn't intersect
-            if (beta_yz > a2 + alpha_yz || beta_yz < a1 - alpha_yz) yz[j*pkd->nLayerMax+i] = 0; // doesn't intersect
+            if (beta_xy > a2 + alpha_xy || beta_xy < a1 - alpha_xy) xy[j*pkd->nLayerMax+i] = false; // doesn't intersect
+            if (beta_xz > a2 + alpha_xz || beta_xz < a1 - alpha_xz) xz[j*pkd->nLayerMax+i] = false; // doesn't intersect
+            if (beta_yz > a2 + alpha_yz || beta_yz < a1 - alpha_yz) yz[j*pkd->nLayerMax+i] = false; // doesn't intersect
         }
     }
-    pkd->lcOffset0 = NULL;
-    pkd->lcOffset1 = NULL;
-    pkd->lcOffset2 = NULL;
+    pkd->lcOffset0.clear();
+    pkd->lcOffset1.clear();
+    pkd->lcOffset2.clear();
     /*
     ** Set up the light cone offsets such that they proceed from the inner 8
     ** unit boxes outward layer by layer so that we can skip checks of the
     ** outer layers if we want.
     */
-    nBox = nBoxMax = 0;
     for (l=0; l<pkd->nLayerMax; ++l) {
         for (ix=0; ix<=l; ++ix) {
             for (iy=0; iy<=l; ++iy) {
@@ -237,39 +220,19 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
                         Bound bnd(TinyVector<double,3>(-0.5),TinyVector<double,3>(0.5));
                         min2 = bnd.mindist(r);
                         if (min2 > mrLCP*mrLCP) continue;
-                        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-                        if (nBox == nBoxMax) {
-                            nBoxMax += 100;
-                            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset0 != NULL);
-                            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset1 != NULL);
-                            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset2 != NULL);
-                        }
-                        pkd->lcOffset0[nBox] = r[0];
-                        pkd->lcOffset1[nBox] = r[1];
-                        pkd->lcOffset2[nBox] = r[2];
-                        ++nBox;
+                        if (pkd->Self()==0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n",pkd->lcOffset0.size(),l,r[0],r[1],r[2]);
+                        pkd->lcOffset0.push_back(r[0]);
+                        pkd->lcOffset1.push_back(r[1]);
+                        pkd->lcOffset2.push_back(r[2]);
                         if (bBowtie) {
                             /*
                             ** Now include also the -,-,- octant for checks, as we will be producing a bowtie.
                             */
                             for (int j=0; j<3; ++j) r[j] = -r[j];
-                            if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-                            if (nBox == nBoxMax) {
-                                nBoxMax += 100;
-                                pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-                                assert(pkd->lcOffset0 != NULL);
-                                pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-                                assert(pkd->lcOffset1 != NULL);
-                                pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-                                assert(pkd->lcOffset2 != NULL);
-                            }
-                            pkd->lcOffset0[nBox] = r[0];
-                            pkd->lcOffset1[nBox] = r[1];
-                            pkd->lcOffset2[nBox] = r[2];
-                            ++nBox;
+                            if (pkd->Self()==0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n",pkd->lcOffset0.size(),l,r[0],r[1],r[2]);
+                            pkd->lcOffset0.push_back(r[0]);
+                            pkd->lcOffset1.push_back(r[1]);
+                            pkd->lcOffset2.push_back(r[2]);
                         }
                     }
                 }
@@ -278,7 +241,7 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
         /*
         ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
         */
-        pkd->nBoxLC[l] = nBox;
+        pkd->nBoxLC.push_back(pkd->lcOffset0.size());
     }
     /*
     ** Add more boxes to get to a multiple of the vector width.
@@ -287,23 +250,13 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
     */
     l = pkd->nLayerMax - 1;
     double r[3] = {2*l + 0.5, 2*l + 0.5, 2*l + 0.5};
-    while (nBox%dvec::width()) {
-        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-        if (nBox == nBoxMax) {
-            nBoxMax += 100;
-            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-            assert(pkd->lcOffset0 != NULL);
-            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-            assert(pkd->lcOffset1 != NULL);
-            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-            assert(pkd->lcOffset2 != NULL);
-        }
-        pkd->lcOffset0[nBox] = r[0];
-        pkd->lcOffset1[nBox] = r[1];
-        pkd->lcOffset2[nBox] = r[2];
-        ++nBox;
+    while (pkd->lcOffset0.size()%dvec::width()) {
+        if (pkd->Self()==0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n",pkd->lcOffset0.size(),l,r[0],r[1],r[2]);
+        pkd->lcOffset0.push_back(r[0]);
+        pkd->lcOffset1.push_back(r[1]);
+        pkd->lcOffset2.push_back(r[2]);
     }
-    pkd->nBoxLC[l] = nBox;
+    pkd->nBoxLC.push_back(pkd->lcOffset0.size());
 }
 
 void pkdContext::set_factor(std::uint32_t factor) {
@@ -315,18 +268,18 @@ void pkdContext::set_factor(std::uint32_t factor) {
 }
 
 pkdContext::pkdContext(mdl::mdlClass *mdl,
-                       int nStore, int nDecoratorStore, uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
+                       int nStore, int nDecoratorStore, int nBucket, uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
-                       int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
+                       int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,mdl::MPI_RECV_MODE mpi_recv_mode,int mpi_recv_count,
                        const TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
                        uint64_t mMemoryModel, uint32_t nIntegerFactor) : mdl(mdl),
-    pLightCone(nullptr), pHealpixData(nullptr), csm(nullptr) {
+    pLightCone((LIGHTCONEP *)nullptr), pHealpixData(nullptr), csm(nullptr) {
     PARTICLE *p;
     uint32_t pi;
     int j,ism;
 
     set_factor(nIntegerFactor);
-    io_init(&afiLightCone,0,0,IO_AIO|IO_LIBAIO);
+    for (auto o=0; o<8; ++o) io_init(&afiLightCone[o],0,0,IO_AIO|IO_LIBAIO);
 
 #define RANDOM_SEED 1
     srand(RANDOM_SEED);
@@ -515,19 +468,28 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if (nEphemeral * mdl->Cores()*nEphemeralBytes < nMinEphemeral)
         nEphemeral = (nMinEphemeral + mdl->Cores()*nEphemeralBytes - 1) / (mdl->Cores()*nEphemeralBytes);
 
-    uint64_t nElements[4] = {uint64_t(nStore+1),nEphemeral,uint64_t(nDecoratorStore+1),0};
-    uint64_t nBytesPerElement[4] = {particles.ParticleSize(),nEphemeralBytes,decorators.ElementSize(),sizeof(uint64_t)};
-    void *pSegments[4];
-    storageSize = mdl->new_shared_array(pSegments,4,nElements,nBytesPerElement,nMinTotalStore);
+    // For the fourth storage we use a rather conservative minimum number of tree nodes.
+    // Ideally we would have nStore/nBucket leaf nodes, and thus twice that total tree nodes.
+    // The buckets are not always full, and the tree is not completely balanced, so it will be more in practice.
+    ephemeral.reset(); // The monotonic buffer resource will be invalidated by the new allocation
+    uint64_t nTreeNodes = (nStore+1) / nBucket * 2;
+    TinyVector<size_t,4> nElements{uint64_t(nStore+1),nEphemeral,uint64_t(nDecoratorStore+1),nTreeNodes};
+    TinyVector<size_t,4> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,decorators.ElementSize(),tree.ElementSize()};
+    storageSize = mdl->new_shared_array(pSegments.data(),4,nElements.data(),nBytesPerElement.data(),nMinTotalStore);
+    // storageSize = mdl->new_shared_array(pSegments,nElements,nBytesPerElement,nMinTotalStore);
     if (storageSize == 0) {
         fprintf(stderr, "ERROR: unable to allocate main storage\n");
         abort();
     }
+    nSegmentSizeBytes = nElements * nBytesPerElement;
 
-    storageBase = pSegments[0];
+    assert(nElements[0] >= nStore);
     particles.setStore(pSegments[0],nStore);
-    this->pLite = pSegments[1];                 // Ephemeral storage
     decorators.setStore(pSegments[2],nDecoratorStore);
+
+    // Setup the ephemeral storage. If we run out of space, it will throw an exception.
+    ephemeral.emplace(pSegments[1],nElements[1]*nBytesPerElement[1],std::pmr::null_memory_resource());
+
     /*
     ** Now we setup the node storage for the tree.  This storage is no longer
     ** continguous as the MDL now supports non-contiguous arrays.  We allocate
@@ -548,13 +510,14 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     if ( iCacheSize > 0 ) mdl->SetCacheSize(iCacheSize);
     mdl->SetCacheMaxInflight(iCacheMaxInflight);
+    mdl->SetMpiRecvCount(mpi_recv_count,mpi_recv_mode);
 
     // This is cheeserific - chooses the largest specified
 #if defined(USE_CUDA)
-    this->cudaClient = new CudaClient(this->mdl->mpi->cuda,this->mdl->gpu);
+    this->cudaClient = std::make_unique<CudaClient>(this->mdl->mpi->cuda,this->mdl->gpu);
 #endif
 #if defined(USE_METAL)
-    this->metalClient = new MetalClient(*this->mdl);
+    this->metalClient = std::make_unique<MetalClient>(*this->mdl);
 #endif
     /*
     ** Initialize global group id.
@@ -570,19 +533,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     */
     this->ew.nMaxEwhLoop = 0;
     /*
-    ** Allocate Checklist.
-    */
-    this->cl = new clList(clFreeList);
-    this->clNew = new clList(clFreeList);
-    /*
     ** Allocate the stack.
     */
-    this->nMaxStack = 30;
-    this->S = new CSTACK[this->nMaxStack];
-    assert(this->S != NULL);
-    for (ism=0; ism<this->nMaxStack; ++ism) {
-        this->S[ism].cl = new clList(clFreeList);
-    }
     this->ga = NULL;
 
     this->profileBins = NULL;
@@ -626,15 +578,6 @@ pkdContext::~pkdContext() {
     /*
     ** Free checklist.
     */
-    delete cl;
-    delete clNew;
-    /*
-    ** Free Stack.
-    */
-    for (ism=0; ism<nMaxStack; ++ism) {
-        delete S[ism].cl;
-    }
-    delete [] S;
     if (ew.nMaxEwhLoop) {
         delete [] ewt.hx.f;
         delete [] ewt.hy.f;
@@ -646,22 +589,18 @@ pkdContext::~pkdContext() {
     /* Only thread zero allocated this memory block  */
     mdl->ThreadBarrier();
     if (mdl->Core() == 0) {
-        mdl->delete_shared_array(storageBase,storageSize);
+        mdl->delete_shared_array(pSegments[0],storageSize);
     }
     free(pTempPRIVATE);
-    if (pLightCone) {
-#ifdef _MSC_VER
-        _aligned_free(pLightCone);
-#else
-        free(pLightCone);
-#endif
-    }
+    for (auto octant=0; octant<8; ++octant) if (pLightCone[octant]) free(pLightCone[octant]);
     if (pHealpixData) free(pHealpixData);
-    io_free(&afiLightCone);
+    for (auto o=0; o<8; ++o) io_free(&afiLightCone[o]);
     if (csm) {
         csmFinish(csm);
         csm = NULL;
     }
+    if (interp_scale) gsl_spline_free(interp_scale);
+    if (interp_accel) gsl_interp_accel_free(interp_accel);
 #ifdef COOLING
     cooling_clean(cooling);
 #endif
@@ -671,15 +610,11 @@ pkdContext::~pkdContext() {
 }
 
 size_t pkdClCount(PKD pkd) {
-    size_t nCount = pkd->cl->count();
-    int i;
-    for (i=0; i<pkd->nMaxStack; ++i)
-        nCount += pkd->S[i].cl->count();
-    return nCount;
+    return pkd->cl.count() + pkd->clFreeList.count();
 }
 
 size_t pkdClMemory(PKD pkd) {
-    return pkd->cl->memory();
+    return pkd->cl.memory() + pkd->clFreeList.memory();
 }
 
 size_t pkdIlpMemory(PKD pkd) {
@@ -751,6 +686,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         if (p.have_newsph()) {
             auto &NewSph = p.newsph();
             NewSph.u = NewSph.uDot = NewSph.divv = NewSph.Omega = 0.0;
+            NewSph.cs = NewSph.P = NewSph.oldRho = NewSph.expImb2 = NewSph.T = 0.0;
+            NewSph.vpred[0] = NewSph.vpred[1] = NewSph.vpred[2] = 0.0;
+            NewSph.maxGroupSize = 32768;
         }
 
         if (p.have_newsphstr()) {
@@ -2077,14 +2015,11 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
         ** and mdlFetch them from that thread
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
-            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE,pj,id)];
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[pkd->mdl->Fetch<PARTICLE>(CID_PARTICLE,pj,id)];
             ++nParticles;
 
             // Shortcut if necessary flag already set, as the test will pass in the end
-            if ((SPHoptions->doSetDensityFlags && p.marked()) || (SPHoptions->doSetNNflags && p.NN_flag())) {
-                if (id != pkd->Self()) pkd->mdl->Release(CID_PARTICLE,&p);
-                continue;
-            }
+            if ((SPHoptions->doSetDensityFlags && p.marked()) || (SPHoptions->doSetNNflags && p.NN_flag())) continue;
 
             // Get position and ball size of particle p
             auto pr = p.position();
@@ -2129,7 +2064,6 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
                 // Check that density flag is set if applicable
                 if (SPHoptions->doSetDensityFlags) assert(p.marked());
             }
-            if (id != pkd->Self()) pkd->mdl->Release(CID_PARTICLE,&p);
         }
     }
     assert(nParticles == pkd->nGas);
@@ -2260,10 +2194,10 @@ void pkdCalcEandL(PKD pkd,double &T,double &U,double &Eth,TinyVector<double,3> &
     }
 }
 
-static void flushLightCone(PKD pkd) {
-    size_t count = pkd->nLightCone * sizeof(LIGHTCONEP);
-    io_write(&pkd->afiLightCone,pkd->pLightCone,count);
-    pkd->nLightCone = 0;
+static void flushLightCone(PKD pkd, int octant) {
+    size_t count = pkd->nLightCone[octant] * sizeof(LIGHTCONEP);
+    io_write(&pkd->afiLightCone[octant],pkd->pLightCone[octant],count);
+    pkd->nLightCone[octant] = 0;
 }
 
 class HealpixHelper : public mdl::arrayCACHEhelper {
@@ -2292,9 +2226,11 @@ public:
 void pkdLightConeClose(PKD pkd,const char *healpixname) {
     int i;
     size_t nWrite;
-    if (pkd->afiLightCone.fd > 0) {
-        flushLightCone(pkd);
-        io_close(&pkd->afiLightCone);
+    for (auto octant=0; octant<8; ++octant) {
+        if (pkd->afiLightCone[octant].fd > 0) {
+            flushLightCone(pkd,octant);
+            io_close(&pkd->afiLightCone[octant]);
+        }
     }
     if (pkd->nSideHealpix) {
         assert(healpixname && healpixname[0]);
@@ -2317,15 +2253,21 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
     }
 }
 
-void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
+void pkdLightConeOpen(PKD pkd,const char *name_template,int nSideHealpix) {
+    int mOctants = pkd->mLightConeOctants;
     int i;
-    if (fname[0]) {
-        if (io_create(&pkd->afiLightCone,fname) < 0) {
-            perror(fname);
+    auto mask = (mOctants == 0) ? 1 : mOctants;
+    for (auto octant=0; octant<8; ++octant) {
+        if ( (mask & (1<<octant)) == 0  || name_template[0] == '\0') {
+            pkd->afiLightCone[octant].fd = -1;
+            continue;
+        }
+        auto fname = fmt::format(name_template,"octant"_a=octant,"i"_a=pkd->mdl->Self());
+        if (io_create(&pkd->afiLightCone[octant],fname.c_str()) < 0) {
+            perror(fname.c_str());
             abort();
         }
     }
-    else pkd->afiLightCone.fd = -1;
 
     pkd->nSideHealpix = nSideHealpix;
     if (pkd->nSideHealpix) {
@@ -2347,21 +2289,25 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bParticleOutput) {
     auto P = pkd->particles[p];
     const auto &v = P.velocity();
-    if (pkd->afiLightCone.fd>0 && bParticleOutput) {
-        LIGHTCONEP *pLC = pkd->pLightCone;
-        pLC[pkd->nLightCone].id = P.order();
-        pLC[pkd->nLightCone].pos[0] = r[0];
-        pLC[pkd->nLightCone].pos[1] = r[1];
-        pLC[pkd->nLightCone].pos[2] = r[2];
-        /*
-        ** Convert momentum (a^2 * x_dot to physical peculiar velocity (a * x_dot in sim units)
-        ** This is easy to do now, and somewhat more involved to do later.
-        */
-        pLC[pkd->nLightCone].vel[0] = v[0]*dvFac;
-        pLC[pkd->nLightCone].vel[1] = v[1]*dvFac;
-        pLC[pkd->nLightCone].vel[2] = v[2]*dvFac;
-        pLC[pkd->nLightCone].pot    = fPot;
-        if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
+    if (bParticleOutput) {
+        auto octant = pkd->mLightConeOctants==0 ? 0 : (((r[0]<0)?4:0) + ((r[1]<0)?2:0) + ((r[2]<0)?1:0));
+        if (pkd->afiLightCone[octant].fd>0) {
+            auto pLC = pkd->pLightCone[octant];
+            auto nLightCone = pkd->nLightCone[octant];
+            pLC[nLightCone].id = P.order();
+            pLC[nLightCone].pos[0] = r[0];
+            pLC[nLightCone].pos[1] = r[1];
+            pLC[nLightCone].pos[2] = r[2];
+            /*
+            ** Convert momentum (a^2 * x_dot to physical peculiar velocity (a * x_dot in sim units)
+            ** This is easy to do now, and somewhat more involved to do later.
+            */
+            pLC[nLightCone].vel[0] = v[0]*dvFac;
+            pLC[nLightCone].vel[1] = v[1]*dvFac;
+            pLC[nLightCone].vel[2] = v[2]*dvFac;
+            pLC[nLightCone].pot    = fPot;
+            if (++pkd->nLightCone[octant] == pkd->nLightConeMax) flushLightCone(pkd,octant);
+        }
     }
     if (pkd->nSideHealpix) {
         int64_t iPixel = vec2pix_ring64(pkd->nSideHealpix, r);
@@ -2664,6 +2610,7 @@ void pkdSetupInterpScale(PKD pkd,double dBoxSize,double mrMax) {
         rt[i] = i*dr;
         at_inv[i] = 1.0/csmComoveLookbackTime2Exp(pkd->csm,rt[i]/dLightSpeed);
     }
+    pkd->interp_accel = gsl_interp_accel_alloc();
     pkd->interp_scale = gsl_spline_alloc(gsl_interp_cspline,nTable);
     gsl_spline_init(pkd->interp_scale,rt,at_inv,nTable);
 }
@@ -2783,13 +2730,13 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
 /*
 ** Initialize Lightcone stuff.
 */
-void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP) {
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP,int mOctants) {
 #ifdef __linux__
     uint64_t nPageSize = sysconf(_SC_PAGESIZE);
 #else
     uint64_t nPageSize = 512;
 #endif
-
+    pkd->mLightConeOctants = mOctants;
     /*
     ** Initialize Lookup table for converting lightcone velocities to physical (sim units)
     */
@@ -2809,25 +2756,24 @@ void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSiz
     /*
     ** allocate enough space for light cone particle output
     */
-    uint64_t nLightConeBytes = (1024*1024*16);
+    uint64_t nLightConeBytes = (1024*1024*2);
     pkd->nLightConeMax = nLightConeBytes / sizeof(LIGHTCONEP);
-    pkd->nLightCone = 0;
-    if (bLightConeParticles) {
-        void *v;
-#ifdef _MSC_VER
-        pkd->pLightCone = _aligned_malloc(nLightConeBytes, nPageSize);
-#else
-        if (posix_memalign(&v, nPageSize, nLightConeBytes)) pkd->pLightCone = NULL;
-        else pkd->pLightCone = static_cast<LIGHTCONEP *>(v);
-#endif
-        mdlassert(pkd->mdl,pkd->pLightCone != NULL);
-        io_init(&pkd->afiLightCone,8,2*1024*1024,IO_AIO|IO_LIBAIO);
+    pkd->nLightCone = 0; // array of 8 octants
+    auto mask = pkd->mLightConeOctants==0 ? 1 : pkd->mLightConeOctants;
+    for (auto octant=0; octant<8; ++octant) {
+        if (bLightConeParticles && (mask & (1<<octant))) {
+            void *v;
+            if (posix_memalign(&v, nPageSize, nLightConeBytes)) pkd->pLightCone[octant] = NULL;
+            else pkd->pLightCone[octant] = static_cast<LIGHTCONEP *>(v);
+            mdlassert(pkd->mdl,pkd->pLightCone[octant] != NULL);
+            io_init(&pkd->afiLightCone[octant],8,2*1024*1024,IO_AIO|IO_LIBAIO);
+        }
+        else {
+            pkd->afiLightCone[octant].nBuffers = 0;
+            pkd->pLightCone[octant] = NULL;
+        }
+        pkd->afiLightCone[octant].fd = -1;
     }
-    else {
-        pkd->afiLightCone.nBuffers = 0;
-        pkd->pLightCone = NULL;
-    }
-    pkd->afiLightCone.fd = -1;
     pkd->pHealpixData = NULL;
 }
 
@@ -3277,12 +3223,11 @@ void pkdInitializeEOS(PKD pkd) {
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions *SPHoptions, int bGPU) {
     if (bGPU) {
 #ifdef USE_CUDA
-        auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
         // Only one thread needs to transfer the SPHoptions to the GPU
         if (pkd->mdl->Core()==0) {
             SPHOptionsGPU SPHoptionsGPU;
             copySPHOptionsGPU(SPHoptions, &SPHoptionsGPU);
-            cuda->setupSPHOptions(&SPHoptionsGPU);
+            pkd->cudaClient->setupSPHOptions(&SPHoptionsGPU);
         }
         pkd->mdl->ThreadBarrier();
 #endif

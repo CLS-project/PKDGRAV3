@@ -512,9 +512,8 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut,bool bGPU) {
         mdlThreadBarrier(pkd->mdl);
 #endif
 #ifdef USE_CUDA
-        auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
         // Only one thread needs to transfer the tables to the GPU
-        if (pkd->mdl->Core()==0) cuda->setupEwald(ew,ewt);
+        if (pkd->mdl->Core()==0) pkd->cudaClient->setupEwald(ew,ewt);
         pkd->mdl->ThreadBarrier();
 #endif
     }

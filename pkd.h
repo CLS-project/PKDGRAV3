@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <optional>
 #include <vector>
 
 #include "mdl.h"
@@ -37,6 +38,7 @@
 #include "units.h"
 #include "io/fio.h"
 #include "basetype.h"
+#include "core/ephemeral.h"
 #include "core/integerize.h"
 #include "core/treenode.h"
 #include "io/iomodule.h"
@@ -153,13 +155,22 @@ typedef struct partLightCone {
 /*
 ** Components required for tree walking.
 */
-typedef struct CheckStack {
-    clList *cl;
+struct CSTACK {
+    using list_type = typename clList::list_type; // the boost::intrusive::list alias
+    // CSTACK() = default;
+    explicit CSTACK(list_type& freeList) : cl(freeList) {}
+    // clList is non-copyable (intrusive); but movable
+    CSTACK(const CSTACK &) = delete;
+    CSTACK &operator=(const CSTACK &) = delete;
+    CSTACK(CSTACK &&) noexcept = default;
+    CSTACK &operator=(CSTACK &&) noexcept = default;
+
+    clList cl;
     LOCR L;
     float dirLsum;
     float normLsum;
     int iNodeIndex;
-} CSTACK;
+};
 
 #if defined(USE_SIMD) && !defined(__CUDACC__)
 typedef struct {
@@ -367,9 +378,10 @@ typedef struct {
 class pkdContext : public Integerize {
 public:
     explicit pkdContext(
-        mdl::mdlClass *mdl,int nStore,int nDecoratorStore, uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
+        mdl::mdlClass *mdl,int nStore, int nDecoratorStore, int nBucket,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
         int nTreeBitsLo, int nTreeBitsHi,
-        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
+        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,mdl::MPI_RECV_MODE mpi_recv_mode,int mpi_recv_count,
+        const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
         uint64_t mMemoryModel, uint32_t nIntegerFactor);
     virtual ~pkdContext();
     void set_factor(std::uint32_t factor);
@@ -381,10 +393,28 @@ protected:  // Support for memory models
     int NodeAddInt64     (int n=1); // Add n 64-bit integers to the node structure
     int NodeAddInt32     (int n=1); // Add n 32-bit integers to the node structure
 protected:
+    // Storage Segments: there are three different segments for each thread:
+    // 1. The main particle store, which contains the particles and their properties.
+    // 2. The ephemeral store, which contains temporary data for each particle.
+    // 3. The overflow store, which is used if the grids for the would not fit into the ephermeral store.
+    //    The storage in this segment is reused for (some of) the tree nodes after the IC generation is done.
+    blitz::TinyVector<void *,3> pSegments;
+    blitz::TinyVector<size_t,3> nSegmentSizeBytes;
+public:
+    auto SegmentSizeBytes(int i) const { return nSegmentSizeBytes[i]; }
+    template<typename T=void>
+    T *Segment(int i) const {
+        return reinterpret_cast<T *>(pSegments[i]);
+    }
+    template<typename T>
+    auto Ephemeral() {
+        return Segment<T>(1);
+    }
+    std::optional<ephemeral_buffer_resource> ephemeral;
+protected:
     PARTICLE *pTempPRIVATE = nullptr;
-    uint32_t nEphemeralBytes = 0; /* per-particle */
-    void *storageBase;
-    uint64_t storageSize;
+    size_t nEphemeralBytes = 0; /* per-particle */
+    size_t storageSize;
 public:
     particleStore particles;
     decoratorStore decorators;
@@ -396,12 +426,13 @@ public:
     int DecoratorLocal() { return decorators.Local(); }
     int SetLocal(int n);
     int AddLocal(int n);
-    auto EphemeralBytes() {return nEphemeralBytes; }
+    auto EphemeralElementBytes() {return nEphemeralBytes; }
+    auto EphemeralSize() { return 1ul*EphemeralElementBytes()*(FreeStore()+1); }
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(Bound) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return tree.ElementSize(); }
     auto DecoratorSize() { return decorators.ElementSize(); }
     auto DecoratorMemory() { return decorators.ElementSize() * (decorators.FreeStore()+1); }
-    auto ParticleMemory() { return (particles.ParticleSize() + EphemeralBytes()) * (FreeStore()+1); }
+    auto ParticleMemory() { return (particles.ParticleSize() + EphemeralElementBytes()) * (FreeStore()+1); }
     PARTICLE *Particle(int i) { return particles.Element(i); }
     decorators::FIELDS *Decorator(int i) { return decorators.Element(i); }
 
@@ -445,6 +476,7 @@ public:
 public:
     void Restore(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
     void RestoreDecorator(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
+    void GroupStatsSave(int iGroup,const std::string &filename,int iSegment,int nSegment);
 
 // Rockstar Analysis
 protected:
@@ -487,20 +519,18 @@ public:
     ** Light cone variables.
     */
     int nLayerMax;
-    int *nBoxLC;
-    double *lcOffset0;
-    double *lcOffset1;
-    double *lcOffset2;
-    asyncFileInfo afiLightCone;
-    LIGHTCONEP *pLightCone;
-    int nLightCone, nLightConeMax;
+    std::vector<int> nBoxLC;
+    std::vector<double> lcOffset0, lcOffset1, lcOffset2;
+    asyncFileInfo afiLightCone[8];
+    int nLightConeMax, mLightConeOctants;
+    blitz::TinyVector<LIGHTCONEP *,8> pLightCone;
+    blitz::TinyVector<int,8> nLightCone;
     int64_t nHealpixPerDomain;
     int64_t nSideHealpix;
     healpixData *pHealpixData;
-    gsl_spline *interp_scale; // interpolation table for 1/a given r in the lightcone
-    gsl_interp_accel *interp_accel = gsl_interp_accel_alloc();
+    gsl_spline *interp_scale = nullptr; // interpolation table for 1/a given r in the lightcone
+    gsl_interp_accel *interp_accel = nullptr;
 
-    void *pLite;
     /*
     ** Advanced memory models
     */
@@ -510,14 +540,12 @@ public:
     /*
     ** Tree walk variables.
     */
-    int nMaxStack;
-    CSTACK *S;
+    std::vector<CSTACK> S;
     ilpList ilp;
     ilcList ilc;
     ilcList ill;
     clList::free_list clFreeList;
-    clList *cl;
-    clList *clNew;
+    clList cl;
     double dFlop;
     double dFlopSingleCPU, dFlopDoubleCPU;
     double dFlopSingleGPU, dFlopDoubleGPU;
@@ -595,10 +623,10 @@ public:
 #endif
 
 #ifdef USE_CUDA
-    CudaClient *cudaClient;
+    std::unique_ptr<CudaClient> cudaClient;
 #endif
 #ifdef USE_METAL
-    MetalClient *metalClient;
+    std::unique_ptr<MetalClient> metalClient;
 #endif
 #ifdef MDL_FFTW
     MDLFFT fft;
@@ -620,10 +648,6 @@ public:
         uMinRungActive = iRung;
         uMaxRungActive = bGreater ? 255 : iRung;
         particles.ActiveRung(uMinRungActive,uMaxRungActive);
-    }
-    template<typename T>
-    auto Ephemeral() {
-        return static_cast<T *>(pLite);
     }
 };
 using PKD = pkdContext *;
@@ -792,7 +816,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo);
-void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP);
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,blitz::TinyVector<double,3> hLCP,int mOctants);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                   double dDelta, int iMaxRung,
@@ -845,7 +869,6 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
                 const blitz::TinyVector<double,3> &com, const blitz::TinyVector<double,3> &vcm,
                 const blitz::TinyVector<double,3> &L);
 void pkdCalcDistance(PKD pkd, blitz::TinyVector<double,3> dCenter, int bPeriodic);
-uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double,3> &dCenter, double dRadius, int bPeriodic,
                 blitz::TinyVector<double,3> &com, blitz::TinyVector<double,3> &vcm,
                 blitz::TinyVector<double,3> &L,

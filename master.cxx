@@ -15,11 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
+#include "pkd_config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,6 +61,48 @@
 using namespace fmt::literals;        // Gives us ""_a and ""_format literals
 using namespace pyrameters::literals; // Gives us ""_key literals
 
+struct DeferFormat {
+    std::string name;
+};
+
+// Formatter that reproduces "{name[:specs]}" literally.
+template <>
+struct fmt::formatter<DeferFormat> {
+    // Capture any format spec after ':' up to the closing '}'
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext &ctx) {
+        auto it  = ctx.begin();
+        auto end = ctx.end();
+
+        for (int depth=0; it != end; ++it) {
+            char c = *it;
+            if (c == '{') ++depth;
+            else if (c == '}') {
+                if (depth == 0) break;
+                --depth;
+            }
+        }
+        specs_.assign(ctx.begin(),it);           // whatever was written after ':'
+        // Advance to the end (fmt expects us to return the iterator at '}' or end)
+        return it;
+    }
+
+    template <typename FormatContext>
+    auto format(const DeferFormat &d, FormatContext &ctx) const {
+        auto out = ctx.out();
+        // Re-emit the original placeholder, preserving any specs
+        if (specs_.empty()) {
+            return fmt::format_to(out, "{{{}}}", d.name);
+        }
+        else {
+            return fmt::format_to(out, "{{{}:{}}}", d.name, specs_);
+        }
+    }
+
+private:
+    std::string specs_;
+};
+
 #include "core/illinois.h"
 #include "io/outtype.h"
 #include "smooth/smoothfcn.h"
@@ -74,13 +112,18 @@ using namespace pyrameters::literals; // Gives us ""_key literals
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
+#include "core/ignoresigbus.h"
 #include "core/calcroot.h"
 #include "core/select.h"
 #include "core/fftsizes.h"
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "io/restore.h"
+#include "io/output.h"
 #include "initlightcone.h"
+#ifdef INSTRUMENT_MPI
+    #include "core/cachestats.h"
+#endif
 
 #ifdef HAVE_ROCKSTAR
 #include "analysis/rshalocount.h"
@@ -91,6 +134,7 @@ namespace rockstar {
 }
 #endif
 
+#include "analysis/analysis.h"
 #include "analysis/rsloadids.h"
 #include "analysis/rssaveids.h"
 #include "analysis/rsextract.h"
@@ -100,6 +144,8 @@ namespace rockstar {
 #include "domains/dumptrees.h"
 #include "domains/olddd.h"
 #include "domains/reorder.h"
+#include "domains/enforceperiodic.h"
+#include "domains/combinebound.h"
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
@@ -113,6 +159,15 @@ namespace rockstar {
 #define LOCKFILE ".lockfile"    /* for safety lock */
 #define STOPFILE "STOP"         /* for user interrupt */
 #define CHECKFILE "CHECKPOINT"      /* for user interrupt */
+
+// This function will take a buffer (e.g., char filename[256]) and safely copy
+// the contents of a std::string_view into it, ensuring null-termination.
+template <std::size_t N>
+void marshal_string(char (&dst)[N], std::string_view src) {
+    if (src.length() >= N) throw std::runtime_error("string is too long");
+    memcpy(dst, src.data(), src.length());
+    dst[src.length()] = '\0';
+}
 
 #ifdef _MSC_VER
 double MSR::Time() {
@@ -173,8 +228,7 @@ static const char *timer_names[TOTAL_TIMERS] = {
 static_assert(sizeof(timer_names) / sizeof(timer_names[0]) == TOTAL_TIMERS);
 
 void MSR::TimerHeader() {
-    std::string achFile(OutName());
-    achFile += ".timing";
+    auto achFile = MakePath(OutName(),".timing");
     auto fpLog = fopen(achFile.c_str(),"a");
     fprintf(fpLog,"# Step");
     for (int iTimer=0; iTimer<TOTAL_TIMERS; iTimer++) {
@@ -185,8 +239,7 @@ void MSR::TimerHeader() {
 }
 
 void MSR::TimerDump(int iStep) {
-    std::string achFile(OutName());
-    achFile += ".timing";
+    auto achFile = MakePath(OutName(),".timing");
     auto fpLog = fopen(achFile.c_str(),"a");
 
     fprintf(fpLog,"%d", iStep);
@@ -243,14 +296,53 @@ std::string MSR::BuildName(std::string_view path,int iStep,std::string_view type
                             "step"_a=iStep,
                             "type"_a=type,
                             "kind"_a=kind,
-                            "i"_a="{i}"); // Defers the evaluation of i (if present)
-    make_directories(name);
+                            "octant"_a=DeferFormat{"octant"}, // Defers the evaluation of octant (if present)
+                            "i"_a=DeferFormat{"i"}); // Defers the evaluation of i (if present)
+    // If the octant field is present then we may need to create multiple directories
+    if (fmt::format(name,"octant"_a=0,"i"_a=DeferFormat{"i"}) != name) {
+        int mask = 0;
+        if (parameters.has_lstLightConeOctants()) {
+            auto octants = parameters.get_lstLightConeOctants();
+            for (auto o : octants) mask |= (1 << o);
+        }
+        else mask = 1; // weird, write to "octant 0"
+        for (auto octant=0; octant<8; ++octant) {
+            if (mask & (1<<octant)) {
+                make_directories(fmt::format(name,"octant"_a=octant,"i"_a=DeferFormat{"i"}));
+            }
+        }
+    }
+    else {
+        make_directories(name);
+    }
     return name;
 }
+std::string MSR::BuildNameWithI(std::string_view path,int iStep,std::string_view type) {
+    auto name = BuildName(path,iStep,type);
+    // If the string does not contain an 'i' field, then we append ".{i}"
+    if (fmt::format(name,"i"_a=0) == name) name += ".{i}";
+    return name;
+}
+
 std::string MSR::BuildName(int iStep,std::string_view type) {
     std::string_view kind = type.length() ? type.substr(1) : "output";
     return BuildName(parameters.get_achOutPath("type"_key=type,"kind"_key=kind),iStep,type);
 }
+std::string MSR::BuildNameWithI(int iStep,std::string_view type) {
+    auto name = BuildName(iStep,type);
+    // If the string does not contain an 'i' field, then we append ".{i}"
+    if (fmt::format(name,"i"_a=0) == name) name += ".{i}";
+    return name;
+}
+std::string MSR::BuildNameWithOI(int iStep,std::string_view type) {
+    auto name = BuildName(iStep,type);
+    // If the string does not contain an 'octant' field, then we append ".{octant}"
+    if (fmt::format(name,"octant"_a=0,"i"_a=DeferFormat{"i"}) == name) name += ".{octant}";
+    // If the string does not contain an 'i' field, then we append ".{i}"
+    if (fmt::format(name,"i"_a=0,"octant"_a=DeferFormat{"octant"}) == name) name += ".{i}";
+    return name;
+}
+
 std::string MSR::BuildIoName(int iStep,std::string_view type) {
     std::string_view kind = type.length() ? type.substr(1) : "output";
     auto achIoPath = parameters.get_achIoPath("type"_key=type,"kind"_key=kind);
@@ -258,32 +350,34 @@ std::string MSR::BuildIoName(int iStep,std::string_view type) {
         return BuildName(achIoPath,iStep,type);
     else return BuildName(iStep,type);
 }
-std::string MSR::BuildCpName(int iStep,std::string_view type) {
-    std::string_view kind = type.length() ? type.substr(1) : "checkpoint";
+std::string MSR::BuildCpName(int iStep) {
+    static constexpr std::string_view type = ".chk";
+    static constexpr std::string_view kind = "chk";
     auto achCheckpointPath = parameters.get_achCheckpointPath("type"_key=type,"kind"_key=kind);
-    if ( achCheckpointPath.length() )
-        return BuildName(achCheckpointPath,iStep,type);
-    else return BuildName(iStep,type);
+    if (achCheckpointPath.length()==0) achCheckpointPath = parameters.get_achOutPath("type"_key=type,"kind"_key=kind);
+    if (achCheckpointPath.length()==0) achCheckpointPath = "{name}.{step:05d}{type}";
+    auto name = fmt::format(achCheckpointPath,
+                            "name"_a=OutName(),
+                            "step"_a=iStep,
+                            "type"_a=type,
+                            "kind"_a=kind);
+    make_directories(name);
+    return name;
 }
 
-void MSR::MakePath(std::string_view dir,std::string_view base,char *path) {
-    /*
-    ** Prepends "dir" to "base" and returns the result in "path". It is the
-    ** caller's responsibility to ensure enough memory has been allocated
-    ** for "path".
-    */
-
-    if (!path) return;
+// prepends "dir" to "base" and returns the result.
+std::string MSR::MakePath(std::string_view base,std::string_view ext) {
+    auto dir = parameters.get_achDataSubPath();
+    std::string path;
+    path.reserve(dir.length() + 1 + base.length() + ext.length());
     if (dir.length()) {
-        memcpy(path,dir.data(),dir.length());
-        path += dir.length();
-        *path++ = '/';
+        path = dir;
+        path += '/';
     }
-    if (base.length()) {
-        memcpy(path,base.data(),base.length());
-        path += base.length();
-    }
-    *path = 0;
+    path += base;
+    path += ext;
+    make_directories(path);
+    return path;
 }
 
 uint64_t MSR::getMemoryModel() {
@@ -359,9 +453,12 @@ std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemor
     ps.iCacheSize  = parameters.get_iCacheSize();
     ps.iCacheMaxInflight = parameters.get_iCacheMaxInflight();
     ps.iWorkQueueSize  = parameters.get_iWorkQueueSize();
+    ps.mpi_recv_mode = mdl::MPI_RECV_MODE(parameters.get_iMpiRecvMode());
+    ps.mpi_recv_count = parameters.get_nMpiRecvCount();
     ps.fPeriod = parameters.get_dPeriod();
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
     ps.nIntegerFactor = parameters.get_nIntegerFactor();
+    ps.nBucket = parameters.get_nBucket();
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
     print("Memory Models:{position}{unordered}{velocity}{acceleration}{potential}{groups}{mass}{density}{ball}{softening}{velsmooth}{mfm}{mfv}{new_sph}"
@@ -423,7 +520,7 @@ std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemor
 /// @param bParallel True if parallel reading/writing is enabled
 /// @param nParallel number of threads to use for parallel reading/writing
 /// @return Actual number of threads to use for parallel reading/writing
-int64_t MSR::parallel_count(bool bParallel,int64_t nParallel) {
+int64_t MSR::parallel_count(int64_t nParallel,bool bParallel) {
     if (!bParallel) return 1; // Parallel reading/writing is disabled, use 1 thread
     else if (nParallel<1) return nThreads; // Use maximum number of threads
     else return std::min(nParallel,int64_t(nThreads)); // Use specified number of threads (if less than maximum)
@@ -432,25 +529,24 @@ int64_t MSR::parallel_count(bool bParallel,int64_t nParallel) {
 /// @brief Return the number of threads to use for parallel reading
 /// @return Number of threads to use for parallel reading
 int64_t MSR::parallel_read_count() {
-    return parallel_count(parameters.get_bParaRead(),parameters.get_nParaRead());
+    return parallel_count(parameters.get_nParaRead(),parameters.get_bParaRead());
 }
 
 /// @brief Return the number of threads to use for parallel writing
 /// @return Number of threads to use for parallel writing
 int64_t MSR::parallel_write_count() {
-    return parallel_count(parameters.get_bParaWrite(),parameters.get_nParaWrite());
+    return parallel_count(parameters.get_nParaWrite(),parameters.get_bParaWrite());
 }
 
 void MSR::stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size) {
     ServiceFileSizes::input hdr;
-
-    strncpy(hdr.filename,filename_template.data(),sizeof(hdr.filename));
+    marshal_string(hdr.filename, filename_template);
     hdr.nSimultaneous = hdr.nTotalActive = parallel_read_count();
     hdr.iReaderWriter = 0;
     hdr.nElementSize = 1;
 
     auto out = new ServiceFileSizes::output[ServiceFileSizes::max_files];
-    auto n = mdl->RunService(PST_FILE_SIZES,sizeof(hdr),&hdr,out);
+    auto n = mdl->RunService<ServiceFileSizes>(sizeof(hdr),&hdr,out);
     n /= sizeof(ServiceFileSizes::output);
     counts.resize(n);
 
@@ -465,7 +561,7 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle, int nSizeDecora
     std::vector<uint64_t> counts;
     std::vector<uint64_t> counts_d;
     std::string filename_template = baseName + ".{i}";
-    std::string filename_d_template = baseName + ".dec.{i}";
+    std::string filename_d_template = baseName + ".{i}.dec";
 
     print("Scanning Checkpoint files...\n");
 
@@ -484,11 +580,11 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle, int nSizeDecora
     std::copy(counts.begin(),counts.end(),elements);
     hdr->iBeg = 0;
     hdr->iEnd = hdr->nElements;
-    strncpy(hdr->io.filename,filename_template.c_str(),sizeof(hdr->io.filename));
+    marshal_string(hdr->io.filename, filename_template);
     hdr->io.nSimultaneous = parallel_read_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
-    mdl->RunService(PST_RESTORE,msg);
+    mdl->RunService<ServiceRestore>(msg);
     TimerStop(TIMER_NONE);
     auto dsec = TimerGet(TIMER_NONE);
     print("... identified {} particles in {} files, Wallclock: {:.5f} secs.\n",
@@ -514,7 +610,7 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle, int nSizeDecora
     assert(hdr_d->io.nSimultaneous > 0);
     hdr_d->io.nSegment = hdr_d->io.iThread = 0; // setup later
     hdr_d->io.iReaderWriter = 0;
-    mdl->RunService(PST_RESTORE_DECORATOR,msg_d);
+    mdl->RunService<ServiceRestoreDecorator>(msg_d);
 
     //mdl->RunService(PST_RESET_DECORATOR);
     TimerStop(TIMER_NONE);
@@ -638,9 +734,15 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
         }
     }
 
-    ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
+    // The load_module function relies on peek(256) which is not guaranteed to return 256 bytes.
+    // We seek to the start of the file and back to the current position as a workaround (best effort)
+    auto where = PyObject_CallMethod(pFile, "tell", nullptr);
+    if (!where) { PyErr_Print(); abort(); }
+    Py_XDECREF(PyObject_CallMethod(pFile, "seek", "n", (Py_ssize_t)0));
+    Py_XDECREF(PyObject_CallMethod(pFile, "seek", "O", where));
+    Py_DECREF(where);
 
-    // Restore the interpreter state
+    // Restore the interpreter state so that functions that reference variables will still work
     PyObject *args = PyTuple_Pack(1, pFile);
     PyObject *result = PyObject_CallObject(pDill_load_module, args);
     Py_DECREF(args);
@@ -649,6 +751,8 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
 
     PyObject_CallMethod(pFile, "close", NULL);
     Py_DECREF(pFile);
+
+    ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
@@ -853,9 +957,10 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     struct inWrite in;
     double dsec;
 
-    auto filename = BuildCpName(iStep,".chk");
-    abort_assert(1003,filename.size() < sizeof(in.achOutFile));
-    strcpy(in.achOutFile,filename.c_str());
+    auto filename = BuildCpName(iStep);
+    auto pattern = filename + ".{i}";
+    abort_assert(1003,pattern.size() < sizeof(in.achOutFile));
+    marshal_string(in.achOutFile,pattern);
     in.nProcessors = parallel_write_count();
     if (csm->val.bComove) {
         double dExp = csmTime2Exp(csm,dTime);
@@ -936,13 +1041,13 @@ void MSR::Initialize() {
     */
     if (nThreads > 1) {
         ServiceSetAdd::input inAdd(nThreads);
-        mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
+        mdl->RunService<ServiceSetAdd>(sizeof(inAdd),&inAdd);
     }
 
 }
 
 void MSR::IgnoreSIGBUS() {
-    mdl->RunService(PST_IGNORE_SIGBUS);
+    mdl->RunService<ServiceIgnoreSIGBUS>();
 }
 
 int MSR::GetLock() {
@@ -955,10 +1060,10 @@ int MSR::GetLock() {
     auto bOverwrite = parameters.get_bOverwrite();
 
     FILE *fp = NULL;
-    char achTmp[PATH_MAX],achFile[PATH_MAX];
+    char achTmp[PATH_MAX];
 
-    MakePath(parameters.get_achDataSubPath(),LOCKFILE,achFile);
-    if (!bOverwrite && (fp = fopen(achFile,"r"))) {
+    auto achFile = MakePath(LOCKFILE);
+    if (!bOverwrite && (fp = fopen(achFile.c_str(),"r"))) {
         if (fscanf(fp,"%s",achTmp) != 1) achTmp[0] = '\0';
         (void) fclose(fp);
         if (parameters.get_achOutName() == achTmp) {
@@ -967,7 +1072,7 @@ int MSR::GetLock() {
             return 0;
         }
     }
-    if (!(fp = fopen(achFile,"w"))) {
+    if (!(fp = fopen(achFile.c_str(),"w"))) {
         if (bOverwrite && parameters.get_bVWarnings()) {
             (void) print_warning("WARNING: Unable to create {}...ignored.\n",achFile);
             return 1;
@@ -987,14 +1092,12 @@ int MSR::CheckForStop(const char *achStopFile) {
     ** Checks for existence of STOPFILE in run directory. If found, the file
     ** is removed and the return status is set to 1, otherwise 0.
     */
-
-    char achFile[PATH_MAX];
     FILE *fp = NULL;
-    MakePath(parameters.get_achDataSubPath(),achStopFile,achFile);
-    if ((fp = fopen(achFile,"r"))) {
+    auto achFile = MakePath(achStopFile);
+    if ((fp = fopen(achFile.c_str(),"r"))) {
         (void) fmt::print("User interrupt detected.\n");
         (void) fclose(fp);
-        (void) unlink(achFile);
+        (void) unlink(achFile.c_str());
         return 1;
     }
     return 0;
@@ -1024,7 +1127,7 @@ void MSR::SwapClasses(int id) {
     int n;
     int rID;
 
-    std::unique_ptr<PARTCLASS[]> pClass {new PARTCLASS[PKD_MAX_CLASSES]};
+    auto pClass = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
     n = plcl->pkd->particles.getClasses( PKD_MAX_CLASSES, pClass.get() );
     rID = pst0->mdl->ReqService(id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
     n = pst0->mdl->GetReply(rID,PKD_MAX_CLASSES*sizeof(PARTCLASS),pClass.get());
@@ -1152,15 +1255,14 @@ void MSR::RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,boo
 ** Main problem is that it calls pkd level routines, bypassing the
 ** pst level. It uses plcl pointer which is not desirable.
 */
-void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int bDouble) {
+void MSR::AllNodeWrite(std::string_view FileName, double dTime, double dvFac, int bDouble) {
     int nProcessors;
     struct inWrite in;
 
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    MSR::MakePath(parameters.get_achDataSubPath(),pszFileName,in.achOutFile);
-
+    marshal_string(in.achOutFile, FileName);
     in.bStandard = parameters.get_bStandard();
     nProcessors = parallel_write_count();
     in.iIndex = 0;
@@ -1211,7 +1313,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
                 | (parameters.has_dSoft()?FIO_FLAG_GLOBAL_SOFT:0)
                 | (parameters.get_bMemUnordered()?FIO_FLAG_UNORDERED:0);
 
-    if (!in.bHDF5 && strstr(in.achOutFile,"&I")==0) {
+    if (!in.bHDF5 && fmt::format(in.achOutFile,fmt::arg("i",0)) == in.achOutFile) {
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,
@@ -1237,8 +1339,7 @@ uint64_t MSR::CalcWriteStart() {
     return out.nTotal;
 }
 
-void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
-    char achOutFile[PATH_MAX];
+void MSR::Write(std::string_view FileName,double dTime,int bCheckpoint) {
     int nProcessors;
     double dvFac, dExp;
     double dsec;
@@ -1255,10 +1356,6 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
     ** This sets plcl->nWriteStart.
     */
     /*uint64_t N =*/ CalcWriteStart();
-    /*
-    ** Add Data Subpath for local and non-local names.
-    */
-    MSR::MakePath(parameters.get_achDataSubPath(),pszFileName.c_str(),achOutFile);
 
     nProcessors = parallel_write_count();
     auto bHDF5 = parameters.get_bHDF5();
@@ -1272,10 +1369,10 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
         dvFac = 1.0;
     }
     if ( nProcessors==1 ) {
-        print_detail("Writing {name} in {format} format serially ...\n","name"_a=achOutFile,"format"_a=(bHDF5?"HDF5":"Tipsy"));
+        print_detail("Writing {name} in {format} format serially ...\n","name"_a=FileName,"format"_a=(bHDF5?"HDF5":"Tipsy"));
     }
     else {
-        print_detail("Writing {name} in {format} format in parallel (but limited to {n}) ...\n","name"_a=achOutFile,"format"_a=(bHDF5?"HDF5":"Tipsy"),"n"_a=nProcessors);
+        print_detail("Writing {name} in {format} format in parallel (but limited to {n}) ...\n","name"_a=FileName,"format"_a=(bHDF5?"HDF5":"Tipsy"),"n"_a=nProcessors);
     }
 
     if (csm->val.bComove)
@@ -1284,7 +1381,7 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
         print_detail("Time:{time:g}\n","time"_a=dTime);
 
     TimerStart(TIMER_IO);
-    AllNodeWrite(achOutFile, dTime, dvFac, bCheckpoint);
+    AllNodeWrite(FileName, dTime, dvFac, bCheckpoint);
     TimerStop(TIMER_IO);
     dsec = TimerGet(TIMER_IO);
 
@@ -1294,7 +1391,7 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
 void MSR::SetSoft(double dSoft) {
     print_detail("Set Softening...\n");
     ServiceSetSoft::input in(dSoft);
-    mdl->RunService(PST_SETSOFT,sizeof(in),&in);
+    mdl->RunService<ServiceSetSoft>(sizeof(in),&in);
 }
 
 // Use the smSmooth routine with an empty smooth function to initialize fBall
@@ -1492,10 +1589,10 @@ void MSR::DomainDecompOld(int iRung) {
     if (parameters.get_bPeriodic() && blitz::all(period < FLOAT_MAXVAL)) {
         Bound::coord_type offset(0.5*period);
         in.bnd = Bound(fCenter-offset,fCenter+offset);
-        mdl->RunService(PST_ENFORCEPERIODIC,sizeof(in.bnd),&in.bnd);
+        mdl->RunService<ServiceEnforcePeriodic>(sizeof(in.bnd),&in.bnd);
     }
     else {
-        mdl->RunService(PST_COMBINEBOUND,&in.bnd);
+        mdl->RunService<ServiceCombineBound>(&in.bnd);
     }
     /* We make sure that the classes are synchronized among all the domains,
      * otherwise a new class type being moved to another DD region could cause
@@ -1507,7 +1604,7 @@ void MSR::DomainDecompOld(int iRung) {
     print_detail("Domain Decomposition... \n");
     TimerStart(TIMER_DOMAIN);
 
-    mdl->RunService(PST_DOMAINDECOMP,sizeof(in),&in);
+    mdl->RunService<OldDD::ServiceDomainDecomp>(sizeof(in),&in);
     ReorderDecorator();
     TimerStop(TIMER_DOMAIN);
     dsec = TimerGet(TIMER_DOMAIN);
@@ -1519,6 +1616,10 @@ void MSR::DomainDecompOld(int iRung) {
 }
 
 void MSR::DomainDecomp(int iRung) {
+    if (iRung > parameters.get_iMaxRungDomainDecomp()) {
+        print_detail("Skipping Domain Decomposition, as rung {rung} is above the maximum defined by iMaxRungDomainDecomp ({maxrung}).\n", "rung"_a=iRung, "maxrung"_a=parameters.get_iMaxRungDomainDecomp());
+        return;
+    }
     DomainDecompOld(iRung);
 }
 
@@ -1558,7 +1659,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     nTopTree = pstBuildTree(pst,&in,sizeof(in),pkdn,nTopTree);
     pDistribTop->nTop = nTopTree / pkd->NodeSize();
     assert(pDistribTop->nTop == (2*nThreads-1));
-    mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);
+    mdl->RunService<ServiceDistribTopTree>(nMsgSize,pDistribTop);
     TimerStop(TIMER_TREE);
     dsec = TimerGet(TIMER_TREE);
     print("Tree built, Wallclock: {:.5} secs\n\n",dsec);
@@ -1575,7 +1676,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
         calc.com = pkdn->position();
         calc.uRoot = uRoot;
 
-        mdl->RunService(PST_CALCROOT,sizeof(calc),&calc,&root);
+        mdl->RunService<ServiceCalcRoot>(sizeof(calc),&calc,&root);
         momTreeRoot[uRoot] = root.momc;
         momTreeCom[uRoot][0] = calc.com[0];
         momTreeCom[uRoot][1] = calc.com[1];
@@ -1586,7 +1687,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 void MSR::BuildTree(int bNeedEwald) {
     print_detail("Building local trees...\n\n");
     ServiceDumpTrees::input dump(IRUNGMAX);
-    mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
+    mdl->RunService<ServiceDumpTrees>(sizeof(dump),&dump);
     BuildTree(bNeedEwald,ROOT,0);
 
     if (bNeedEwald) {
@@ -1595,7 +1696,7 @@ void MSR::BuildTree(int bNeedEwald) {
         droot.r[0] = momTreeCom[ROOT][0];
         droot.r[1] = momTreeCom[ROOT][1];
         droot.r[2] = momTreeCom[ROOT][2];
-        mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
+        mdl->RunService<ServiceDistribRoot>(sizeof(droot),&droot);
     }
 #ifdef OPTIM_REORDER_IN_NODES
     if (MeshlessHydro()) {
@@ -1731,9 +1832,8 @@ void MSR::Reorder() {
     }
 }
 
-void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
+void MSR::OutASCII(std::string_view File,int iType,int nDims,int iFileType) {
 
-    char achOutFile[PATH_MAX];
     LCL *plcl;
     PST pst0;
     int id,iDim;
@@ -1762,34 +1862,26 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 
     pstSetTotal(pst,NULL,0,&total,sizeof(total));
 
-    if (pszFile) {
-        /*
-        ** Add Data Subpath for local and non-local names.
-        */
-        MSR::MakePath(parameters.get_achDataSubPath(),pszFile,achOutFile);
+    /*
+    ** Add Data Subpath for local and non-local names.
+    */
+    std::string achOutFile {File};
 
-        switch (iFileType) {
+    switch (iFileType) {
 #ifdef HAVE_LIBBZ2
-        case PKDOUT_TYPE_BZIP2:
-            strcat(achOutFile,".bz2");
-            break;
+    case PKDOUT_TYPE_BZIP2:
+        achOutFile += ".bz2";
+        break;
 #endif
 #ifdef HAVE_LIBZ
-        case PKDOUT_TYPE_ZLIB:
-            strcat(achOutFile,".gz");
-            break;
+    case PKDOUT_TYPE_ZLIB:
+        achOutFile += ".gz";
+        break;
 #endif
-        default:
-            break;
-        }
-
-        print_detail("Writing {name} to {file}\n","name"_a=arrayOrVector,"file"_a=achOutFile);
+    default:
+        break;
     }
-    else {
-        print_detail("No {name} Output File specified\n","name"_a=arrayOrVector);
-        Exit(1);
-        return;
-    }
+    print_detail("Writing {name} to {file}\n","name"_a=arrayOrVector,"file"_a=achOutFile);
 
     if (parallel_write_count()>1 && iFileType>1) {
         struct inCompressASCII in;
@@ -1797,7 +1889,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
         struct inWriteASCII inWrite;
         FILE *fp;
 
-        fp = fopen(achOutFile,"wb");
+        fp = fopen(achOutFile.c_str(),"wb");
         if ( fp==NULL) {
             print_error("Could not create {} Output File:{}\n",arrayOrVector, achOutFile);
             Exit(1);
@@ -1811,13 +1903,13 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
             in.iType = iType;
             in.iDim = iDim;
             pstCompressASCII(pst,&in,sizeof(in),&out,sizeof(out));
-            strcpy(inWrite.achOutFile,achOutFile);
+            marshal_string(inWrite.achOutFile,achOutFile);
             pstWriteASCII(pst,&inWrite,sizeof(inWrite),NULL,0);
             inWrite.nFileOffset += out.nBytes;
         }
     }
     else {
-        pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"wb",iFileType,iType);
+        pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile.c_str(),"wb",iFileType,iType);
         if (!pkdout) {
             print_error("Could not open {} Output File:{}\n",arrayOrVector,achOutFile);
             Exit(1);
@@ -1855,18 +1947,18 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
     }
 }
 
-void MSR::OutArray(const char *pszFile,int iType,int iFileType) {
-    OutASCII(pszFile,iType,1,iFileType);
+void MSR::OutArray(std::string_view File,int iType,int iFileType) {
+    OutASCII(File,iType,1,iFileType);
 }
-void MSR::OutArray(const char *pszFile,int iType) {
-    OutArray(pszFile,iType,parameters.get_iCompress());
+void MSR::OutArray(std::string_view File,int iType) {
+    OutArray(File,iType,parameters.get_iCompress());
 }
 
-void MSR::OutVector(const char *pszFile,int iType,int iFileType) {
-    OutASCII(pszFile,iType,3,iFileType);
+void MSR::OutVector(std::string_view File,int iType,int iFileType) {
+    OutASCII(File,iType,3,iFileType);
 }
-void MSR::OutVector(const char *pszFile,int iType) {
-    OutVector(pszFile,iType,parameters.get_iCompress());
+void MSR::OutVector(std::string_view File,int iType) {
+    OutVector(File,iType,parameters.get_iCompress());
 }
 
 void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
@@ -2078,9 +2170,8 @@ void print_grid(int width, int nThreads, const std::unique_ptr<T[]> &data, M T::
 }
 
 void MSR::Hostname() {
-    int i;
     std::unique_ptr<ServiceHostname::output[]> out {new ServiceHostname::output[nThreads]};
-    mdl->RunService(PST_HOSTNAME,out.get());
+    mdl->RunService<ServiceHostname>(out.get());
     print("Host Names:\n");
     print_grid(12,nThreads,out,&ServiceHostname::output::szHostname);
     print("MPI Rank:\n");
@@ -2088,7 +2179,6 @@ void MSR::Hostname() {
 }
 
 void MSR::MemStatus() {
-    int i;
     if (parameters.get_bVDetails()) {
         std::unique_ptr<struct outMemStatus[]> out {new struct outMemStatus[nThreads]};
         pstMemStatus(pst,0,0,out.get(),nThreads*sizeof(struct outMemStatus));
@@ -2140,6 +2230,31 @@ void MSR::PrintStat(const STAT &ps,char const *pszPrefix,int p) {
         print("{} no data\n", pszPrefix);
     }
 }
+
+#ifdef INSTRUMENT_MPI
+void MSR::PrintStat(const WelfordStats<double> &in_seconds,char const *pszPrefix,int p) {
+    auto us = in_seconds * 1e6;
+    const char *minmax = "max";
+    print("{} {}={:>8.{prec}f} avg={:>8.{prec}f} std-dev={:8.{prec}f} {}\n", pszPrefix, minmax,
+          us.max(), us.mean_value(),
+          us.stddev(),
+          "prec"_a = p);
+
+    static constexpr size_t bin_width = 1; // Bin the histogram entries by this width
+    // Find the index of the start of the all-zero tail
+    auto rit = std::find_if(std::rbegin(us.histogram), std::rend(us.histogram), [](int x) { return x != 0; });
+    auto idx = (rit == std::rend(us.histogram)) ? 0 : std::distance(rit,std::rend(us.histogram));
+    // Output the histogram and truncate the all-zero tail. Output log2 scale (plus 1)
+    fmt::print("      ",idx);
+    for (int i = 0; i < idx; i += bin_width) {
+        uint64_t s = std::accumulate(us.histogram + i, us.histogram + std::min(i + bin_width, size_t(idx)), uint64_t{0});
+        s = s ? 64u - __builtin_clzll(s) : 0u; // log2(s)+1 or 0
+        fmt::print(" {:>2}", s);
+    }
+    fmt::print("\n");
+}
+#endif
+
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      double dTime, double dDelta, double dStep, double dTheta,
@@ -2291,6 +2406,10 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         }
     }
     if (parameters.get_bVStep()) {
+#ifdef INSTRUMENT_MPI
+        ServiceCacheStats::output stats;
+        auto n = mdl->RunService<ServiceCacheStats>(&stats);
+#endif
         /*
         ** Output some info...
         */
@@ -2329,6 +2448,13 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         PrintStat(outr.sCellNumAccess, "  C-cache access:",1);
         PrintStat(outr.sPartMissRatio, "  P-cache miss %:",2);
         PrintStat(outr.sCellMissRatio, "  C-cache miss %:",2);
+#ifdef INSTRUMENT_MPI
+        print("  (cache timeing statistics are given in microseconds)\n");
+        PrintStat(stats.mpi_loop,      "   MPI Loop time:",3);
+        PrintStat(stats.mpi_test,      "   MPI Test time:",3);
+        PrintStat(stats.gpu_test,      "   GPU Test time:",3);
+        PrintStat(stats.msg_test,      "   MSG Test time:",3);
+#endif
     }
     if (outr.nTilesTotal > 0) {
         print("Total tiles processed: {:.5e}, on the GPU: {:.5e}, ratio: {:.2f} %\n",(double)outr.nTilesTotal,(double)(outr.nTilesTotal - outr.nTilesCPU),100.0 - ((double)outr.nTilesCPU)/((double)outr.nTilesTotal)*100.0);
@@ -2436,7 +2562,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
         achFile += ".finelog";
         fpFineLog = fopen(achFile.c_str(),"a");
         assert(fpFineLog != NULL);
-        setbuf(fpFineLog,(char *) NULL); /* no buffering */
+        setvbuf(fpFineLog, NULL, _IONBF, 0); // Disable buffering
 
         /* Write the header */
         fprintf(fpFineLog, "#First line:\n#dStep dTime ");
@@ -2467,7 +2593,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     struct inEndTimestep in;
     in.units = UNITS(parameters,csm->val.h);
 #ifdef GRACKLE
-    strcpy(in.achCoolingTable, parameters.get_achCoolingTables().data());
+    marshal_string(in.achCoolingTable, parameters.get_achCoolingTables());
 #endif
     in.dTime = dTime;
     in.dDelta = dDelta;
@@ -2574,6 +2700,13 @@ void MSR::InitCosmology(CSM csm) {
         in.dBoxSize = parameters.get_dBoxSize();
         in.dRedshiftLCP = parameters.get_dRedshiftLCP();
         in.hLCP = parameters.get_hLCP();
+        in.mOctants = 0;
+        if (parameters.get_bLightConeParticles() ) {
+            if (parameters.has_lstLightConeOctants()) {
+                auto octants = parameters.get_lstLightConeOctants();
+                for (auto o : octants) in.mOctants |= (1 << o);
+            }
+        }
         mdl->RunService(PST_INITLIGHTCONE,sizeof(in),&in);
     }
 }
@@ -2746,10 +2879,16 @@ void MSR::LightConeOpen(int iStep) {
     if (parameters.get_bLightCone()) {
         struct inLightConeOpen lc;
         if (parameters.get_bLightConeParticles() ) {
-            auto filename = BuildName(iStep);
-            strcpy(lc.achOutFile,filename.c_str());
+            auto filename = [&]() {
+                if (parameters.has_lstLightConeOctants()) {
+                    auto octants = parameters.get_lstLightConeOctants();
+                    return BuildNameWithOI(iStep, ".lcp");
+                }
+                else return BuildNameWithI(iStep, ".lcp");
+            }();
+            marshal_string(lc.achOutFileLcp,filename);
         }
-        else lc.achOutFile[0] = 0;
+        else lc.achOutFileLcp[0] = 0;
         lc.nSideHealpix = parameters.get_nSideHealpix();
         pstLightConeOpen(pst,&lc,sizeof(lc),NULL,0);
     }
@@ -2761,8 +2900,12 @@ void MSR::LightConeOpen(int iStep) {
 void MSR::LightConeClose(int iStep) {
     if (parameters.get_bLightCone()) {
         struct inLightConeClose lc;
-        auto filename = BuildName(iStep);
-        strcpy(lc.achOutFile,filename.c_str());
+        // BuildName actually creates directories, so only do so if we are making the maps
+        if (parameters.get_nSideHealpix()) {
+            auto filename = BuildNameWithI(iStep,".hpb");
+            marshal_string(lc.achOutFileHpb,filename);
+        }
+        else lc.achOutFileHpb[0] = 0;
         pstLightConeClose(pst,&lc,sizeof(lc),NULL,0);
     }
 }
@@ -3131,7 +3274,7 @@ int MSR::NewTopStepKDK(
 
     if (!uRung && parameters.get_bFindGroups()) {
         GroupStats();
-        HopWrite(BuildName(iStep,".fofstats").c_str());
+        WriteGroupStats(BuildNameWithI(iStep,".fofstats"));
     }
 
     if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
@@ -3455,22 +3598,25 @@ void MSR::ChemCompInit() {
 
 /* END Gas routines */
 
-void MSR::HopWrite(const char *fname) {
+void MSR::WriteGroupStats(const std::string_view &fname) {
+    WriteGroupStats(fname, parallel_write_count());
+}
+
+void MSR::WriteGroupStats(const std::string_view &fname, int nParallel) {
     double dsec;
 
     if (parameters.get_bVStep())
         print("Writing group statistics to {}\n", fname);
     TimerStart(TIMER_IO);
 
-    /* This is the new parallel binary format */
-    struct inOutput out;
-    out.eOutputType = OUT_TINY_GROUP;
-    out.iPartner = -1;
-    out.nPartner = -1;
-    out.iProcessor = 0;
-    out.nProcessor = parallel_write_count();
-    strcpy(out.achOutFile,fname);
-    pstOutput(pst,&out,sizeof(out),NULL,0);
+    ServiceSaveGroupStats::input hdr;
+    marshal_string(hdr.io.filename, fname);
+    hdr.io.nSimultaneous = nParallel;
+    hdr.io.nSegment = hdr.io.iThread = 0; // setup later
+    hdr.io.iReaderWriter = 0;
+    if (hdr.io.nSimultaneous>1) strcat(hdr.io.filename,".{i}");
+    mdl->RunService(PST_SAVE_GROUP_STATS,sizeof(hdr),&hdr);
+
     TimerStop(TIMER_IO);
     dsec = TimerGet(TIMER_IO);
     if (parameters.get_bVStep())
@@ -3867,7 +4013,7 @@ double MSR::Read(std::string_view achInFile) {
     auto read = new (buffer.get()) inReadFile;
 
     /* Add Data Subpath for local and non-local names. */
-    MSR::MakePath(parameters.get_achDataSubPath(),achInFile.data(),achFilename);
+    marshal_string(achFilename, achInFile);
     print("Reading from {}\n", achFilename);
     fio = fioOpen(achFilename,csm->val.dOmega0,csm->val.dOmegab);
     if (fio==NULL) {
@@ -4034,7 +4180,7 @@ double MSR::Read(std::string_view achInFile) {
         dsec = TimerGet(TIMER_NONE);
         print("Converting u complete, Wallclock: {:.5f} secs.\n", dsec);
         if (parameters.get_bWriteIC() || (NoSteps())) {
-            Output(iStartStep, dTime, 0.0, 0);
+            Write(BuildIoName(iStartStep).c_str(),dTime,0);
         }
         if (NoSteps()) std::_Exit(EXIT_FAILURE); // For now. this will be replaced sood.
     }
@@ -4051,7 +4197,7 @@ void MSR::CalcBound() {
     CalcBound(bnd);
 }
 
-void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {
+void MSR::OutputGrid(std::string_view filename, bool k, int iGrid, int nParaWrite) {
     struct inOutput out;
     double dsec, sec = MSR::Time();
     out.eOutputType = k ? OUT_KGRID : OUT_RGRID;
@@ -4060,7 +4206,7 @@ void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {
     out.nPartner = -1;
     out.iProcessor = 0;
     out.nProcessor = nParaWrite > mdl->Procs() ? mdl->Procs() : nParaWrite;
-    strcpy(out.achOutFile,filename);
+    marshal_string(out.achOutFile,filename);
     print("Writing grid to {}\n", filename);
     pstOutput(pst,&out,sizeof(out),NULL,0);
     dsec = MSR::Time() - sec;
@@ -4119,7 +4265,7 @@ void MSR::OutputPk(int iStep,double dTime) {
     auto iDeltakInterval = parameters.get_iDeltakInterval();
     auto dDeltakRedshift = parameters.get_dDeltakRedshift();
     if (iDeltakInterval && (iStep % iDeltakInterval == 0) && z < dDeltakRedshift) {
-        auto filename = BuildName(iStep,".deltak");
+        auto filename = BuildNameWithI(iStep,".deltak");
         OutputGrid(filename.c_str(),true,0,parallel_write_count());
     }
 }
@@ -4179,8 +4325,8 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
     if (DoGas() && NoSteps()) {  /* Diagnostic Gas */
         Reorder();
-        OutArray(BuildName(iStep,".c").c_str(),OUT_C_ARRAY);
-        OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
+        OutArray(BuildName(iStep,".c"),OUT_C_ARRAY);
+        OutArray(BuildName(iStep,".hsph"),OUT_HSPH_ARRAY);
     }
 
     if (DoDensity()) {
@@ -4192,9 +4338,8 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     }
     if ( parameters.get_bFindGroups() ) {
         Reorder();
-        //sprintf(achFile,"%s.fof",OutName());
-        //OutArray(achFile,OUT_GROUP_ARRAY);
-        HopWrite(BuildName(iStep,".fofstats").c_str());
+        //OutArray(BuildNameWithI(iStep,".fof"),OUT_GROUP_ARRAY);
+        WriteGroupStats(BuildNameWithI(iStep,".fofstats"));
     }
     if ( parameters.get_bFindHopGroups() ) {
         ActiveRung(0,1); /* Activate all particles */
@@ -4202,34 +4347,34 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         BuildTree(0);
         Hop(dTime,dDelta);
         Reorder();
-        //OutArray(BuildName(iStep,".hopgrp").c_str(),OUT_GROUP_ARRAY);
-        HopWrite(BuildName(iStep,".hopstats").c_str());
+        //OutArray(BuildName(iStep,".hopgrp"),OUT_GROUP_ARRAY);
+        WriteGroupStats(BuildNameWithI(iStep,".hopstats"));
     }
 
     if (parameters.get_bDoAccOutput()) {
         Reorder();
-        OutVector(BuildName(iStep,".acc").c_str(),OUT_ACCEL_VECTOR);
+        OutVector(BuildName(iStep,".acc"),OUT_ACCEL_VECTOR);
     }
     if (parameters.get_bDoPotOutput()) {
         Reorder();
-        OutArray(BuildName(iStep,".pot").c_str(),OUT_POT_ARRAY);
+        OutArray(BuildName(iStep,".pot"),OUT_POT_ARRAY);
     }
 
     if (DoDensity()) {
         Reorder();
-        OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
+        OutArray(BuildName(iStep,".den"),OUT_DENSITY_ARRAY);
     }
     if (parameters.get_bDoRungOutput()) {
         Reorder();
-        OutArray(BuildName(iStep,".rung").c_str(),OUT_RUNG_ARRAY);
+        OutArray(BuildName(iStep,".rung"),OUT_RUNG_ARRAY);
     }
     if (parameters.get_bDoRungDestOutput()) {
         Reorder();
-        OutArray(BuildName(iStep,".rd").c_str(),OUT_RUNGDEST_ARRAY);
+        OutArray(BuildName(iStep,".rd"),OUT_RUNGDEST_ARRAY);
     }
     if (parameters.get_bDoSoftOutput()) {
         Reorder();
-        OutArray(BuildName(iStep,".soft").c_str(),OUT_SOFT_ARRAY);
+        OutArray(BuildName(iStep,".soft"),OUT_SOFT_ARRAY);
     }
     Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
 }
@@ -4590,20 +4735,19 @@ void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPH
 
 }
 
-uint64_t MSR::CountDistance(double dRadius2Inner, double dRadius2Outer) {
-    struct inCountDistance in;
-    struct outCountDistance out;
-    int nOut;
+uint64_t MSR::CountDistance(double dRadius2Outer,double dRadius2Inner) {
+    ServiceCountDistance::input in;
+    ServiceCountDistance::output out;
     in.dRadius2Inner = dRadius2Inner;
     in.dRadius2Outer = dRadius2Outer;
-    nOut = pstCountDistance(pst, &in, sizeof(in), &out, sizeof(out));
-    assert( nOut == sizeof(out) );
-    return out.nCount;
+    auto nOut = mdl->RunService(PST_COUNTDISTANCE,sizeof(in),&in,&out);
+    assert(nOut == sizeof(out));
+    return out;
 }
 
 double MSR::countSphere(double r,void *vctx) {
     auto *ctx = reinterpret_cast<SPHERECTX *>(vctx);
-    ctx->nSelected = ctx->msr->CountDistance(0.0,r*r);
+    ctx->nSelected = ctx->msr->CountDistance(r*r);
     return 1.0*ctx->nSelected - 1.0*ctx->nTarget;
 }
 
@@ -4626,7 +4770,7 @@ double MSR::countShell(double rInner,void *vctx) {
     if ( rInner == ctx->rMiddle ) nSelected = 0;
     else {
         rOuter = pow(10,2.0*log10(ctx->rMiddle)-log10(rInner));
-        nSelected = ctx->msr->CountDistance(rInner*rInner,rOuter*rOuter);
+        nSelected = ctx->msr->CountDistance(rOuter*rOuter,rInner*rInner);
     }
     return 1.0*nSelected - 1.0*ctx->nTarget;
 }
@@ -4682,7 +4826,7 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
         dMinRadius = illinois( countShell, &ctxShell,
                                pow(10,2.0*log10(dMinRadius)-log10(dMaxRadius)), dMinRadius,
                                0.0, 0.0, NULL );
-        N = CountDistance(dMinRadius*dMinRadius,dLogRadius*dLogRadius);
+        N = CountDistance(dLogRadius*dLogRadius,dMinRadius*dMinRadius);
         nBinsInner = (N+nPerBin/2) / nPerBin;
     }
     else {
@@ -4699,7 +4843,7 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
         ctxShell.msr = this;
         dMinRadius = pow(10,(2.0*(nBins+1)*log10(dMinRadius)-log10(dMaxRadius))/(2*nBins));
         dOuter = pow(10,2.0*log10(ctxShell.rMiddle)-log10(dMinRadius));
-        N = CountDistance(dMinRadius*dMinRadius,dOuter*dOuter);
+        N = CountDistance(dOuter*dOuter,dMinRadius*dMinRadius);
         if ( N < nPerBin-nAccuracy ) {
             dMinRadius = illinois( countShell, &ctxShell,
                                    pow(10,2.0*log10(dMinRadius)-log10(dMaxRadius)), dMinRadius,
@@ -4720,8 +4864,8 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
     if ( nBinsInner ) {
         sec = Time();
         print_detail("Root finding for {bins} bins\n", "bins"_a = nBinsInner);
-        ctxSphere.nTotal = CountDistance(0.0,dLogRadius*dLogRadius);
-        ctxSphere.nInner = CountDistance(0.0,dMinRadius*dMinRadius);
+        ctxSphere.nTotal = CountDistance(dLogRadius*dLogRadius);
+        ctxSphere.nInner = CountDistance(dMinRadius*dMinRadius);
         ctxSphere.msr = this;
         ctxSphere.dFrac = 1.0 / nBinsInner;
         in->dRadii[nBinsInner] = dLogRadius;
@@ -4748,7 +4892,7 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
 
             dLogMin = log10(in->dRadii[nBinsInner+i-1]);
             dRadius = pow(10,(dLogMax-dLogMin)/nBinsRem + dLogMin);
-            n = CountDistance(0.0,dRadius*dRadius);
+            n = CountDistance(dRadius*dRadius);
             if ( n-N < nPerBin-nAccuracy ) {
                 ctxSphere.nTarget = N + nPerBin;
                 dRadius = illinois( countSphere, &ctxSphere, 0.0, dMaxRadius,
@@ -4996,7 +5140,7 @@ void MSR::RsHaloLoadIds(const std::string_view filename_template,bool bAppend) {
     TimerStart(TIMER_NONE);
     print("Scanning Rockstar halo binary files...\n");
     ServiceRsHaloCount::input hdr;
-    strncpy(hdr.filename,filename_template.data(),sizeof(hdr.filename));
+    marshal_string(hdr.filename, filename_template);
     hdr.nSimultaneous = hdr.nTotalActive = parallel_read_count();
     hdr.iReaderWriter = 0;
     hdr.nElementSize = 1;
@@ -5039,7 +5183,7 @@ void MSR::RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string_view
     std::copy(counts.begin(),counts.end(),elements);
     hdr->iBeg = 0;
     hdr->iEnd = hdr->nElements;
-    strncpy(hdr->io.filename,filename_template.data(),sizeof(hdr->io.filename));
+    marshal_string(hdr->io.filename, filename_template);
     hdr->io.nSimultaneous = parallel_read_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
@@ -5064,7 +5208,7 @@ void MSR::RsLoadIds(const std::string_view filename_template,bool bAppend) {
 
 void MSR::RsSaveIds(const std::string_view filename_template) {
     ServiceRsSaveIds::input hdr;
-    strncpy(hdr.io.filename,filename_template.data(),sizeof(hdr.io.filename));
+    marshal_string(hdr.io.filename, filename_template);
     hdr.io.nSimultaneous = parallel_write_count();
     hdr.io.nSegment = hdr.io.iThread = 0; // setup later
     hdr.io.iReaderWriter = 0;
@@ -5100,7 +5244,7 @@ void MSR::RsExtract(std::string_view filename_template) {
         ServiceBuffer::Field<ServiceRsExtract::input>(mdl->Threads()+1)
     };
     auto hdr = static_cast<ServiceRsExtract::header *>(msg.data(0));
-    strncpy(hdr->io.filename,filename_template.data(),sizeof(hdr->io.filename));
+    marshal_string(hdr->io.filename, filename_template);
     hdr->io.nSimultaneous = parallel_write_count();
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;

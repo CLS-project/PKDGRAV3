@@ -211,13 +211,34 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
             // Split this node into two children
             auto [pLeft, pRight] = pNode->split(i);
 
-            pNode->set_group(pNode->count() <= nGroup);
+            bool allowGroup = true;
+            bool allowRChildBucket = true;
+            bool allowLChildBucket = true;
+            if (pkd->particles.present(PKD_FIELD::oNewSph) && pNode->count() <= nGroup) {
+                int minMaxGroupSizeL = 32768;
+                int minMaxGroupSizeR = 32768;
+                for (int pj = pLeft->lower(); pj<=pLeft->upper() ; ++pj) {
+                    auto p = pkd->particles[pj];
+                    auto &NewSph = p.newsph();
+                    minMaxGroupSizeL = std::min(minMaxGroupSizeL, NewSph.maxGroupSize);
+                }
+                for (int pj = pRight->lower(); pj<=pRight->upper() ; ++pj) {
+                    auto p = pkd->particles[pj];
+                    auto &NewSph = p.newsph();
+                    minMaxGroupSizeR = std::min(minMaxGroupSizeR, NewSph.maxGroupSize);
+                }
+                int minMaxGroupSize = std::min(minMaxGroupSizeL,minMaxGroupSizeR);
+                allowGroup = (pNode->count() == 1 || pNode->count() <= minMaxGroupSize);
+                allowLChildBucket = (pLeft->count() == 1 || pLeft->count() <= minMaxGroupSizeL);
+                allowRChildBucket = (pRight->count() == 1 || pRight->count() <= minMaxGroupSizeR);
+            }
+            pNode->set_group(pNode->count() <= nGroup && allowGroup);
             pLeft->set_bound(lbnd);
             pRight->set_bound(rbnd);
 
             // Figure out which sub-tree to process next.
-            bool left_is_bucket = (nodeSize <= maxBucketWidth && nl <= bucketSize);
-            bool right_is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
+            bool left_is_bucket = (nodeSize <= maxBucketWidth && nl <= bucketSize && allowLChildBucket);
+            bool right_is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize && allowRChildBucket);
 
             if (!right_is_bucket && !left_is_bucket) {
                 // Process smaller subtree first. This keeps the stack size as small as possible.
@@ -262,6 +283,15 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
             else {
                 pNode->set_bound(rbnd);
                 is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
+            }
+            if (pkd->particles.present(PKD_FIELD::oNewSph) && is_bucket) {
+                int minMaxGroupSize = 32768;
+                for (int pj = pNode->lower(); pj<=pNode->upper() ; ++pj) {
+                    auto p = pkd->particles[pj];
+                    auto &NewSph = p.newsph();
+                    minMaxGroupSize = std::min(minMaxGroupSize,NewSph.maxGroupSize);
+                }
+                is_bucket = (pNode->count() == 1 || pNode->count() <= minMaxGroupSize);
             }
             if (is_bucket) {
                 pNode->set_group(true);
@@ -388,8 +418,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     double fSoft,d2,dih2,b;
     SPHBOB fBoB(0.0);
     float m, fMass, fBall;
-    int pj,nDepth,ism;
-    const int nMaxStackIncrease = 1;
+    int pj;
 
     /* If the tree is empty, we just create a sensible moment and we are done. */
     auto pkdn = pkd->tree[iNode];
@@ -404,26 +433,12 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         return;
     }
 
-    nDepth = 1;
+    std::vector<int> S;
+    S.reserve(100); // Start with a sensible stack size
     while (1) {
         while ((pkdn=pkd->tree[iNode])->is_cell()) {
-            pkd->S[nDepth-1].iNodeIndex = iNode;
+            S.push_back(iNode);
             iNode = pkdn->lchild();
-            ++nDepth;
-            /*
-            ** Is this the deepest in the tree so far? We might need to have more stack
-            ** elements for the tree walk!
-            ** nMaxStack == nDepth guarantees that there is at least one deeper
-            ** stack entry available than what is needed to walk the tree.
-            */
-            if (nDepth > pkd->nMaxStack) {
-                pkd->S = static_cast<CSTACK *>(realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
-                assert(pkd->S != NULL);
-                for (ism=pkd->nMaxStack; ism<(pkd->nMaxStack+nMaxStackIncrease); ++ism) {
-                    pkd->S[ism].cl = new clList(pkd->clFreeList);
-                }
-                pkd->nMaxStack += nMaxStackIncrease;
-            }
         }
 
         // Now calculate all bucket quantities!
@@ -570,8 +585,9 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         ** or to the parent.
         */
         while ((iNode & 1) || iNode==iRoot ) {
-            if ( --nDepth == 0) return; /* exit point!!! */
-            iNode = pkd->S[nDepth-1].iNodeIndex;
+            if (S.empty()) return; // exit point
+            iNode = S.back();
+            S.pop_back();
             /*
             ** Now combine quantities from each of the children (2) of
             ** this cell to form the quantities for this cell.

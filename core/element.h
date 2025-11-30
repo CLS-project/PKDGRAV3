@@ -48,6 +48,7 @@ protected:
     SingleElement(const SingleElement &o) = delete;                 // Copy constructor (we dont' allow this)
     SingleElement(SingleElement &&o) = delete;                      // Move constructor (we dont' allow this)
     SingleElement &operator=(const SingleElement &rhs) {            // Copy assignment operator
+        if (this == &rhs) return *this;                             // If we are the same, do nothing
         memcpy(p,rhs.p,store().ElementSize());                      // ... not that this is protected here
         return *this;                                               // ... because you cannot assign to a "value"
     }

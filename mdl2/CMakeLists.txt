@@ -11,6 +11,9 @@ endif()
 include(CheckLanguage)
 include(FindPkgConfig)
 
+
+option(INSTRUMENT_MPI "Enable fine grained timing for MPI instrumentation" OFF)
+
 # Option to enable or disable cpptrace
 option(USE_CPPTRACE "Enable cpptrace for backtrace support" ON)
 if (USE_CPPTRACE)
@@ -25,6 +28,8 @@ if (USE_CPPTRACE)
     message(STATUS "Fetching cpptrace...")
     FetchContent_MakeAvailable(cpptrace)
   endif()
+  get_target_property(_cpptrace_real cpptrace::cpptrace ALIASED_TARGET)
+  set_target_properties(${_cpptrace_real} PROPERTIES SKIP_LINTING TRUE CXX_CLANG_TIDY "")
 else()
   message(STATUS "cpptrace support disabled.")
 endif()
@@ -179,6 +184,7 @@ endif (APPLE AND METAL AND FOUNDATION AND QUARTZCORE)
 if(hasParent)
   set(USE_CUDA ${USE_CUDA} PARENT_SCOPE)
   set(USE_METAL ${USE_METAL} PARENT_SCOPE)
+  set(INSTRUMENT_MPI ${INSTRUMENT_MPI} PARENT_SCOPE)
 endif(hasParent)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)

@@ -108,6 +108,11 @@ flag="fnddc"
 default=0.1
 help="Fraction of Active Particles for no DD dimension choice"
 
+["Gravity, Domains, Trees".iMaxRungDomainDecomp]
+flag="MaxRungDomainDecomp"
+default=2147483648
+help="Rung above which no domain decomposition is performed."
+
 ################################################################################
 ########## Analysis
 ################################################################################
@@ -211,6 +216,32 @@ help="output light cone particles"
 flag="bbt"
 default=false
 help="output +++ and --- octants of the cone; a bowtie"
+
+["Analysis"."Light Cone".lstLightConeOctants]
+flag="octants"
+type=0
+default=[0]
+omitted="all"
+help="List of lightcone octants to output separately"
+docs='''
+Normally when a light cone sphere is output, all octants are written
+to the same set of files. This is a list of octants to output.
+The default filename is contructed by appending ".lcp.{octant}.{i}".
+Examples::
+
+ lstLightConeOctants = [0,1,2]   # Output octants 0,1 and 2
+ lstLightConeOctants = range(3)  # same thing
+
+The octants are numbered as follows:
+ - ``0``: x>=0, y>=0, z>=0
+ - ``1``: x>=0, y>=0, z<0
+ - ``2``: x>=0, y<0, z>=0
+ - ``3``: x>=0, y<0, z<0
+ - ``4``: x<0, y>=0, z>=0
+ - ``5``: x<0, y>=0, z<0
+ - ``6``: x<0, y<0, z>=0
+ - ``7``: x<0, y<0, z<0
+'''
 
 ["Analysis"."Light Cone".sqdegLCP]
 flag="sqdeg"
@@ -342,6 +373,10 @@ docs='''
 If specified, this will override the path for Tipsy outputs.
 It otherwise behaves exactly like :ref:`achOutPath <achOutPath>`.
 This is useful if you want outputs to be stored in a different directory for example.
+It is also possible to include ``{i}`` which is used when parallel writing, and
+causes parallel Tipsy files to be written to separate files instead of a single file.
+Like :ref:`achOutPath <achOutPath>` you must specify all fields, for example::
+  {name}.{step:05d}{type}.{i}
 '''
 
 ["I/O Parameters".achCheckpointPath]
@@ -1458,6 +1493,16 @@ flag="externalAcceleration"
 default=[0.0, 0.0, 0.0]
 help="External acceleration that is applied to all particles in every step. Only active if HYDRO_MODEL.SPH is used."
 
+["Gas".iLowerGroupSizeThreshold]
+flag="lowerGroupSizeThreshold"
+default=0
+help="If size of the interaction list is below this value, dynamic maximum group size is increased. Only relevant if HYDRO_MODEL.SPH is active"
+
+["Gas".iUpperGroupSizeThreshold]
+flag="upperGroupSizeThreshold"
+default=2147483648
+help="If size of the interaction list is above this value, dynamic maximum group size is decreased. Only relevant if HYDRO_MODEL.SPH is active"
+
 ################################################################################
 ########## Cooling
 ################################################################################
@@ -1939,6 +1984,28 @@ help="maximum number of inflight cache message to each rank (0=no limit)"
 flag="wqs"
 default=0
 help="size of the MDL work queue"
+
+["Debugging/Testing/Diagnostics".iMpiRecvMode]
+flag="mpirm"
+default=0
+private=true
+help="Either total or per rank"
+docs='''
+Controls how ``nMpiRecvCount`` is interpreted. Values are:
+ - ``MPI_RECV_MODE.TOTAL``: Total number of posted receives
+ - ``MPI_RECV_MODE.PER_RANK``: Number of posted receives per rank
+'''
+
+["Debugging/Testing/Diagnostics".nMpiRecvCount]
+flag="mpirc"
+default=1
+private=true
+help="Number of posted cache receives. See iMpiRecvMode"
+docs='''
+This is either the total number of posted MPI receives,
+or the number of posted receives per rank depending on
+``iMpiRecvMode``.
+'''
 
 ["Debugging/Testing/Diagnostics".bGPU]
 flag="gpu"

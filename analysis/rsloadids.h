@@ -20,11 +20,12 @@
 
 class ServiceRsLoadIds : public ServiceInput {
 public:
+    static constexpr std::string_view name = "RsLoadIds";
     struct input {
         bool bAppend;
     };
     explicit ServiceRsLoadIds(PST pst)
-        : ServiceInput(pst,PST_RS_LOAD_IDS,sizeof(input)) {}
+        : ServiceInput(pst,PST_RS_LOAD_IDS,name,sizeof(input)) {}
     virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
     virtual void start(PST pst,uint64_t nElements,void *vin,int nIn) override;
     virtual void finish(PST pst,uint64_t nElements,void *vin,int nIn) override;

@@ -28,13 +28,13 @@ constexpr int MAX_ITTR = 64;
 * ServiceDomainDecomp
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceDomainDecomp::input>()  || std::is_standard_layout<ServiceDomainDecomp::input>());
-static_assert(std::is_void<ServiceDomainDecomp::output>() || std::is_standard_layout<ServiceDomainDecomp::output>());
+static_assert(std::is_void_v<ServiceDomainDecomp::input>  || std::is_standard_layout_v<ServiceDomainDecomp::input>);
+static_assert(std::is_void_v<ServiceDomainDecomp::output> || std::is_standard_layout_v<ServiceDomainDecomp::output>);
 
 int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
     auto in = static_cast<input *>(vin);
-    static_assert(std::is_void<output>());
+    static_assert(std::is_void_v<output>);
     assert(nIn == sizeof(input));
 
     Bound bnd = pst->bnd = in->bnd;
@@ -139,7 +139,7 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
 
 int ServiceDomainDecomp::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
-    static_assert(std::is_void<output>());
+    static_assert(std::is_void_v<output>);
     auto pkd = pst->plcl->pkd;
 
     // We always set pkd->bnd from pst->bnd.
@@ -773,8 +773,8 @@ int ServiceDomain::RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,
 * ServiceColRejects
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceColRejects::input>()  || std::is_trivial<ServiceColRejects::input>());
-static_assert(std::is_void<ServiceColRejects::output>() || std::is_trivial<ServiceColRejects::output>());
+static_assert(std::is_void_v<ServiceColRejects::input>  || std::is_trivial_v<ServiceColRejects::input>);
+static_assert(std::is_void_v<ServiceColRejects::output> || std::is_trivial_v<ServiceColRejects::output>);
 
 int ServiceColRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
@@ -802,8 +802,8 @@ int ServiceColRejects::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
 * ServiceSwapRejects
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceSwapRejects::input>()  || std::is_trivial<ServiceSwapRejects::input>());
-static_assert(std::is_void<ServiceSwapRejects::output>() || std::is_trivial<ServiceSwapRejects::output>());
+static_assert(std::is_void_v<ServiceSwapRejects::input>  || std::is_trivial_v<ServiceSwapRejects::input>);
+static_assert(std::is_void_v<ServiceSwapRejects::output> || std::is_trivial_v<ServiceSwapRejects::output>);
 
 int ServiceSwapRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
@@ -832,8 +832,8 @@ int ServiceSwapRejects::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
 * ServiceColOrdRejects
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceColOrdRejects::input>()  || std::is_trivial<ServiceColOrdRejects::input>());
-static_assert(std::is_void<ServiceColOrdRejects::output>() || std::is_trivial<ServiceColOrdRejects::output>());
+static_assert(std::is_void_v<ServiceColOrdRejects::input>  || std::is_trivial_v<ServiceColOrdRejects::input>);
+static_assert(std::is_void_v<ServiceColOrdRejects::output> || std::is_trivial_v<ServiceColOrdRejects::output>);
 
 int ServiceColOrdRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
@@ -862,8 +862,8 @@ int ServiceColOrdRejects::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
 * ServiceDomainOrder
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceDomainOrder::input>()  || std::is_trivial<ServiceDomainOrder::input>());
-static_assert(std::is_void<ServiceDomainOrder::output>() || std::is_trivial<ServiceDomainOrder::output>());
+static_assert(std::is_void_v<ServiceDomainOrder::input>  || std::is_trivial_v<ServiceDomainOrder::input>);
+static_assert(std::is_void_v<ServiceDomainOrder::output> || std::is_trivial_v<ServiceDomainOrder::output>);
 
 int ServiceDomainOrder::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
@@ -993,8 +993,8 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOr
 * ServiceLocalOrder
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceLocalOrder::input>()  || std::is_trivial<ServiceLocalOrder::input>());
-static_assert(std::is_void<ServiceLocalOrder::output>() || std::is_trivial<ServiceLocalOrder::output>());
+static_assert(std::is_void_v<ServiceLocalOrder::input>  || std::is_trivial_v<ServiceLocalOrder::input>);
+static_assert(std::is_void_v<ServiceLocalOrder::output> || std::is_trivial_v<ServiceLocalOrder::output>);
 
 int ServiceLocalOrder::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
@@ -1030,8 +1030,8 @@ int ServiceLocalOrder::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
 * pFlag < 0 => weight inactive particles.
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceWeight::input>()  || std::is_trivial<ServiceWeight::input>());
-static_assert(std::is_void<ServiceWeight::output>() || std::is_trivial<ServiceWeight::output>());
+static_assert(std::is_void_v<ServiceWeight::input>  || std::is_trivial_v<ServiceWeight::input>);
+static_assert(std::is_void_v<ServiceWeight::output> || std::is_trivial_v<ServiceWeight::output>);
 
 int ServiceWeight::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
@@ -1133,8 +1133,8 @@ int ServiceWeight::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
 * pFlag < 0 => weight inactive particles.
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceWeightWrap::input>()  || std::is_trivial<ServiceWeightWrap::input>());
-static_assert(std::is_void<ServiceWeightWrap::output>() || std::is_trivial<ServiceWeightWrap::output>());
+static_assert(std::is_void_v<ServiceWeightWrap::input>  || std::is_trivial_v<ServiceWeightWrap::input>);
+static_assert(std::is_void_v<ServiceWeightWrap::output> || std::is_trivial_v<ServiceWeightWrap::output>);
 
 int ServiceWeightWrap::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
@@ -1195,8 +1195,8 @@ int ServiceWeightWrap::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
 * ServiceOrdWeight
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceOrdWeight::input>()  || std::is_trivial<ServiceOrdWeight::input>());
-static_assert(std::is_void<ServiceOrdWeight::output>() || std::is_trivial<ServiceOrdWeight::output>());
+static_assert(std::is_void_v<ServiceOrdWeight::input>  || std::is_trivial_v<ServiceOrdWeight::input>);
+static_assert(std::is_void_v<ServiceOrdWeight::output> || std::is_trivial_v<ServiceOrdWeight::output>);
 
 int ServiceOrdWeight::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);

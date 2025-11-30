@@ -82,8 +82,8 @@ public:
         this->pstore = pstore;
         setStore(Lo,Hi,nData,pData);
     }
-    static_assert(std::is_standard_layout<blitz::TinyVector<double,3>>());
-    static_assert(std::is_standard_layout<blitz::TinyVector<int32_t,3>>());
+    static_assert(std::is_standard_layout_v<blitz::TinyVector<double,3>>);
+    static_assert(std::is_standard_layout_v<blitz::TinyVector<int32_t,3>>);
 
     auto is_integer_position() {return bIntegerPosition;}
     auto position(const KDN *n ) const {

@@ -32,6 +32,15 @@ MetalClient::MetalClient(mdl::mdlClass &mdl) : mdl(mdl), pp(nullptr), pc(nullptr
     }
 }
 
+MetalClient::~MetalClient() {
+    while (!freePP.empty()) {
+        delete &freePP.dequeue();
+    }
+    while (!freePC.empty()) {
+        delete &freePC.dequeue();
+    }
+}
+
 void MetalClient::flushMETAL() {
     flush(pp);
     flush(pc);

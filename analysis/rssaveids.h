@@ -20,11 +20,12 @@
 
 class ServiceRsSaveIds : public ServiceOutput {
 public:
+    static constexpr std::string_view name = "RsSaveIds";
     using input = ServiceOutput::input;
     using output = void;
 
     explicit ServiceRsSaveIds(PST pst)
-        : ServiceOutput(pst,PST_RS_SAVE_IDS,sizeof(input)) {}
+        : ServiceOutput(pst,PST_RS_SAVE_IDS,name,sizeof(input)) {}
 protected:
     virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
 };
