@@ -111,9 +111,9 @@ void smGather(SMX smx,double fBall2,blitz::TinyVector<double,3> r);
 
 inline void smSwapNN(NN *nnList, int i, int j) {
     NN temp;
-    memcpy(&temp,      &nnList[i], sizeof(NN));
-    memcpy(&nnList[i], &nnList[j], sizeof(NN));
-    memcpy(&nnList[j], &temp,      sizeof(NN));
+    memcpy((void *) &temp,      &nnList[i], sizeof(NN));
+    memcpy((void *) &nnList[i], &nnList[j], sizeof(NN));
+    memcpy((void *) &nnList[j], &temp,      sizeof(NN));
 }
 
 #ifdef __cplusplus
