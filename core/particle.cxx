@@ -24,10 +24,11 @@ using blitz::all;
 template<>
 void SingleReference<particleStore::Particle>::swap(SingleReference &rhs) noexcept {
     auto n = this->store().ElementSize();
-    char buffer[n];
-    memcpy(buffer,this->p,n);
+    std::vector<char> buffer;
+    buffer.resize(n);
+    memcpy(buffer.data(),this->p,n);
     memcpy(this->p,rhs.p,n);
-    memcpy(rhs.p,buffer,n);
+    memcpy(rhs.p,buffer.data(),n);
 
     if (this->have_decorator() && rhs.have_decorator()) {
         auto a_index = rhs.decorator_index();
