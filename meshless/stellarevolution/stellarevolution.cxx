@@ -26,7 +26,7 @@ void MSR::SetStellarEvolutionParam() {
     }
     else {
         std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
-                     "achSNIaDTDType parameter: " << achSNIaDTDType << std::endl;
+                  "achSNIaDTDType parameter: " << achSNIaDTDType << std::endl;
         Exit(1);
     }
 
@@ -163,7 +163,7 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
     }
     else {
         std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
-                     "achSNIaDTDType parameter: " << in->achSNIaDTDType << std::endl;
+                  "achSNIaDTDType parameter: " << in->achSNIaDTDType << std::endl;
         exit(1);
     }
 
@@ -331,57 +331,57 @@ void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth,
     const float fTransMass = smf->dCCSNMinMass;
     if (fFinalMass > fTransMass) {
         /* CCSN only */
-        stevComputeMassToEject(pkd->StelEvolData->afCCSNYield,
-                               pkd->StelEvolData->afCCSNMetalYield,
-                               pkd->StelEvolData->afCCSNEjectedMass,
-                               pkd->StelEvolData->afInitialMass,
-                               pkd->StelEvolData->afIMFLogWeight,
-                               pkd->StelEvolData->fDeltaLogMass,
-                               STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT,
-                               star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass,
-                               fFinalMass, fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ,
-                               ElemMass.data(), &fMetalMass);
+        stevComputeMassToEject<STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>
+        (pkd->StelEvolData->afCCSNYield,
+         pkd->StelEvolData->afCCSNMetalYield,
+         pkd->StelEvolData->afCCSNEjectedMass,
+         pkd->StelEvolData->afInitialMass,
+         pkd->StelEvolData->afIMFLogWeight,
+         pkd->StelEvolData->fDeltaLogMass,
+         star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass,
+         fFinalMass, fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ,
+         ElemMass.data(), &fMetalMass);
     }
     else if (fInitialMass < fTransMass) {
         /* AGB only */
-        stevComputeMassToEject(pkd->StelEvolData->afAGBYield,
-                               pkd->StelEvolData->afAGBMetalYield,
-                               pkd->StelEvolData->afAGBEjectedMass,
-                               pkd->StelEvolData->afInitialMass,
-                               pkd->StelEvolData->afIMFLogWeight,
-                               pkd->StelEvolData->fDeltaLogMass,
-                               STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT,
-                               star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass,
-                               fFinalMass, fInitialMass, star.AGB.oZ, star.AGB.fDeltaZ,
-                               ElemMass.data(), &fMetalMass);
+        stevComputeMassToEject<STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>
+        (pkd->StelEvolData->afAGBYield,
+         pkd->StelEvolData->afAGBMetalYield,
+         pkd->StelEvolData->afAGBEjectedMass,
+         pkd->StelEvolData->afInitialMass,
+         pkd->StelEvolData->afIMFLogWeight,
+         pkd->StelEvolData->fDeltaLogMass,
+         star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass,
+         fFinalMass, fInitialMass, star.AGB.oZ, star.AGB.fDeltaZ,
+         ElemMass.data(), &fMetalMass);
     }
     else {
         /* Mixed CCSN and AGB */
         int iTransMass = stevGetIMFMassIndex(pkd->StelEvolData->afInitialMass,
                                              STEV_INTERP_N_MASS, fTransMass, iInitialMass);
 
-        stevComputeMassToEject(pkd->StelEvolData->afCCSNYield,
-                               pkd->StelEvolData->afCCSNMetalYield,
-                               pkd->StelEvolData->afCCSNEjectedMass,
-                               pkd->StelEvolData->afInitialMass,
-                               pkd->StelEvolData->afIMFLogWeight,
-                               pkd->StelEvolData->fDeltaLogMass,
-                               STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT,
-                               star.ElemAbun.data(), star.fMetalAbun, iTransMass, iInitialMass,
-                               fTransMass, fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ,
-                               ElemMass.data(), &fMetalMass);
+        stevComputeMassToEject<STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>
+        (pkd->StelEvolData->afCCSNYield,
+         pkd->StelEvolData->afCCSNMetalYield,
+         pkd->StelEvolData->afCCSNEjectedMass,
+         pkd->StelEvolData->afInitialMass,
+         pkd->StelEvolData->afIMFLogWeight,
+         pkd->StelEvolData->fDeltaLogMass,
+         star.ElemAbun.data(), star.fMetalAbun, iTransMass, iInitialMass,
+         fTransMass, fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ,
+         ElemMass.data(), &fMetalMass);
 
         ++iTransMass;
-        stevComputeMassToEject(pkd->StelEvolData->afAGBYield,
-                               pkd->StelEvolData->afAGBMetalYield,
-                               pkd->StelEvolData->afAGBEjectedMass,
-                               pkd->StelEvolData->afInitialMass,
-                               pkd->StelEvolData->afIMFLogWeight,
-                               pkd->StelEvolData->fDeltaLogMass,
-                               STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT,
-                               star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iTransMass,
-                               fFinalMass, fTransMass, star.AGB.oZ, star.AGB.fDeltaZ,
-                               ElemMass.data(), &fMetalMass);
+        stevComputeMassToEject<STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>
+        (pkd->StelEvolData->afAGBYield,
+         pkd->StelEvolData->afAGBMetalYield,
+         pkd->StelEvolData->afAGBEjectedMass,
+         pkd->StelEvolData->afInitialMass,
+         pkd->StelEvolData->afIMFLogWeight,
+         pkd->StelEvolData->fDeltaLogMass,
+         star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iTransMass,
+         fFinalMass, fTransMass, star.AGB.oZ, star.AGB.fDeltaZ,
+         ElemMass.data(), &fMetalMass);
     }
 
     const float fNumSNIa = (*pkd->StelEvolData->fcnNumSNIa)(smf, star, fInitialTime, fFinalTime);
@@ -506,10 +506,10 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
     assert(nTableZNames == RawData->nZs);
     status = H5Sclose(dataspace);
     assert(status >= 0);
-    char *apchTableZNames[RawData->nZs];
+    std::vector<char *> apchTableZNames(RawData->nZs);
     datatype = H5Dget_type(dsTableZName);
     assert(datatype >= 0);
-    status = H5Dread(dsTableZName, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, apchTableZNames);
+    status = H5Dread(dsTableZName, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, apchTableZNames.data());
     assert(status >= 0);
     status = H5Tclose(datatype);
     assert(status >= 0);

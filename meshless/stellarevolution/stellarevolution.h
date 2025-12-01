@@ -1,6 +1,7 @@
 #ifdef STELLAR_EVOLUTION
 
 #include "pst.h"
+#include <boost/container/small_vector.hpp>
 
 #define STEV_CCSN_N_METALLICITY               5
 #define STEV_CCSN_N_MASS                     11
@@ -391,6 +392,7 @@ static inline void stevComputeAndCorrectSimulEjecta(
     *pfMetalEjMass *= fNormFactor;
 }
 
+template <int nZs, int nMasses, int nElems>
 static inline void stevComputeMassToEject(
     const float *restrict pfYield,
     const float *restrict pfMetalYield,
@@ -398,7 +400,6 @@ static inline void stevComputeMassToEject(
     const float *restrict pfInitialMass,
     const float *restrict pfIMFLogWeight,
     const float fDeltaLogMass,
-    const int nZs, const int nMasses, const int nElems,
     const float *restrict pfElemAbun, const float fMetalAbun,
     const int iStart, const int iEnd,
     const float fMassStart, const float fMassEnd,
@@ -407,27 +408,29 @@ static inline void stevComputeMassToEject(
 
     int i, j, k;
     const int nSize = iEnd - iStart + 1;
-    float afInterpYield[nSize * nElems];
-    float afInterpMetalYield[nSize];
-    float afInterpEjectedMass[nSize];
+    // NB: The number of pre-allocated elements may require some tuning
+    // based on the typical sizes of these arrays
+    boost::container::small_vector<float, 32> afInterpYield(nSize*nElems);
+    boost::container::small_vector<float, 32> afInterpMetalYield(nSize);
+    boost::container::small_vector<float, 32> afInterpEjectedMass(nSize);
 
     stevInterpolateXAxis(pfYield, nMasses, nElems, nSize, iOffset + iStart, fWeight,
-                         afInterpYield);
+                         afInterpYield.data());
     stevInterpolateXAxis(pfMetalYield, nMasses, 1, nSize, iOffset + iStart, fWeight,
-                         afInterpMetalYield);
+                         afInterpMetalYield.data());
     stevInterpolateXAxis(pfEjectedMass, nMasses, 1, nSize, iOffset + iStart, fWeight,
-                         afInterpEjectedMass);
+                         afInterpEjectedMass.data());
 
     /* In a strict sense, this two new declarations are not needed. We could overwrite
        two of the previously declared arrays, although the code would become less readable.
        If this were to be done, the restrict qualifier in the first and last two arguments
        of stevComputeAndCorrectSimulEjecta must be removed */
-    float afElemSimulEjecta[nSize * nElems];
-    float afMetalSimulEjecta[nSize];
+    boost::container::small_vector<float, 32> afElemSimulEjecta(nSize * nElems);
+    boost::container::small_vector<float, 32> afMetalSimulEjecta(nSize);
     for (i = 0, j = 0; i < nSize; ++i, j += nElems) {
-        stevComputeAndCorrectSimulEjecta(afInterpYield + j, afInterpMetalYield[i],
+        stevComputeAndCorrectSimulEjecta(afInterpYield.data() + j, afInterpMetalYield[i],
                                          afInterpEjectedMass[i], nElems, pfElemAbun, fMetalAbun,
-                                         afElemSimulEjecta + j, afMetalSimulEjecta + i);
+                                         afElemSimulEjecta.data() + j, afMetalSimulEjecta.data() + i);
     }
 
     pfIMFLogWeight += iStart;
