@@ -226,6 +226,10 @@ inline constexpr std::string_view RsLoadIds = "RsLoadIds";
 inline constexpr std::string_view RsSaveIds = "RsSaveIds";
 inline constexpr std::string_view RsExtract = "RsExtract";
 inline constexpr std::string_view IgnoreSigBus = "IgnoreSigBus";
+inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
+inline constexpr std::string_view BHInit = "BHInit";
+inline constexpr std::string_view BHReposition = "BHReposition";
+inline constexpr std::string_view BHAccretion = "BHAccretion";
 }
 
 

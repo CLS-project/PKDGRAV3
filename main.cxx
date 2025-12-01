@@ -142,6 +142,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService<ServiceUpdateRung>(pst);
     mdl->AddService<ServiceZeroNewRung>(pst);
     mdl->AddService<ServiceGetOrdSplits>(pst);
+    mdl->AddService<ServiceSaveGroupStats>(pst);
     mdl->AddService<ServiceCountDistance>(pst);
 #ifdef HAVE_ROCKSTAR
     mdl->AddService<ServiceRsHaloCount>(pst);
