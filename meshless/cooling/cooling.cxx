@@ -919,20 +919,22 @@ void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in) {
 void cooling_clean(struct cooling_function_data *cooling) {
 
     /* Free the side arrays */
-    free(cooling->Redshifts);
-    free(cooling->nH);
-    free(cooling->Temp);
-    free(cooling->HeFrac);
-    free(cooling->Therm);
-    free(cooling->SolarAbundances);
-    free(cooling->SolarAbundances_inv);
+    if (cooling) {
+        free(cooling->Redshifts);
+        free(cooling->nH);
+        free(cooling->Temp);
+        free(cooling->HeFrac);
+        free(cooling->Therm);
+        free(cooling->SolarAbundances);
+        free(cooling->SolarAbundances_inv);
 
-    /* Free the tables */
-    free(cooling->table.metal_heating);
-    free(cooling->table.electron_abundance);
-    free(cooling->table.temperature);
-    free(cooling->table.H_plus_He_heating);
-    free(cooling->table.H_plus_He_electron_abundance);
+        /* Free the tables */
+        free(cooling->table.metal_heating);
+        free(cooling->table.electron_abundance);
+        free(cooling->table.temperature);
+        free(cooling->table.H_plus_He_heating);
+        free(cooling->table.H_plus_He_electron_abundance);
+    }
 }
 
 /**

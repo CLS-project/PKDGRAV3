@@ -654,7 +654,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_STAR,&p);
     }
 #ifdef BLACKHOLES
-    assert(pkd->particles.present(PKD_FIELD::oMass));
     auto p = pkd->particles[pkd->Local()];
     pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_BH,&p);
 #endif
