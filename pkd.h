@@ -609,17 +609,17 @@ public:
 
 #ifdef COOLING
     // IA: we add here the needed cooling information available to all procs
-    struct cooling_function_data *cooling;
-    struct cooling_tables *cooling_table;
+    struct cooling_function_data *cooling = nullptr;
+    struct cooling_tables *cooling_table = nullptr;
 #endif
 #ifdef GRACKLE
-    chemistry_data *grackle_data;
-    chemistry_data_storage *grackle_rates;
-    grackle_field_data *grackle_field;
-    code_units *grackle_units;
+    chemistry_data *grackle_data = nullptr;
+    chemistry_data_storage *grackle_rates = nullptr;
+    grackle_field_data *grackle_field = nullptr;
+    code_units *grackle_units = nullptr;
 #endif
 #ifdef STELLAR_EVOLUTION
-    struct StellarEvolutionData *StelEvolData;
+    struct StellarEvolutionData *StelEvolData = nullptr;
 #endif
 
 #ifdef USE_CUDA
