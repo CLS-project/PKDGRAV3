@@ -313,16 +313,21 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     if (MeshlessHydro()) {
         InitSph(dTime, dDelta,bRestart);
     }
+
+    if (bDoStartFof) {
+        GroupStats();
+        BuildTree(bEwald);
+    }
+
 #ifdef BLACKHOLES
     uRungMax = GetMinDt();
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
-#endif
-
-    if (bDoStartFof) {
-        GroupStats();
+    if (parameters.get_bBHPlaceSeed()) {
+        PlaceBHSeed(dTime, uRungMax);
     }
+#endif
 
     double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -344,6 +349,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
 
     // Make sure that the tree is usable before the start of the simulation
     if (bDoStartFof || bDoStartOutput) {
+        ReorderDecorator();
         DomainDecomp();
         BuildTree(bEwald);
     }
@@ -589,15 +595,17 @@ int MSR::ValidateParameters() {
 #ifdef COOLING
         if (parameters.get_bComove()) {
             auto fH_reion_z = parameters.get_fH_reion_z();
-            auto dRedTo = parameters.get_dRedTo();
-            if (!std::any_of(dRedTo.begin(), dRedTo.end(), [fH_reion_z](double z) {
-            return std::fabs(z - fH_reion_z) < 1e-10;
-            })) {
-                print_error("ERROR: Meshless hydrodynamics with cooling requires an element of dRedTo "
-                            "to be set to the redshift of Hydrogen reionization, as set in parameter "
-                            "fH_reion_z. Include the value of fH_reion_z in dRedTo, and choose a "
-                            "value for the corresponding element of nSteps\n");
-                return 0;
+            auto dRedTo = parameters.get_dRedTo(); // Assumed sorted in decreasing order
+            if (dRedTo.front() > fH_reion_z && dRedTo.back() < fH_reion_z) {
+                if (!std::any_of(dRedTo.begin(), dRedTo.end(), [fH_reion_z](double z) {
+                return std::fabs(z - fH_reion_z) < 1e-10;
+                })) {
+                    print_error("ERROR: Meshless hydrodynamics with cooling requires an element of dRedTo "
+                                "to be set to the redshift of Hydrogen reionization, as set in parameter "
+                                "fH_reion_z. Include the value of fH_reion_z in dRedTo, and choose a "
+                                "value for the corresponding element of nSteps\n");
+                    return 0;
+                }
             }
         }
 #endif

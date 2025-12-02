@@ -41,6 +41,7 @@
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "core/ignoresigbus.h"
+#include "core/decorator_reorder.h"
 #ifdef INSTRUMENT_MPI
     #include "core/cachestats.h"
 #endif
@@ -127,6 +128,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService<ServiceRemoveDeleted>(pst);
     mdl->AddService<ServiceFileSizes>(pst);
     mdl->AddService<ServiceRestore>(pst);
+    mdl->AddService<ServiceRestoreDecorator>(pst);
     mdl->AddService<ServiceCalcBound>(pst);
     mdl->AddService<ServiceCombineBound>(pst);
     mdl->AddService<ServiceDistribTopTree>(pst);
@@ -150,6 +152,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService<ServiceRsSaveIds>(pst);
     mdl->AddService<ServiceRsReorderIds>(pst);
     mdl->AddService<ServiceRsExtract>(pst);
+    mdl->AddService<ServiceReorderDecorator>(pst);
     mdl->AddService<OldDD::ServiceDomainDecomp>(pst);
 #ifdef NEW_REORDER
     mdl->AddService<NewDD::ServiceReorder>(pst);

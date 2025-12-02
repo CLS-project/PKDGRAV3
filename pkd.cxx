@@ -15,6 +15,8 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "core/decorator.h"
+#include "core/decorator_fields.h"
 #ifdef HAVE_CONFIG_H
     #include "config.h"
 #else
@@ -22,6 +24,7 @@
 #endif
 #include <cinttypes>
 #include "io/iomodule.h"
+#include "io/iostaggered.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -265,7 +268,7 @@ void pkdContext::set_factor(std::uint32_t factor) {
 }
 
 pkdContext::pkdContext(mdl::mdlClass *mdl,
-                       int nStore,int nBucket,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
+                       int nStore, int nDecoratorStore, int nBucket, uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
                        mdl::MPI_RECV_MODE mpi_recv_mode,int mpi_recv_count,bool mpi_RDMA,
@@ -287,6 +290,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->nBH = nBH;
     this->nStar = nStar;
     this->nRejects = 0;
+    this->nDecoratorRejects = 0;
     this->fPeriod = fPeriod;
 
     this->uMinRungActive  = 0;
@@ -310,7 +314,34 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
-    particles.initialize(this->bIntegerPosition,this->bNoParticleOrder);
+
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV|PKD_MODEL_STAR|PKD_MODEL_BH) ) {
+        particles.add<decorators::FIELDS *>(PKD_FIELD::oDecorator,"decorator");
+    }
+
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
+        auto gas = decorators.overlay(DECORATOR_FIELD::oMFM);
+        gas.add<decorators::MFM>(DECORATOR_FIELD::oMFM,"hydro");
+        if ( mMemoryModel & PKD_MODEL_MFV )
+            gas.add<decorators::MFV>(DECORATOR_FIELD::oMFV,"mfv");
+    }
+
+    if ( mMemoryModel & PKD_MODEL_STAR ) {
+        auto star = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the star field on the MFM field
+        star.add<decorators::STAR>(DECORATOR_FIELD::oStar,"star");
+    }
+
+#ifdef BLACKHOLES
+    if ( mMemoryModel & PKD_MODEL_BH ) {
+        auto bh = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the blackhole field on the MFM field
+        bh.add<decorators::BLACKHOLE>(DECORATOR_FIELD::oBH,"bh");
+    }
+#endif // BLACKHOLES
+
+
+    decorators.commit();
+
+    particles.initialize(this->bIntegerPosition,this->bNoParticleOrder, &decorators);
 
     if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition,"r");
     else                        particles.add<double[3]>(PKD_FIELD::oPosition,"r");
@@ -327,27 +358,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     */
     if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid,"gid");
 
-    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_MFV) ) {
-        auto gas = particles.overlay(PKD_FIELD::oSph);
-        gas.add<meshless::FIELDS>(PKD_FIELD::oSph,"hydro");
-        if ( mMemoryModel & PKD_MODEL_MFV )
-            gas.add<meshless::MFV>(PKD_FIELD::oMFV,"mfv");
-    }
-
     if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph,"hydro");
     if ( mMemoryModel & PKD_MODEL_STRENGTH ) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr,"strength");
     if ( mMemoryModel & PKD_MODEL_PEAKPRESSURE) particles.add<sph::PEAKPRESSUREFIELDS>(PKD_FIELD::oNewSphPeakPressure,"peakpressure");
-    if ( mMemoryModel & PKD_MODEL_STAR ) {
-        auto star = particles.overlay(PKD_FIELD::oSph); // Overlay the star field on the sph field
-        star.add<meshless::STAR>(PKD_FIELD::oStar,"star");
-    }
-
-#ifdef BLACKHOLES
-    if ( mMemoryModel & PKD_MODEL_BH ) {
-        auto bh = particles.overlay(PKD_FIELD::oSph); // Overlay the blackhole field on the sph field
-        bh.add<meshless::BLACKHOLE>(PKD_FIELD::oBH,"bh");
-    }
-#endif // BLACKHOLES
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
         particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth,"vsmooth");
@@ -373,6 +386,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
         particles.add<float>(PKD_FIELD::oPotential,"phi");
     }
     particles.commit();
+
 
     /*
     ** Tree node memory models
@@ -455,14 +469,14 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if (nEphemeral * mdl->Cores()*nEphemeralBytes < nMinEphemeral)
         nEphemeral = (nMinEphemeral + mdl->Cores()*nEphemeralBytes - 1) / (mdl->Cores()*nEphemeralBytes);
 
-    // For the third storage we use a rather conservative minimum number of tree nodes.
+    // For the fourth storage we use a rather conservative minimum number of tree nodes.
     // Ideally we would have nStore/nBucket leaf nodes, and thus twice that total tree nodes.
     // The buckets are not always full, and the tree is not completely balanced, so it will be more in practice.
     ephemeral.reset(); // The monotonic buffer resource will be invalidated by the new allocation
     uint64_t nTreeNodes = (nStore+1) / nBucket * 2;
-    TinyVector<size_t,3> nElements{uint64_t(nStore+1),nEphemeral,nTreeNodes};
-    TinyVector<size_t,3> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,tree.ElementSize()};
-    storageSize = mdl->new_shared_array(pSegments.data(),3,nElements.data(),nBytesPerElement.data(),nMinTotalStore);
+    TinyVector<size_t,4> nElements{uint64_t(nStore+1),nEphemeral,uint64_t(nDecoratorStore+1),nTreeNodes};
+    TinyVector<size_t,4> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,decorators.ElementSize(),tree.ElementSize()};
+    storageSize = mdl->new_shared_array(pSegments.data(),4,nElements.data(),nBytesPerElement.data(),nMinTotalStore);
     if (storageSize == 0) {
         fprintf(stderr, "ERROR: unable to allocate main storage\n");
         abort();
@@ -471,6 +485,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 
     assert(nElements[0] >= nStore);
     particles.setStore(pSegments[0],nStore);
+    decorators.setStore(pSegments[2],nDecoratorStore);
 
     // Setup the ephemeral storage. If we run out of space, it will throw an exception.
     ephemeral.emplace(pSegments[1],nElements[1]*nBytesPerElement[1],std::pmr::null_memory_resource());
@@ -483,7 +498,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** nodes total which is the integer limit anyway. We may use the extra storage
     ** from above if constraint (c) could not otherwise be met.
     */
-    tree.initialize(&particles,this->bIntegerPosition,nTreeBitsLo,nTreeBitsHi,nElements[2]*nBytesPerElement[2],pSegments[2]);
+    tree.initialize(&particles,this->bIntegerPosition,nTreeBitsLo,nTreeBitsHi,nElements[3]*nBytesPerElement[3],pSegments[3]);
 
     /*
     ** We also allocate a temporary particle used for swapping.  We need to do
@@ -613,13 +628,14 @@ size_t pkdIllMemory(PKD pkd) {
     return pkd->ill.memory();
 }
 
-void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
+void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac, enum FIO_SPECIES species) {
     float dummypot;
     TinyVector<double,3> r, vel;
     TinyVector<float,ELEMENT_COUNT> metals;
     float fMass,fSoft,fDensity,u,fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
+    int i;
 
     mdlassert(pkd->mdl,fio != NULL);
 #ifdef USE_ITT
@@ -627,14 +643,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_string_handle *shMyTask = __itt_string_handle_create("Read");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    pkd->particles.clearClasses();
-    if (pkd->particles.present(PKD_FIELD::oStar)) {
+
+    if (species == FIO_SPECIES_ALL)
+        pkd->particles.clearClasses();
+
+    if (pkd->decorators.present(DECORATOR_FIELD::oStar)) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         auto p = pkd->particles[pkd->Local()];
         pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_STAR,&p);
     }
 #ifdef BLACKHOLES
-    assert(pkd->particles.present(PKD_FIELD::oMass));
     auto p = pkd->particles[pkd->Local()];
     pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_BH,&p);
 #endif
@@ -643,8 +661,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     fMass = 0.0f;
     fSoft = 0.0f;
 
-    fioSeek(fio,iFirst,FIO_SPECIES_ALL);
-    for (auto i = 0; i < nLocal; ++i) {
+    fioSeek(fio,iFirst,species);
+    for (i = 0; i < nLocal; ++i) {
         auto p = pkd->particles[pkd->Local()+i];
         /*
         ** General initialization.
@@ -679,14 +697,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             NewSphStr.strainJ2 = 0.0f;
         }
 
-        /* Initialize Star fields if present */
-        if (p.have_star()) {
-            auto &Star = p.star();
-            Star.fTimer = 0;
-            /*      Star.iGasOrder = IORDERMAX;*/
-        }
-
         eSpecies = fioSpecies(fio);
+        if (species!=FIO_SPECIES_ALL) {
+            assert (eSpecies == species);
+        }
         switch (eSpecies) {
         case FIO_SPECIES_SPH:
             ;
@@ -708,7 +722,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             else {
                 assert(dTuFac>0.0);
                 p.set_ball(2.*afSphOtherData[0]);
-                if (p.have_sph()) {
+                if (p.have_mfm()) {
+                    uint64_t decorator_index = pkd->decorators.append();
+                    p.set_decorator_index(decorator_index);
                     auto &Sph = p.sph();
                     Sph.ElemMass = metals * fMass;
 #ifdef HAVE_METALLICITY
@@ -734,6 +750,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     Sph.lastHubble = 0.0;
                     Sph.lastMass = fMass;
                     Sph.lastAcc = 0.;
+                    Sph.omega = 0.;
+                    Sph.spheom = 0.;
                     if (p.have_mfv()) {
                         auto &mfv = p.mfv();
                         mfv.lastDrDotFrho = 0.;
@@ -769,6 +787,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             p.set_density(fDensity);
             if (p.have_star()) {
+                uint64_t decorator_index = pkd->decorators.append();
+                p.set_decorator_index(decorator_index);
                 auto &Star = p.star();
                 Star.fTimer = fTimer;
                 Star.omega  = 0.;
@@ -793,6 +813,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                       &fDensity,otherData,&fTimer);
             pkd->particles.setClass(fMass,fSoft,0,1.0,eSpecies,&p);
             if (p.have_bh()) {
+                uint64_t decorator_index = pkd->decorators.append();
+                p.set_decorator_index(decorator_index);
                 auto &BH = p.BH();
                 BH.omega  = 0.;
                 BH.dInternalMass = otherData[0];
@@ -1141,38 +1163,170 @@ int pkdActiveOrder(PKD pkd) {
     return (pkd->nActive = i - pkd->particles.begin());
 }
 
-int pkdColRejects(PKD pkd,int nSplit) {
-    int iRejects,i;
+std::pair<int,int> pkdColRejects(PKD pkd,int nSplit) {
+    int iRejects,iDecoratorRejects,i;
 
     mdlassert(pkd->mdl,pkd->nRejects == 0);
+    mdlassert(pkd->mdl,pkd->nDecoratorRejects == 0);
 
     pkd->nRejects = pkd->Local() - nSplit;
     iRejects = pkd->FreeStore() - pkd->nRejects;
+
+    pkdReorderDecorator(pkd);
+
+    // Only for gas only sims
+    //assert(nSplit==nDecoratorSplit);
+
+    // We need to keep track of the decorator indeces of the particles to be swapped,
+    // for this we use the ephemeral storage
+    auto ephem = pkd->Ephemeral<bool>();
+    int nDecoratorRejects = 0;
+
+
     /*
     ** Move rejects to High memory.
     */
     if (pkd->Local() != pkd->FreeStore()) {
-        for (i=pkd->nRejects-1; i>=0; --i)
+        for (i=pkd->nRejects-1; i>=0; --i) {
             pkd->particles[iRejects+i] = pkd->particles[nSplit+i];
+            ephem[pkd->nRejects-i-1] = pkd->particles[iRejects+i].have_decorator();
+            if (ephem[pkd->nRejects-i-1])
+                nDecoratorRejects++;
+            assert( pkd->particles[iRejects+i].mass() == pkd->particles[nSplit+i].mass());
+            assert( pkd->particles[iRejects+i].position(0) == pkd->particles[nSplit+i].position(0));
+        }
     }
+    else {
+        // Even if there is no particle movements, we should still fill the
+        // decorator flag in the ephemeral storage
+        for (i=pkd->nRejects-1; i>=0; --i) {
+            ephem[pkd->nRejects-i-1] = pkd->particles[nSplit+i].have_decorator();
+            if (ephem[pkd->nRejects-i-1])
+                nDecoratorRejects++;
+        }
+    }
+
+    uint64_t nDecoratorSplit = nSplit==pkd->Local()?pkd->DecoratorLocal():pkd->DecoratorLocal()-nDecoratorRejects;
+    pkd->nDecoratorRejects = pkd->DecoratorLocal() - nDecoratorSplit;
+    iDecoratorRejects = pkd->FreeDecoratorStore() - pkd->nDecoratorRejects;
+
+
+    // Same for decorators
+    if (pkd->DecoratorLocal() != pkd->FreeDecoratorStore()) {
+        for (i=pkd->nDecoratorRejects-1; i>=0; --i) {
+            pkd->decorators[iDecoratorRejects+i] = pkd->decorators[nDecoratorSplit+i];
+            assert( pkd->decorators[nDecoratorSplit+i].mfm().Uint == pkd->decorators[iDecoratorRejects+i].mfm().Uint);
+        }
+    }
+
     pkd->SetLocal(nSplit);
-    return (pkd->nRejects);
+    pkd->decorators.SetLocal(nDecoratorSplit);
+
+    return std::pair<int,int>(pkd->nRejects, pkd->nDecoratorRejects);
 }
 
-int pkdSwapRejects(PKD pkd,int idSwap) {
+std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
     size_t nBuf;
     size_t nOutBytes,nSndBytes,nRcvBytes;
+    size_t nOutDecoratorBytes,nSndDecoratorBytes,nRcvDecoratorBytes,nSkipBytes;
+
+    auto oldLocal = pkd->Local();
+    auto oldDecoratorLocal = pkd->DecoratorLocal();
 
     if (idSwap != -1) {
+        //printf("%d have %d(%d) rejects\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
         nBuf = (pkdSwapSpace(pkd))*pkd->particles.ParticleSize();
+
         nOutBytes = pkd->nRejects*pkd->particles.ParticleSize();
+
         mdlassert(pkd->mdl,pkd->Local() + pkd->nRejects <= pkd->FreeStore());
-        pkd->mdl->Swap(idSwap,nBuf,pkd->Particle(pkd->Local()),
-                       nOutBytes,&nSndBytes,&nRcvBytes);
-        pkd->AddLocal(nRcvBytes/pkd->particles.ParticleSize());
-        pkd->nRejects -= nSndBytes/pkd->particles.ParticleSize();
+        // Swap the particles
+        auto outPart = pkd->mdl->Swap(idSwap,nBuf,pkd->Particle(pkd->Local()),
+                                      nOutBytes,&nSndBytes,&nRcvBytes);
+
+
+
+        auto nNewPart = nRcvBytes/pkd->particles.ParticleSize();
+        auto nSentPart = nSndBytes/pkd->particles.ParticleSize();
+        // if (!outPart)
+        //     printf("%d tried to swap %d with %d, but only sent %d and received %d\n",
+        //            pkd->Self(), pkd->nRejects, idSwap, nSentPart, nNewPart);
+
+        pkd->AddLocal(nNewPart);
+
+        // Make sure that we have enough space for receiving the associated
+        // decorators to the newly arrived particles
+        int nNewDecorator = 0;
+        for (auto i=oldLocal; i<pkd->Local(); i++) {
+            if (pkd->particles[i].have_decorator()) {
+                nNewDecorator++;
+            }
+        }
+        assert(nNewDecorator <= pkdSwapDecoratorSpace(pkd));
+        // Also only share now the associated decorators to the particles that
+        // we have just sent
+
+        int nToBeSendDecorator = 0;
+        auto ephem = pkd->Ephemeral<bool>();
+        for (auto i=0; i<nSentPart; i++) {
+            // NB: We store this in reverse order so that if we need multiple
+            // swaps we no not need to know how many elements were copied before.
+            if (ephem[pkd->nRejects-i-1]) {
+                nToBeSendDecorator++;
+            }
+        }
+
+        // i.e., sanity check, we are not miscounting the decorators
+//        printf("%d %d \t %d %d\n", pkd->Self(), nSentPart,nToBeSendDecorator, pkd->nDecoratorRejects);
+        assert(nToBeSendDecorator <= pkd->nDecoratorRejects);
+
+        // i.e., otherwise we can not be sure that we can get all the decorators
+        //assert(pkdSwapSpace(pkd) <= pkdSwapDecoratorSpace(pkd));
+
+        nOutDecoratorBytes = pkd->nDecoratorRejects*pkd->decorators.DecoratorSize();
+        nSkipBytes = (pkd->nDecoratorRejects-nToBeSendDecorator)*pkd->decorators.DecoratorSize();
+        nBuf = pkdSwapDecoratorSpace(pkd)*pkd->decorators.DecoratorSize();
+
+        auto outDecorator = pkd->mdl->Swap(idSwap,nBuf,pkd->Decorator(pkd->DecoratorLocal()),
+                                           nOutDecoratorBytes, &nSndDecoratorBytes,&nRcvDecoratorBytes, nSkipBytes);
+
+        auto nSentDecorator = nSndDecoratorBytes/pkd->decorators.DecoratorSize();
+
+        // i.e., the swap was completed
+        assert(nSndDecoratorBytes == nOutDecoratorBytes-nSkipBytes);
+        // which should be the same as
+        assert(outDecorator == 1);
+        // i.e., we received the correct amount of decorators
+        assert(nRcvDecoratorBytes == nNewDecorator*pkd->decorators.DecoratorSize());
+        // i.e., same amount of particles and decorators was exchanged (only for gas-only sims)
+        //assert(nRcvDecoratorBytes/pkd->decorators.DecoratorSize() == nRcvBytes/pkd->particles.ParticleSize());
+
+        // printf("%d %d \t %d \t %" PRIu64 "\t %" PRIu64 "\t %" PRIu64 "\n",
+        //         pkd->Self(), outPart, pkd->nRejects, nOutBytes, nSndBytes, nRcvBytes);
+
+        pkd->decorators.Add(nRcvDecoratorBytes/pkd->decorators.DecoratorSize());
+
+        // printf("%d (%d/%d) swapped with %d a total of %d(%d) elements, changing the count from %d(%d) to %d(%d)\n",
+        //        pkd->Self(), outPart, outDecorator, idSwap, nSentPart, nSentDecorator,
+        //        oldLocal, oldDecoratorLocal, pkd->Local(), pkd->DecoratorLocal());
+        // assert (nSentPart == nSentPart); // only for gas-only simulations
+
+        pkd->nRejects -= nSentPart;
+        pkd->nDecoratorRejects -= nSentDecorator;
+        //printf("%d have %d(%d) remaining rejects\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
+
+        // Bookkeep so that newly arrived particles have the correct decorator index
+        uint64_t d = oldDecoratorLocal;
+        for (auto i=oldLocal; i<pkd->Local(); i++) {
+            auto P = pkd->particles[i];
+            if (P.have_decorator()) {
+                P.set_decorator_index(d);
+                d++;
+            }
+        }
+        assert(d == pkd->DecoratorLocal());
     }
-    return (pkd->nRejects);
+    return std::pair<int,int>(pkd->nRejects, pkd->nDecoratorRejects);
 }
 
 void pkdSwapAll(PKD pkd, int idSwap) {
@@ -1187,16 +1341,44 @@ void pkdSwapAll(PKD pkd, int idSwap) {
     iBuf = pkdSwapSpace(pkd);
     for (i=pkd->Local()-1; i>=0; --i)
         pkd->CopyParticle(pkd->Particle(iBuf+i),pkd->Particle(i));
+
     nBuf = pkd->FreeStore()*pkd->particles.ParticleSize();
     nOutBytes = pkd->Local()*pkd->particles.ParticleSize();
     pkd->mdl->Swap(idSwap,nBuf,pkd->particles, nOutBytes,
                    &nSndBytes, &nRcvBytes);
     mdlassert(pkd->mdl,nSndBytes/pkd->particles.ParticleSize() == pkd->Local());
     pkd->SetLocal(nRcvBytes/pkd->particles.ParticleSize());
+    /*
+    ** Repeat for decorator.
+    */
+    iBuf = pkdSwapDecoratorSpace(pkd);
+    for (i=pkd->DecoratorLocal()-1; i>=0; --i)
+        pkd->CopyDecorator(pkd->Decorator(iBuf+i),pkd->Decorator(i));
+    nBuf = pkd->FreeDecoratorStore()*pkd->decorators.DecoratorSize();
+    nOutBytes = pkd->DecoratorLocal()*pkd->decorators.DecoratorSize();
+    pkd->mdl->Swap(idSwap,nBuf,pkd->decorators, nOutBytes,
+                   &nSndBytes, &nRcvBytes);
+    mdlassert(pkd->mdl,nSndBytes/pkd->decorators.DecoratorSize() == pkd->DecoratorLocal());
+    pkd->decorators.SetLocal(nRcvBytes/pkd->decorators.DecoratorSize());
+
+    // Handle the newly arrived pointers to the decorators
+    // Assume that they were ordered
+    uint64_t nDecorator = 0;
+    for (auto i=0; i<pkd->Local(); ++i) {
+        auto p = pkd->particles[i];
+        if (p.have_decorator()) {
+            p.set_decorator_index(nDecorator);
+            nDecorator++;
+        }
+    }
+    assert(nDecorator == pkd->DecoratorLocal());
 }
 
 int pkdSwapSpace(PKD pkd) {
     return (pkd->FreeStore() - pkd->Local());
+}
+int pkdSwapDecoratorSpace(PKD pkd) {
+    return (pkd->FreeDecoratorStore() - pkd->DecoratorLocal());
 }
 
 int pkdActive(PKD pkd) {
@@ -1216,7 +1398,7 @@ void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize) {
     return pkd->tree[i];
 }
 
-int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
+std::pair<int,int> pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
     int nSplit;
     if (iSplitSide) nSplit = pkdLowerOrdPart(pkd,nOrdSplit,0,pkd->Local()-1);
     else nSplit = pkdUpperOrdPart(pkd,nOrdSplit,0,pkd->Local()-1);
@@ -1242,7 +1424,13 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
 
 #define MAX_IO_BUFFER_SIZE (8*1024*1024)
 
-void pkdCheckpoint(PKD pkd,const char *fname) {
+void pkdCheckpoint(PKD pkd,const char *fname, const char *fname_decorator) {
+    // Order particles by type to prepare for checkpoint
+    auto ii = std::partition(pkd->particles.begin(), pkd->particles.end(),
+    [](auto &p) { return !p.have_decorator(); } );
+    auto split = ii - pkd->particles.begin();
+    pkdReorderDecorator(pkd);
+
     asyncFileInfo info;
     size_t nFileSize;
     int fd;
@@ -1252,7 +1440,7 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
         perror(fname);
         abort();
     }
-    nFileSize = pkd->particles.ParticleSize() * pkd->Local();
+    nFileSize = pkd->particles.ParticleSize() * split;
     char *pBuffer = (char *)pkd->particles.Element(0);
     while (nFileSize) {
         size_t count = nFileSize > MAX_IO_BUFFER_SIZE ? MAX_IO_BUFFER_SIZE : nFileSize;
@@ -1261,6 +1449,16 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
         nFileSize -= count;
     }
     io_close(&info);
+
+    // Repeat for particles with decorators
+    auto nElements = pkd->Local() - split;
+    for (auto i=split; i<pkd->Local(); i++)
+        assert(pkd->particles[i].have_decorator());
+    auto pDecorators = static_cast<void *>(pkd->decorators.Element(0));
+    auto pParticles = static_cast<void *>(pkd->particles.Element(split));
+    io_staggered_write(fname_decorator, pParticles, pDecorators, nElements,
+                       pkd->particles.ParticleSize(),
+                       pkd->decorators.DecoratorSize());
 }
 
 /*****************************************************************************\
@@ -1328,7 +1526,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                         fDensity,T,metals.data(),0.0f,T,otherData);
         }
         else {
-            assert(p.have_sph());
+            assert(p.have_mfm());
             auto &Sph = p.sph();
             {
 #if defined(COOLING)
@@ -1373,6 +1571,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
 #ifdef HAVE_METALLICITY
                 otherData[2] = Sph.fMetalMass / fMass;
 #endif
+                //printf("writeParticle %e\n", Sph.Uint);
 
                 fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
                             Sph.Uint/fMass,metals.data(),ph,temperature,&otherData[0]);
@@ -1433,34 +1632,58 @@ struct packWriteCtx {
     Bound bnd;
     double dvFac;
     double dTuFac;
+    fioSpeciesList nWritten;
     int iIndex;
+    int iDecoratorIndex;
 };
 
 static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packWriteCtx *ctx = (struct packWriteCtx *)vctx;
-    PKD pkd = ctx->pkd;
-    auto p = &pkd->particles[static_cast<PARTICLE *>(vBuff)];
-    int n = nSize / pkd->particles.ParticleSize();
     int i;
+    PKD pkd = ctx->pkd;
+    if (nSize==0)
+        return 0;
     double dvFacGas = sqrt(ctx->dvFac);
-    assert( n*pkd->particles.ParticleSize() == nSize);
-    for (i=0; i<n; ++i,++p) {
-        writeParticle(pkd,ctx->fio,ctx->dvFac,dvFacGas,ctx->bnd,*p);
+
+    // Retrieve number of particles/decorators
+    auto nPart = static_cast<uint64_t *>(vBuff)[0];
+    auto nDecorator = static_cast<uint64_t *>(vBuff)[1];
+    // Position of the particle buffer
+    auto pStart = &static_cast<uint64_t *>(vBuff)[2];
+    // Position of the decorator buffer
+    decorators::FIELDS *dStart = reinterpret_cast<decorators::FIELDS *>(reinterpret_cast<char *>(pStart)+ nPart * pkd->particles.ParticleSize());
+
+    auto p = &pkd->particles[reinterpret_cast<PARTICLE *>(pStart)];
+    auto d = &pkd->decorators[reinterpret_cast<decorators::FIELDS *>(dStart)];
+    assert( nPart*pkd->particles.ParticleSize() +
+            nDecorator*pkd->decorators.DecoratorSize() + 2*sizeof(uint64_t) == nSize);
+
+    for (i=0; i<nPart; ++i,++p) {
+        particleStore::Particle &P = *p;
+        if (P.have_decorator()) {
+            P.set_decorator(d);
+            d++;
+        }
+        writeParticle(pkd,ctx->fio,ctx->dvFac,dvFacGas,ctx->bnd,P);
+        ++ctx->nWritten[p->species()];
     }
     return 1;
 }
 
-void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd) {
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten) {
     struct packWriteCtx ctx;
     ctx.pkd = pkd;
     ctx.fio = fio;
     ctx.bnd = bnd;
     ctx.dvFac = dvFac;
     ctx.dTuFac = dTuFac;
+    for (auto i = 0; i <= FIO_SPECIES_LAST; ++i) ctx.nWritten[i] = 0;
     ctx.iIndex = 0;
+    ctx.iDecoratorIndex = 0;
 #ifdef MPI_VERSION
     pkd->mdl->Recv(iNode,unpackWrite,&ctx);
 #endif
+    for (auto i = 0; i <= FIO_SPECIES_LAST; ++i) nWritten[i] += ctx.nWritten[i];
 }
 
 /*****************************************************************************\
@@ -1470,13 +1693,38 @@ void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Boun
 static int packWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packWriteCtx *ctx = (struct packWriteCtx *)vctx;
     PKD pkd = ctx->pkd;
-    int nLeft = pkd->Local() - ctx->iIndex;
-    int n = nSize / pkd->particles.ParticleSize();
-    if ( n > nLeft ) n = nLeft;
-    nSize = n*pkd->particles.ParticleSize();
-    memcpy(vBuff,pkd->Particle(ctx->iIndex), nSize );
-    ctx->iIndex += n;
-    return nSize;
+    int nDecorator = 0, nPart=0;
+    int i=ctx->iIndex;
+    // Decorator count information sent at the start of the buffer
+    // indicating number of particles and decorators
+    auto n = 2*sizeof(uint64_t);
+
+    auto pSize = pkd->particles.ParticleSize();
+    auto dSize = pkd->decorators.DecoratorSize();
+    while (n < nSize-(pSize+dSize)  && i < pkd->Local()) {
+        n += pSize;
+        if (pkd->particles[i].have_decorator()) {
+            n+=dSize;
+            nDecorator++;
+        }
+        nPart++;
+        i++;
+    }
+    auto nPartSize = nPart*pSize;
+    auto nDecoratorSize = nDecorator*dSize;
+
+    auto nBuff = static_cast<uint64_t *>(vBuff);
+    nBuff[0] = nPart;
+    nBuff[1] = nDecorator;
+    memcpy(static_cast<char *>(vBuff)+2*sizeof(uint64_t),pkd->Particle(ctx->iIndex), nPartSize );
+    memcpy(static_cast<char *>(vBuff)+2*sizeof(uint64_t)+nPartSize,pkd->Decorator(ctx->iDecoratorIndex), nDecoratorSize );
+
+    ctx->iIndex += nPart;
+    ctx->iDecoratorIndex += nDecorator;
+    if (nPart)
+        return n;
+    else
+        return 0;
 }
 
 /* Send all particled data to the specified node for writing */
@@ -1486,13 +1734,14 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
     ctx.fio = NULL;
     ctx.dvFac = 1.0;
     ctx.iIndex = 0;
+    ctx.iDecoratorIndex = 0;
 #ifdef MPI_VERSION
     pkd->mdl->Send(iNode,packWrite, &ctx);
 #endif
 }
 
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
-                       uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
+                       fioSpeciesList nTotal, fioSpeciesList nThisFile,
                        double dBoxSize, double h, int nProcessors, UNITS units) {
     char version[] = PACKAGE_VERSION;
     fioSetAttr(fio, HDF5_HEADER_G, "PKDGRAV version", FIO_TYPE_STRING, 1, version);
@@ -1537,32 +1786,32 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
 #endif
     fioSetAttr(fio, HDF5_HEADER_G, "Flag_Metals", FIO_TYPE_INT, 1, &flag);
 
-    // In HDF5 format the position and velocities are always stored as doubles
-    flag=1;
+    flag = (fio->mFlags&FIO_FLAG_DOUBLE_POS) && (fio->mFlags&FIO_FLAG_DOUBLE_VEL);
     fioSetAttr(fio, HDF5_HEADER_G, "Flag_DoublePrecision", FIO_TYPE_INT, 1, &flag);
 
     fioSetAttr(fio, HDF5_HEADER_G, "BoxSize", FIO_TYPE_DOUBLE, 1, &dBoxSize);
     fioSetAttr(fio, HDF5_HEADER_G, "NumFilesPerSnapshot", FIO_TYPE_INT, 1, &nProcessors);
 
-    /* Prepare the particle information in tables
-     * For now, we only support one file per snapshot,
-     * this bParaWrite=0
-     *
-     * TODO: Check and debug parallel HDF5
-     */
-    unsigned int numPart_file[6] = {0,0,0,0,0,0};
-    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
-    //int numPart_all[6];
+    // Prepare the particle information in tables
+    // Header compatible with Gadget-4, with NumPart_ThisFile and NumPart_Total as uint64,
+    // no NumPart_Total_HighWord. This limits the number of particles at 2**64-1
+    fioSpeciesList nPart;
 
-    numPart_file[0] = nGas;
-    numPart_file[1] = nDark;
-    numPart_file[2] = 0;
-    numPart_file[3] = 0;
-    numPart_file[4] = nStar;
-    numPart_file[5] = nBH;
+    nPart[0] = nThisFile[FIO_SPECIES_SPH];
+    nPart[1] = nThisFile[FIO_SPECIES_DARK];
+    nPart[2] = 0;
+    nPart[3] = 0;
+    nPart[4] = nThisFile[FIO_SPECIES_STAR];
+    nPart[5] = nThisFile[FIO_SPECIES_BH];
+    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT64, 6, &nPart[0]);
 
-    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
-    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
+    nPart[0] = nTotal[FIO_SPECIES_SPH];
+    nPart[1] = nTotal[FIO_SPECIES_DARK];
+    nPart[2] = 0;
+    nPart[3] = 0;
+    nPart[4] = nTotal[FIO_SPECIES_STAR];
+    nPart[5] = nTotal[FIO_SPECIES_BH];
+    fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT64, 6, &nPart[0]);
 
     double massTable[6] = {0,0,0,0,0,0};
     // This is not yet fully supported, as the classes do not have to match the
@@ -1700,10 +1949,11 @@ void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize) {
 *
 \*****************************************************************************/
 
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd) {
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten) {
     double dvFacGas = sqrt(dvFac);
     for (auto &p : pkd->particles) {
         writeParticle(pkd,fio,dvFac,dvFacGas,bnd,p);
+        ++nWritten[p.species()];
     }
     return pkd->particles.Local();
 }
@@ -2106,8 +2356,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     ** Update particle positions
     */
     if (bDoGas) {
-        if (pkd->particles.present(PKD_FIELD::oSph) /*pkd->param.bMeshlessHydro*/) {
-            assert(pkd->particles.present(PKD_FIELD::oSph));
+        if (pkd->decorators.present(DECORATOR_FIELD::oMFM)) {
             assert(pkd->particles.present(PKD_FIELD::oAcceleration));
             for (i=pLower; i<=pUpper; ++i) {
                 auto p = pkd->particles[i];
@@ -2174,6 +2423,55 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     pkd->bnd = Bound(dMin,dMax);
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
 }
+
+void pkdReorderDecorator(PKD pkd) {
+    auto ephem = pkd->Ephemeral<uint32_t>();
+
+    // The ephemeral storage is populated as a map between decorators and their
+    // particles. This way, there is no need to do complex searches later.
+    for (uint32_t i=0; i<pkd->Local(); ++i) {
+        if (pkd->particles[i].have_decorator()) {
+            ephem[ pkd->particles[i].decorator_index() ] = i;
+        }
+    }
+
+    uint64_t iDecorator = 0;
+    for (uint32_t i=0; i<pkd->Local(); ++i) {
+        if (pkd->particles[i].have_decorator()) {
+            auto p = pkd->particles[i];
+            auto prev_decor = p.decorator_field();
+            auto new_decor = &pkd->decorators[iDecorator];
+            if (prev_decor != new_decor) {
+                // As we built the map before, we can simply get the particle
+                // whose decorator is in the assigned position of p's decorator
+                auto particle_to_swap = pkd->particles[ephem[iDecorator]];
+
+                // Swap the decorators
+                auto a = pkd->decorators[prev_decor];
+                auto b = pkd->decorators[new_decor];
+                swap(a, b);
+
+                // Update the mapping
+                ephem[p.decorator_index()] = ephem[iDecorator];
+
+                // Update the particles' decorators pointers
+                particle_to_swap.set_decorator(prev_decor);
+                p.set_decorator(new_decor);
+            }
+            assert(p.decorator_index()==iDecorator);
+            iDecorator++;
+        }
+    }
+    // uint64_t iDecoratorCheck = 0;
+    // for (uint32_t i=0; i<pkd->Local(); ++i) {
+    //     if (pkd->particles[i].have_decorator()) {
+    //         assert(pkd->particles[i].decorator_index()==iDecoratorCheck);
+    //         iDecoratorCheck++;
+    //     }
+    // }
+    return;
+}
+
 
 #ifdef OPTIM_REORDER_IN_NODES
 /// @brief Order particles in buckets by type
@@ -2376,7 +2674,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     assert(pkd->particles.present(PKD_FIELD::oAcceleration));
 
     if (bDoGas) { // pkd->param.bMeshlessHydro
-        assert(pkd->particles.present(PKD_FIELD::oSph));
         for (auto &p : pkd->particles) {
             if (!p.is_gas()) {
                 if (p.is_rung_range(uRungLo,uRungHi)) {
@@ -2681,23 +2978,6 @@ void pkdDeleteParticle(PKD pkd, particleStore::ParticleReference &p) {
     //pkd->CopyParticle(p, lastp);
     //pkd->Local() -= 1;
     //pkd->TreeNode(ROOT)->pUpper -= 1;
-    switch (pSpecies) {
-    case FIO_SPECIES_DARK:
-        pkd->nDark -= 1;
-        break;
-    case FIO_SPECIES_SPH:
-        pkd->nGas -= 1;
-        break;
-    case FIO_SPECIES_STAR:
-        pkd->nStar -= 1;
-        break;
-    case FIO_SPECIES_BH:
-        pkd->nBH -= 1;
-        break;
-    default:
-        printf("Deleting particle with unknown type");
-        abort();
-    }
     p.set_marked(false);
     p.set_rung(0);
     p.set_new_rung(0);

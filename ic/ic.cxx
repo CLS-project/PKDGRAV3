@@ -1117,9 +1117,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 double a_m1 = 1./in->dExpansion;
                 VelGas *= a_m1;
 
-                /* Fill the meshless::FIELDS with some initial values */
+                /* Fill the decorators::MFM with some initial values */
                 double u = in->dInitialT * in->dTuFac;
-                assert(pkd->particles.present(PKD_FIELD::oSph));
+                assert(pkd->decorators.present(DECORATOR_FIELD::oMFM));
+                pgas.set_decorator_index(pkd->decorators.append());
                 auto &Sph = pgas.sph();
                 Sph.ElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
 #ifdef HAVE_HELIUM
@@ -1168,6 +1169,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 Sph.lastHubble = 0.0;
                 Sph.lastMass = fGasMass;
                 Sph.lastAcc = 0.;
+                Sph.omega = 0.0;
+                Sph.spheom = 0.;
                 if (pgas.have_mfv()) {
                     auto &mfv = pgas.mfv();
                     mfv.lastDrDotFrho = 0.;
@@ -1183,7 +1186,6 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 Sph.fAccFBEnergy = 0.;
 #endif
                 Sph.uWake = 0;
-                Sph.omega = 0.0;
 #ifdef BLACKHOLES
                 Sph.BHAccretor.iIndex = NOT_ACCRETED;
                 Sph.BHAccretor.iPid   = NOT_ACCRETED;

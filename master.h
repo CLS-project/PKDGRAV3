@@ -90,7 +90,7 @@ public:
     ~MSR();
 public:
     template<typename... Args>
-    void print(Args&&... args) const {
+    void print(Args &&... args) const {
         FMT_TRY {
             fmt::print(std::forward<Args>(args)...);
         }
@@ -100,21 +100,21 @@ public:
         }
     }
     template<typename... Args>
-    void print_error(const char *format, Args&&... args) const {
+    void print_error(const char *format, Args &&... args) const {
         print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
     }
     template<typename... Args>
-    void print_warning(const char *format, Args&&... args) const {
+    void print_warning(const char *format, Args &&... args) const {
         if (parameters.get_bVWarnings()) {
             print(stderr,fg(fmt::color::yellow) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
         }
     }
     template<typename... Args>
-    void print_notice(const char *format, Args&&... args) const {
+    void print_notice(const char *format, Args &&... args) const {
         print(fg(fmt::color::green) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
     }
     template<typename... Args>
-    void print_detail(const char *format, Args&&... args) const {
+    void print_detail(const char *format, Args &&... args) const {
         if (parameters.get_bVDetails()) {
             print(format, std::forward<Args>(args)...);
         }
@@ -137,7 +137,7 @@ private:
     T restore(PyObject *file,PyObject *replace=Py_None);
 protected:
     void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
-    void Restore(const std::string &filename,int nSizeParticle);
+    void Restore(const std::string &filename,int nSizeParticle, int nSizeDecorator);
     void PrintStat(const STAT &ps,char const *pszPrefix,int p);
 #ifdef INSTRUMENT_MPI
     void PrintStat(const WelfordStats<double> &ps,char const *pszPrefix,int p);
@@ -180,6 +180,7 @@ public:
     void BuildTreeFixed(int bNeedEwald,uint8_t uRungDD);
     void BuildTreeActive(int bNeedEwald,uint8_t uRungDD);
     void BuildTreeMarked(int bNeedEwald=0);
+    void ReorderDecorator();
 #ifdef OPTIM_SMOOTH_NODE
     void ReorderWithinNodes();
 #endif
@@ -194,9 +195,9 @@ public:
 
     // Analysis
     void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
-    int ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric);
+    uint64_t ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric);
 #ifdef OPTIM_SMOOTH_NODE
-    int ReSmoothNode(double dTime, double dDelta, int iSmoothType,int bSymmetric);
+    uint64_t ReSmoothNode(double dTime, double dDelta, int iSmoothType,int bSymmetric);
 #endif
     void NewFof(double dTau,int nMinMembers);
     void Hop(double dTime,double dDelta);
@@ -444,7 +445,7 @@ protected:
     int ReadOuts(double dTime);
     void Exit(int status);
     uint64_t getMemoryModel();
-    std::pair<int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
+    std::tuple<int,int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
     int CheckForStop(const char *achStopFile);
     int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
     void SetClasses();

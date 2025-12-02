@@ -48,6 +48,7 @@ void SmoothHelperHydroFluxes::pack(void *dst, const void *src) {
         p1->lastUpdateTime = sph.lastUpdateTime;
         p1->lastAcc = sph.lastAcc;
         p1->omega = sph.omega;
+        p1->spheom = sph.spheom;
         p1->P = sph.P;
 
         p1->fBall = p2.ball();
@@ -63,6 +64,8 @@ void SmoothHelperHydroFluxes::unpack(void *dst, const void *src, const void *key
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        p1.set_adj_decorator();
+
         auto &sph = p1.sph();
 
         p1.set_position(p2->position);
@@ -77,6 +80,7 @@ void SmoothHelperHydroFluxes::unpack(void *dst, const void *src, const void *key
         sph.lastUpdateTime = p2->lastUpdateTime;
         sph.lastAcc = p2->lastAcc;
         sph.omega = p2->omega;
+        sph.spheom = p2->spheom;
         sph.P = p2->P;
 
         p1.set_ball(p2->fBall);
@@ -98,6 +102,7 @@ void SmoothHelperHydroFluxes::init(void *dst) {
     // because these operations are done in a cache-line basis, and a line may
     // contain other particles that are not of interest!
     if (p.is_gas()) {
+        // assert((int)((char*)p.decorator_field()-(char*)dst) == pkd->particles.ParticleSize());
         auto &sph = p.sph();
 
         sph.Frho = 0.0;
@@ -120,6 +125,7 @@ void SmoothHelperHydroFluxes::flush(void *dst, const void *src) {
 
     if (p2.is_gas()) {
         const auto &sph = p2.sph();
+        // assert((int)((char*)p2.decorator_field()-(char*)src) == pkd->particles.ParticleSize());
 
         p1->Frho = sph.Frho;
         p1->Fmom = sph.Fmom;
@@ -182,6 +188,7 @@ enum q_data {
     q_lastUpdateTime,
     q_B_XX, q_B_YY, q_B_ZZ, q_B_XY, q_B_XZ, q_B_YZ,
     q_omega,
+    q_spheom,
     q_last
 };
 
@@ -321,7 +328,7 @@ private:
                                bool bComove, dtype dTime, dtype dDelta, dtype a, dtype H, dtype dConstGamma,
                                dtype rpq, dtype dx, dtype dy, dtype dz,
                                dtype pBall, dtype pLastUpdateTime, dtype pDt,
-                               dtype pOmega,
+                               dtype pOmega, dtype pSPHEoM,
                                dtype pBxx, dtype pBxy, dtype pBxz,
                                dtype pByy, dtype pByz, dtype pBzz,
                                dtype pDensity, dtype pVpredx, dtype pVpredy, dtype pVpredz, dtype pP, dtype pS,
@@ -332,7 +339,7 @@ private:
                                dtype pGradVzX, dtype pGradVzY, dtype pGradVzZ,
                                dtype pLastAccX, dtype pLastAccY, dtype pLastAccZ,
                                dtype qBall, dtype qLastUpdateTime, dtype qDt,
-                               dtype qOmega,
+                               dtype qOmega, dtype qSPHEoM,
                                dtype qBxx, dtype qBxy, dtype qBxz,
                                dtype qByy, dtype qByz, dtype qBzz,
                                dtype qDensity, dtype qVpredx, dtype qVpredy, dtype qVpredz, dtype qP, dtype qS,
@@ -609,6 +616,29 @@ private:
             F_v[j] += vFrame[j]*F_rho;
         }
 
+#ifdef MFM_FLUX_CORRECTION
+        if (!bMFV)  { // MFM
+            const dtype cs_p{sqrt(dConstGamma*pP/pDensity)};
+            const dtype cs_q{sqrt(dConstGamma*qP/qDensity)};
+            mtype cond{abs(S_M/min(cs_p,cs_q)) < 0.6};
+            if (movemask(cond)) {
+                const dtype dU_mfm_p = pVpredx*F_v[0] + pVpredy*F_v[1] + pVpredz*F_v[2] - F_p;
+                const dtype dU_mfm_q = F_p - qVpredx*F_v[0] - qVpredy*F_v[1] - qVpredz*F_v[2];
+
+                const dtype dU_sph_fac = 2. * P_M * ((qVpredx-pVpredx)*dx + (qVpredy-pVpredy)*dy + (qVpredz-pVpredz)*dz) / rpq;
+                const dtype dU_sph_p = dU_sph_fac * pSPHEoM * cubicSplineKernelDeriv(rpq, pBall) / pOmega;
+                const dtype dU_sph_q = dU_sph_fac * qSPHEoM * cubicSplineKernelDeriv(rpq, qBall) / qOmega;
+
+                mtype pIsCooler{cs_p < cs_q};
+                mtype pDoCorr{cond & pIsCooler & (dU_mfm_p < 0.0) & (dU_sph_p > dU_mfm_p)};
+                mtype qDoCorr{cond &~pIsCooler & (dU_mfm_q < 0.0) & (dU_sph_q > dU_mfm_q)};
+
+                F_p = mask_mov(F_p, pDoCorr, F_p + dU_mfm_p - dU_sph_p);
+                F_p = mask_mov(F_p, qDoCorr, F_p - dU_mfm_q + dU_sph_q);
+            }
+        }
+#endif
+
         /*
         printf("----\n");
         printf("%d\n", niter);
@@ -648,9 +678,6 @@ public:
         const auto &pv = P.velocity();
         auto &psph = P.sph();
 
-        const meshless::myreal pDensity = P.density();
-        const meshless::myreal p_omega = psph.omega;
-
         bool bComove = pkd->csm->val.bComove;
         dtype dTime = smf->dTime;
         dtype dDelta = smf->dDelta;
@@ -659,6 +686,7 @@ public:
         dtype dConstGamma = smf->dConstGamma;
 
         dtype pomega = psph.omega;
+        dtype pspheom= psph.spheom;
         dtype pH     = P.ball();
         dtype plast  = psph.lastUpdateTime;
         dtype pDt    = smf->dDelta/(1<<P.rung());
@@ -668,7 +696,7 @@ public:
         dtype pBYY   = psph.B[YY];
         dtype pBYZ   = psph.B[YZ];
         dtype pBZZ   = psph.B[ZZ];
-        dtype pDens  = pDensity;
+        dtype pDens  = P.density();
         dtype pVpredx= P.velocity()[0];
         dtype pVpredy= P.velocity()[1];
         dtype pVpredz= P.velocity()[2];
@@ -701,6 +729,7 @@ public:
         dtype qdy;
         dtype qdz;
         dtype qomega;
+        dtype qspheom;
         dtype qh;
         dtype qlast;
         dtype qDt;
@@ -758,6 +787,7 @@ public:
             qdy.load(       &q(dy));
             qdz.load(       &q(dz));
             qomega.load(    &q(omega));
+            qspheom.load(   &q(spheom));
             // Change name to h, not ball
             qh.load(        &q(ball));
             qlast.load(     &q(lastUpdateTime));
@@ -806,8 +836,8 @@ public:
             doSinglePPFlux( mask, F_rho, F_v, F_P, F_S, minDt,
                             bComove, dTime, dDelta,  a,  H,  dConstGamma,
                             qdr,  qdx,  qdy,  qdz,
-                            pH,  plast,  pDt,
-                            pomega,
+                            pH, plast, pDt,
+                            pomega, pspheom,
                             pBXX,  pBXY,  pBXZ,
                             pBYY,  pBYZ,  pBZZ,
                             pDens,  pVpredx, pVpredy, pVpredz,  pPres,  pS,
@@ -817,8 +847,8 @@ public:
                             pgradVyx,  pgradVyy,  pgradVyz,
                             pgradVzx,  pgradVzy,  pgradVzz,
                             plastAccx, plastAccy, plastAccz,
-                            qh,  qlast,  qDt,
-                            qomega,
+                            qh, qlast, qDt,
+                            qomega, qspheom,
                             qBXX,  qBXY,  qBXZ,
                             qBYY,  qBYZ,  qBZZ,
                             qDens,  qvx, qvy, qvz,  qP,  qS,
@@ -852,9 +882,8 @@ void hydroFluxFillBuffer(meshless::myreal *input_buffer, PARTICLE *qIn, int i, i
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
     double dDelta = smf->dDelta;
-    double qH = Q.ball();
     auto &qsph = Q.sph();
-    q(ball) = qH;
+    q(ball) = Q.ball();
     q(dx) = dr[0];
     q(dy) = dr[1];
     q(dz) = dr[2];
@@ -901,6 +930,7 @@ void hydroFluxFillBuffer(meshless::myreal *input_buffer, PARTICLE *qIn, int i, i
     q(B_XZ) = qsph.B[XZ];
     q(B_YZ) = qsph.B[YZ];
     q(omega) = qsph.omega;
+    q(spheom) = qsph.spheom;
 }
 
 void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal *input_buffer,
@@ -937,9 +967,9 @@ void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal
 
         if (P.have_mfv()) {
             auto &mfv = P.mfv();
-            mfv.drDotFrho[0] -= qout(minDt) * qout(Frho) * q(dx) * aFac;
-            mfv.drDotFrho[1] -= qout(minDt) * qout(Frho) * q(dy) * aFac;
-            mfv.drDotFrho[2] -= qout(minDt) * qout(Frho) * q(dz) * aFac;
+            mfv.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
+            mfv.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
+            mfv.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
         }
         psph.Frho +=    qout(Frho);
         psph.Fene +=    qout(Fene);

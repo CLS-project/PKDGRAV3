@@ -61,6 +61,8 @@ void SmoothHelperHydroStep::unpack(void *dst, const void *src, const void *key) 
     auto p2 = static_cast<const pack_type *>(src);
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        p1.set_adj_decorator();
+
         p1.set_position(p2->position);
         p1.velocity() = p2->velocity;
         p1.sph().c = p2->c;
@@ -82,8 +84,10 @@ void SmoothHelperHydroStep::flush(void *dst, const void *src) {
     auto p1 = static_cast<flush_type *>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
     if (p2.is_gas()) {
+        const auto &sph = p2.sph();
+
         p1->uNewRung = p2.new_rung();
-        p1->uWake = p2.sph().uWake;
+        p1->uWake = sph.uWake;
     }
 }
 

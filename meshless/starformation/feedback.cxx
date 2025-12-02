@@ -81,6 +81,7 @@ void SmoothHelperSNFeedback::unpack(void *dst, const void *src, const void *key)
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        p1.set_adj_decorator();
         p1.set_position(p2->position);
         p1.set_mass(p2->fMass);
 #ifdef ENTROPY_SWITCH

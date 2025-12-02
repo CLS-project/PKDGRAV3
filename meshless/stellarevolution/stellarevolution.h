@@ -1,6 +1,7 @@
 #ifdef STELLAR_EVOLUTION
 
 #include "pst.h"
+#include <boost/container/small_vector.hpp>
 
 #define STEV_CCSN_N_METALLICITY               5
 #define STEV_CCSN_N_MASS                     11
@@ -21,7 +22,7 @@
 
 typedef struct StellarEvolutionData {
     /* Pointer to function that gives the number of SNIa per Msol in [fInitialTime, fFinalTime] */
-    float (*fcnNumSNIa)(SMF *smf, meshless::STAR &star, float fInitialTime, float fFinalTime);
+    float (*fcnNumSNIa)(SMF *smf, decorators::STAR &star, float fInitialTime, float fFinalTime);
 
     /* Initial mass array for CCSN and AGB tables */
     float afInitialMass[STEV_INTERP_N_MASS];
@@ -97,7 +98,7 @@ struct stevFlush {
 
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
-void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, meshless::FIELDS &, const double);
+void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, decorators::MFM &, const double);
 
 void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth, NN *nnList, SMF *smf);
 class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack,stevFlush> {
@@ -106,8 +107,11 @@ class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack,stevFlush> {
     virtual void    init(void *dst) override final;
     virtual void   flush(void *dst, const void *src) override final;
     virtual void combine(void *dst, const void *src, const void *key) override final;
+    virtual void init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperChemEnrich(pkdContext *pkd) : SmoothHelperPacked<stevPack,stevFlush>(pkd,true) {}
+    SmoothHelperChemEnrich(pkdContext *pkd) : SmoothHelperPacked<stevPack,stevFlush>(pkd,true) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 /*
@@ -123,8 +127,8 @@ void stevFreeTable(STEV_RAWDATA *);
 void stevFreeSNIaTable(STEV_RAWDATA *);
 void stevFreeLifetimeTable(STEV_RAWDATA *);
 
-float stevExponentialNumSNIa(SMF *, meshless::STAR &, float, float);
-float stevPowerlawNumSNIa(SMF *, meshless::STAR &, float, float);
+float stevExponentialNumSNIa(SMF *, decorators::STAR &, float, float);
+float stevPowerlawNumSNIa(SMF *, decorators::STAR &, float, float);
 
 /*
  * -------
@@ -388,6 +392,7 @@ static inline void stevComputeAndCorrectSimulEjecta(
     *pfMetalEjMass *= fNormFactor;
 }
 
+template <int nZs, int nMasses, int nElems>
 static inline void stevComputeMassToEject(
     const float *restrict pfYield,
     const float *restrict pfMetalYield,
@@ -395,7 +400,6 @@ static inline void stevComputeMassToEject(
     const float *restrict pfInitialMass,
     const float *restrict pfIMFLogWeight,
     const float fDeltaLogMass,
-    const int nZs, const int nMasses, const int nElems,
     const float *restrict pfElemAbun, const float fMetalAbun,
     const int iStart, const int iEnd,
     const float fMassStart, const float fMassEnd,
@@ -404,27 +408,29 @@ static inline void stevComputeMassToEject(
 
     int i, j, k;
     const int nSize = iEnd - iStart + 1;
-    float afInterpYield[nSize * nElems];
-    float afInterpMetalYield[nSize];
-    float afInterpEjectedMass[nSize];
+    // NB: The number of pre-allocated elements may require some tuning
+    // based on the typical sizes of these arrays
+    boost::container::small_vector<float, 32> afInterpYield(nSize*nElems);
+    boost::container::small_vector<float, 32> afInterpMetalYield(nSize);
+    boost::container::small_vector<float, 32> afInterpEjectedMass(nSize);
 
     stevInterpolateXAxis(pfYield, nMasses, nElems, nSize, iOffset + iStart, fWeight,
-                         afInterpYield);
+                         afInterpYield.data());
     stevInterpolateXAxis(pfMetalYield, nMasses, 1, nSize, iOffset + iStart, fWeight,
-                         afInterpMetalYield);
+                         afInterpMetalYield.data());
     stevInterpolateXAxis(pfEjectedMass, nMasses, 1, nSize, iOffset + iStart, fWeight,
-                         afInterpEjectedMass);
+                         afInterpEjectedMass.data());
 
     /* In a strict sense, this two new declarations are not needed. We could overwrite
        two of the previously declared arrays, although the code would become less readable.
        If this were to be done, the restrict qualifier in the first and last two arguments
        of stevComputeAndCorrectSimulEjecta must be removed */
-    float afElemSimulEjecta[nSize * nElems];
-    float afMetalSimulEjecta[nSize];
+    boost::container::small_vector<float, 32> afElemSimulEjecta(nSize * nElems);
+    boost::container::small_vector<float, 32> afMetalSimulEjecta(nSize);
     for (i = 0, j = 0; i < nSize; ++i, j += nElems) {
-        stevComputeAndCorrectSimulEjecta(afInterpYield + j, afInterpMetalYield[i],
+        stevComputeAndCorrectSimulEjecta(afInterpYield.data() + j, afInterpMetalYield[i],
                                          afInterpEjectedMass[i], nElems, pfElemAbun, fMetalAbun,
-                                         afElemSimulEjecta + j, afMetalSimulEjecta + i);
+                                         afElemSimulEjecta.data() + j, afMetalSimulEjecta.data() + i);
     }
 
     pfIMFLogWeight += iStart;
@@ -482,7 +488,7 @@ static inline void stevComputeMassToEject(
     *pfMetalMass += M_LN10 * fMetalMassTemp;
 }
 
-static inline float stevLifetimeFunction(PKD pkd, meshless::STAR &star, const double dMass) {
+static inline float stevLifetimeFunction(PKD pkd, decorators::STAR &star, const double dMass) {
     int iMass;
     float fDeltaMass;
     stevGetIndex1D(pkd->StelEvolData->afLifetimeInitialMass, STEV_LIFETIME_N_MASS,
@@ -501,7 +507,7 @@ static inline float stevLifetimeFunction(PKD pkd, meshless::STAR &star, const do
     return powf(10.0f, fLogTime);
 }
 
-static inline float stevInverseLifetimeFunction(PKD pkd, meshless::STAR &star, const float fTime) {
+static inline float stevInverseLifetimeFunction(PKD pkd, decorators::STAR &star, const float fTime) {
     const float *afTimeLowerZ = pkd->StelEvolData->afLifetime + star.Lifetime.oZ;
     const float *afTimeUpperZ = afTimeLowerZ + STEV_LIFETIME_N_MASS;
 
@@ -529,7 +535,7 @@ static inline float stevInverseLifetimeFunction(PKD pkd, meshless::STAR &star, c
 /* Function that estimates the time it will take a star particle to lose all
  * its initial mass by estimating its current ejecta rate. This is then used
  * to compute the time it needs to eject fMinMassFrac of its mass. */
-static inline float stevComputeFirstEnrichTime(PKD pkd, meshless::STAR &star,
+static inline float stevComputeFirstEnrichTime(PKD pkd, decorators::STAR &star,
         const double dCCSNMinMass) {
     const float fMinMassFrac = 1e-3f;
 
@@ -579,7 +585,7 @@ static inline float stevComputeNextEnrichTime(const float fTime, const float fSt
     return fTime + fMinMassFrac * fStarMass * fEjMassRateInv;
 }
 
-static inline void stevStarParticleInit(PKD pkd, meshless::STAR &star, const double dSNIaMaxMass,
+static inline void stevStarParticleInit(PKD pkd, decorators::STAR &star, const double dSNIaMaxMass,
                                         const double dCCSNMinMass, const double dCCSNMaxMass) {
     int iZ;
     float fLogZ;

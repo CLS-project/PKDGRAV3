@@ -35,20 +35,6 @@ void MSR::BHMerger(double dTime) {
 }
 
 
-/* IA: This should be called when we have a merger across different domains...
- * think about it!
- * TODO
- **/
-void combBHmerger(void *vpkd, void *p1,const void *p2) {
-
-    assert(0);
-
-
-}
-void SmoothHelperBHmerger::combine(void *dst, const void *src, const void *key) {
-    assert(0);
-}
-
 void smBHmerger(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
 
@@ -122,9 +108,9 @@ void smBHmerger(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *
 
 
 
-int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
+uint64_t smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
-    int nSmoothed=0;
+    uint64_t nSmoothed = 0;
 
     smx->nnListSize = 0;
     int nnListMax_p = NNLIST_INCREMENT;

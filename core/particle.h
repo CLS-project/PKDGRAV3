@@ -33,7 +33,8 @@
 #include "element.h"
 #include "bound.h"
 #include "io/fio.h"
-#include "chemistry.h"
+#include "decorator_fields.h"
+#include "core/decorator.h"
 
 #define PKD_MAX_CLASSES 256
 
@@ -91,185 +92,6 @@ struct PARTCLASS {
         : fMass(fMass), fSoft(fSoft), iMat(iMat), accFac(accFac), eSpecies(eSpecies) {}
 };
 static_assert(std::is_trivially_copyable_v<PARTCLASS>);
-
-namespace meshless {
-namespace hana = boost::hana;
-typedef double myreal;
-
-#ifdef BLACKHOLES
-struct  BH_ACCRETOR {
-    BOOST_HANA_DEFINE_STRUCT(
-        BH_ACCRETOR,
-        (int, iPid),
-        (int, iIndex)
-    );
-};
-#endif
-
-// These fields are required for meshless finite volume (MFV),
-// in addition to the meshless finate mass (MFM) fields (FIELDS).
-struct MFV {
-    BOOST_HANA_DEFINE_STRUCT(
-        MFV,
-        (blitz::TinyVector<myreal,3>, lastDrDotFrho),
-        (blitz::TinyVector<myreal,3>, drDotFrho)
-    );
-};
-
-struct FIELDS {
-    BOOST_HANA_DEFINE_STRUCT(
-        FIELDS,
-
-        (blitz::TinyVector<double,6>, B), // IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric
-        (myreal, Ncond),/* IA: Condition number for pathological configurations */
-
-        /* IA: Gradients */
-        (blitz::TinyVector<myreal,3>, gradRho),
-        (blitz::TinyVector<myreal,3>, gradVx),
-        (blitz::TinyVector<myreal,3>, gradVy),
-        (blitz::TinyVector<myreal,3>, gradVz),
-        (blitz::TinyVector<myreal,3>, gradP),
-
-        /* IA: last time this particle's primitve variables were updated */
-        (myreal, lastUpdateTime),
-        (blitz::TinyVector<myreal,3>, lastAcc),
-        (blitz::TinyVector<myreal,3>, lastMom),
-        (myreal, lastE),
-        (myreal, lastUint),
-        (myreal, lastHubble), // TODO: Maybe there is a more intelligent way to avoid saving this...
-        (float, c),        /* sound speed */
-
-        (float, lastMass),
-
-        /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
-        (double, omega),
-
-        /* IA: Fluxes */
-        (myreal, Frho),
-        (blitz::TinyVector<myreal,3>,  Fmom),
-        (myreal, Fene),
-
-        /* IA: Conserved variables */
-        (blitz::TinyVector<double,3>,  mom),
-        (double, E),
-        /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
-        (double, Uint),
-
-#ifdef ENTROPY_SWITCH
-        (double, S),
-        (double, lastS),
-        (double, maxEkin),
-#endif
-
-        /* IA: Primitive variables */
-        (double, P),
-
-        /* IA: fBall from the last iteration. Used for the bisection algorithm */
-        //(float, fLastBall),
-        /* IA: Number of neighbors correspoding to that fBall */
-        //(int, nLastNeighs),
-
-        /* IA: TODO temporarly */
-        //(uint8_t, uNewRung),
-
-#ifdef STAR_FORMATION
-        (float, SFR),
-#endif
-
-        (blitz::TinyVector<float,ELEMENT_COUNT>, ElemMass),
-#ifdef HAVE_METALLICITY
-        (float, fMetalMass),
-#endif
-
-#ifdef STELLAR_EVOLUTION
-        (blitz::TinyVector<float,3>, ReceivedMom),
-        (float, fReceivedMass),
-        (float, fReceivedE),
-#endif
-
-#if defined(FEEDBACK) || defined(BLACKHOLES)
-        (float, fAccFBEnergy),
-#endif
-
-#ifdef BLACKHOLES
-        // This could ideally be stored in a temporal buffer (Ephemeral), but it has some
-        // limitations as it has to be shared when doing mdlAcquire.
-        (BH_ACCRETOR, BHAccretor),
-#endif
-
-        (uint8_t, uWake)
-    );
-
-}; // FIELDS
-
-struct STAR_METALS {
-    BOOST_HANA_DEFINE_STRUCT(
-        STAR_METALS,
-        (int, oZ),
-        (float, fDeltaZ)
-    );
-}; // STAR_METALS
-
-struct STAR {
-    BOOST_HANA_DEFINE_STRUCT(
-        STAR,
-        (double, omega),
-#ifdef STELLAR_EVOLUTION
-        (blitz::TinyVector<float,ELEMENT_COUNT>, ElemAbun), /* Formation abundances */
-        (float, fMetalAbun),            /* Formation metallicity */
-        (float, fInitialMass),
-        (float, fLastEnrichTime),
-        (float, fLastEnrichMass),
-        (int, iLastEnrichMass),
-        (float, fNextEnrichTime),
-        (STAR_METALS, CCSN),
-        (STAR_METALS, AGB),
-        (STAR_METALS, Lifetime),
-        (float, fSNIaOnsetTime),
-#endif
-#ifdef FEEDBACK
-        (int, bCCSNFBDone),
-        (int, bSNIaFBDone),
-        (float, fSNEfficiency),
-#endif
-        (float, fTimer)  /* Time of formation */
-    );
-}; // STAR
-
-struct GAS_PIN {
-    BOOST_HANA_DEFINE_STRUCT(
-        GAS_PIN,
-        (int, iPid),
-        (int, iIndex)
-    );
-};
-
-struct BLACKHOLE {
-    BOOST_HANA_DEFINE_STRUCT(
-        BLACKHOLE,
-        (double, omega),
-        (double, dInternalMass),
-        (double, lastUpdateTime),
-        (double, dAccretionRate),
-        (double, dEddingtonRatio),
-        (double, dFeedbackRate),
-        (double, dAccEnergy),
-        (float, fTimer),    /* Time of formation */
-        (GAS_PIN, GasPin),
-        (bool, bForceReposition)
-    );
-};
-
-#ifdef OPTIM_UNION_EXTRAFIELDS
-union EXTRAFIELDS {
-    FIELDS sph;
-    STAR star;
-    BLACKHOLE bh;
-};
-#endif
-
-} // meshless
-
 namespace sph {
 namespace hana = boost::hana;
 
@@ -359,8 +181,10 @@ enum PKD_FIELD {
     oParticleID,
     oGlobalGid, /* global group id, uint64 */
 
+    oDecorator,
     MAX_FIELD
 };
+
 
 //! \brief Array of particles (main storage).
 //!
@@ -371,6 +195,7 @@ protected:
     friend class Particle;
     bool bIntegerPosition = false;
     bool bNoParticleOrder = false;
+    decoratorStore *decorator;
     std::vector<PARTCLASS> ParticleClasses;
     float fSoftFix = -1.0;
     float fSoftFac = 1.0;
@@ -499,24 +324,62 @@ public:
     void set_ball(PARTICLE *p, float fBall) const {
         if (present(PKD_FIELD::oBall)) get<float>(p,PKD_FIELD::oBall) = fBall;
     }
+    uint64_t decorator_index( PARTICLE *p ) const {
+        auto d = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+        return decorator->DecoratorIndex(d);
+    }
+    void set_decorator_index( PARTICLE *p, uint64_t index ) const {
+        if (present(PKD_FIELD::oDecorator)) {
+            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = decorator->Element(index);
+        }
+    }
+    void set_decorator( PARTICLE *p, decorators::FIELDS *d ) const {
+        if (present(PKD_FIELD::oDecorator)) {
+            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = d;
+        }
+    }
+    /* Set the adjacent memory space at the end of the particle struct to be
+     * the decorator, similar to the "old" particle information. This is useful
+     * when caching together the decorator and the particles
+     */
+    void set_adj_decorator( PARTICLE *p) const {
+        if (present(PKD_FIELD::oDecorator)) {
+            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = nullptr;
+        }
+    }
+    auto decorator_field( PARTICLE *p ) const {
+        auto pdec = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+        return pdec ? pdec : reinterpret_cast<decorators::FIELDS *>(reinterpret_cast<char *>(p) + ElementSize());
+    }
+    const auto decorator_field( PARTICLE const *p ) const {
+        auto pdec = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+        return pdec ? pdec : reinterpret_cast<decorators::FIELDS *>(reinterpret_cast<char *>(const_cast<PARTICLE *>(p)) + ElementSize());
+    }
     /* Sph variables */
+    /* TO BE RENAMED TO MFM */
     auto &sph( PARTICLE *p ) const {
-#if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
-        assert( species(p)==FIO_SPECIES_SPH);
-#endif
-        return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
+        auto d = decorator_field(p);
+        return decorator->get<decorators::MFM>(
+                   d, DECORATOR_FIELD::oMFM
+               );
     }
     const auto &sph( const PARTICLE *p ) const {
-#if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
-        assert( species(p)==FIO_SPECIES_SPH);
-#endif
-        return get<meshless::FIELDS>(p,PKD_FIELD::oSph);
+        auto d = decorator_field(p);
+        return decorator->get<decorators::MFM>(
+                   d, DECORATOR_FIELD::oMFM
+               );
     }
     auto &mfv( PARTICLE *p ) const {
-        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+        auto d = decorator_field(p);
+        return decorator->get<decorators::MFV>(
+                   d, DECORATOR_FIELD::oMFV
+               );
     }
     const auto &mfv( const PARTICLE *p ) const {
-        return get<meshless::MFV>(p,PKD_FIELD::oMFV);
+        auto d = decorator_field(p);
+        return decorator->get<decorators::MFV>(
+                   d, DECORATOR_FIELD::oMFV
+               );
     }
     /* NewSph variables */
     auto &newsph( PARTICLE *p ) const {
@@ -543,47 +406,31 @@ public:
     }
 
     auto &star( PARTICLE *p ) const {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-#ifdef DEBUG_UNION_EXTRAFIELDS
-        assert( species(p)==FIO_SPECIES_STAR);
-#endif //DEBUG
-        return get<meshless::STAR>(p,PKD_FIELD::oSph);
-#else
-        return get<meshless::STAR>(p,PKD_FIELD::oStar);
-#endif
+        auto d = decorator_field(p);
+        return decorator->get<decorators::STAR>(
+                   d, DECORATOR_FIELD::oStar
+               );
     }
     const auto &star( const PARTICLE *p ) const {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-#ifdef DEBUG_UNION_EXTRAFIELDS
-        assert( species(p)==FIO_SPECIES_STAR);
-#endif //DEBUG
-        return get<meshless::STAR>(p,PKD_FIELD::oSph);
-#else
-        return get<meshless::STAR>(p,PKD_FIELD::oStar);
-#endif
+        auto d = decorator_field(p);
+        return decorator->get<decorators::STAR>(
+                   d, DECORATOR_FIELD::oStar
+               );
     }
     auto &BH( PARTICLE *p ) const {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-#ifdef DEBUG_UNION_EXTRAFIELDS
-        assert( dpecies(p)==FIO_SPECIES_BH);
-#endif //DEBUG
-        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oSph);
-#else
-        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oBH);
-#endif
+        auto d = decorator_field(p);
+        return decorator->get<decorators::BLACKHOLE>(
+                   d, DECORATOR_FIELD::oBH
+               );
     }
     const auto &BH( const PARTICLE *p ) const {
-#ifdef OPTIM_UNION_EXTRAFIELDS
-#ifdef DEBUG_UNION_EXTRAFIELDS
-        assert( dpecies(p)==FIO_SPECIES_BH);
-#endif //DEBUG
-        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oSph);
-#else
-        return get<meshless::BLACKHOLE>(p,PKD_FIELD::oBH);
-#endif
+        auto d = decorator_field(p);
+        return decorator->get<decorators::BLACKHOLE>(
+                   d, DECORATOR_FIELD::oBH
+               );
     }
     auto Timer( PARTICLE *p ) const {
-        return &get<meshless::STAR>(p,PKD_FIELD::oStar).fTimer;
+        return &get<decorators::STAR>(p,PKD_FIELD::oStar).fTimer;
     }
     auto is_deleted(PARTICLE *p) const {
         return (species(p) == FIO_SPECIES_UNKNOWN);
@@ -617,18 +464,18 @@ public:
         bool have_velocity()     const {return have(PKD_FIELD::oVelocity);}
         bool have_acceleration() const {return have(PKD_FIELD::oAcceleration);}
         bool have_potential()    const {return have(PKD_FIELD::oPotential);}
-        bool have_sph()          const {return have(PKD_FIELD::oSph);}
-        bool have_mfv()          const {return have(PKD_FIELD::oMFV);}
+        bool have_mfm()          const {return store().decorator->present(DECORATOR_FIELD::oMFM);}
+        bool have_mfv()          const {return store().decorator->present(DECORATOR_FIELD::oMFV);}
         bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
         bool have_newsphstr()    const {return have(PKD_FIELD::oNewSphStr);}
         bool have_newsphpeakp()  const {return have(PKD_FIELD::oNewSphPeakPressure);}
-        bool have_star()         const {return have(PKD_FIELD::oStar);}
+        bool have_star()         const {return store().decorator->present(DECORATOR_FIELD::oStar);}
         bool have_ball()         const {return have(PKD_FIELD::oBall);}
         bool have_mass()         const {return have(PKD_FIELD::oMass);}
         bool have_group()        const {return have(PKD_FIELD::oGroup);}
         bool have_soft()         const {return have(PKD_FIELD::oSoft);}
         bool have_density()      const {return have(PKD_FIELD::oDensity);}
-        bool have_bh()           const {return have(PKD_FIELD::oBH);}
+        bool have_bh()           const {return store().decorator->present(DECORATOR_FIELD::oBH);}
         bool have_vel_smooth()   const {return have(PKD_FIELD::oVelSmooth);}
         bool have_rung_dest()    const {return have(PKD_FIELD::oRungDest);}
         bool have_particle_id()  const {return have(PKD_FIELD::oParticleID);}
@@ -698,12 +545,19 @@ public:
         auto is_rung_range(uint8_t uRungLo,uint8_t uRungHi)  const { return store().is_rung_range(p,uRungLo,uRungHi); }
         void set_density(float fDensity) {store().set_density(p,fDensity);}
         void set_ball(float fBall) {store().set_ball(p,fBall);}
+        void set_decorator_index(uint64_t index) {store().set_decorator_index(p,index);}
+        void set_decorator(decorators::FIELDS *d) {store().set_decorator(p,d);}
+        void set_adj_decorator() {store().set_adj_decorator(p);}
+        auto decorator_index()  const { return store().decorator_index(p);}
+        auto decorator_field()  const { return store().decorator_field(p);}
 
         auto is_dark()      const {return species() == FIO_SPECIES_DARK;}
         auto is_gas()       const {return species() == FIO_SPECIES_SPH;}
         auto is_star()      const {return species() == FIO_SPECIES_STAR;}
         auto is_bh()        const {return species() == FIO_SPECIES_BH;}
+        auto have_decorator()    const {return have(PKD_FIELD::oDecorator) && !is_dark(); }
     };
+    friend class SingleReference<Particle>;
 
     /// @brief A "pointer" reference to a "particle"
     ///
@@ -738,9 +592,10 @@ public:
     }
 
 public:
-    void initialize(bool bIntegerPosition,bool bNoParticleOrder) {
+    void initialize(bool bIntegerPosition,bool bNoParticleOrder, decoratorStore *decorator) {
         this->bIntegerPosition = bIntegerPosition;
         this->bNoParticleOrder = bNoParticleOrder;
+        this->decorator = decorator;
         if (bNoParticleOrder) dataStore<PARTICLE,PKD_FIELD>::set_header<UPARTICLE>();
         else dataStore<PARTICLE,PKD_FIELD>::set_header<PARTICLE>();
         ParticleClasses.reserve(PKD_MAX_CLASSES);
@@ -849,5 +704,8 @@ public:
     int SelSphere(blitz::TinyVector<double,3> r, double dRadius, int setIfTrue=true, int clearIfFalse=true );
     int SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true );
 };
+
+template<>
+void SingleReference<particleStore::Particle>::swap(SingleReference &rhs) noexcept;
 
 #endif

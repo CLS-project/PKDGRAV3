@@ -334,6 +334,11 @@ void CACHE::initialize(uint32_t cacheSize,std::shared_ptr<CACHEhelper> helper) {
     iLineSize = getLineElementCount()*cache_size;
     OneLine.resize(iLineSize);
 
+    // We need to accomodate extra buffer space in the case that the pack size
+    // is larger than the element size. This can be common when using decorators.
+    if (cache_helper->data_size() < cache_helper->pack_size())
+        OneLine.resize(getLineElementCount() * cache_helper->pack_size());
+
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
     auto arc = arc_cache.get();
@@ -666,6 +671,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
             for (auto i=s; i<n; i++ ) {
                 auto p = oc->ReadLock(i);
                 memcpy(pData,p,data_size);
+                c->cache_helper->init_shared(pData);
                 oc->ReadUnlock(p);
                 pData += cache_size;
             }
@@ -1885,7 +1891,9 @@ int mpiClass::Launch() {
     assert(sizeof(CacheHeader) == 16); /* Well, should be a multiple of 8 at least. */
 #endif
     nOpenCaches = 0;
-    iReplyBufSize = sizeof(CacheHeader) + MDL_CACHE_DATA_SIZE;
+    // We add some extra buffer space in case the pack struct
+    // is larger than the element size
+    iReplyBufSize = sizeof(CacheHeader) + 2*MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
 
     n = Procs();
@@ -2308,7 +2316,6 @@ void *mdlClass::WorkerThread() {
 
 #define SEND_BUFFER_SIZE (1*1024*1024)
 
-extern "C" void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx) { static_cast<mdlClass *>(mdl)->Send(id,pack,ctx); }
 void mdlClass::Send(int id,mdlPack pack, void *ctx) {
     size_t nBuff;
     char *vOut;
@@ -2322,7 +2329,6 @@ void mdlClass::Send(int id,mdlPack pack, void *ctx) {
     delete[] vOut;
 }
 
-extern "C" void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx) { static_cast<mdlClass *>(mdl)->Recv(id,unpack,ctx); }
 void mdlClass::Recv(int id,mdlPack unpack, void *ctx) {
     char *vIn;
     size_t nUnpack;
@@ -2358,10 +2364,7 @@ void mdlClass::Recv(int id,mdlPack unpack, void *ctx) {
  ** of the others memory, however he will have successfully transfered all
  ** of his memory.
  */
-extern "C" int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes) {
-    return static_cast<mdlClass *>(mdl)->Swap(id,nBufBytes,vBuf,nOutBytes,pnSndBytes,pnRcvBytes);
-}
-int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes) {
+int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes, size_t nSkipBytes) {
     size_t nInBytes,nOutBufBytes;
     int nInMax,nOutMax,nBytes;
     char *pszBuf = CAST(char *,vBuf);
@@ -2376,7 +2379,7 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
     /*
      ** Send number of rejects to target thread amount of free space
      */
-    swi.nOutBytes = nOutBytes;
+    swi.nOutBytes = nOutBytes - nSkipBytes;
     swi.nBufBytes = nBufBytes;
     mdl_MPI_Sendrecv(&swi, sizeof(swi), id, MDL_TAG_SWAPINIT,
                      &swo, sizeof(swo), id, MDL_TAG_SWAPINIT, &nBytes);
@@ -2390,6 +2393,7 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
     assert(nBufBytes >= nOutBytes);
     pszOut = &pszBuf[nBufBytes-nOutBytes];
     pszIn = pszBuf;
+    nOutBytes -= nSkipBytes;
     while (nOutBytes && nInBytes) {
         /*
          ** nOutMax is the maximum number of bytes allowed to be sent

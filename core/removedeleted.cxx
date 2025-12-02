@@ -26,9 +26,60 @@ int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     auto pkd = pst->plcl->pkd;
     // Move the deleted particles to the end of the array
     auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return !p.is_deleted();});
+
+    // If any, put their decorators also at the end of the array
+    int remove_decorator = 0;
+    for (auto p=i; p<pkd->particles.end(); p++)
+        if (p->have_decorator())
+            remove_decorator++;
+
+    auto objective_decorators = pkd->decorators.Local() - remove_decorator;
+    if (remove_decorator) {
+        auto ephem = pkd->Ephemeral<uint32_t>();
+
+        // The ephemeral storage is populated as a map between decorators and
+        // their particles. This way, there is no need to do complex searches
+        for (uint32_t i=0; i<pkd->Local(); ++i) {
+            if (pkd->particles[i].have_decorator()) {
+                ephem[ pkd->particles[i].decorator_index() ] = i;
+            }
+        }
+
+        for (auto p=i; p<pkd->particles.end(); p++) {
+            auto prev_decor = p->decorator_field();
+            // Objective index for the decorator
+            auto iDecorator = pkd->decorators.Local()-remove_decorator;
+
+            // Get the particle
+            auto particle_to_swap = pkd->particles[ephem[iDecorator]];
+            auto new_decor = particle_to_swap.decorator_field();
+
+            // Swap the decorators
+            auto a = pkd->decorators[prev_decor];
+            auto b = pkd->decorators[new_decor];
+            swap(a, b);
+
+            // Update the mapping
+            ephem[p->decorator_index()] = ephem[iDecorator];
+            ephem[iDecorator] = ephem[p->decorator_index()];
+
+            // Update the particles' decorators pointers
+            particle_to_swap.set_decorator(prev_decor);
+            p->set_decorator(new_decor);
+            remove_decorator--;
+        }
+    }
+
     // ... and remove them
     pkd->SetLocal(i - pkd->particles.begin());
     // Count the particles species
     ServiceCountSpecies::Service(pst,vin,nIn,vout,nOut);
+    auto out = static_cast<output *>(vout);
+    auto nDecorator = out->counts[FIO_SPECIES_SPH] +
+                      out->counts[FIO_SPECIES_STAR] +
+                      out->counts[FIO_SPECIES_BH];
+
+    pkd->decorators.SetLocal(nDecorator);
+    assert (nDecorator == objective_decorators);
     return sizeof(output);
 }

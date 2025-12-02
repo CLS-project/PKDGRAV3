@@ -11,6 +11,10 @@
 #define XZ 2
 #define YZ 4
 
+namespace meshless {
+typedef double myreal;
+}
+
 /* -----------------
  * MAIN FUNCTIONS AND CLASSES
  * -----------------
@@ -59,6 +63,40 @@ inline dvec cubicSplineKernel(dvec r, dvec H) {
 }
 #endif
 
+// First derivative (i.e. dW / dq) of the cubic spline kernel
+template <typename dtype=double, typename mtype=bool>
+inline dtype cubicSplineKernelDeriv(dtype r, dtype H) {
+    const dtype dHInv = 1.0 / H;
+    const dtype q = r * dHInv;
+    const dtype dNorm = 48. * M_1_PI * dHInv * dHInv * dHInv;
+
+    if (q < 0.5) {
+        return dNorm * q * (3.*q - 2.);
+    }
+    else if (q < 1.0) {
+        return - dNorm * (1.-q) * (1.-q);
+    }
+    else {
+        return 0.0;
+    }
+}
+
+#ifdef SIMD_H
+template <>
+inline dvec cubicSplineKernelDeriv(dvec r, dvec H) {
+    const dvec dHInv = 1.0 / H;
+    const dvec q = r * dHInv;
+    const dvec dNorm = 48. * M_1_PI * dHInv * dHInv * dHInv;
+    dvec out{0.}, t;
+
+    t = - dNorm * (1.-q) * (1.-q);
+    out = mask_mov(out, q<1.0, t);
+    t = dNorm * q * (3.*q - 2.);
+    out = mask_mov(out, q<0.5, t);
+    return out;
+}
+#endif
+
 /* Density loop */
 struct hydroDensityPack {
     blitz::TinyVector<double,3> position;
@@ -74,6 +112,8 @@ void hydroDensityFinal(particleStore::ParticleReference &p,float fBall,int nSmoo
 class SmoothHelperHydroDensity : public SmoothHelperPacked<hydroDensityPack> {
     virtual void    pack(void *dst, const void *src) override final;
     virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
+
 public:
     SmoothHelperHydroDensity(pkdContext *pkd) : SmoothHelperPacked<hydroDensityPack>(pkd,false) {}
 };
@@ -93,8 +133,11 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
 class SmoothHelperHydroGradients : public SmoothHelperPacked<hydroGradientsPack> {
     virtual void    pack(void *dst, const void *src) override final;
     virtual void  unpack(void *dst, const void *src, const void *key) override final;
+    virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperHydroGradients(pkdContext *pkd) : SmoothHelperPacked<hydroGradientsPack>(pkd,false) {}
+    SmoothHelperHydroGradients(pkdContext *pkd) : SmoothHelperPacked<hydroGradientsPack>(pkd,false) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 /* Flux loop */
@@ -106,6 +149,7 @@ struct hydroFluxesPack {
     meshless::myreal lastUpdateTime;
     blitz::TinyVector<meshless::myreal,3> lastAcc;
     double omega;
+    double spheom;
     double P;
     float fBall;
     float fDensity;
@@ -146,8 +190,11 @@ class SmoothHelperHydroFluxes : public SmoothHelperPacked<hydroFluxesPack,hydroF
     virtual void    init(void *dst) override final;
     virtual void   flush(void *dst, const void *src) override final;
     virtual void combine(void *dst, const void *src, const void *key) override final;
+    virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperHydroFluxes(pkdContext *pkd) : SmoothHelperPacked<hydroFluxesPack,hydroFluxesFlush>(pkd,true) {}
+    SmoothHelperHydroFluxes(pkdContext *pkd) : SmoothHelperPacked<hydroFluxesPack,hydroFluxesFlush>(pkd,true) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 /* Time step loop */
@@ -174,28 +221,31 @@ class SmoothHelperHydroStep : public SmoothHelperPacked<hydroStepPack,hydroStepF
     virtual void    init(void *dst) override final;
     virtual void   flush(void *dst, const void *src) override final;
     virtual void combine(void *dst, const void *src, const void *key) override final;
+    virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperHydroStep(pkdContext *pkd) : SmoothHelperPacked<hydroStepPack,hydroStepFlush>(pkd,true) {}
+    SmoothHelperHydroStep(pkdContext *pkd) : SmoothHelperPacked<hydroStepPack,hydroStepFlush>(pkd,true) {
+        nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
+    }
 };
 
 
 void pkdWakeParticles(PKD pkd,int iRoot,double dTime,double dDelta);
 
 /* Source terms */
-void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                         double pDelta, blitz::TinyVector<double,3> &pa, double dScaleFactor,
                         int bComove);
-void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma);
-void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                        const blitz::TinyVector<double,3> &pa, double dConstGamma);
-void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                         double dTuFac, double dConstGamma);
-void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph,
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,
                       const blitz::TinyVector<double,3> &pa, double dScaleFactor,
                       double dTime, double dDelta, double dConstGamma);
-void hydroResetFluxes(meshless::FIELDS *psph);
+void hydroResetFluxes(decorators::MFM *psph);
 
 /* -----------------
  * HELPERS

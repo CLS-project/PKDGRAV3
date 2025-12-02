@@ -9,7 +9,7 @@ void MSR::BHEvolve(double dTime, double dDelta) {
 }
 
 static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
-                              particleStore::ParticleReference &p, meshless::BLACKHOLE &bh,
+                              particleStore::ParticleReference &p, decorators::BLACKHOLE &bh,
                               float pH, float pMass, double pDensity,
                               double dScaleFactor) {
     const double prob_factor = (bh.dInternalMass - pMass)/pDensity;
@@ -36,7 +36,7 @@ static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
 }
 
 static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int nAccreted,
-                              particleStore::ParticleReference &p, meshless::BLACKHOLE &bh,
+                              particleStore::ParticleReference &p, decorators::BLACKHOLE &bh,
                               float massSum, double dConstGamma, double dBHFBEff,
                               double dBHFBEcrit) {
 
@@ -173,6 +173,8 @@ void SmoothHelperBHEvolve::unpack(void *dst, const void *src, const void *key) {
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        p1.set_adj_decorator();
+
         p1.set_position(p2->position);
         p1.velocity() = p2->velocity;
         p1.sph().c = p2->c;

@@ -226,6 +226,10 @@ inline constexpr std::string_view RsLoadIds = "RsLoadIds";
 inline constexpr std::string_view RsSaveIds = "RsSaveIds";
 inline constexpr std::string_view RsExtract = "RsExtract";
 inline constexpr std::string_view IgnoreSigBus = "IgnoreSigBus";
+inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
+inline constexpr std::string_view BHInit = "BHInit";
+inline constexpr std::string_view BHReposition = "BHReposition";
+inline constexpr std::string_view BHAccretion = "BHAccretion";
 }
 
 
@@ -256,6 +260,7 @@ enum pst_service {
     PST_SAVE_GROUP_STATS,
     PST_CHECKPOINT,
     PST_RESTORE,
+    PST_RESTORE_DECORATOR,
     PST_BUILDTREE,
     PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
@@ -313,6 +318,7 @@ enum pst_service {
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
 #endif
+    PST_REORDERDECORATOR,
 #ifdef OPTIM_REORDER_IN_NODES
     PST_REORDERINNODES,
 #endif
@@ -412,6 +418,7 @@ void pstFinish(PST);
 struct inInitializePStore {
     uint64_t mMemoryModel;
     uint64_t nStore;
+    uint64_t nDecoratorStore;
     fioSpeciesList nSpecies;
     blitz::TinyVector<double,3> fPeriod;
     uint64_t nMinEphemeral;
@@ -430,14 +437,15 @@ struct inInitializePStore {
 };
 struct outInitializePStore {
     int nSizeParticle;
+    int nSizeDecorator;
     int nSizeNode;
 };
 int pstInitializePStore(PST,void *,int,void *,int);
 
 /* PST_READFILE */
 struct inReadFile {
-    uint64_t nNodeStart; /* First particle to read (of total) */
-    uint64_t nNodeEnd;   /* Last particle to read (of total) */
+    fioSpeciesList nSpeciesStart;
+    fioSpeciesList nSpeciesEnd;
     double dvFac;
     double dTuFac;
     double dOmega0;
@@ -489,6 +497,7 @@ struct inWrite {
     int bStandard;
     int iIndex;
     int nProcessors;
+    int nProcessorsTotal;
     int iLower, iUpper;
     int bHDF5;
     int mFlags;
@@ -609,7 +618,7 @@ struct inSmooth {
     SMF smf;
 };
 struct outSmooth {
-    int nSmoothed;
+    uint64_t nSmoothed;
 };
 int pstSmooth(PST,void *,int,void *,int);
 

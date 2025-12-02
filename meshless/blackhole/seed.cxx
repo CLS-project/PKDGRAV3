@@ -29,6 +29,10 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     nGas -= out.nBHs;
     nBH += out.nBHs;
     printf("Planted %d BH seeds \n", out.nBHs);
+
+#ifdef OPTIM_REORDER_IN_NODES
+    ReorderWithinNodes();
+#endif
 }
 
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
@@ -114,8 +118,6 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             // this is not required
             pLowPot.set_new_rung(uRungMax);
 
-            ++pkd->nBH;
-            --pkd->nGas;
             ++newBHs;
 
             for (int i = 0; i < smx->nnListSize; ++i) {

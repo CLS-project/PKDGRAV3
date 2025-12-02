@@ -67,11 +67,10 @@ template<typename ELEMENT> class SinglePointer;
 /// @tparam ELEMENT The ELEMENT (Particle or Node for example)
 template<typename ELEMENT>
 class SingleReference : public ELEMENT {
-protected:
+public:
     void swap(SingleReference &rhs) noexcept {
         this->store().swap(this->p,rhs.p);
     }
-public:
     using ELEMENT::ELEMENT; // Get all constructors (including the copy constructor)
     using ELEMENT::operator=;
     SinglePointer<ELEMENT> operator&() {
@@ -201,5 +200,6 @@ public:
 private:
     SinglePointer<ELEMENT> element;
 };
+
 
 #endif

@@ -762,6 +762,7 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
     else  BuildFromTemplate(pkd,uRoot,nBucket,nGroup,uTemp);
     Create(pkd,uRoot,ddHonHLimit);
 
+
     if (uRoot == FIXROOT) {
 #ifndef SINGLE_CACHES
         pkd->mdl->CacheInitialize(CID_CELL2,std::make_shared<treeCACHEhelper>(pkd));

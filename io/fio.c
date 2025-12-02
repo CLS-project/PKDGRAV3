@@ -506,7 +506,6 @@ static int listReadDark(FIO fio,
     fioList *vio = (fioList *)fio;
     int rc;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
-
     if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_DARK) return 0;
     rc = fioReadDark(vio->fioCurrent,piParticleID,pdPos,pdVel,
                      pfMass,pfSoft,pfPot,pfDen);
@@ -521,7 +520,6 @@ static int listReadSph(
     fioList *vio = (fioList *)fio;
     int rc;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
-    listNextSpecies(fio);
     if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_SPH) return 0;
     rc = fioReadSph(
              vio->fioCurrent,piParticleID,pdPos,pdVel,
@@ -2593,8 +2591,9 @@ static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
         iDims[0] = chunk;
         iDims[1] = 1;
         rc = H5Pset_chunk( dataProperties, nDims>1?2:1, iDims ); assert(rc>=0);
-        /* Also request the FLETCHER checksum */
-        rc = H5Pset_filter(dataProperties,H5Z_FILTER_FLETCHER32,0,0,NULL); assert(rc>=0);
+        rc = H5Pset_shuffle( dataProperties ); assert(rc>=0);
+        rc = H5Pset_deflate( dataProperties, 9 ); assert(rc>=0);
+        rc = H5Pset_fletcher32( dataProperties ); assert(rc>=0);
     }
 
     /* And the dataspace */
@@ -3469,7 +3468,7 @@ static void hdf5Close(FIO fio) {
     if (hio->unitsID != H5I_INVALID_HID) H5Gclose(hio->unitsID);
     if (hio->paramsID != H5I_INVALID_HID) H5Gclose(hio->paramsID);
     H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
-    assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
+    assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL|H5F_OBJ_LOCAL)==1);
     H5Fclose(hio->fileID);
     H5Tclose(hio->stringType);
     H5Tclose(hio->fp16leType);

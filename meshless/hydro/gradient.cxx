@@ -45,6 +45,8 @@ void  SmoothHelperHydroGradients::unpack(void *dst, const void *src, const void 
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
+        p1.set_adj_decorator();
+
         p1.set_position(p2->position);
         p1.velocity() = p2->velocity;
         p1.sph().P = p2->P;
@@ -60,7 +62,7 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
     double rho_max, rho_min;
     double vx_max, vx_min, vy_max, vy_min, vz_max, vz_min;
     double p_max, p_min;
-    double limRho, limVx, limVy, limVz, limP;
+    double max_face_dist;
 
     const auto &pv = p.velocity();
     auto &psph = p.sph();
@@ -125,18 +127,27 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
      * (where omega is computed) but at that time we do not know the densities
      * of *all* particles (because they depend on omega)
      */
-
     psph.gradRho = 0.0;
     psph.gradVx = 0.0;
     psph.gradVy = 0.0;
     psph.gradVz = 0.0;
     psph.gradP = 0.0;
+
+    /* We also use this loop to get the primitive variables' local extrema */
+    rho_min = rho_max = p.density();
+    vx_min = vx_max = pv[0];
+    vy_min = vy_max = pv[1];
+    vz_min = vz_max = pv[2];
+    p_min = p_max = psph.P;
+    max_face_dist = 0.;
+
     for (auto i = 0; i < nSmooth; ++i) {
         if (&p == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
         const auto &qv = q.velocity();
         auto &qsph = q.sph();
 
+        /* Vector from p to q; i.e., rq - rp */
         const TinyVector<double,3> dr{-nnList[i].dr};
 
         const double rpq = sqrt(nnList[i].fDist2);
@@ -154,23 +165,6 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
         psph.gradVy  += psiTilde_p * (qv[1] - pv[1]);
         psph.gradVz  += psiTilde_p * (qv[2] - pv[2]);
         psph.gradP   += psiTilde_p * (qsph.P - psph.P);
-    }
-
-    /* Now we can limit them */
-
-    // First step, compute the maximum and minimum difference of each variable
-    rho_min = rho_max = p.density();
-    vx_min = vx_max = pv[0];
-    vy_min = vy_max = pv[1];
-    vz_min = vz_max = pv[2];
-    p_min = p_max = psph.P;
-
-
-    for (auto i = 0; i < nSmooth; ++i) {
-        if (&p == nnList[i].pPart) continue;
-        auto q = pkd->particles[nnList[i].pPart];
-        auto &qsph = q.sph();
-        const auto &qv = q.velocity();
 
         rho_min = std::min(rho_min, static_cast<double>(q.density()));
         rho_max = std::max(rho_max, static_cast<double>(q.density()));
@@ -186,43 +180,93 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
 
         p_min = std::min(p_min, qsph.P);
         p_max = std::max(p_max, qsph.P);
+
+        max_face_dist = std::max(max_face_dist, rpq);
     }
 
-
-    limRho= limVx= limVy= limVz= limP = 1.;
-#if defined(LIMITER_BARTH) || defined(LIMITER_CONDBARTH)
-    for (auto i = 0; i < nSmooth; ++i) {
-        if (&p == nnList[i].pPart) continue;
-        const TinyVector<double,3> dr{-nnList[i].dr}; //Vector from p to q
-        // TODO Use TinyVector for limiters
-        double dx = dr[0];
-        double dy = dr[1];
-        double dz = dr[2];
-
-        // TODO: The differences could be computed outside of this loop
+    /* Now we can limit the gradients */
 #ifdef LIMITER_BARTH
-        BarthJespersenLimiter(&limRho, psph.gradRho.data(), rho_max-p.density(), rho_min-p.density(), dx, dy, dz);
-        BarthJespersenLimiter(&limVx, psph.gradVx.data(), vx_max-pv[0], vx_min-pv[0], dx, dy, dz);
-        BarthJespersenLimiter(&limVy, psph.gradVy.data(), vy_max-pv[1], vy_min-pv[1], dx, dy, dz);
-        BarthJespersenLimiter(&limVz, psph.gradVz.data(), vz_max-pv[2], vz_min-pv[2], dx, dy, dz);
-        BarthJespersenLimiter(&limP, psph.gradP.data(), p_max-psph.P, p_min-psph.P, dx, dy, dz);
+    const double beta = 1.;
 #endif
 
 #ifdef LIMITER_CONDBARTH
-        ConditionedBarthJespersenLimiter(&limRho, psph.gradRho.data(), rho_max-p.density(), rho_min-p.density(), dx, dy, dz, 10., psph.Ncond);
-        ConditionedBarthJespersenLimiter(&limVx, psph.gradVx.data(), vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 10., psph.Ncond);
-        ConditionedBarthJespersenLimiter(&limVy, psph.gradVy.data(), vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 10., psph.Ncond);
-        ConditionedBarthJespersenLimiter(&limVz, psph.gradVz.data(), vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 10., psph.Ncond);
-        ConditionedBarthJespersenLimiter(&limP, psph.gradP.data(), p_max-psph.P, p_min-psph.P, dx, dy, dz, 10., psph.Ncond);
-#endif
-    }
+    const double beta = std::max(1., 2.*std::min(1.,10./psph.Ncond));
 #endif
 
-    psph.gradRho *= limRho;
-    psph.gradVx *= limVx;
-    psph.gradVy *= limVy;
-    psph.gradVz *= limVz;
-    psph.gradP *= limP;
+    if (smf->bStricterSlopeLimiter) {
+        max_face_dist *= 0.5;
+        double var_max_extrap, c_fac;
+
+        var_max_extrap = sqrt(dot(psph.gradRho,psph.gradRho)) * max_face_dist;
+        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, var_max_extrap, beta);
+
+        var_max_extrap = sqrt(dot(psph.gradVx,psph.gradVx)) * max_face_dist;
+        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, var_max_extrap, beta);
+        c_fac = psph.c / var_max_extrap;
+        if (c_fac < 1.) psph.gradVx *= c_fac;
+
+        var_max_extrap = sqrt(dot(psph.gradVy,psph.gradVy)) * max_face_dist;
+        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, var_max_extrap, beta);
+        c_fac = psph.c / var_max_extrap;
+        if (c_fac < 1.) psph.gradVy *= c_fac;
+
+        var_max_extrap = sqrt(dot(psph.gradVz,psph.gradVz)) * max_face_dist;
+        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, var_max_extrap, beta);
+        c_fac = psph.c / var_max_extrap;
+        if (c_fac < 1.) psph.gradVz *= c_fac;
+
+        var_max_extrap = sqrt(dot(psph.gradP,psph.gradP)) * max_face_dist;
+        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, var_max_extrap, beta);
+    }
+    else {
+        /* We need an extra loop to compute the maximum and minimum extrapolation
+         * to this cell's interfaces */
+        double rho_max_extrap, rho_min_extrap, p_max_extrap, p_min_extrap;
+        double vx_max_extrap, vx_min_extrap, vy_max_extrap, vy_min_extrap, vz_max_extrap, vz_min_extrap;
+        rho_max_extrap = vx_max_extrap = vy_max_extrap = vz_max_extrap = p_max_extrap = -FLT_MAX;
+        rho_min_extrap = vx_min_extrap = vy_min_extrap = vz_min_extrap = p_min_extrap = FLT_MAX;
+
+        for (auto i = 0; i < nSmooth; ++i) {
+            /* Vector from p to the pq face */
+            const TinyVector<double,3> dr{-0.5*nnList[i].dr};
+
+            const auto rho_q_extrap = dot(dr, psph.gradRho);
+            rho_min_extrap = std::min(rho_min_extrap, rho_q_extrap);
+            rho_max_extrap = std::max(rho_max_extrap, rho_q_extrap);
+
+            const auto vx_q_extrap = dot(dr, psph.gradVx);
+            vx_min_extrap = std::min(vx_min_extrap, vx_q_extrap);
+            vx_max_extrap = std::max(vx_max_extrap, vx_q_extrap);
+
+            const auto vy_q_extrap = dot(dr, psph.gradVy);
+            vy_min_extrap = std::min(vy_min_extrap, vy_q_extrap);
+            vy_max_extrap = std::max(vy_max_extrap, vy_q_extrap);
+
+            const auto vz_q_extrap = dot(dr, psph.gradVz);
+            vz_min_extrap = std::min(vz_min_extrap, vz_q_extrap);
+            vz_max_extrap = std::max(vz_max_extrap, vz_q_extrap);
+
+            const auto p_q_extrap = dot(dr, psph.gradP);
+            p_min_extrap = std::min(p_min_extrap, p_q_extrap);
+            p_max_extrap = std::max(p_max_extrap, p_q_extrap);
+        }
+
+        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, rho_max_extrap, -rho_min_extrap, beta);
+        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, vx_max_extrap, -vx_min_extrap, beta);
+        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, vy_max_extrap, -vy_min_extrap, beta);
+        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, vz_max_extrap, -vz_min_extrap, beta);
+        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, p_max_extrap, -p_min_extrap, beta);
+
+        double c_fac;
+        c_fac = psph.c / std::max(std::abs(vx_min_extrap), std::abs(vx_max_extrap));
+        if (c_fac < 1.) psph.gradVx *= c_fac;
+
+        c_fac = psph.c / std::max(std::abs(vy_min_extrap), std::abs(vy_max_extrap));
+        if (c_fac < 1.) psph.gradVy *= c_fac;
+
+        c_fac = psph.c / std::max(std::abs(vz_min_extrap), std::abs(vz_max_extrap));
+        if (c_fac < 1.) psph.gradVz *= c_fac;
+    }
     /* END OF LIMITER */
 }
 

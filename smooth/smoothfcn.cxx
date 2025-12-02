@@ -92,6 +92,34 @@ using blitz::dot;
 #endif
 #endif
 
+void init_shared_gas_decorator(PKD pkd, void *dst) {
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+    if (p.is_gas()) {
+        auto src_decorator = p.decorator_field();
+        p.set_adj_decorator();
+        memcpy(p.decorator_field(), src_decorator, pkd->decorators.DecoratorSize());
+    }
+}
+
+void init_shared_star_decorator(PKD pkd, void *dst) {
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+    if (p.is_star()) {
+        auto src_decorator = p.decorator_field();
+        p.set_adj_decorator();
+        memcpy(p.decorator_field(), src_decorator, pkd->decorators.DecoratorSize());
+    }
+}
+
+
+void init_shared_bh_decorator(PKD pkd, void *dst) {
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+    if (p.is_bh()) {
+        auto src_decorator = p.decorator_field();
+        p.set_adj_decorator();
+        memcpy(p.decorator_field(), src_decorator, pkd->decorators.DecoratorSize());
+    }
+}
+
 void NullSmooth(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 }
 

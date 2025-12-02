@@ -185,7 +185,7 @@ void MSR::CoolingInit(float redshift) {
     get_cooling_redshifts(cooling);
 
     /* Read in cooling table header */
-    char fname[eagle_table_path_name_length + 12];
+    char fname[eagle_table_path_name_length + 13];
     snprintf(fname, sizeof(fname), "%s/z_0.000.hdf5", cooling->cooling_table_path);
     read_cooling_header(fname, cooling);
 
@@ -493,7 +493,7 @@ inline static double bisection_iter(
 void cooling_cool_part(PKD pkd,
                        const struct cooling_function_data *cooling,
                        //struct part *restrict p, struct xpart *restrict xp,
-                       particleStore::ParticleReference &p, meshless::FIELDS *psph,
+                       particleStore::ParticleReference &p, decorators::MFM *psph,
                        const float dt, const double time,
                        const float delta_redshift, const double redshift) {
 
@@ -686,7 +686,7 @@ void cooling_cool_part(PKD pkd,
  */
 float cooling_get_temperature(PKD pkd, const float redshift,
                               const struct cooling_function_data *restrict cooling,
-                              particleStore::Particle &p, meshless::FIELDS *psph) {
+                              particleStore::Particle &p, decorators::MFM *psph) {
 
 #ifdef SWIFT_DEBUG_CHECKS
     if (cooling->Redshifts == NULL)
@@ -919,20 +919,22 @@ void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in) {
 void cooling_clean(struct cooling_function_data *cooling) {
 
     /* Free the side arrays */
-    free(cooling->Redshifts);
-    free(cooling->nH);
-    free(cooling->Temp);
-    free(cooling->HeFrac);
-    free(cooling->Therm);
-    free(cooling->SolarAbundances);
-    free(cooling->SolarAbundances_inv);
+    if (cooling) {
+        free(cooling->Redshifts);
+        free(cooling->nH);
+        free(cooling->Temp);
+        free(cooling->HeFrac);
+        free(cooling->Therm);
+        free(cooling->SolarAbundances);
+        free(cooling->SolarAbundances_inv);
 
-    /* Free the tables */
-    free(cooling->table.metal_heating);
-    free(cooling->table.electron_abundance);
-    free(cooling->table.temperature);
-    free(cooling->table.H_plus_He_heating);
-    free(cooling->table.H_plus_He_electron_abundance);
+        /* Free the tables */
+        free(cooling->table.metal_heating);
+        free(cooling->table.electron_abundance);
+        free(cooling->table.temperature);
+        free(cooling->table.H_plus_He_heating);
+        free(cooling->table.H_plus_He_electron_abundance);
+    }
 }
 
 /**

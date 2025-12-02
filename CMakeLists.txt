@@ -247,7 +247,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	pyrameters.cxx ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.h
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
-	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
+	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/iostaggered.cxx io/restore.cxx
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c core/countspecies.cxx core/removedeleted.cxx
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx core/particle.cxx core/memory.cxx core/fftsizes.cxx
@@ -516,6 +516,11 @@ if (HYDRO)
                   meshless/hydro/gradient.cxx meshless/hydro/flux.cxx meshless/hydro/step.cxx)
    target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/meshless)
 endif(HYDRO)
+
+option(MFM_FLUX_CORRECTION "Use SPH to correct the MFM thermal energy flux under certain conditions" OFF)
+if (MFM_FLUX_CORRECTION)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DMFM_FLUX_CORRECTION)
+endif(MFM_FLUX_CORRECTION)
 
 option(FORCE_2D "Flag for running 2D cases" OFF)
 if (FORCE_2D)

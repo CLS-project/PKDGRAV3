@@ -249,7 +249,7 @@ void pstAddServices(PST pst,mdl::mdlClass * mdl) {
                     Legacy::AddWriteStart);
     mdl->AddService(PST_ONENODEREADINIT,pst,(fcnService_t *)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PATH_MAX),
-                    nThreads*sizeof(int),
+                    nThreads*sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
     mdl->AddService(PST_ACTIVEORDER,pst,(fcnService_t *)pstActiveOrder,
                     0,sizeof(uint64_t),
@@ -461,7 +461,7 @@ void pstFinish(PST pst) {
 
 static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
     *ppkd = new pkdContext(
-        static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nBucket,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
+        static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nDecoratorStore,in->nBucket,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
         in->nTreeBitsLo,in->nTreeBitsHi,
         in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,
         in->mpi_recv_mode,in->mpi_recv_count,in->mpi_RDMA,in->fPeriod,
@@ -483,6 +483,7 @@ int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
         if (plcl->pkd) delete plcl->pkd;
         initializePStore(&plcl->pkd,pst->mdl,in);
         out->nSizeParticle = plcl->pkd->particles.ElementSize();
+        out->nSizeDecorator = plcl->pkd->decorators.ElementSize();
         out->nSizeNode = plcl->pkd->tree.ElementSize();
     }
     return sizeof(*out);
@@ -490,23 +491,31 @@ int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inReadFile *>(vin);
-    auto pout = static_cast<int *>(vout);
-    uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit;
+    auto pout = static_cast<fioSpeciesList *>(vout);
+    fioSpeciesList nFileStart,nFileEnd,nFileTotal,nFileSplit;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inReadFile));
-    nFileStart = in->nNodeStart;
-    nFileEnd = in->nNodeEnd;
-    nFileTotal = nFileEnd - nFileStart + 1;
+    for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+        nFileStart[s] = in->nSpeciesStart[s];
+        nFileEnd[s] = in->nSpeciesEnd[s];
+        nFileTotal[s] = nFileEnd[s] - nFileStart[s] + 1;
+    }
 
     if (pst->nLeaves > 1) {
         int rID;
-        nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
-        in->nNodeStart = nFileSplit;
+        for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            nFileSplit[s] = nFileStart[s] + pst->nLower*(nFileTotal[s]/pst->nLeaves);
+            in->nSpeciesStart[s] = nFileSplit[s];
+        }
         rID = pst->mdl->ReqService(pst->idUpper,PST_ONENODEREADINIT,in,nIn);
-        in->nNodeStart = nFileStart;
-        in->nNodeEnd = nFileSplit - 1;
+        for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            in->nSpeciesStart[s] = nFileStart[s];
+            in->nSpeciesEnd[s] = nFileSplit[s] - 1;
+        }
         pstOneNodeReadInit(pst->pstLower,in,nIn,pout,nOut);
-        in->nNodeEnd = nFileEnd;
+        for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            in->nSpeciesEnd[s] = nFileEnd[s];
+        }
         auto nBytesLower = pst->nLower * sizeof(*pout);
         pst->mdl->GetReply(rID,nOut-nBytesLower,pout+pst->nLower);
     }
@@ -514,7 +523,9 @@ int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
         /*
         ** Determine the size of the local particle store.
         */
-        *pout = nFileTotal; /* Truncated: okay */
+        for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            pout[0][s] = nFileTotal[s]; /* Truncated: okay */
+        }
     }
     return sizeof(*pout) * pst->nLeaves;
 }
@@ -532,73 +543,105 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto plcl = pst->plcl;
     auto in = static_cast<struct inReadFile *>(vin);
     FIO fio;
-    uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit;
+    fioSpeciesList nNodeSpeciesStart,nNodeSpeciesEnd,nNodeSpeciesTotal,nNodeSpeciesSplit;
     int rID;
 
     mdlassert(pst->mdl,nIn >= sizeof(struct inReadFile));
 
-    nNodeStart = in->nNodeStart;
-    nNodeEnd = in->nNodeEnd;
-    nNodeTotal = nNodeEnd - nNodeStart + 1;
+    for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+        if (in->nSpeciesEnd[s] == 0) continue;
+        // First element to read
+        nNodeSpeciesStart[s] = in->nSpeciesStart[s];
+        // Last element to read
+        nNodeSpeciesEnd[s] = in->nSpeciesEnd[s];
+        // Total count of read elements
+        nNodeSpeciesTotal[s] = nNodeSpeciesEnd[s] - nNodeSpeciesStart[s] + 1;
+    }
     if (pst->nLeaves > 1 && in->nProcessors > 1) {
         int nProcessors = in->nProcessors;
         int nProcUpper = pst->nUpper * nProcessors / pst->nLeaves;
         int nProcLower = nProcessors - nProcUpper;
-        nNodeSplit = nNodeStart + pst->nLower*(nNodeTotal/pst->nLeaves);
+
+        // Index of the first element in the second half of the split
+        for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1))
+            nNodeSpeciesSplit[s] = nNodeSpeciesStart[s] + pst->nLower*(nNodeSpeciesTotal[s]/pst->nLeaves);
+
+        // Upper split
         if ( nProcessors > 1 ) {
             in->nProcessors = nProcUpper;
-            in->nNodeStart = nNodeSplit;
-            in->nNodeEnd = nNodeEnd;
+            for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+                if (in->nSpeciesEnd[s] == 0) continue;
+                in->nSpeciesStart[s] = nNodeSpeciesSplit[s];
+                in->nSpeciesEnd[s] = nNodeSpeciesEnd[s];
+            }
             rID = pst->mdl->ReqService(pst->idUpper,PST_READFILE,in,nIn);
         }
 
+        // Lower split
         in->nProcessors = nProcLower;
-        in->nNodeStart = nNodeStart;
-        in->nNodeEnd = nNodeSplit - 1;
+        for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            if (in->nSpeciesEnd[s] == 0) continue;
+            in->nSpeciesStart[s] = nNodeSpeciesStart[s];
+            in->nSpeciesEnd[s] = nNodeSpeciesSplit[s] - 1;
+        }
         pstReadFile(pst->pstLower,in,nIn,NULL,0);
 
         if ( nProcessors <= 1 ) {
             in->nProcessors = nProcUpper;
-            in->nNodeStart = nNodeSplit;
-            in->nNodeEnd = nNodeEnd;
+            for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+                if (in->nSpeciesEnd[s] == 0) continue;
+                in->nSpeciesStart[s] = nNodeSpeciesSplit[s];
+                in->nSpeciesEnd[s] = nNodeSpeciesEnd[s];
+            }
             rID = pst->mdl->ReqService(pst->idUpper,PST_READFILE,in,nIn);
         }
 
         pst->mdl->GetReply(rID);
     }
     else {
-        auto nParts = new int[pst->nLeaves];
+        // Number of particles to be read per core per species
+        auto nSpeciesParts = new fioSpeciesList[pst->nLeaves];
         int i;
-        uint64_t nStart;
         PKD pkd = plcl->pkd;
         auto mdl = pkd->mdl;
-        assert(nParts!=NULL);
-        pstOneNodeReadInit(pst,in,sizeof(*in),nParts,pst->nLeaves * sizeof(nParts));
+
+        pstOneNodeReadInit(pst,in,sizeof(*in),nSpeciesParts,pst->nLeaves * sizeof(fioSpeciesList));
 
         fio = fioLoad(in+1,in->dOmega0,in->dOmegab);
         assert(fio!=NULL);
 
-        nStart = nNodeStart + nParts[0];
+        fioSpeciesList nRead, nStart, nBasePart;
+        for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            // We take care of the first nSpeciesParts later
+            nStart[s] = in->nSpeciesStart[s] + nSpeciesParts[0][s];
+        }
         for (i=1; i<pst->nLeaves; ++i) {
             int id = mdl->Self() + i;
             int inswap;
-            /*
-             * Read particles into the local storage.
-             */
-            assert(pkd->FreeStore() >= nParts[i]);
-            pkdReadFIO(pkd, fio, nStart, nParts[i], in->dvFac,in->dTuFac);
-            nStart += nParts[i];
-            /*
-             * Now shove them over to the remote processor.
-            */
+            for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+                if (in->nSpeciesEnd[s] == 0) continue;
+                if (nSpeciesParts[i][s] == 0) continue;
+
+                // Read particles into the local storage.
+                assert(pkd->FreeStore() >= nSpeciesParts[i][s]);
+                pkdReadFIO(pkd, fio, nStart[s], nSpeciesParts[i][s], in->dvFac,in->dTuFac, FIO_SPECIES(s));
+                nStart[s] += nSpeciesParts[i][s];
+            }
+
+            // Now shove them over to the remote processor.
             swap_classes(pkd,id);
             inswap = mdl->Self();
             rID = pst->mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
             pkdSwapAll(pkd, id);
             pst->mdl->GetReply(rID);
         }
-        pkdReadFIO(pkd, fio, nNodeStart, nParts[0], in->dvFac,in->dTuFac);
-        delete [] nParts;
+        // Finish with our own particles
+        for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            if (in->nSpeciesEnd[s] == 0) continue;
+            if (nSpeciesParts[0][s] == 0) continue;
+            pkdReadFIO(pkd, fio, in->nSpeciesStart[s], nSpeciesParts[0][s], in->dvFac,in->dTuFac, FIO_SPECIES(s));
+        }
+        delete [] nSpeciesParts;
         fioClose(fio);
     }
     return 0;
@@ -736,7 +779,9 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         auto achOutFile = makeName(in->achOutFile,pkd->mdl->Self());
-        pkdCheckpoint(pkd,achOutFile.c_str());
+        auto achOutDecoratorFile = makeName(in->achOutFile,pkd->mdl->Self()) + ".dec";
+        // Need to add prefix as with previous "makeName" implementation
+        pkdCheckpoint(pkd,achOutFile.c_str(), achOutDecoratorFile.c_str());
     }
     return 0;
 }
@@ -812,15 +857,22 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 mdlassert(pst->mdl,fio!=NULL);
             }
 
-            pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime,
-                              in->nDark, in->nGas, in->nStar, in->nBH,
-                              in->dBoxSize, in->HubbleParam, in->nProcessors, in->units);
-            pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,in->bnd);
+            fioSpeciesList nTotal, nThisFile{0};
+            nTotal[FIO_SPECIES_DARK] = in->nDark;
+            nTotal[FIO_SPECIES_SPH]  = in->nGas;
+            nTotal[FIO_SPECIES_STAR] = in->nStar;
+            nTotal[FIO_SPECIES_BH]   = in->nBH;
+
+            pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,in->bnd,nThisFile);
             for (i=in->iLower+1; i<in->iUpper; ++i ) {
                 int rID = pst->mdl->ReqService(i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
-                pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,in->bnd);
+                pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,in->bnd,nThisFile);
                 pst->mdl->GetReply(rID);
             }
+
+            pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, nTotal, nThisFile,
+                              in->dBoxSize, in->HubbleParam, in->nProcessorsTotal, in->units);
+
             fioClose(fio);
         }
     }

@@ -101,9 +101,9 @@ void smSmoothFinish(SMX smx);
 float smSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,int iRoot1, int iRoot2);
 void smSmooth(SMX,SMF *);
 void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,double fBall);
-int  smReSmooth(SMX,SMF *, int);
+uint64_t smReSmooth(SMX,SMF *, int);
 #ifdef OPTIM_SMOOTH_NODE
-int  smReSmoothNode(SMX,SMF *, int);
+uint64_t smReSmoothNode(SMX,SMF *, int);
 void buildInteractionList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCnt, blitz::TinyVector<double,3> r, int ix, int iy, int iz);
 #endif
 
@@ -111,9 +111,9 @@ void smGather(SMX smx,double fBall2,blitz::TinyVector<double,3> r);
 
 inline void smSwapNN(NN *nnList, int i, int j) {
     NN temp;
-    memcpy(&temp,      &nnList[i], sizeof(NN));
-    memcpy(&nnList[i], &nnList[j], sizeof(NN));
-    memcpy(&nnList[j], &temp,      sizeof(NN));
+    memcpy((void *) &temp,      &nnList[i], sizeof(NN));
+    memcpy((void *) &nnList[i], &nnList[j], sizeof(NN));
+    memcpy((void *) &nnList[j], &temp,      sizeof(NN));
 }
 
 #ifdef __cplusplus

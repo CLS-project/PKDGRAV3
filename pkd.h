@@ -378,7 +378,7 @@ typedef struct {
 class pkdContext : public Integerize {
 public:
     explicit pkdContext(
-        mdl::mdlClass *mdl,int nStore,int nBucket,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
+        mdl::mdlClass *mdl,int nStore, int nDecoratorStore, int nBucket,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
         int nTreeBitsLo, int nTreeBitsHi,
         int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,mdl::MPI_RECV_MODE mpi_recv_mode,int mpi_recv_count, bool mpi_RDMA,
         const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
@@ -417,17 +417,24 @@ protected:
     size_t storageSize;
 public:
     particleStore particles;
+    decoratorStore decorators;
     treeStore tree;
     int FreeStore() { return particles.FreeStore(); }
+    int FreeDecoratorStore() { return decorators.FreeStore(); }
+    // I do not like at all the name "Local" for indicating the number of particles...
     int Local() { return particles.Local(); }
+    int DecoratorLocal() { return decorators.Local(); }
     int SetLocal(int n);
     int AddLocal(int n);
     auto EphemeralElementBytes() {return nEphemeralBytes; }
     auto EphemeralSize() { return 1ul*EphemeralElementBytes()*(FreeStore()+1); }
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(Bound) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return tree.ElementSize(); }
+    auto DecoratorSize() { return decorators.ElementSize(); }
+    auto DecoratorMemory() { return decorators.ElementSize() * (decorators.FreeStore()+1); }
     auto ParticleMemory() { return (particles.ParticleSize() + EphemeralElementBytes()) * (FreeStore()+1); }
     PARTICLE *Particle(int i) { return particles.Element(i); }
+    decorators::FIELDS *Decorator(int i) { return decorators.Element(i); }
 
     void SaveParticle(PARTICLE *a) {
         memcpy(pTempPRIVATE,a,particles.ParticleSize());
@@ -438,7 +445,9 @@ public:
     void CopyParticle(PARTICLE *a, PARTICLE *b) {
         memcpy(a,b,particles.ParticleSize());
     }
-
+    void CopyDecorator(decorators::FIELDS *a, decorators::FIELDS *b) {
+        memcpy(a,b,decorators.DecoratorSize());
+    }
 public:
     auto Nodes() const {
         return tree.Nodes();
@@ -466,6 +475,7 @@ public:
 // I/O
 public:
     void Restore(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
+    void RestoreDecorator(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
     void GroupStatsSave(int iGroup,const std::string &filename,int iSegment,int nSegment);
 
 // Rockstar Analysis
@@ -493,6 +503,7 @@ public:
 
 public:
     int nRejects;
+    int nDecoratorRejects;
     int nActive;
     blitz::TinyVector<uint64_t,MAX_RUNG+1> nRung;
     uint64_t nDark;
@@ -598,17 +609,17 @@ public:
 
 #ifdef COOLING
     // IA: we add here the needed cooling information available to all procs
-    struct cooling_function_data *cooling;
-    struct cooling_tables *cooling_table;
+    struct cooling_function_data *cooling = nullptr;
+    struct cooling_tables *cooling_table = nullptr;
 #endif
 #ifdef GRACKLE
-    chemistry_data *grackle_data;
-    chemistry_data_storage *grackle_rates;
-    grackle_field_data *grackle_field;
-    code_units *grackle_units;
+    chemistry_data *grackle_data = nullptr;
+    chemistry_data_storage *grackle_rates = nullptr;
+    grackle_field_data *grackle_field = nullptr;
+    code_units *grackle_units = nullptr;
 #endif
 #ifdef STELLAR_EVOLUTION
-    struct StellarEvolutionData *StelEvolData;
+    struct StellarEvolutionData *StelEvolData = nullptr;
 #endif
 
 #ifdef USE_CUDA
@@ -671,7 +682,7 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
-static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, meshless::FIELDS *psph, double dConstGamma) {
+static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph, double dConstGamma) {
 #ifndef OLD_FB_SCHEME
     psph->Uint += psph->fAccFBEnergy;
     psph->E += psph->fAccFBEnergy;
@@ -730,7 +741,7 @@ size_t pkdClMemory(PKD pkd);
 size_t pkdIllMemory(PKD pkd);
 size_t pkdIlcMemory(PKD pkd);
 size_t pkdIlpMemory(PKD pkd);
-void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
+void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac, FIO_SPECIES s);
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdSetSmooth(PKD pkd,double dSmooth);
 void pkdSetCrit(PKD pkd,double dCrit);
@@ -754,22 +765,23 @@ int pkdActiveOrder(PKD);
 #define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
 void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod);
 void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved);
-int pkdColRejects(PKD,int);
-int pkdColRejects_Old(PKD,int,double,double,int);
+std::pair<int,int> pkdColRejects(PKD,int);
+std::pair<int,int> pkdColRejects_Old(PKD,int,double,double,int);
 
-int pkdSwapRejects(PKD,int);
+std::pair<int,int> pkdSwapRejects(PKD,int);
 int pkdSwapSpace(PKD);
+int pkdSwapDecoratorSpace(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 
-int pkdColOrdRejects(PKD,uint64_t,int);
+std::pair<int,int> pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
-void pkdCheckpoint(PKD pkd,const char *fname);
+void pkdCheckpoint(PKD pkd,const char *fname, const char *fname_decorator);
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
-                       uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
+                       fioSpeciesList nTotal, fioSpeciesList nThisFile,
                        double dBoxSize, double h, int nProcessors, UNITS units);
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd);
-void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd);
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten);
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpeciesList nWritten);
 void pkdWriteViaNode(PKD pkd, int iNode);
 char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,PKD_FIELD field,int iUnitSize,double dvFac,int bMarked);
 void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize,double dvFac,int bMarked);
@@ -794,6 +806,7 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
 void pkdGravEvalPC(const PINFOIN &pPart, ilcTile &tile, PINFOOUT &pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas,int bGasEvolveDensity);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
+void pkdReorderDecorator(PKD pkd);
 #ifdef OPTIM_REORDER_IN_NODES
     void pkdReorderWithinNodes(PKD pkd);
 #endif

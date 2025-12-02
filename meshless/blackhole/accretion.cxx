@@ -1,5 +1,6 @@
 #include "master.h"
 #include "blackhole/evolve.h"
+#include "smooth/smooth.h"
 
 void MSR::BHAccretion(double dTime) {
     struct inBHAccretion in;

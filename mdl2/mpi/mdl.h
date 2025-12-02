@@ -146,6 +146,7 @@ protected:
     virtual void    pack(void *dst, const void *src)                  { memcpy(dst,src,nDataSize); }
     virtual void  unpack(void *dst, const void *src, const void *key) { memcpy(dst,src,nDataSize); }
     virtual void    init(void *dst)                                   {}
+    virtual void    init_shared(void *dst)                            {}
     virtual void   flush(void *dst, const void *src)                  { memcpy(dst,src,nDataSize); }
     virtual void combine(void *dst, const void *src, const void *key) {}
     virtual void *create(uint32_t size, const void *pKey) { return nullptr; }
@@ -460,7 +461,7 @@ public:
     }
     void Send(int id,mdlPack pack, void *ctx);
     void Recv(int id,mdlPack unpack, void *ctx);
-    int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes);
+    int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes, size_t nSkipBytes=0);
 
     void CacheCheck();
     int  CacheStatus(int cid);

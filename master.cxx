@@ -438,12 +438,16 @@ EphemeralMemory MSR::EphemeralMemoryGrid(int nGrid,int nCount) {
     return EphemeralMemory(mdl,nGrid,nCount);
 }
 
-std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {
+std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {
     struct inInitializePStore ps;
     double dStorageAmount = (1.0+parameters.get_dExtraStore());
+    double dDecoratorStorageAmount = (1.0+parameters.get_dExtraDecoratorStore());
     int i;
     for ( i=0; i<=FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
     ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdl->Threads());
+    ps.nDecoratorStore = ceil( dDecoratorStorageAmount *
+                               (ps.nSpecies[FIO_SPECIES_SPH] + ps.nSpecies[FIO_SPECIES_BH] + ps.nSpecies[FIO_SPECIES_STAR])
+                               / mdl->Threads());
     ps.nTreeBitsLo = parameters.get_nTreeBitsLo();
     ps.nTreeBitsHi = parameters.get_nTreeBitsHi();
     ps.iCacheSize  = parameters.get_iCacheSize();
@@ -500,16 +504,17 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     outInitializePStore pout;
     pstInitializePStore(pst,&ps,sizeof(ps),&pout,sizeof(pout));
     PKD pkd = pst->plcl->pkd;
-    print("Allocated {} MB for particle store on each processor.\n", pkd->ParticleMemory()/(1024*1024));
-    print("Particles: {} bytes (persistent) + {} bytes (ephemeral), Nodes: {} bytes\n",
-          pkd->particles.ParticleSize(),ps.nEphemeralBytes,pkd->NodeSize());
+    print("Allocated {} MB for {} particles on each processor.\n", pkd->ParticleMemory()/(1024*1024), pkd->FreeStore());
+    print("Allocated {} MB for {} decorators on each processor.\n", pkd->DecoratorMemory()/(1024*1024), pkd->FreeDecoratorStore());
+    print("Particles: {} bytes (persistent) + {} bytes (decorator) + {} bytes (ephemeral) , Nodes: {} bytes\n",
+          pkd->particles.ParticleSize(),pkd->decorators.DecoratorSize(), ps.nEphemeralBytes,pkd->NodeSize());
     if (pkd->particles.ParticleSize() > MDL_CACHE_DATA_SIZE) {
         print_error("ERROR! MDL_CACHE_DATA_SIZE ({} bytes) is too small for the given particle size, please increasing it\n", MDL_CACHE_DATA_SIZE);
         abort();
     }
     if (ps.nMinEphemeral)
         print("Ephemeral will be at least {} MB per node.\n",ps.nMinEphemeral/(1024*1024));
-    return std::make_pair(pout.nSizeParticle,pout.nSizeNode);
+    return std::make_tuple(pout.nSizeParticle,pout.nSizeDecorator,pout.nSizeNode);
 }
 
 /// @brief Return the number of threads to use for parallel reading/writing
@@ -553,17 +558,16 @@ void MSR::stat_files(std::vector<uint64_t> &counts,const std::string_view &filen
     delete [] out;
 }
 
-void MSR::Restore(const std::string &baseName,int nSizeParticle) {
+void MSR::Restore(const std::string &baseName,int nSizeParticle, int nSizeDecorator) {
     std::vector<uint64_t> counts;
+    std::vector<uint64_t> counts_d;
     std::string filename_template = baseName + ".{i}";
-    TimerStart(TIMER_NONE);
+    std::string filename_d_template = baseName + ".{i}.dec";
+
     print("Scanning Checkpoint files...\n");
+
+    TimerStart(TIMER_NONE);
     stat_files(counts,filename_template,nSizeParticle);
-    TimerStop(TIMER_NONE);
-    auto dsec = TimerGet(TIMER_NONE);
-    print("... identified {} particles in {} files, Wallclock: {:.5f} secs.\n",
-          std::accumulate(counts.begin(),counts.end(),uint64_t(0)),
-          int(counts.size()), dsec);
 
     using mdl::ServiceBuffer;
     ServiceBuffer msg {
@@ -582,6 +586,39 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
     hdr->io.nSegment = hdr->io.iThread = 0; // setup later
     hdr->io.iReaderWriter = 0;
     mdl->RunService<ServiceRestore>(msg);
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+    print("... identified {} particles in {} files, Wallclock: {:.5f} secs.\n",
+          std::accumulate(counts.begin(),counts.end(),uint64_t(0)),
+          int(counts.size()), dsec);
+
+    // Repeat for decorators
+    TimerStart(TIMER_NONE);
+    stat_files(counts_d,filename_d_template,nSizeDecorator+nSizeParticle);
+    ServiceBuffer msg_d {
+        ServiceBuffer::Field<ServiceInput::input>(),
+        ServiceBuffer::Field<ServiceInput::io_elements>(counts_d.size())
+    };
+    auto hdr_d = static_cast<ServiceInput::input *>(msg_d.data(0));
+    auto elements_d = static_cast<ServiceInput::io_elements *>(msg_d.data(1));
+    hdr_d->nFiles = counts_d.size();
+    hdr_d->nElements = std::accumulate(counts_d.begin(),counts_d.end(),uint64_t(0));
+    std::copy(counts_d.begin(),counts_d.end(),elements_d);
+    hdr_d->iBeg = 0;
+    hdr_d->iEnd = hdr_d->nElements;
+    strncpy(hdr_d->io.filename,filename_d_template.c_str(),sizeof(hdr_d->io.filename));
+    hdr_d->io.nSimultaneous = parallel_read_count();
+    assert(hdr_d->io.nSimultaneous > 0);
+    hdr_d->io.nSegment = hdr_d->io.iThread = 0; // setup later
+    hdr_d->io.iReaderWriter = 0;
+    mdl->RunService<ServiceRestoreDecorator>(msg_d);
+
+    //mdl->RunService(PST_RESET_DECORATOR);
+    TimerStop(TIMER_NONE);
+    dsec = TimerGet(TIMER_NONE);
+    print("... identified {} decorators in {} files, Wallclock: {:.5f} secs.\n",
+          std::accumulate(counts_d.begin(),counts_d.end(),uint64_t(0)),
+          int(counts_d.size()), dsec);
 }
 
 template<>
@@ -724,10 +761,10 @@ MSR::ReadCheckpoint(const char *filename,PyObject *kwargs,
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     if (parameters.get_bTrackPeakPressure()) mMemoryModel |= PKD_MODEL_PEAKPRESSURE;
-    auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
+    auto [nSizeParticle,nSizeDecorator,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
-    Restore(filename,nSizeParticle);
     pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
+    Restore(filename,nSizeParticle,nSizeDecorator);
     CalcBound();
     CountRungs(NULL);
 
@@ -1101,22 +1138,17 @@ void MSR::SwapClasses(int id) {
 
 void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
     int id;
-    uint64_t nStart;
     PST pst0;
     LCL *plcl;
-    int nid;
     ServiceSwapAll::input inswap;
     int rID;
-
-    std::unique_ptr<int[]> nParts {new int[nThreads]};
-    for (id=0; id<nThreads; ++id) {
-        nParts[id] = -1;
-    }
-
-    nid = pstOneNodeReadInit(pst, in, sizeof(*in), nParts.get(), nThreads*sizeof(nParts[0]));
-    assert((size_t)nid == nThreads*sizeof(nParts[0]));
-    for (id=0; id<nThreads; ++id) {
-        assert(nParts[id] > 0);
+    fioSpeciesList nRead, nStart, nBasePart;
+    for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+        // NB: The first nBasePart particles are read by this thread at the end
+        // of this function
+        nBasePart[s] = (in->nSpeciesEnd[s]-in->nSpeciesStart[s])/nThreads;
+        nStart[s] = in->nSpeciesStart[s] + nBasePart[s];
+        nRead[s] = 0;
     }
 
     pst0 = pst;
@@ -1124,14 +1156,21 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
         pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
-    nStart = nParts[0];
     for (id=1; id<nThreads; ++id) {
-        /*
-         * Read particles into the local storage.
-         */
-        assert(plcl->pkd->FreeStore() >= nParts[id]);
-        pkdReadFIO(plcl->pkd, fio, nStart, nParts[id], in->dvFac,in->dTuFac);
-        nStart += nParts[id];
+        for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            if (nBasePart[s] == 0) continue;
+            auto mod = (in->nSpeciesEnd[s]-in->nSpeciesStart[s])%nThreads;
+
+            auto nPart = nBasePart[s];
+            if (id >= nThreads-mod) nPart++;
+            /*
+             * Read particles into the local storage.
+             */
+            assert(plcl->pkd->FreeStore() >= nPart);
+            pkdReadFIO(plcl->pkd, fio, nStart[s], nPart, in->dvFac,in->dTuFac, FIO_SPECIES(s));
+            nStart[s] += nPart;
+            nRead[s] += nPart;
+        }
         /*
          * Now shove them over to the remote processor.
          */
@@ -1141,11 +1180,29 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
         pkdSwapAll(plcl->pkd, id);
         pst0->mdl->GetReply(rID);
     }
-    assert(nStart == N);
-    /*
-     * Now read our own particles.
-     */
-    pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
+    for ( auto s=FIO_SPECIES(0); s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+        if (nBasePart[s] == 0) {
+            // It may happen that we have so little particles that we can
+            // not divide them by threads, so we just load it here
+            auto mod = (in->nSpeciesEnd[s]-in->nSpeciesStart[s])%nThreads;
+            if (mod) {
+                nBasePart[s] = mod;
+            }
+            else {
+                continue;
+            }
+        }
+        /*
+         * Now read our own particles.
+         */
+        pkdReadFIO(plcl->pkd, fio, 0, nBasePart[s], in->dvFac, in->dTuFac, FIO_SPECIES(s));
+        nRead[s] += nBasePart[s];
+    }
+
+    assert(nRead[FIO_SPECIES_DARK] == nDark);
+    assert(nRead[FIO_SPECIES_SPH] == nGas);
+    assert(nRead[FIO_SPECIES_STAR] == nStar);
+    assert(nRead[FIO_SPECIES_BH] == nBH);
 }
 
 double MSR::SwitchDelta(double dTime,int iStep) {
@@ -1251,7 +1308,7 @@ void MSR::AllNodeWrite(std::string_view FileName, double dTime, double dvFac, in
                 | (bDouble?FIO_FLAG_CHECKPOINT:0)
                 | (parameters.get_bDoublePos()?FIO_FLAG_DOUBLE_POS:0)
                 | (parameters.get_bDoubleVel()?FIO_FLAG_DOUBLE_VEL:0)
-                | (parameters.get_bMemParticleID()?FIO_FLAG_ID:0)
+                | ((parameters.get_bMemParticleID()||MeshlessHydro())?FIO_FLAG_ID:0)
                 | (parameters.get_bMemMass()?0:FIO_FLAG_COMPRESS_MASS)
                 | (parameters.get_bMemSoft()?0:FIO_FLAG_COMPRESS_SOFT)
                 | (parameters.has_dSoft()?FIO_FLAG_GLOBAL_SOFT:0)
@@ -1268,7 +1325,7 @@ void MSR::AllNodeWrite(std::string_view FileName, double dTime, double dvFac, in
     in.iLower = 0;
     in.iUpper = nThreads;
     in.iIndex = 0;
-    in.nProcessors = nProcessors;
+    in.nProcessorsTotal = in.nProcessors = nProcessors;
     pstWrite(pst,&in,sizeof(in),NULL,0);
 }
 
@@ -1290,6 +1347,7 @@ void MSR::Write(std::string_view FileName,double dTime,int bCheckpoint) {
 
 #ifdef NAIVE_DOMAIN_DECOMP
     Reorder();
+    ReorderDecorator();
 #else
     if ( iLastRungRT >= 0 ) Reorder();
 #endif
@@ -1548,6 +1606,7 @@ void MSR::DomainDecompOld(int iRung) {
     TimerStart(TIMER_DOMAIN);
 
     mdl->RunService<OldDD::ServiceDomainDecomp>(sizeof(in),&in);
+    ReorderDecorator();
     TimerStop(TIMER_DOMAIN);
     dsec = TimerGet(TIMER_DOMAIN);
     print("Domain Decomposition complete, Wallclock: {:.5} secs\n\n",dsec);
@@ -1924,6 +1983,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dEtaCourant = parameters.get_dEtaCourant();
     smf->bMeshlessHydro = MeshlessHydro();
     smf->bIterativeSmoothingLength = parameters.get_bIterativeSmoothingLength();
+    smf->bStricterSlopeLimiter = parameters.get_bStricterSlopeLimiter();
     smf->bUpdateBall = bUpdateBall;
     smf->nBucket = parameters.get_nBucket();
     smf->dCFLacc = parameters.get_dCFLacc();
@@ -1978,7 +2038,7 @@ void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int n
     }
 }
 
-int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
+uint64_t MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     struct outSmooth out;
 
@@ -2002,7 +2062,7 @@ int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
 }
 
 #ifdef OPTIM_SMOOTH_NODE
-int MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric) {
+uint64_t MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     struct outSmooth out;
 
@@ -2029,6 +2089,11 @@ int MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric
     return out.nSmoothed;
 }
 #endif
+
+void MSR::ReorderDecorator() {
+    printf("Reordering decorator...\n");
+    mdl->RunService(PST_REORDERDECORATOR,0,NULL,0);
+}
 
 #ifdef OPTIM_REORDER_IN_NODES
 void MSR::ReorderWithinNodes() {
@@ -3188,7 +3253,7 @@ int MSR::NewTopStepKDK(
 #endif
 #ifdef STELLAR_EVOLUTION
     if (parameters.get_bChemEnrich()) {
-        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,calc.nSmoothEnrich);
+        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,parameters.get_nSmooth());
     }
 #endif
 #endif
@@ -3236,14 +3301,6 @@ void MSR::TopStepKDK(
     const auto bEwald = parameters.get_bEwald();
     const auto bGravStep = parameters.get_bGravStep();
     const auto nPartRhoLoc = parameters.get_nPartRhoLoc();
-#ifdef BLACKHOLES
-    if (!iKickRung && !iRung && parameters.get_bBHPlaceSeed()) {
-        PlaceBHSeed(dTime, CurrMaxRung());
-#ifdef OPTIM_REORDER_IN_NODES
-        ReorderWithinNodes();
-#endif
-    }
-#endif
 
     if (iAdjust && (iRung < MaxRung()-1)) {
         print_detail("{:>{}}Adjust, iRung: {}\n", ' ', 2 * iRung + 2, iRung);
@@ -3376,7 +3433,7 @@ void MSR::TopStepKDK(
         print("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
         if (parameters.get_bChemEnrich()) {
-            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,calc.nSmoothEnrich);
+            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,parameters.get_nSmooth());
         }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);
@@ -3409,6 +3466,9 @@ void MSR::TopStepKDK(
         if (parameters.get_bFindGroups()) GroupStats();
         if (parameters.get_bAddDelete()) RemoveDeleted();
         BuildTree(bEwald);
+#ifdef BLACKHOLES
+        if (parameters.get_bBHPlaceSeed()) PlaceBHSeed(dTime, CurrMaxRung());
+#endif
     }
 
 }
@@ -3932,6 +3992,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     dsec = MSR::Time() - sec;
     print_detail("IC Generation Complete @ a={a:.6}, Wallclock: {seconds:.5} secs\n", "a"_a=in.dExpansion, "seconds"_a=dsec);
     print_detail("Mean of noise sample is {mean:g}, RMS {rms:g}\n", "mean"_a=mean, "rms"_a=rms);
+    ReorderDecorator();
 
     return getTime(out.dExpansion);
 }
@@ -3940,7 +4001,6 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
 double MSR::Read(std::string_view achInFile) {
     double dTime,dExpansion;
     FIO fio;
-    int j;
     double dsec;
     fioSpeciesList nSpecies;
     inReadFileFilename achFilename;
@@ -4001,8 +4061,8 @@ double MSR::Read(std::string_view achInFile) {
 
     read->nProcessors = parallel_read_count();
 
-    if (!fioGetAttr(fio,HDF5_HEADER_G, "NumFilesPerSnapshot",FIO_TYPE_UINT32,&j)) j = 1;
-    print(" Reading {} particles from {} file{} using {} processor{}\n", N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
+    auto &nFiles = fio->fileList.nFiles;
+    print(" Reading {} particles from {} file{} using {} processor{}\n", N, nFiles, (nFiles==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(dExpansion);
     if (parameters.get_bInFileLC()) read->dvFac = 1.0;
@@ -4014,10 +4074,12 @@ double MSR::Read(std::string_view achInFile) {
     if (parameters.get_bTrackPeakPressure()) mMemoryModel |= PKD_MODEL_PEAKPRESSURE;
     if (nStar) mMemoryModel |= PKD_MODEL_STAR;
 
-    read->nNodeStart = 0;
-    read->nNodeEnd = N - 1;
 
-    for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
+    for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+        nSpecies[s] = fioGetN(fio,s);
+        read->nSpeciesStart[s] = 0;
+        read->nSpeciesEnd[s] = nSpecies[s];
+    }
     InitializePStore(nSpecies,mMemoryModel,parameters.get_nMemEphemeral());
 
     read->dOmega0 = csm->val.dOmega0;
@@ -4028,6 +4090,14 @@ double MSR::Read(std::string_view achInFile) {
 
     if (read->nProcessors > 1) {
         fioClose(fio);
+        // NB: For the parallel read, the nSpeciesEnd is the index of the last
+        // element to be read, whereas for the serial read (OneNodeRead) it holds
+        // the number of elements to read (always per-species)
+        for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) {
+            if (nSpecies[s] > 0) {
+                read->nSpeciesEnd[s] -= 1;
+            }
+        }
         pstReadFile(pst,read,sizeof(struct inReadFile)+nBytes,NULL,0);
     }
     else {
@@ -4039,6 +4109,7 @@ double MSR::Read(std::string_view achInFile) {
     dsec = TimerGet(TIMER_NONE);
     SetClasses();
     print("Input file has been successfully read, Wallclock: {:.5f} secs.\n", dsec);
+    ReorderDecorator();
 
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.
@@ -4253,7 +4324,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
     print("Writing output for step {}\n", iStep);
 
-    Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
 
     if (DoGas() && NoSteps()) {  /* Diagnostic Gas */
         Reorder();
@@ -4308,6 +4378,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         Reorder();
         OutArray(BuildName(iStep,".soft"),OUT_SOFT_ARRAY);
     }
+    Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
 }
 
 uint64_t MSR::CountSelected() {

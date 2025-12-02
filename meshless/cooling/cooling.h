@@ -32,12 +32,12 @@
 extern "C" {
 #endif
 void cooling_cool_part(PKD pkd, const struct cooling_function_data *cooling,
-                       particleStore::ParticleReference &p, meshless::FIELDS *psph,
+                       particleStore::ParticleReference &p, decorators::MFM *psph,
                        const float dt, const double time,
                        const float delta_redshift, const double redshift);
 float cooling_get_temperature(PKD pkd, const float redshift,
                               const struct cooling_function_data *restrict cooling,
-                              particleStore::Particle &p, meshless::FIELDS *psph);
+                              particleStore::Particle &p, decorators::MFM *psph);
 #ifdef __cplusplus
 }
 #endif

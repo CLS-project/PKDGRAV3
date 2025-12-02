@@ -6,7 +6,8 @@ using blitz::abs;
 using blitz::any;
 
 void MSR::ComputeSmoothing(double dTime, double dDelta) {
-    int nSmoothed = 1, it=0, maxit = 100;
+    uint64_t nSmoothed = 1;
+    int it = 0, maxit = 100;
 
     printf("Computing density... \n");
     TimerStart(TIMER_DENSITY);
@@ -20,7 +21,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
         // Currently implemented but not used/tested
         //pstPredictSmoothing(msr->pst,&in,sizeof(in),NULL,NULL);
 
-        while (nSmoothed>0 && it <= maxit) {
+        while (nSmoothed > 0 && it <= maxit) {
             // I think this is no longer used
             //msrSetFirstHydroLoop(msr, 1);
             // 1-> we care if the particle is marked
@@ -33,7 +34,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
             //msrSetFirstHydroLoop(msr, 0);
             it++;
         }
-        if (nSmoothed >0) {
+        if (nSmoothed > 0) {
             // If we can not converge, at least make sure that we update the
             // density and other variables with the latest fBall
 #ifdef OPTIM_SMOOTH_NODE
@@ -42,7 +43,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
             nSmoothed = ReSmooth(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL,0);
 #endif
 
-            printf("Smoothing length did not converge for %d particles\n", nSmoothed);
+            printf("Smoothing length did not converge for %" PRIu64 " particles\n", nSmoothed);
         }
 
         TimerStop(TIMER_DENSITY);
@@ -57,11 +58,13 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 }
 
 static inline void densNodeOmegaE(NN *nnList, float pH, TinyVector<double,3> dr_node, int nCnt,
-                                  double *omega, TinyVector<double,6> &E, int *nSmooth) {
+                                  double *omega, TinyVector<double,6> &E, double &sphfac,
+                                  int &nSmooth) {
     const float pH2 = pH * pH;
     *omega = 0.0;
-    *nSmooth = 0.0;
     E = 0.0;
+    sphfac = 0.0;
+    nSmooth = 0;
     for (auto pk = 0; pk < nCnt; ++pk) {
         // As both dr vector are relative to the cell, we can do:
         const TinyVector<double,3> dr{dr_node - nnList[pk].dr};
@@ -70,7 +73,9 @@ static inline void densNodeOmegaE(NN *nnList, float pH, TinyVector<double,3> dr_
         if (fDist2 <= pH2) {
             const double rpq = sqrt(fDist2);
             const double Wpq = cubicSplineKernel(rpq, static_cast<double>(pH));
+            const double dWpq = cubicSplineKernelDeriv(rpq, static_cast<double>(pH));
 
+            sphfac += rpq*dWpq;
             *omega += Wpq;
 
             E[XX] += dr[0]*dr[0]*Wpq;
@@ -81,13 +86,13 @@ static inline void densNodeOmegaE(NN *nnList, float pH, TinyVector<double,3> dr_
             E[XZ] += dr[2]*dr[0]*Wpq;
             E[YZ] += dr[1]*dr[2]*Wpq;
 
-            *nSmooth += 1;
+            nSmooth += 1;
         }
     }
 }
 
 static inline double densNodeNcondB(PKD pkd, particleStore::ParticleReference &p,
-                                    TinyVector<double,6> &E, double omega) {
+                                    TinyVector<double,6> &E, double omega, double sphfac) {
     TinyVector<double,6> B;
 
     // Normalize the matrix
@@ -103,6 +108,7 @@ static inline double densNodeNcondB(PKD pkd, particleStore::ParticleReference &p
         auto &sph = p.sph();
         sph.Ncond = Ncond;
         sph.B = B;
+        sph.spheom = 3. / sphfac;
     }
 
     return Ncond;
@@ -151,11 +157,14 @@ void hydroDensityFinal(particleStore::ParticleReference &p,float fBall,int nSmoo
 
     if (p.is_gas()) {
         TinyVector<double,6> E{0.0};
+        double sphfac{0.0};
 
         for (auto i = 0; i < nSmooth; ++i) {
             const double rpq = sqrt(nnList[i].fDist2);
             const double Wpq = cubicSplineKernel(rpq, static_cast<double>(pH));
+            const double dWpq = cubicSplineKernelDeriv(rpq, static_cast<double>(pH));
 
+            sphfac += rpq*dWpq;
             *omega += Wpq;
 
             const auto &dr = nnList[i].dr;
@@ -173,6 +182,7 @@ void hydroDensityFinal(particleStore::ParticleReference &p,float fBall,int nSmoo
         E /= *omega;
 
         inverseMatrix(E.data(), p.sph().B.data());
+        p.sph().spheom = 3. / sphfac;
     }
     else {
         for (auto i = 0; i < nSmooth; ++i) {
@@ -207,19 +217,20 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
         if (*omega < 0)
             Neff = - *omega;
 
-        double dConvFac = .5;
+        double dConvFac = 0.5;
         do {
             const auto pH = partj.ball();
             TinyVector<double,6> E;
+            double sphfac;
 
-            densNodeOmegaE(nnList, pH, dr_node, nCnt, omega, E, &nSmooth);
+            densNodeOmegaE(nnList, pH, dr_node, nCnt, omega, E, sphfac, nSmooth);
 
             // Check if it has converged
             const double c = 4.*M_PI/3. * (*omega) * pH*pH*pH;
             if ((fabs(c-Neff) < smf->dNeighborsStd) ) {
 
                 // Check if the converged density has a low enough condition number
-                double Ncond = densNodeNcondB(pkd, partj, E, *omega);
+                double Ncond = densNodeNcondB(pkd, partj, E, *omega, sphfac);
 
                 if (Ncond > 100) {
                     // In some configurations (outer particles in a isolated galaxy)
@@ -230,6 +241,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                         // of neighbours and repeat the iterative procedure
                         Neff *= 1.2;
                         niter = 0;
+                        dConvFac = 0.5;
                         continue;
                     }
                     else {
@@ -243,6 +255,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                     // the effective number of ngb is increased
                     Neff *= 1.2;
                     niter = 0;
+                    dConvFac = 0.5;
                     continue;
                 }
 
@@ -281,7 +294,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                                 onLowerLimit = 1;
                             }
                             else {
-                                densNodeNcondB(pkd, partj, E, *omega);
+                                densNodeNcondB(pkd, partj, E, *omega, sphfac);
                                 partj.set_density(partj.mass() * (*omega));
                                 partj.set_marked(false);
                             }
@@ -296,6 +309,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                             // the effective number of nn is increased
                             Neff *= 1.2;
                             niter = 0;
+                            dConvFac = 0.5;
                             onLowerLimit = 0;
                             continue;
                         }
@@ -319,7 +333,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                 if (c > Neff) {
                     partj.set_marked(false);
                     partj.set_ball(pH);
-                    densNodeNcondB(pkd, partj, E, *omega);
+                    densNodeNcondB(pkd, partj, E, *omega, sphfac);
                     partj.set_density(partj.mass() * (*omega));
                     printf("WARNING %d Maximum iterations reached "
                            "Neff %e c %e \t %e %e %e %e \n",

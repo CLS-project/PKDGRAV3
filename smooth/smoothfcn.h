@@ -50,6 +50,7 @@ typedef struct smfParameters {
     /* IA: Meshless hydro */
     int bMeshlessHydro;
     int bIterativeSmoothingLength;
+    int bStricterSlopeLimiter;
     int bUpdateBall;
     int nBucket;
     double dCFLacc;
@@ -173,6 +174,9 @@ enum SMOOTH_TYPE {
     SMX_BH_GASPIN,
     SMX_CHEM_ENRICHMENT,
 };
+
+extern void init_shared_gas_decorator(PKD pkd, void *dst);
+extern void init_shared_bh_decorator(PKD pkd, void *dst);
 
 // Smooth operates on particles, so we use a particleCACHEhelper.
 // Additionally we can call a function to initialize the local data

@@ -25,7 +25,9 @@ public:
     struct output {
         int id;
         int nRejects;
+        int nDecoratorRejects;
         int nSpace;
+        int nDecoratorSpace;
         int nLocal;
     };
     explicit ServiceColRejects(PST pst)
