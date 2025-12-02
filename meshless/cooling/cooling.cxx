@@ -185,7 +185,7 @@ void MSR::CoolingInit(float redshift) {
     get_cooling_redshifts(cooling);
 
     /* Read in cooling table header */
-    char fname[eagle_table_path_name_length + 12];
+    char fname[eagle_table_path_name_length + 13];
     snprintf(fname, sizeof(fname), "%s/z_0.000.hdf5", cooling->cooling_table_path);
     read_cooling_header(fname, cooling);
 

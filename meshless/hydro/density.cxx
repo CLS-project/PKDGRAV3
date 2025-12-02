@@ -43,7 +43,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
             nSmoothed = ReSmooth(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL,0);
 #endif
 
-            printf("Smoothing length did not converge for %lu particles\n", nSmoothed);
+            printf("Smoothing length did not converge for %" PRIu64 " particles\n", nSmoothed);
         }
 
         TimerStop(TIMER_DENSITY);
