@@ -474,8 +474,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     // The buckets are not always full, and the tree is not completely balanced, so it will be more in practice.
     ephemeral.reset(); // The monotonic buffer resource will be invalidated by the new allocation
     uint64_t nTreeNodes = (nStore+1) / nBucket * 2;
-    TinyVector<size_t,4> nElements{uint64_t(nStore+1),nEphemeral,uint64_t(nDecoratorStore+1),nTreeNodes};
-    TinyVector<size_t,4> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,decorators.ElementSize(),tree.ElementSize()};
+    static_assert(nSegments==4);
+    TinyVector<size_t,nSegments> nElements{uint64_t(nStore+1),nEphemeral,uint64_t(nDecoratorStore+1),nTreeNodes};
+    TinyVector<size_t,nSegments> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,decorators.ElementSize(),tree.ElementSize()};
     storageSize = mdl->new_shared_array(pSegments.data(),4,nElements.data(),nBytesPerElement.data(),nMinTotalStore);
     if (storageSize == 0) {
         fprintf(stderr, "ERROR: unable to allocate main storage\n");

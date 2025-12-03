@@ -398,8 +398,9 @@ protected:
     // 2. The ephemeral store, which contains temporary data for each particle.
     // 3. The overflow store, which is used if the grids for the would not fit into the ephermeral store.
     //    The storage in this segment is reused for (some of) the tree nodes after the IC generation is done.
-    blitz::TinyVector<void *,3> pSegments;
-    blitz::TinyVector<size_t,3> nSegmentSizeBytes;
+    static constexpr auto nSegments = 4;
+    blitz::TinyVector<void *,nSegments> pSegments;
+    blitz::TinyVector<size_t,nSegments> nSegmentSizeBytes;
 public:
     auto SegmentSizeBytes(int i) const { return nSegmentSizeBytes[i]; }
     template<typename T=void>
