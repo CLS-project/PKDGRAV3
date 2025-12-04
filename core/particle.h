@@ -180,6 +180,7 @@ enum PKD_FIELD {
     oRungDest, /* Destination processor for each rung */
     oParticleID,
     oGlobalGid, /* global group id, uint64 */
+    oNewRung,
 
     oDecorator,
     MAX_FIELD
@@ -256,6 +257,14 @@ public:
     void set_group( PARTICLE *p, uint32_t gid ) const {
         if (bNoParticleOrder) reinterpret_cast<UPARTICLE *>(p)->iGroup = gid;
         else if (present(PKD_FIELD::oGroup)) get<int32_t>(p,PKD_FIELD::oGroup) = gid;
+    }
+    uint8_t newrung(const PARTICLE *p ) const {
+        if (!bNoParticleOrder) return reinterpret_cast<const PARTICLE *>(p)->uNewRung;
+        return get<uint8_t>(p,PKD_FIELD::oNewRung);
+    }
+    void set_newrung( PARTICLE *p, uint8_t rung ) const {
+        if (!bNoParticleOrder) reinterpret_cast<PARTICLE *>(p)->uNewRung = rung;
+        else if (present(PKD_FIELD::oNewRung)) get<uint8_t>(p,PKD_FIELD::oNewRung) = rung;
     }
     template<typename T>
     auto &raw_position( PARTICLE *p ) const {
@@ -487,7 +496,7 @@ public:
         auto group()             const {return store().group(p);}
         bool marked()            const {return p->bMarked;}
         uint8_t rung()           const {return p->uRung;}
-        uint8_t new_rung()       const {return p->uNewRung;}
+        uint8_t new_rung()       const {return store().newrung(p);}
         uint8_t get_class()      const {return p->iClass;}
         uint64_t order()         const {return p->iOrder;}
 #ifdef NN_FLAG_IN_PARTICLE
@@ -502,7 +511,7 @@ public:
         void set_group( uint32_t gid )  const {store().set_group(p,gid); }
         bool set_marked(bool bMarked)   const {return (p->bMarked = bMarked);}
         auto set_rung(uint8_t uRung)    const {return (p->uRung = uRung);}
-        auto set_new_rung(uint8_t uRung)const {return (p->uNewRung = uRung);}
+        auto set_new_rung(uint8_t uRung)const {store().set_newrung(p, uRung);}
         auto set_class(uint8_t uClass)  const {return (p->iClass = uClass);}
         void set_class( float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies) {
             store().setClass(fMass,fSoft,iMat,accFac,eSpecies,p);

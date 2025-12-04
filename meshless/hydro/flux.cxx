@@ -96,7 +96,6 @@ void SmoothHelperHydroFluxes::unpack(void *dst, const void *src, const void *key
  */
 void SmoothHelperHydroFluxes::init(void *dst) {
     auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
-    assert(!pkd->bNoParticleOrder);
     // For the init*Cached and comb functions we still have to explicitly
     // check if we are handling gas particles even ifdef OPTIM_REORDER_IN_NODES
     // because these operations are done in a cache-line basis, and a line may
@@ -145,7 +144,6 @@ void SmoothHelperHydroFluxes::combine(void *dst, const void *src, const void *ke
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
     auto p2 = static_cast<const flush_type *>(src);
 
-    assert(!pkd->bNoParticleOrder);
     if (p1.is_gas()) {
         auto &sph = p1.sph();
 

@@ -111,6 +111,7 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_INTEGER_POS  (1<<16) /* Particles do not have an order */
 #define PKD_MODEL_BH           (1<<17) /* BH fields */
 #define PKD_MODEL_GLOBALGID    (1<<18) /* Global group identifier per particle */
+#define PKD_MODEL_NEWRUNG      (1<<19) /* New rung field */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */

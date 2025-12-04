@@ -1064,6 +1064,16 @@ It is not possible to track particles between snapshots as there is no way to so
 unless `bMemParticleID` is enable.
 '''
 
+["Memory Model and Control".bMemNewRung]
+flag="newrung"
+default=false
+help="Particles have a new rung field"
+docs='''
+This enables a 8 bit rung field in the particle information that stores the
+proposed new rung (i.e., timestep) of the particle.
+'''
+
+
 ["Memory Model and Control".bMemParticleID]
 flag="pid"
 default=false

@@ -94,7 +94,6 @@ void SmoothHelperHydroStep::flush(void *dst, const void *src) {
 void SmoothHelperHydroStep::combine(void *dst, const void *src, const void *key) {
     auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
     auto p2 = static_cast<const flush_type *>(src);
-    assert(!pkd->bNoParticleOrder);
     if (p1.is_gas()) {
         if (p2->uNewRung > p1.new_rung()) p1.set_new_rung(p2->uNewRung);
         if (p2->uWake > p1.sph().uWake) p1.sph().uWake = p2->uWake;

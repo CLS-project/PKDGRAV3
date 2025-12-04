@@ -414,6 +414,7 @@ uint64_t MSR::getMemoryModel() {
     if (parameters.get_bMemMass())         mMemoryModel |= PKD_MODEL_MASS;
     if (parameters.get_bMemSoft())         mMemoryModel |= PKD_MODEL_SOFTENING;
     if (parameters.get_bMemVelSmooth())    mMemoryModel |= PKD_MODEL_VELSMOOTH;
+    if (parameters.get_bMemNewRung())      mMemoryModel |= PKD_MODEL_NEWRUNG;
 
     if (parameters.get_bMemNodeAcceleration()) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
     if (parameters.get_bMemNodeVelocity())     mMemoryModel |= PKD_MODEL_NODE_VEL;
@@ -467,11 +468,11 @@ std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemor
     ps.nBucket = parameters.get_nBucket();
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-    print("Memory Models:{position}{unordered}{velocity}{acceleration}{potential}{groups}{mass}{density}{ball}{softening}{velsmooth}{mfm}{mfv}{new_sph}"
+    print("Memory Models:{position}{unordered}{velocity}{acceleration}{potential}{groups}{mass}{density}{ball}{new_rung}{softening}{velsmooth}{mfm}{mfv}{new_sph}"
           "{star}{particle_id}{bh}{globalgid}{node_moment}{node_accel}{node_vel}{node_sphbnds}{node_bnd}{node_vbnd}{node_bob}\n",
           "position"_a = parameters.get_bMemIntegerPosition() ? " INTEGER_POSITION" : " DOUBLE_POSITION",
           "unordered"_a = SHOW(UNORDERED), "velocity"_a = SHOW(VELOCITY), "acceleration"_a = SHOW(ACCELERATION), "potential"_a = SHOW(POTENTIAL),
-          "groups"_a = SHOW(GROUPS), "mass"_a = SHOW(MASS), "density"_a = SHOW(DENSITY),
+          "groups"_a = SHOW(GROUPS), "mass"_a = SHOW(MASS), "density"_a = SHOW(DENSITY), "new_rung"_a = SHOW(NEWRUNG),
           "ball"_a = SHOW(BALL), "softening"_a = SHOW(SOFTENING), "velsmooth"_a = SHOW(VELSMOOTH), "mfm"_a = SHOW(MFM), "mfv"_a = SHOW(MFV), "new_sph"_a = SHOW(NEW_SPH),
           "star"_a = SHOW(STAR), "particle_id"_a = SHOW(PARTICLE_ID), "bh"_a = SHOW(BH), "globalgid"_a = SHOW(GLOBALGID),
           "node_moment"_a = SHOW(NODE_MOMENT), "node_accel"_a = SHOW(NODE_ACCEL), "node_vel"_a = SHOW(NODE_VEL), "node_sphbnds"_a = SHOW(NODE_SPHBNDS),
@@ -2718,8 +2719,10 @@ void MSR::InitCosmology(CSM csm) {
 }
 
 void MSR::ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung) {
-    ServiceZeroNewRung::input in(uRung,uRungLo, uRungHi);
-    mdl->RunService<ServiceZeroNewRung>(sizeof(in),&in);
+    if (parameters.get_bMemNewRung()) {
+        ServiceZeroNewRung::input in(uRung,uRungLo, uRungHi);
+        mdl->RunService<ServiceZeroNewRung>(sizeof(in),&in);
+    }
 }
 
 /*
@@ -2834,7 +2837,8 @@ void MSR::UpdateRung(uint8_t uRung) {
     int iTempRung,iOutMaxRung;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
-    if (parameters.get_bMemUnordered()&&parameters.get_bNewKDK()) return;
+    if (!parameters.get_bMemNewRung()) return;
+
 
     in.uRungLo = uRung;
     in.uRungHi = MaxRung();
@@ -3241,7 +3245,7 @@ int MSR::NewTopStepKDK(
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                              1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
     }
-    else { /*if (parameters.get_bDoGravity())*/
+    else if (parameters.get_bDoGravity()) {
         SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         SPHoptions.nPredictRung = uRung;

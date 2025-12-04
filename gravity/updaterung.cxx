@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "updaterung.h"
+#include "core/particle.h"
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
@@ -26,7 +27,7 @@ int ServiceUpdateRung::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto &out = * static_cast<output *>(vout);
     auto pkd = pst->plcl->pkd;
 
-    assert(!pkd->bNoParticleOrder);
+    assert(pkd->particles.present(PKD_FIELD::oNewRung));
     out = 0;
     for (auto &p : pkd->particles) {
         if ( p.is_active() ) {

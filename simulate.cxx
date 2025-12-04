@@ -397,7 +397,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 }
-                else {
+                else if (parameters.get_bDoGravity()) {
                     SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
                     SPHoptions.doGravity = parameters.get_bDoGravity();
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
@@ -568,9 +568,10 @@ int MSR::ValidateParameters() {
     }
 
     if (model == HYDRO_MODEL::MFM || model == HYDRO_MODEL::MFV) {
-        if (parameters.get_bNewKDK()) {
-            parameters.set_bNewKDK(false);
-            print_warning("WARNING: Meshless hydrodynamics does not support bNewKDK. Setting bNewKDK to false\n");
+        if (!parameters.get_bMemNewRung()) {
+            parameters.set_bMemNewRung(true);
+            print_warning("WARNING: Meshless hydrodynamics requires bMemNewRung. "
+                          "Setting bMemNewRung to true\n");
         }
         if (parameters.get_bDualTree()) {
             parameters.set_bDualTree(false);

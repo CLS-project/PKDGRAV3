@@ -381,6 +381,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( (mMemoryModel & PKD_MODEL_GROUPS) && !this->bNoParticleOrder) {
         particles.add<int32_t>(PKD_FIELD::oGroup,"group");
     }
+    if ( (mMemoryModel & PKD_MODEL_NEWRUNG) && this->bNoParticleOrder) {
+        // If not bNoParticleOrder (i.e., ordered) the field is already present
+        particles.add<uint8_t>(PKD_FIELD::oNewRung,"newrung");
+    }
 
     if ( mMemoryModel & PKD_MODEL_POTENTIAL ) {
         particles.add<float>(PKD_FIELD::oPotential,"phi");
@@ -2780,10 +2784,8 @@ void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSiz
 }
 
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {  /* JW: Ugly -- need to clean up */
-    if (!pkd->bNoParticleOrder) {
-        for (auto &p : pkd->particles) {
-            if (p.is_active()) p.set_new_rung(0);
-        }
+    for (auto &p : pkd->particles) {
+        if (p.is_active()) p.set_new_rung(0);
     }
 }
 
