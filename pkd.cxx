@@ -1255,77 +1255,80 @@ std::pair<int,int> pkdSwapRejects(PKD pkd,int idSwap) {
 
         pkd->AddLocal(nNewPart);
 
-        // Make sure that we have enough space for receiving the associated
-        // decorators to the newly arrived particles
-        int nNewDecorator = 0;
-        for (auto i=oldLocal; i<pkd->Local(); i++) {
-            if (pkd->particles[i].have_decorator()) {
-                nNewDecorator++;
+        if (pkd->decorators.DecoratorSize() > 0) {
+
+            // Make sure that we have enough space for receiving the associated
+            // decorators to the newly arrived particles
+            int nNewDecorator = 0;
+            for (auto i=oldLocal; i<pkd->Local(); i++) {
+                if (pkd->particles[i].have_decorator()) {
+                    nNewDecorator++;
+                }
             }
-        }
-        assert(nNewDecorator <= pkdSwapDecoratorSpace(pkd));
-        // Also only share now the associated decorators to the particles that
-        // we have just sent
+            assert(nNewDecorator <= pkdSwapDecoratorSpace(pkd));
+            // Also only share now the associated decorators to the particles that
+            // we have just sent
 
-        int nToBeSendDecorator = 0;
-        auto ephem = pkd->Ephemeral<bool>();
-        for (auto i=0; i<nSentPart; i++) {
-            // NB: We store this in reverse order so that if we need multiple
-            // swaps we no not need to know how many elements were copied before.
-            if (ephem[pkd->nRejects-i-1]) {
-                nToBeSendDecorator++;
+            int nToBeSendDecorator = 0;
+            auto ephem = pkd->Ephemeral<bool>();
+            for (auto i=0; i<nSentPart; i++) {
+                // NB: We store this in reverse order so that if we need multiple
+                // swaps we no not need to know how many elements were copied before.
+                if (ephem[pkd->nRejects-i-1]) {
+                    nToBeSendDecorator++;
+                }
             }
+
+            // i.e., sanity check, we are not miscounting the decorators
+            //        printf("%d %d \t %d %d\n", pkd->Self(), nSentPart,nToBeSendDecorator, pkd->nDecoratorRejects);
+            assert(nToBeSendDecorator <= pkd->nDecoratorRejects);
+
+            // i.e., otherwise we can not be sure that we can get all the decorators
+            //assert(pkdSwapSpace(pkd) <= pkdSwapDecoratorSpace(pkd));
+
+            nOutDecoratorBytes = pkd->nDecoratorRejects*pkd->decorators.DecoratorSize();
+            nSkipBytes = (pkd->nDecoratorRejects-nToBeSendDecorator)*pkd->decorators.DecoratorSize();
+            nBuf = pkdSwapDecoratorSpace(pkd)*pkd->decorators.DecoratorSize();
+
+            auto outDecorator = pkd->mdl->Swap(idSwap,nBuf,pkd->Decorator(pkd->DecoratorLocal()),
+                                               nOutDecoratorBytes, &nSndDecoratorBytes,&nRcvDecoratorBytes, nSkipBytes);
+
+            auto nSentDecorator = nSndDecoratorBytes/pkd->decorators.DecoratorSize();
+
+            // i.e., the swap was completed
+            assert(nSndDecoratorBytes == nOutDecoratorBytes-nSkipBytes);
+            // which should be the same as
+            assert(outDecorator == 1);
+            // i.e., we received the correct amount of decorators
+            assert(nRcvDecoratorBytes == nNewDecorator*pkd->decorators.DecoratorSize());
+            // i.e., same amount of particles and decorators was exchanged (only for gas-only sims)
+            //assert(nRcvDecoratorBytes/pkd->decorators.DecoratorSize() == nRcvBytes/pkd->particles.ParticleSize());
+
+            // printf("%d %d \t %d \t %" PRIu64 "\t %" PRIu64 "\t %" PRIu64 "\n",
+            //         pkd->Self(), outPart, pkd->nRejects, nOutBytes, nSndBytes, nRcvBytes);
+
+            pkd->decorators.Add(nRcvDecoratorBytes/pkd->decorators.DecoratorSize());
+
+            // printf("%d (%d/%d) swapped with %d a total of %d(%d) elements, changing the count from %d(%d) to %d(%d)\n",
+            //        pkd->Self(), outPart, outDecorator, idSwap, nSentPart, nSentDecorator,
+            //        oldLocal, oldDecoratorLocal, pkd->Local(), pkd->DecoratorLocal());
+            // assert (nSentPart == nSentPart); // only for gas-only simulations
+
+            pkd->nDecoratorRejects -= nSentDecorator;
+            //printf("%d have %d(%d) remaining rejects\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
+
+            // Bookkeep so that newly arrived particles have the correct decorator index
+            uint64_t d = oldDecoratorLocal;
+            for (auto i=oldLocal; i<pkd->Local(); i++) {
+                auto P = pkd->particles[i];
+                if (P.have_decorator()) {
+                    P.set_decorator_index(d);
+                    d++;
+                }
+            }
+            assert(d == pkd->DecoratorLocal());
         }
-
-        // i.e., sanity check, we are not miscounting the decorators
-//        printf("%d %d \t %d %d\n", pkd->Self(), nSentPart,nToBeSendDecorator, pkd->nDecoratorRejects);
-        assert(nToBeSendDecorator <= pkd->nDecoratorRejects);
-
-        // i.e., otherwise we can not be sure that we can get all the decorators
-        //assert(pkdSwapSpace(pkd) <= pkdSwapDecoratorSpace(pkd));
-
-        nOutDecoratorBytes = pkd->nDecoratorRejects*pkd->decorators.DecoratorSize();
-        nSkipBytes = (pkd->nDecoratorRejects-nToBeSendDecorator)*pkd->decorators.DecoratorSize();
-        nBuf = pkdSwapDecoratorSpace(pkd)*pkd->decorators.DecoratorSize();
-
-        auto outDecorator = pkd->mdl->Swap(idSwap,nBuf,pkd->Decorator(pkd->DecoratorLocal()),
-                                           nOutDecoratorBytes, &nSndDecoratorBytes,&nRcvDecoratorBytes, nSkipBytes);
-
-        auto nSentDecorator = nSndDecoratorBytes/pkd->decorators.DecoratorSize();
-
-        // i.e., the swap was completed
-        assert(nSndDecoratorBytes == nOutDecoratorBytes-nSkipBytes);
-        // which should be the same as
-        assert(outDecorator == 1);
-        // i.e., we received the correct amount of decorators
-        assert(nRcvDecoratorBytes == nNewDecorator*pkd->decorators.DecoratorSize());
-        // i.e., same amount of particles and decorators was exchanged (only for gas-only sims)
-        //assert(nRcvDecoratorBytes/pkd->decorators.DecoratorSize() == nRcvBytes/pkd->particles.ParticleSize());
-
-        // printf("%d %d \t %d \t %" PRIu64 "\t %" PRIu64 "\t %" PRIu64 "\n",
-        //         pkd->Self(), outPart, pkd->nRejects, nOutBytes, nSndBytes, nRcvBytes);
-
-        pkd->decorators.Add(nRcvDecoratorBytes/pkd->decorators.DecoratorSize());
-
-        // printf("%d (%d/%d) swapped with %d a total of %d(%d) elements, changing the count from %d(%d) to %d(%d)\n",
-        //        pkd->Self(), outPart, outDecorator, idSwap, nSentPart, nSentDecorator,
-        //        oldLocal, oldDecoratorLocal, pkd->Local(), pkd->DecoratorLocal());
-        // assert (nSentPart == nSentPart); // only for gas-only simulations
-
         pkd->nRejects -= nSentPart;
-        pkd->nDecoratorRejects -= nSentDecorator;
-        //printf("%d have %d(%d) remaining rejects\n", pkd->Self(), pkd->nRejects, pkd->nDecoratorRejects);
-
-        // Bookkeep so that newly arrived particles have the correct decorator index
-        uint64_t d = oldDecoratorLocal;
-        for (auto i=oldLocal; i<pkd->Local(); i++) {
-            auto P = pkd->particles[i];
-            if (P.have_decorator()) {
-                P.set_decorator_index(d);
-                d++;
-            }
-        }
-        assert(d == pkd->DecoratorLocal());
     }
     return std::pair<int,int>(pkd->nRejects, pkd->nDecoratorRejects);
 }
