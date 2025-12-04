@@ -173,8 +173,8 @@ struct BLACKHOLE {
     );
 };
 
-struct FIELDS {
-};
+struct FIELDS { unsigned char zero[0]; };
+static_assert(sizeof(FIELDS)==0);
 
 } // meshless
 
