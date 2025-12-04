@@ -135,6 +135,8 @@ public:
 
 class BasicService {
     friend class mdlBASE;
+    friend class LegacyService;
+    friend class NullService;
 private:
     int nInBytes;
     int nOutBytes;
@@ -142,9 +144,11 @@ private:
     std::string service_name;
 protected:
     void setServiceId(int id) { service_id = id; }
-public:
     explicit BasicService(int service_id, std::string_view service_name, int nInBytes, int nOutBytes=0)
         : nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
+public:
+    explicit BasicService(std::string_view service_name, int nInBytes, int nOutBytes=0)
+        : nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(-1),service_name(service_name) {}
     virtual ~BasicService() = default;
     int getServiceID()  {return service_id;}
     std::string_view getServiceName() const {return service_name;}
@@ -274,6 +278,12 @@ public:
         return RunService<T>(0, nullptr, pOut);
     }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
+    BasicService *GetService(std::string_view service_name) {
+        auto it = service_map.find(service_name);
+        if (it != service_map.end())
+            return services[it->second].get();
+        return nullptr;
+    }
 };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);
 int mdlBaseThreadToProc(mdlBASE *base, int iThread);

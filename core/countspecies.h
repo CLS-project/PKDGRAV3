@@ -36,8 +36,8 @@ class ServiceCountSpecies : public TraverseCount<CountSpeciesCounts> {
 public:
     static constexpr std::string_view name = "CountSpecies";
     typedef void input;
-    explicit ServiceCountSpecies(PST pst,int service_id=PST_COUNTSPECIES, std::string_view service_name=name, int nInBytes=0)
-        : TraverseCount(pst,service_id,service_name,nInBytes) {}
+    explicit ServiceCountSpecies(PST pst, std::string_view service_name=name, int nInBytes=0)
+        : TraverseCount(pst,service_name,nInBytes) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

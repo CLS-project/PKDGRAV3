@@ -50,6 +50,7 @@
 #include "group/group.h"
 #include "group/groupstats.h"
 #include "io/output.h"
+#include "core/swapall.h"
 
 #ifdef COOLING
     #include "cooling/cooling.h"
@@ -631,7 +632,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             // Now shove them over to the remote processor.
             swap_classes(pkd,id);
             inswap = mdl->Self();
-            rID = pst->mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
+            rID = pst->mdl->ReqService<ServiceSwapAll>(id,&inswap,sizeof(inswap));
             pkdSwapAll(pkd, id);
             pst->mdl->GetReply(rID);
         }
@@ -877,22 +878,6 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
         }
     }
 
-    return 0;
-}
-
-int pstSetSoft(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inSetSoft *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inSetSoft));
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_SETSOFT,in,nIn);
-        pstSetSoft(pst->pstLower,in,nIn,NULL,0);
-        pst->mdl->GetReply(rID);
-    }
-    else {
-        pkdSetSoft(plcl->pkd,in->dSoft);
-    }
     return 0;
 }
 

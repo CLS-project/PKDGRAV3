@@ -25,7 +25,7 @@ public:
         bool bAppend;
     };
     explicit ServiceRsHaloLoadIds(PST pst)
-        : ServiceInput(pst,PST_RS_HALO_LOAD_IDS,name,sizeof(input)) {}
+        : ServiceInput(pst,name,sizeof(input)) {}
     virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
     virtual void start(PST pst,uint64_t nElements,void *vin,int nIn) override;
     virtual void finish(PST pst,uint64_t nElements,void *vin,int nIn) override;

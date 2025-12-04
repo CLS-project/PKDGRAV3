@@ -2478,6 +2478,10 @@ int mdlClass::ReqService(int id,int sid,void *vin,int nInBytes) {
     return request.header.replyTag;
 }
 
+int mdlClass::ReqService(int id,std::string_view service_name,void *vin,int nInBytes) {
+    return ReqService(id,service_map.at(service_name),vin,nInBytes);
+}
+
 int mdlClass::GetReply(int rID,int nMaxBytes,void *vout) {
     assert(nMaxBytes<=nMaxSrvBytes && nMaxBytes>=0);
     mdlMessageReceiveReply receive(vout,nMaxBytes,rID,Core());

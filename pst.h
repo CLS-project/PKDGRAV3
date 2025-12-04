@@ -73,21 +73,7 @@ typedef struct pstContext {
 #define PST_MAX_FILES           16384
 
 namespace Legacy {
-inline constexpr std::string_view SetAdd = "SetAdd";
-inline constexpr std::string_view FileSizes = "FileSizes";
 inline constexpr std::string_view ReadFile = "ReadFile";
-inline constexpr std::string_view DomainDecomp = "DomainDecomp";
-inline constexpr std::string_view CalcBound = "CalcBound";
-inline constexpr std::string_view CombineBound = "CombineBound";
-inline constexpr std::string_view Weight = "Weight";
-inline constexpr std::string_view WeightWrap = "WeightWrap";
-inline constexpr std::string_view FreeStore = "FreeStore";
-inline constexpr std::string_view ColRejects = "ColRejects";
-inline constexpr std::string_view SwapRejects = "SwapRejects";
-inline constexpr std::string_view ColOrdRejects = "ColOrdRejects";
-inline constexpr std::string_view Reorder = "Reorder";
-inline constexpr std::string_view DomainOrder = "DomainOrder";
-inline constexpr std::string_view LocalOrder = "LocalOrder";
 inline constexpr std::string_view CompressASCII = "CompressASCII";
 inline constexpr std::string_view SendParticles = "SendParticles";
 inline constexpr std::string_view SendArray = "SendArray";
@@ -95,16 +81,9 @@ inline constexpr std::string_view WriteASCII = "WriteASCII";
 inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
-inline constexpr std::string_view SaveGroupStats = "SaveGroupStats";
 inline constexpr std::string_view Checkpoint = "Checkpoint";
-inline constexpr std::string_view Restore = "Restore";
 inline constexpr std::string_view BuildTree = "BuildTree";
-inline constexpr std::string_view DistribTopTree = "DistribTopTree";
-inline constexpr std::string_view DumpTrees = "DumpTrees";
 inline constexpr std::string_view TreeInitMarked = "TreeInitMarked";
-inline constexpr std::string_view CalcRoot = "CalcRoot";
-inline constexpr std::string_view DistribRoot = "DistribRoot";
-inline constexpr std::string_view EnforcePeriodic = "EnforcePeriodic";
 inline constexpr std::string_view Smooth = "Smooth";
 inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view LightCone = "LightCone";
@@ -127,17 +106,10 @@ inline constexpr std::string_view ROParticleCache = "ROParticleCache";
 inline constexpr std::string_view ParticleCacheFinish = "ParticleCacheFinish";
 inline constexpr std::string_view Kick = "Kick";
 inline constexpr std::string_view KickTree = "KickTree";
-inline constexpr std::string_view SetSoft = "SetSoft";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view SetTotal = "SetTotal";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-inline constexpr std::string_view SwapAll = "SwapAll";
 inline constexpr std::string_view ActiveOrder = "ActiveOrder";
-inline constexpr std::string_view InitCosmology = "InitCosmology";
-inline constexpr std::string_view InitLightCone = "InitLightCone";
-inline constexpr std::string_view ZeroNewRung = "ZeroNewRung";
-inline constexpr std::string_view ActiveRung = "ActiveRung";
-inline constexpr std::string_view CountRungs = "CountRungs";
 inline constexpr std::string_view AccelStep = "AccelStep";
 inline constexpr std::string_view StarForm = "StarForm";
 inline constexpr std::string_view StarFormInit = "StarFormInit";
@@ -147,12 +119,8 @@ inline constexpr std::string_view ReSmooth = "ReSmooth";
 inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
 inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
-inline constexpr std::string_view UpdateRung = "UpdateRung";
-inline constexpr std::string_view OrdWeight = "OrdWeight";
 inline constexpr std::string_view SetWriteStart = "SetWriteStart";
 inline constexpr std::string_view AddWriteStart = "AddWriteStart";
-inline constexpr std::string_view CountSpecies = "CountSpecies";
-inline constexpr std::string_view RemoveDeleted = "RemoveDeleted";
 inline constexpr std::string_view ColNParts = "ColNParts";
 inline constexpr std::string_view NewOrder = "NewOrder";
 inline constexpr std::string_view SetNParts = "SetNParts";
@@ -168,27 +136,14 @@ inline constexpr std::string_view HopUnbind = "HopUnbind";
 inline constexpr std::string_view GroupRelocate = "GroupRelocate";
 inline constexpr std::string_view GroupStats = "GroupStats";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
-inline constexpr std::string_view GetFFTMaxSizes = "GetFFTMaxSizes";
 inline constexpr std::string_view GenerateIC = "GenerateIC";
 inline constexpr std::string_view LocalGenerateIC = "LocalGenerateIC";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
-inline constexpr std::string_view HostName = "HostName";
 inline constexpr std::string_view MemStatus = "MemStatus";
 inline constexpr std::string_view GetClasses = "GetClasses";
 inline constexpr std::string_view SetClasses = "SetClasses";
 inline constexpr std::string_view SwapClasses = "SwapClasses";
-inline constexpr std::string_view CountSelected = "CountSelected";
-inline constexpr std::string_view SelSpecies = "SelSpecies";
-inline constexpr std::string_view SelMass = "SelMass";
-inline constexpr std::string_view SelById = "SelById";
-inline constexpr std::string_view SelPhaseDensity = "SelPhaseDensity";
-inline constexpr std::string_view SelGroup = "SelGroup";
-inline constexpr std::string_view SelBox = "SelBox";
-inline constexpr std::string_view SelSphere = "SelSphere";
-inline constexpr std::string_view SelCylinder = "SelCylinder";
-inline constexpr std::string_view SelBlackHoles = "SelBlackHoles";
-inline constexpr std::string_view SelActives = "SelActives";
 inline constexpr std::string_view Profile = "Profile";
 inline constexpr std::string_view CalcDistance = "CalcDistance";
 inline constexpr std::string_view CalcCOM = "CalcCOM";
@@ -218,38 +173,16 @@ inline constexpr std::string_view LightConeOpen = "LightConeOpen";
 inline constexpr std::string_view LightConeClose = "LightConeClose";
 inline constexpr std::string_view LightConeVel = "LightConeVel";
 inline constexpr std::string_view GetParticles = "GetParticles";
-inline constexpr std::string_view GetOrdSplits = "GetOrdSplits";
-inline constexpr std::string_view RsReorderIds = "RsReorderIds";
-inline constexpr std::string_view RsHaloCount = "RsHaloCount";
-inline constexpr std::string_view RsHaloLoadIds = "RsHaloLoadIds";
-inline constexpr std::string_view RsLoadIds = "RsLoadIds";
-inline constexpr std::string_view RsSaveIds = "RsSaveIds";
-inline constexpr std::string_view RsExtract = "RsExtract";
-inline constexpr std::string_view IgnoreSigBus = "IgnoreSigBus";
 inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
 inline constexpr std::string_view BHInit = "BHInit";
 inline constexpr std::string_view BHReposition = "BHReposition";
 inline constexpr std::string_view BHAccretion = "BHAccretion";
 }
 
-
+// Legacy service IDs. These will be removed in the future.
 enum pst_service {
     PST_SRV_STOP=0, /* service 0 is always STOP and handled by MDL */
-    PST_SETADD,
-    PST_FILE_SIZES,
     PST_READFILE,
-    PST_DOMAINDECOMP,
-    PST_CALCBOUND,
-    PST_COMBINEBOUND,
-    PST_WEIGHT,
-    PST_WEIGHTWRAP,
-    PST_FREESTORE,
-    PST_COLREJECTS,
-    PST_SWAPREJECTS,
-    PST_COLORDREJECTS,
-    PST_REORDER,
-    PST_DOMAINORDER,
-    PST_LOCALORDER,
     PST_COMPRESSASCII,
     PST_SENDPARTICLES,
     PST_SENDARRAY,
@@ -257,17 +190,9 @@ enum pst_service {
     PST_WRITE,
     PST_OUTPUT,
     PST_OUTPUT_SEND,
-    PST_SAVE_GROUP_STATS,
     PST_CHECKPOINT,
-    PST_RESTORE,
-    PST_RESTORE_DECORATOR,
     PST_BUILDTREE,
-    PST_DISTRIBTOPTREE,
-    PST_DUMPTREES,
     PST_TREEINITMARKED,
-    PST_CALCROOT,
-    PST_DISTRIBROOT,
-    PST_ENFORCEPERIODIC,
     PST_SMOOTH,
     PST_GRAVITY,
     PST_LIGHTCONE,
@@ -298,17 +223,10 @@ enum pst_service {
     PST_PARTICLECACHEFINISH,
     PST_KICK,
     PST_KICKTREE,
-    PST_SETSOFT,
     PST_PHYSICALSOFT,
     PST_SETTOTAL,
     PST_ONENODEREADINIT,
-    PST_SWAPALL,
     PST_ACTIVEORDER,
-    PST_INITCOSMOLOGY,
-    PST_INITLIGHTCONE,
-    PST_ZERONEWRUNG,
-    PST_ACTIVERUNG,
-    PST_COUNTRUNGS,
     PST_ACCELSTEP,
     PST_STARFORM,
     PST_STARFORMINIT,
@@ -318,19 +236,14 @@ enum pst_service {
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
 #endif
-    PST_REORDERDECORATOR,
 #ifdef OPTIM_REORDER_IN_NODES
     PST_REORDERINNODES,
 #endif
 #ifdef STELLAR_EVOLUTION
     PST_STELLAREVOLUTIONINIT,
 #endif
-    PST_UPDATERUNG,
-    PST_ORDWEIGHT,
     PST_SETWRITESTART,
     PST_ADDWRITESTART,
-    PST_COUNTSPECIES,
-    PST_REMOVEDELETED,
     PST_COLNPARTS,
     PST_NEWORDER,
     PST_SETNPARTS,
@@ -346,27 +259,14 @@ enum pst_service {
     PST_GROUP_RELOCATE,
     PST_GROUP_STATS,
     PST_INITIALIZEPSTORE,
-    PST_GETFFTMAXSIZES,
     PST_GENERATEIC,
     PLT_GENERATEIC,
     PST_MOVEIC,
     PLT_MOVEIC,
-    PST_HOSTNAME,
     PST_MEMSTATUS,
     PST_GETCLASSES,
     PST_SETCLASSES,
     PST_SWAPCLASSES,
-    PST_COUNTSELECTED,
-    PST_SELSPECIES,
-    PST_SELMASS,
-    PST_SELBYID,
-    PST_SELPHASEDENSITY,
-    PST_SELGROUP,
-    PST_SELBOX,
-    PST_SELSPHERE,
-    PST_SELCYLINDER,
-    PST_SELBLACKHOLES,
-    PST_SELACTIVES,
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
@@ -376,7 +276,6 @@ enum pst_service {
     PST_INITIALIZEEOS,
     PST_UPDATEGASVALUES,
     PST_TREEUPDATEFLAGBOUNDS,
-    PST_COUNTDISTANCE,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
     PST_GRID_DELETE_FFT,
@@ -399,15 +298,6 @@ enum pst_service {
     PST_LIGHTCONE_CLOSE,
     PST_LIGHTCONEVEL,
     PST_GET_PARTICLES,
-    PST_GET_ORD_SPLITS,
-    PST_RS_REORDER_IDS,
-    PST_RS_HALO_COUNT,
-    PST_RS_HALO_LOAD_IDS,
-    PST_RS_LOAD_IDS,
-    PST_RS_SAVE_IDS,
-    PST_RS_EXTRACT,
-    PST_IGNORE_SIGBUS,
-    PST_CACHESTATS,
 };
 
 void pstAddServices(PST,mdl::mdlClass *);
@@ -813,12 +703,6 @@ struct inKickTree {
     int iRoot;
 };
 int pstKickTree(PST,void *,int,void *,int);
-
-/* PST_SETSOFT */
-struct inSetSoft {
-    double dSoft;
-};
-int pstSetSoft(PST,void *,int,void *,int);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {

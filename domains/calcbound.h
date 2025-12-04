@@ -22,7 +22,7 @@ public:
     using input = void;
     using output = Bound;
     explicit ServiceCalcBound(PST pst)
-        : TraverseCombinePST(pst,PST_CALCBOUND,name,0,sizeof(output)) {}
+        : TraverseCombinePST(pst,name,0,sizeof(output)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Combine(void *vout,void *vout2);

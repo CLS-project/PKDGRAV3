@@ -27,7 +27,7 @@ public:
         MOMC momc;
     };
     explicit ServiceCalcRoot(PST pst)
-        : TraverseCombinePST(pst,PST_CALCROOT,name,sizeof(input),sizeof(output)) {}
+        : TraverseCombinePST(pst,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Combine(void *vout,void *vout2);

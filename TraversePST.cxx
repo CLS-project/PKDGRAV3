@@ -37,6 +37,12 @@ int TraversePST::Traverse(unsigned sid, PST pst,void *vin,int nIn,void *vout,int
     assert(service); // It would be a serious error if this was not a TraversePST service.
     return service->Traverse(pst,vin,nIn,vout,nOut);
 }
+int TraversePST::Traverse(std::string_view service_name, PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
+    auto service = dynamic_cast<TraversePST *>(mdl->GetService(service_name));
+    assert(service); // It would be a serious error if this was not a TraversePST service.
+    return service->Traverse(pst,vin,nIn,vout,nOut);
+}
 
 // This is the default function for when we are still traversing the PST
 // (OffNode,AtNode,Recurse) and will just naively recurse. Once we reach

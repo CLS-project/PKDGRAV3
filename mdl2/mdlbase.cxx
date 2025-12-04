@@ -120,13 +120,12 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     /*
     ** Now allocate the initial service slots.
     */
-    services.resize(MDL_DEFAULT_SERVICES);
     service_map.reserve(MDL_DEFAULT_SERVICES);
     /*
     ** Provide a 'null' service for sid = 0, so that stopping the
     ** service handler is well defined!
     */
-    services[0] = std::make_unique<NullService>();
+    services.push_back(std::make_unique<NullService>());
 }
 
 mdlBASE::~mdlBASE() {
@@ -159,7 +158,7 @@ int mdlBASE::AddService(int sid, void *p1,
                         int nInBytes, int nOutBytes, std::string_view service_name) {
     if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
-    if (sid >= services.size()) services.resize(sid+9);
+    if (sid >= services.size()) services.resize(sid+1);
     assert(services[sid]==nullptr);
     services[sid] = std::make_unique<LegacyService>(fcnService,service_name,p1,sid,nInBytes,nOutBytes);
     auto result = service_map.insert({service_name, sid});
@@ -173,13 +172,13 @@ int mdlBASE::AddService(std::unique_ptr<BasicService> service) {
     auto sid = service->getServiceID();
     if (service->getMaxBytesIn()  > nMaxInBytes)  nMaxInBytes  = service->getMaxBytesIn();
     if (service->getMaxBytesOut() > nMaxOutBytes) nMaxOutBytes = service->getMaxBytesOut();
-    if (sid >= services.size()) services.resize(sid+9);
-    assert(services[sid]==nullptr);
+    sid = services.size();
+    service->setServiceId(sid);
     auto result = service_map.insert({service->getServiceName(), sid});
     if (!result.second) {
         throw std::runtime_error("Service name already exists: " + std::string(service->getServiceName()));
     }
-    services[sid] = std::move(service);
+    services.push_back(std::move(service));
     return sid;
 }
 

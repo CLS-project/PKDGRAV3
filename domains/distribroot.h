@@ -25,7 +25,7 @@ public:
     };
     typedef void output;
     explicit ServiceDistribRoot(PST pst)
-        : TraversePST(pst,PST_DISTRIBROOT,name,sizeof(input)) {}
+        : TraversePST(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

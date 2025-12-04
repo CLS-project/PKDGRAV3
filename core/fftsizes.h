@@ -28,7 +28,7 @@ public:
         int nMaxY;
     };
     explicit ServiceFftSizes(PST pst)
-        : TraverseCombinePST(pst,PST_GETFFTMAXSIZES,name,sizeof(input),sizeof(output)) {}
+        : TraverseCombinePST(pst,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Combine(void *vout,void *vout2);

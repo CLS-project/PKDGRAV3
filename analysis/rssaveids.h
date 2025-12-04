@@ -25,7 +25,7 @@ public:
     using output = void;
 
     explicit ServiceRsSaveIds(PST pst)
-        : ServiceOutput(pst,PST_RS_SAVE_IDS,name,sizeof(input)) {}
+        : ServiceOutput(pst,name,sizeof(input)) {}
 protected:
     virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
 };

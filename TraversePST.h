@@ -27,8 +27,8 @@
 class TraversePST : public mdl::BasicService {
     PST node_pst;
 public:
-    explicit TraversePST(PST node_pst,int service_id, std::string_view service_name, int nInBytes=0, int nOutBytes=0 )
-        : BasicService(service_id, service_name, nInBytes, nOutBytes), node_pst(node_pst) {}
+    explicit TraversePST(PST node_pst, std::string_view service_name, int nInBytes=0, int nOutBytes=0 )
+        : BasicService(service_name, nInBytes, nOutBytes), node_pst(node_pst) {}
     virtual ~TraversePST() = default;
     int ReqService(PST pst,void *vin,int nIn);
 protected:
@@ -41,14 +41,19 @@ protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) = 0;
 protected:
     static  int Traverse(unsigned sid, PST pst,void *vin,int nIn,void *vout,int nOut);
+    static  int Traverse(std::string_view service_name, PST pst,void *vin,int nIn,void *vout,int nOut);
+    template<typename T>
+    static  int Traverse(PST pst,void *vin,int nIn,void *vout,int nOut) {
+        return Traverse(T::name,pst,vin,nIn,vout,nOut);
+    }
 };
 
 // This class is for services where the input does not change as the PST is walked,
 // but where a customized Combine for a fixed size output is needed.
 class TraverseCombinePST : public TraversePST {
 public:
-    explicit TraverseCombinePST(PST node_pst,int service_id, std::string_view service_name, int nInBytes, int nOutBytes)
-        : TraversePST(node_pst,service_id, service_name, nInBytes, nOutBytes) {}
+    explicit TraverseCombinePST(PST node_pst, std::string_view service_name, int nInBytes, int nOutBytes)
+        : TraversePST(node_pst, service_name, nInBytes, nOutBytes) {}
     virtual ~TraverseCombinePST() = default;
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final;
@@ -60,8 +65,8 @@ protected:
 template<typename OUTPUT>
 class TraverseGatherPST : public TraversePST {
 public:
-    explicit TraverseGatherPST(PST node_pst,int service_id, std::string_view service_name, int nInBytes, int nOutBytes)
-        : TraversePST(node_pst,service_id, service_name, nInBytes, nOutBytes) {}
+    explicit TraverseGatherPST(PST node_pst, std::string_view service_name, int nInBytes, int nOutBytes)
+        : TraversePST(node_pst, service_name, nInBytes, nOutBytes) {}
     virtual ~TraverseGatherPST() = default;
     using output = OUTPUT;
 protected:
@@ -89,8 +94,8 @@ class TraverseCount : public TraverseCombinePST {
 public:
     typedef TYPENAME output;
     static_assert(std::is_standard_layout<output>());
-    explicit TraverseCount(PST pst,int service_id,std::string_view service_name, int nInBytes=0)
-        : TraverseCombinePST(pst,service_id,service_name,nInBytes,sizeof(output)) {}
+    explicit TraverseCount(PST pst,std::string_view service_name, int nInBytes=0)
+        : TraverseCombinePST(pst,service_name,nInBytes,sizeof(output)) {}
 protected:
     int Combine(void *vout,void *vout2) final {
         auto out  = static_cast<output *>(vout);

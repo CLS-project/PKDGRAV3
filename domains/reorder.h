@@ -34,7 +34,7 @@ public:
     };
     typedef void output;
     explicit ServiceReorder(PST pst)
-        : TraversePST(pst,PST_REORDER,name,sizeof(input)) {}
+        : TraversePST(pst,name,sizeof(input)) {}
 protected:
     virtual int OffNode(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int  AtNode(PST pst,void *vin,int nIn,void *vout,int nOut) override;

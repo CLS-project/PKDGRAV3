@@ -22,7 +22,7 @@ public:
     using input = Bound;
     using output = void;
     explicit ServiceEnforcePeriodic(PST pst)
-        : TraversePST(pst,PST_ENFORCEPERIODIC,name,sizeof(input)) {}
+        : TraversePST(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

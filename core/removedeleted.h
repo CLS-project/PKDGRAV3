@@ -25,8 +25,8 @@ public:
     static constexpr std::string_view name = "RemoveDeleted";
     using ServiceCountSpecies::input;
     using ServiceCountSpecies::output;
-    explicit ServiceRemoveDeleted(PST pst,int service_id=PST_REMOVEDELETED, std::string_view service_name=name, int nInBytes=0)
-        : ServiceCountSpecies(pst,service_id,service_name,nInBytes) {}
+    explicit ServiceRemoveDeleted(PST pst, std::string_view service_name=name, int nInBytes=0)
+        : ServiceCountSpecies(pst,service_name,nInBytes) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

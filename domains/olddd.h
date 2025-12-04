@@ -31,7 +31,7 @@ public:
         int nLocal;
     };
     explicit ServiceColRejects(PST pst)
-        : TraversePST(pst,PST_COLREJECTS,name,0,pst->mdl->Threads()*sizeof(output)) {}
+        : TraversePST(pst,name,0,pst->mdl->Threads()*sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -43,7 +43,7 @@ public:
     typedef int input;
     typedef ServiceColRejects::output output;
     explicit ServiceSwapRejects(PST pst)
-        : TraversePST(pst,PST_SWAPREJECTS,name,
+        : TraversePST(pst,name,
                       pst->mdl->Threads()*sizeof(input),
                       pst->mdl->Threads()*sizeof(output)) {}
 protected:
@@ -60,7 +60,7 @@ public:
     };
     typedef ServiceColRejects::output output;
     explicit ServiceColOrdRejects(PST pst)
-        : TraversePST(pst,PST_COLORDREJECTS,name,0,pst->mdl->Threads()*sizeof(output)) {}
+        : TraversePST(pst,name,0,pst->mdl->Threads()*sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -68,8 +68,8 @@ protected:
 
 class ServiceDomain : public TraversePST {
 public:
-    explicit ServiceDomain(PST node_pst,int service_id,std::string_view service_name, int nInBytes)
-        : TraversePST(node_pst,service_id, service_name, nInBytes) {}
+    explicit ServiceDomain(PST node_pst,std::string_view service_name, int nInBytes)
+        : TraversePST(node_pst, service_name, nInBytes) {}
 protected:
     int RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,ServiceColRejects::output *p2,int *pidSwap);
 };
@@ -87,7 +87,7 @@ public:
     };
     typedef void output;
     explicit ServiceDomainDecomp(PST pst)
-        : ServiceDomain(pst,PST_DOMAINDECOMP,name,sizeof(input)) {}
+        : ServiceDomain(pst,name,sizeof(input)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -108,7 +108,7 @@ public:
     };
     typedef void output;
     explicit ServiceDomainOrder(PST pst)
-        : ServiceDomain(pst,PST_DOMAINORDER,name,sizeof(input)) {}
+        : ServiceDomain(pst,name,sizeof(input)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -128,7 +128,7 @@ public:
     };
     typedef void output;
     explicit ServiceLocalOrder(PST pst)
-        : TraversePST(pst,PST_LOCALORDER,name,sizeof(input)) {}
+        : TraversePST(pst,name,sizeof(input)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -152,7 +152,7 @@ public:
         double fHigh;
     };
     explicit ServiceWeight(PST pst)
-        : TraversePST(pst,PST_WEIGHT,name,sizeof(input),sizeof(output)) {}
+        : TraversePST(pst,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -173,7 +173,7 @@ public:
         uint64_t nHigh;
     };
     explicit ServiceWeightWrap(PST pst)
-        : TraversePST(pst,PST_WEIGHTWRAP,name,sizeof(input),sizeof(output)) {}
+        : TraversePST(pst,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
@@ -192,7 +192,7 @@ public:
         uint64_t nHigh;
     };
     explicit ServiceOrdWeight(PST pst)
-        : TraversePST(pst,PST_ORDWEIGHT,name,sizeof(input),sizeof(output)) {}
+        : TraversePST(pst,name,sizeof(input),sizeof(output)) {}
 protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;

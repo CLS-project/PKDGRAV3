@@ -454,6 +454,18 @@ public:
     int ReqService(int id,int sid,T &in) {
         return ReqService(id,sid,&in,sizeof(in));
     }
+    int ReqService(int id,std::string_view service_name,void *vin,int nInBytes);
+    int ReqService(int id,std::string_view service_name) {
+        return ReqService(id,service_name,nullptr,0);
+    }
+    template<typename S>
+    int ReqService(int id,void *vin,int nInBytes) {
+        return ReqService(id,S::name,vin,nInBytes);
+    }
+    template<typename S>
+    int ReqService(int id) {
+        return ReqService(id,S::name);
+    }
     int GetReply(int rID,int nMaxBytes=0,void *vout=nullptr);
     template<typename T, typename std::enable_if<!std::is_pointer<T>::value, int>::type = 0>
     int GetReply(int rID,T &out) {

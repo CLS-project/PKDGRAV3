@@ -27,7 +27,7 @@ public:
     };
     typedef void output;
     explicit ServiceDistribTopTree(PST pst)
-        : TraversePST(pst,PST_DISTRIBTOPTREE,name,
+        : TraversePST(pst,name,
                       sizeof(input)
                       + (pst->mdl->Threads()==1?1:2*pst->mdl->Threads()-1)*pkdContext::MaxNodeSize()) {}
 protected:

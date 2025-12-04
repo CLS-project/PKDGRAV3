@@ -55,7 +55,7 @@ public:
     using output = void;
 
     explicit ServiceSaveGroupStats(PST pst)
-        : ServiceOutput(pst,PST_SAVE_GROUP_STATS,name,sizeof(input)) {}
+        : ServiceOutput(pst,name,sizeof(input)) {}
 protected:
     virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
 };

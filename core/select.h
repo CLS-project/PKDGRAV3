@@ -21,7 +21,7 @@ public:
     static constexpr std::string_view name = "CountSelected";
     typedef void input;
     explicit ServiceCountSelected(PST pst)
-        : TraverseCount(pst,PST_COUNTSELECTED,name) {}
+        : TraverseCount(pst,name) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -37,7 +37,7 @@ public:
             : setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelActives(PST pst)
-        : TraverseCount(pst,PST_SELACTIVES,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -52,7 +52,7 @@ public:
             : setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelBlackholes(PST pst)
-        : TraverseCount(pst,PST_SELBLACKHOLES,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -69,7 +69,7 @@ public:
             : mSpecies(mSpecies), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelSpecies(PST pst)
-        : TraverseCount(pst,PST_SELSPECIES,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -86,7 +86,7 @@ public:
             : iGroup(iGroup), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelGroup(PST pst)
-        : TraverseCount(pst,PST_SELGROUP,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -104,7 +104,7 @@ public:
             : dMinMass(dMinMass), dMaxMass(dMaxMass), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelMass(PST pst)
-        : TraverseCount(pst,PST_SELMASS,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -122,7 +122,7 @@ public:
             : dMinDensity(dMinDensity), dMaxDensity(dMaxDensity), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelPhaseDensity(PST pst)
-        : TraverseCount(pst,PST_SELPHASEDENSITY,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -140,7 +140,7 @@ public:
             : idStart(idStart), idEnd(idEnd), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelById(PST pst)
-        : TraverseCount(pst,PST_SELBYID,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -163,7 +163,7 @@ public:
             : dCenter{p0,p1,p2}, dSize{s0,s1,s2}, setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelBox(PST pst)
-        : TraverseCount(pst,PST_SELBOX,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -185,7 +185,7 @@ public:
             : r{r0,r1,r2}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelSphere(PST pst)
-        : TraverseCount(pst,PST_SELSPHERE,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
@@ -210,7 +210,7 @@ public:
             : dP1{ra0,ra1,ra2}, dP2{rb0,rb1,rb2}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
     explicit ServiceSelCylinder(PST pst)
-        : TraverseCount(pst,PST_SELCYLINDER,name,sizeof(input)) {}
+        : TraverseCount(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };

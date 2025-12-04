@@ -36,8 +36,8 @@ public:
         char filename[PATH_MAX];
     };
     typedef void output;
-    explicit ServiceIO(PST pst,int service_id,std::string_view service_name=name,int nInBytes=0)
-        : TraversePST(pst,service_id,service_name,nInBytes+sizeof(input)) {}
+    explicit ServiceIO(PST pst,std::string_view service_name=name,int nInBytes=0)
+        : TraversePST(pst,service_name,nInBytes+sizeof(input)) {}
 private:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) final;
@@ -62,8 +62,8 @@ public:
         uint64_t nFileBytes : 40;
         uint64_t iFileIndex : 24;
     };
-    explicit ServiceFileSizes(PST pst,int service_id=PST_FILE_SIZES,std::string_view service_name=name)
-        : TraversePST(pst,service_id,service_name,sizeof(input),max_files*(sizeof(output))) {}
+    explicit ServiceFileSizes(PST pst,std::string_view service_name=name)
+        : TraversePST(pst,service_name,sizeof(input),max_files*(sizeof(output))) {}
 private:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) final;
@@ -90,8 +90,8 @@ public:
     static constexpr int max_files = 100'000;
     using io_elements = uint64_t; // Read this many elements
     typedef void output;
-    explicit ServiceInput(PST pst,int service_id,std::string_view service_name=name,int nInBytes=0)
-        : ServiceIO(pst,service_id,service_name,nInBytes+sizeof(input)+max_files*(sizeof(io_elements))) {}
+    explicit ServiceInput(PST pst,std::string_view service_name=name,int nInBytes=0)
+        : ServiceIO(pst,service_name,nInBytes+sizeof(input)+max_files*(sizeof(io_elements))) {}
 protected:
     virtual int do_lower(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int do_upper(PST pst,void *vin,int nIn) override;
@@ -115,8 +115,8 @@ public:
         ServiceIO::input io;
     };
     typedef void output;
-    explicit ServiceOutput(PST pst,int service_id,std::string_view service_name=name,int nInBytes=0)
-        : ServiceIO(pst,service_id,service_name,nInBytes+sizeof(input)) {}
+    explicit ServiceOutput(PST pst,std::string_view service_name=name,int nInBytes=0)
+        : ServiceIO(pst,service_name,nInBytes+sizeof(input)) {}
 protected:
     virtual void IO(PST pst,void *vin,int nIn,int iGroup,int iSegment,int nSegment) override;
 protected:

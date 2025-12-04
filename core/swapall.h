@@ -27,7 +27,7 @@ public:
     };
     typedef void output;
     explicit ServiceSwapAll(PST node_pst)
-        : BasicService(PST_SWAPALL, name, sizeof(input)), node_pst(node_pst) {}
+        : BasicService(name, sizeof(input)), node_pst(node_pst) {}
 protected:
     virtual int operator()(int nIn, void *pIn, void *pOut) override;
 };

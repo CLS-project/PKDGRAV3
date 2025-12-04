@@ -28,7 +28,7 @@ public:
         uint8_t uMaxRung; // Maximum it can be set to
     };
     explicit ServiceUpdateRung(PST pst)
-        : ServiceCountRungs(pst,PST_UPDATERUNG,name) {}
+        : ServiceCountRungs(pst,name) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

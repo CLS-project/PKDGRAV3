@@ -27,7 +27,7 @@ public:
     };
     typedef void output;
     explicit ServiceDumpTrees(PST pst)
-        : TraversePST(pst,PST_DUMPTREES,name,sizeof(input)) {}
+        : TraversePST(pst,name,sizeof(input)) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

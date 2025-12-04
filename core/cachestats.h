@@ -40,8 +40,8 @@ class ServiceCacheStats : public TraverseCount<CacheStats> {
 public:
     static constexpr std::string_view name = "CacheStats";
     typedef void input;
-    explicit ServiceCacheStats(PST pst,int service_id=PST_CACHESTATS, std::string_view service_name=name, int nInBytes=0)
-        : TraverseCount(pst,service_id,service_name,nInBytes) {}
+    explicit ServiceCacheStats(PST pst, std::string_view service_name=name, int nInBytes=0)
+        : TraverseCount(pst,service_name,nInBytes) {}
 protected:
     // We are collecting MPI statistics at each node, so we use AtNode to do the work
     virtual int AtNode(PST pst,void *vin,int nIn,void *vout,int nOut) {

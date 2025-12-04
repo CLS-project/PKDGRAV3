@@ -24,7 +24,7 @@ class ServiceRestore : public ServiceInput {
 public:
     static constexpr std::string_view name = "Restore";
     explicit ServiceRestore(PST pst)
-        : ServiceInput(pst,PST_RESTORE, name) {}
+        : ServiceInput(pst,name) {}
     virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
 };
 
@@ -32,7 +32,7 @@ class ServiceRestoreDecorator : public ServiceInput {
 public:
     static constexpr std::string_view name = "RestoreDecorator";
     explicit ServiceRestoreDecorator(PST pst)
-        : ServiceInput(pst,PST_RESTORE_DECORATOR, name) {}
+        : ServiceInput(pst,name) {}
     virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
 };
 

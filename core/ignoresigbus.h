@@ -22,7 +22,7 @@ public:
     typedef void input;
     typedef void output;
     explicit ServiceIgnoreSIGBUS(PST pst)
-        : TraversePST(pst,PST_IGNORE_SIGBUS,name) {}
+        : TraversePST(pst,name) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
 };

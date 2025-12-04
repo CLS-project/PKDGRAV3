@@ -25,7 +25,7 @@ public:
     //     uint64_t iMaxOrder;
     // };
     explicit ServiceGetOrdSplits(PST pst)
-        : TraverseGatherPST(pst,PST_GET_ORD_SPLITS,name,0,sizeof(output)*pst->mdl->Threads()) {}
+        : TraverseGatherPST(pst,name,0,sizeof(output)*pst->mdl->Threads()) {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) final;
 };

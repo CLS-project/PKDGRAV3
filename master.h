@@ -623,7 +623,7 @@ public:
     uint64_t SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true);
 
 public:
-    void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string_view filename,bool bAppend=false);
+    void RsLoadIds(std::string_view service_name,std::vector<uint64_t> &counts,const std::string_view filename,bool bAppend=false);
     void RsLoadIds(const std::string_view filename,bool bAppend=false);
     void RsHaloLoadIds(const std::string_view filename,bool bAppend=false);
     void RsSaveIds(const std::string_view filename);

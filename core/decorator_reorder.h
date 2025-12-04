@@ -18,10 +18,11 @@
 
 class ServiceReorderDecorator : public TraversePST {
 public:
+    static constexpr std::string_view name = "ReorderDecorator";
     typedef void input;
     typedef void output;
     explicit ServiceReorderDecorator(PST pst)
-        : TraversePST(pst,PST_REORDERDECORATOR,"ReorderDecorator",0,0) {}
+        : TraversePST(pst,name,0,0) {}
 protected:
     int Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
         auto pkd = pst->plcl->pkd;
