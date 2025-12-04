@@ -421,11 +421,11 @@ public:
     particleStore particles;
     decoratorStore decorators;
     treeStore tree;
-    int FreeStore() { return particles.FreeStore(); }
-    int FreeDecoratorStore() { return decorators.FreeStore(); }
+    int FreeStore() { return particles.capacity(); }
+    int FreeDecoratorStore() { return decorators.capacity(); }
     // I do not like at all the name "Local" for indicating the number of particles...
-    int Local() { return particles.Local(); }
-    int DecoratorLocal() { return decorators.Local(); }
+    int Local() { return particles.size(); }
+    int DecoratorLocal() { return decorators.size(); }
     int SetLocal(int n);
     int AddLocal(int n);
     auto EphemeralElementBytes() {return nEphemeralBytes; }
@@ -433,7 +433,7 @@ public:
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(Bound) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return tree.ElementSize(); }
     auto DecoratorSize() { return decorators.ElementSize(); }
-    auto DecoratorMemory() { return decorators.ElementSize() * (decorators.FreeStore()+1); }
+    auto DecoratorMemory() { return decorators.ElementSize() * (decorators.capacity()+1); }
     auto ParticleMemory() { return (particles.ParticleSize() + EphemeralElementBytes()) * (FreeStore()+1); }
     PARTICLE *Particle(int i) { return particles.Element(i); }
     decorators::FIELDS *Decorator(int i) { return decorators.Element(i); }
@@ -452,7 +452,7 @@ public:
     }
 public:
     auto Nodes() const {
-        return tree.Nodes();
+        return tree.size();
     }
     auto Node(KDN *pBase,int iNode) {
         return tree.Element(pBase,iNode);
@@ -461,10 +461,10 @@ public:
         return tree[iNode];
     }
     auto TreeAlignNode() {
-        return tree.AlignNode();
+        return tree.align();
     }
     auto TreeAllocNode(int n=1) {
-        return tree.AllocNode(n);
+        return tree.append(n);
     }
     void TreeAllocNodePair(int *iLeft, int *iRight) {
         *iLeft = TreeAllocNode();
@@ -659,7 +659,7 @@ protected:
     pkdContext *pkd;
 public:
     explicit treeCACHEhelper(pkdContext *pkd)
-        : CACHEhelper(pkd->NodeSize(),pkd->tree.Nodes(),false), pkd(pkd) {}
+        : CACHEhelper(pkd->NodeSize(),pkd->tree.size(),false), pkd(pkd) {}
     virtual void *get_element(uint32_t i) override final {
         return pkd->tree[i];
     }

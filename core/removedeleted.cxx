@@ -33,7 +33,7 @@ int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
         if (p->have_decorator())
             remove_decorator++;
 
-    auto objective_decorators = pkd->decorators.Local() - remove_decorator;
+    auto objective_decorators = pkd->decorators.size() - remove_decorator;
     if (remove_decorator) {
         auto ephem = pkd->Ephemeral<uint32_t>();
 
@@ -48,7 +48,7 @@ int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
         for (auto p=i; p<pkd->particles.end(); p++) {
             auto prev_decor = p->decorator_field();
             // Objective index for the decorator
-            auto iDecorator = pkd->decorators.Local()-remove_decorator;
+            auto iDecorator = pkd->decorators.size()-remove_decorator;
 
             // Get the particle
             auto particle_to_swap = pkd->particles[ephem[iDecorator]];

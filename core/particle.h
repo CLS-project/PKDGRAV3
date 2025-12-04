@@ -592,9 +592,8 @@ public:
     }
 
     auto NewParticle() {
-        assert(Local()<FreeStore());
-        auto i = Local();
-        SetLocal(Local()+1);
+        assert(size()<capacity());
+        auto i = append();
         auto p = ParticlePointer(*this,i);
         if (!bNoParticleOrder) p->set_order(IORDERMAX);
         return p;
@@ -620,9 +619,9 @@ public:
     auto begin()        noexcept { return iterator(*this,Base()); }
     auto begin()  const noexcept { return const_iterator(*this,Base()); }
     auto cbegin() const noexcept { return const_iterator(*this,Base()); }
-    auto end()          noexcept { return iterator(*this,Element(Local())); }
-    auto end()    const noexcept { return const_iterator(*this,Element(Local())); }
-    auto cend()   const noexcept { return const_iterator(*this,Element(Local())); }
+    auto end()          noexcept { return iterator(*this,Element(size())); }
+    auto end()    const noexcept { return const_iterator(*this,Element(size())); }
+    auto cend()   const noexcept { return const_iterator(*this,Element(size())); }
 
 public:
     void setClass( float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies, PARTICLE *p ) {
@@ -667,7 +666,7 @@ public:
             }
 
             /* Now update the class with the new value */
-            for (auto i=0; i<Local(); ++i) {
+            for (auto i=0; i<size(); ++i) {
                 p = Element(i);
                 assert( p->iClass < ParticleClasses.size() );
                 p->iClass = map[p->iClass];

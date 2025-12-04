@@ -50,29 +50,28 @@ protected:
     }
 
 public:
-    auto Nodes() const { return nNodes; }
-
-    void SetNodeCount(int n) {
-        nNodes = n;
-        while (nNodes > nMaxNodes) extend();
-    }
-
-    auto memory() const {
-        return tiles.size() * ElementSize() * (1<<nBitsLo);
-    }
-
-    auto AlignNode() {
-        if (nNodes&1) ++nNodes;
-        return nNodes;
-    }
+    size_t capacity() const { return (size_t(1) << (nBitsLo+nBitsHi)) - 1; }
+    size_t size() const { return nNodes; }
 
     //! Allocate one or more elements. Extend if necessary
     //! \param n Number of elements to allocate
-    auto AllocNode(int n=1) {
+    size_t append(int n=1) {
         int iNode = nNodes;
         nNodes += n;
         while (nNodes > nMaxNodes) extend();
         return iNode;
+    }
+    void resize(int n) {
+        nNodes = n;
+        while (nNodes > nMaxNodes) extend();
+    }
+    size_t align() {
+        if (nNodes&1) ++nNodes;
+        return nNodes;
+    }
+
+    size_t memory() const {
+        return tiles.size() * ElementSize() * (1<<nBitsLo);
     }
 
     //! Set the size and location of the storage.

@@ -52,14 +52,10 @@ public:
     uint64_t DecoratorIndex(const value_type *d) const {
         return (reinterpret_cast<const char *>(d)-reinterpret_cast<char *const>(pStore))/ElementSize();
     }
-    void Add(int i) { SetLocal(Local()+i); }
+    void Add(int i) { append(); }
     int SetLocal(int n) {
-        nLocal = n;
-        return nLocal;
-    }
-    uint64_t append() {
-        SetLocal(Local()+1);
-        return Local()-1; //NB: we return the index, not the number
+        resize(n);
+        return n;
     }
 
     const auto &mfm( const decorators::FIELDS *d ) const {

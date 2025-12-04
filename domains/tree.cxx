@@ -47,7 +47,7 @@ uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop, in
     auto LocalRoot = pkd->tree[uRoot];
 
     if (allocateMemory) {
-        iTop = pkd->iTopTree[uRoot] = pkd->tree.AllocNode(nTop);
+        iTop = pkd->iTopTree[uRoot] = pkd->tree.append(nTop);
     }
     else {
         iTop = pkd->iTopTree[uRoot];
@@ -89,7 +89,7 @@ void pkdTreeInitMarked(PKD pkd) {
     auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return p.marked();}) - pkd->particles.begin();
     pRoot->set_local(0,i-1);
     pRootFix->set_local(i,pkd->Local() - 1);
-    pkd->tree.SetNodeCount(NRESERVED_NODES);
+    pkd->tree.resize(NRESERVED_NODES);
     pRoot->set_group(true);
     pRootFix->set_group(true);
 }
@@ -99,7 +99,7 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 
     if (pkd->Nodes() == 0) {
         assert(bOnlyVA==0);
-        pkd->tree.SetNodeCount(NRESERVED_NODES);
+        pkd->tree.resize(NRESERVED_NODES);
         pkd->tree[ROOT]->set_local();
         pkd->tree[FIXROOT]->set_local();
     }
@@ -112,13 +112,13 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
     if (uRungDD == IRUNGMAX) {
         pRoot->set_local(0,pkd->Local() - 1);
         pRoot->set_group(true);
-        pkd->tree.SetNodeCount(NRESERVED_NODES);
+        pkd->tree.resize(NRESERVED_NODES);
     }
     /* Just rebuilding (active) ROOT. Truncate it. pLower and pUpper are still valid. */
     else if (bOnlyVA) {
         if (pRoot->is_cell()) {
             assert(pRoot->lchild() >= NRESERVED_NODES);
-            pkd->tree.SetNodeCount(pRoot->lchild()); /* This effectively truncates the nodes used by this tree */
+            pkd->tree.resize(pRoot->lchild()); /* This effectively truncates the nodes used by this tree */
             pRoot->set_local(pRoot->lower(),pRoot->upper());
             pRoot->set_group(true);
         }
@@ -137,7 +137,7 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
         [uRungDD](auto &p) {return p.rung() < uRungDD;})
         - pkd->particles.begin();
 
-        pkd->tree.SetNodeCount(NRESERVED_NODES);
+        pkd->tree.resize(NRESERVED_NODES);
         pRoot->set_local(iLast+1,pkd->Local() - 1);
         pRoot->set_group(true);
         pRootFix->set_local(0,iLast);
@@ -833,7 +833,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
     /*
     ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
     */
-    pkd->tree.SetNodeCount(NRESERVED_NODES);
+    pkd->tree.resize(NRESERVED_NODES);
 
     if (pkd->hopSavedRoots == 0) {
         /* Sort particle by group, but with group 0 at the end */
@@ -908,7 +908,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
         pkd->hopSavedRoots = pkd->Nodes();
     }
     else {
-        pkd->tree.SetNodeCount(pkd->hopSavedRoots);
+        pkd->tree.resize(pkd->hopSavedRoots);
         for (auto gid2=1; gid2<pkd->nGroups; ++gid2) {
             if (!pkd->hopGroups[gid2].bNeedGrav) continue;
             iRoot = pkd->hopGroups[gid2].iTreeRoot;

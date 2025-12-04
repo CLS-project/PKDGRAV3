@@ -27,6 +27,8 @@
 //! individual fields
 template<typename DATA,typename FIELD>
 class dataStore : public datafields::Fields<DATA,FIELD> {
+public:
+    using datafields::Fields<DATA,FIELD>::ElementSize;
 protected:
     DATA *pStore = nullptr;         //!< Pointer to the first element
     int nStore = 0;                 //!< Maximum number of element that can be stored
@@ -40,14 +42,34 @@ public:
         pStore = static_cast<DATA *>(p);
         nStore = n;
     }
+    void setStore(int Lo, int Hi, uint64_t nData=0, void *pData=nullptr) {
+        setStore(pData,nData);
+    }
 protected:
     DATA *Base() const { return pStore; }
 public:
     using datafields::Fields<DATA,FIELD>::Element;
+    size_t capacity() const { return nStore; }
+    size_t size() const { return nLocal; }
+    size_t append(int n=1) {
+        int iNode = nLocal;
+        nLocal += n;
+        return iNode;
+    }
+    void resize(int n) {
+        nLocal = n;
+    }
+    size_t align() {
+        if (nLocal&1) ++nLocal;
+        return nLocal;
+    }
+
+    size_t memory() const {
+        return size() * ElementSize();
+    }
+
     DATA *Element(int i) const { return this->Element(Base(),i); }
-    int FreeStore() const { return nStore; }
-    int Local() const { return nLocal; }
-    int SetLocal(int n) { return (nLocal=n);}
+
     DATA *operator[](int i) {return Element(i);}
     operator void *() {return Base();}
 };

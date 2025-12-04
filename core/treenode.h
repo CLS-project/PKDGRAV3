@@ -258,7 +258,7 @@ public:
         /// are initialized as buckets (but can be later split).
         auto split(int i) {
             assert(i>lower() && i<=upper());
-            p->iLower = store().AllocNode(2);
+            p->iLower = store().append(2);
             NodePointer pLeft(store(),lchild());
             pLeft->set_local(lower(),i-1);
             pLeft->set_depth(depth()+1);

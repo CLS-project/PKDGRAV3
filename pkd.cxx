@@ -260,8 +260,8 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,blitz::TinyVector<double,3>
 }
 
 void pkdContext::set_factor(std::uint32_t factor) {
-    assert(particles.Local() == 0); // Must be called before any particles are allocated
-    assert(tree.Nodes() == 0); // Must be called before any nodes are allocated
+    assert(particles.size() == 0); // Must be called before any particles are allocated
+    assert(tree.size() == 0); // Must be called before any nodes are allocated
     Integerize::set_factor(factor);
     particles.set_factor(factor);
     tree.set_factor(factor);
@@ -529,7 +529,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** Initialize global group id.
     */
     if (particles.present(PKD_FIELD::oGlobalGid)) {
-        for (pi=0; pi<(particles.FreeStore()+1); ++pi) {
+        for (pi=0; pi<(particles.capacity()+1); ++pi) {
             p = Particle(pi);
             particles.global_gid(p) = 0;
         }
@@ -562,7 +562,8 @@ int pkdContext::SetLocal(int n) {
     // It is important that if the particle store has changed that we invalidate the tree
     // This is done by setting the root node to all particles
     tree[ROOT]->set_local(0,n - 1);
-    return particles.SetLocal(n);
+    particles.resize(n);
+    return n;
 }
 
 /// @brief Increment the number of local particles
@@ -1963,7 +1964,7 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,Bound bnd,fioSpe
         writeParticle(pkd,fio,dvFac,dvFacGas,bnd,p);
         ++nWritten[p.species()];
     }
-    return pkd->particles.Local();
+    return pkd->particles.size();
 }
 
 void pkdSetSoft(PKD pkd,double dSoft) {
