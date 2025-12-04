@@ -55,8 +55,9 @@ public:
 
     template<typename T>
     void add(FIELD f,std::string_view name) {
+        static_assert(sizeof(T) > 0);               // Field should have non-zero size
         static_assert(sizeof(T) % alignof(T) == 0); // Field should be properly aligned
-        auto ifield = static_cast<offset_type>(f);      // Index of the field
+        auto ifield = static_cast<offset_type>(f);  // Index of the field
         assert(field_length[ifield] == 0);          // Field should not already exist
         field_length[ifield] = sizeof(T);           // Length of the field
         field_ialign[ifield] = log2(alignof(T));    // Alignment of the field in log2(align)
@@ -119,6 +120,7 @@ class Fields;
 
 template<typename DATA,typename FIELD>
 class Overlay : protected fields<FIELD> {
+    using fields<FIELD>::field_length;
     Fields<DATA,FIELD> &dfields;
     unsigned int overlay_field;
 
@@ -152,6 +154,7 @@ public:
         auto ifield = static_cast<int>(f);
         dfields.overlay_field[ifield] = overlay_field;
         dfields.overlay_offset[ifield] = offset;
+        dfields.field_length[ifield] = sizeof(T);
     }
 };
 
@@ -170,6 +173,7 @@ public:
     using field = FIELD;
     static constexpr size_t NO_OVERLAY = std::numeric_limits<overlay_type>::max();
 protected:
+    using fields<FIELD>::field_length;
     size_t max_align = log2(alignof(DATA));
     size_t element_size = sizeof(DATA);
     blitz::TinyVector<offset_type, field_count> field_offset;  // Offset to the field within the specified alignment
@@ -182,7 +186,6 @@ public:
         field_offset(offset_type(0)),
         overlay_field(NO_OVERLAY),
         overlay_offset(offset_type(0))
-        // oFieldOffset(size_t(0))
     {}
     template<typename H>
     void set_header() {
@@ -207,7 +210,6 @@ public:
                 field_offset[i] += overlay_offset[i];
             }
         }
-        this->clear();
         swap_buffer.resize(element_size);
     }
 
@@ -251,7 +253,7 @@ public:
     auto offset(FIELD f) const noexcept {return field_offset[static_cast<unsigned int>(f)];}
     //! Returns true if the field is present, otherwise false.
     //! \param f The field id
-    auto present(FIELD f) const noexcept {return field_offset[static_cast<unsigned int>(f)]!= 0;}
+    auto present(FIELD f) const noexcept {return field_length[static_cast<unsigned int>(f)]!= 0;}
     //! Returns a pointer to the field if present or nullptr if not.
     //! \param p Pointer to an element
     //! \param f The field id
