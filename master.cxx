@@ -553,7 +553,8 @@ void MSR::stat_files(std::vector<uint64_t> &counts,const std::string_view &filen
     hdr.nElementSize = 1;
 
     auto out = new ServiceFileSizes::output[ServiceFileSizes::max_files];
-    auto n = mdl->RunService<ServiceFileSizes>(sizeof(hdr),&hdr,out);
+    auto n = mdl->RunService<ServiceFileSizes>(sizeof(hdr),&hdr,out,
+             sizeof(ServiceFileSizes::output)*ServiceFileSizes::max_files);
     n /= sizeof(ServiceFileSizes::output);
     counts.resize(n);
 
@@ -1599,7 +1600,7 @@ void MSR::DomainDecompOld(int iRung) {
         mdl->RunService<ServiceEnforcePeriodic>(sizeof(in.bnd),&in.bnd);
     }
     else {
-        mdl->RunService<ServiceCombineBound>(&in.bnd);
+        mdl->RunService<ServiceCombineBound>(&in.bnd,sizeof(in.bnd));
     }
     /* We make sure that the classes are synchronized among all the domains,
      * otherwise a new class type being moved to another DD region could cause
@@ -1683,7 +1684,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
         calc.com = pkdn->position();
         calc.uRoot = uRoot;
 
-        mdl->RunService<ServiceCalcRoot>(sizeof(calc),&calc,&root);
+        mdl->RunService<ServiceCalcRoot>(sizeof(calc),&calc,&root,sizeof(root));
         momTreeRoot[uRoot] = root.momc;
         momTreeCom[uRoot][0] = calc.com[0];
         momTreeCom[uRoot][1] = calc.com[1];
@@ -2098,7 +2099,7 @@ uint64_t MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymm
 
 void MSR::ReorderDecorator() {
     printf("Reordering decorator...\n");
-    mdl->RunService<ServiceReorderDecorator>(0,NULL,0);
+    mdl->RunService<ServiceReorderDecorator>();
 }
 
 #ifdef OPTIM_REORDER_IN_NODES
@@ -2178,7 +2179,7 @@ void print_grid(int width, int nThreads, const std::unique_ptr<T[]> &data, M T::
 
 void MSR::Hostname() {
     std::unique_ptr<ServiceHostname::output[]> out {new ServiceHostname::output[nThreads]};
-    mdl->RunService<ServiceHostname>(out.get());
+    mdl->RunService<ServiceHostname>(out.get(),sizeof(ServiceHostname::output)*nThreads);
     print("Host Names:\n");
     print_grid(12,nThreads,out,&ServiceHostname::output::szHostname);
     print("MPI Rank:\n");
@@ -2415,7 +2416,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     if (parameters.get_bVStep()) {
 #ifdef INSTRUMENT_MPI
         ServiceCacheStats::output stats;
-        auto n = mdl->RunService<ServiceCacheStats>(&stats);
+        auto n = mdl->RunService<ServiceCacheStats>(&stats,sizeof(stats));
 #endif
         /*
         ** Output some info...
@@ -2750,7 +2751,7 @@ void MSR::ActiveOrder() {
 int MSR::CountRungs(uint64_t *nRungs) {
     ServiceCountRungs::output out;
     int i, iMaxRung=0;
-    mdl->RunService<ServiceCountRungs>(&out);
+    mdl->RunService<ServiceCountRungs>(&out,sizeof(out));
     for (i=0; i<=MAX_RUNG; ++i) {
         nRung[i] = out[i];
         if (nRung[i]) iMaxRung = i;
@@ -2845,7 +2846,7 @@ void MSR::UpdateRung(uint8_t uRung) {
     in.uMinRung = uRung;
     in.uMaxRung = MaxRung();
 
-    mdl->RunService<ServiceUpdateRung>(sizeof(in),&in,&nRungCount);
+    mdl->RunService<ServiceUpdateRung>(sizeof(in),&in,&nRungCount,sizeof(nRungCount));
 
     iTempRung =MaxRung()-1;
     while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
@@ -2858,7 +2859,7 @@ void MSR::UpdateRung(uint8_t uRung) {
                      nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
         in.uMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
-        mdl->RunService<ServiceUpdateRung>(sizeof(in),&in,&nRungCount);
+        mdl->RunService<ServiceUpdateRung>(sizeof(in),&in,&nRungCount,sizeof(nRungCount));
 
         iTempRung =MaxRung()-1;
         while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
@@ -3484,7 +3485,7 @@ void MSR::TopStepKDK(
 
 void MSR::RemoveDeleted() {
     ServiceRemoveDeleted::output out;
-    mdl->RunService<ServiceRemoveDeleted>(&out);
+    mdl->RunService<ServiceRemoveDeleted>(&out,sizeof(out));
     N = blitz::sum(out.counts);
     nGas = out.counts[FIO_SPECIES_SPH];
     nDark = out.counts[FIO_SPECIES_DARK];
@@ -3495,7 +3496,7 @@ void MSR::RemoveDeleted() {
 
 void MSR::CountSpecies() {
     ServiceCountSpecies::output out;
-    mdl->RunService<ServiceCountSpecies>(&out);
+    mdl->RunService<ServiceCountSpecies>(&out,sizeof(out));
     assert(out.counts[FIO_SPECIES_SPH] == nGas);
     assert(out.counts[FIO_SPECIES_DARK] == nDark);
     assert(out.counts[FIO_SPECIES_STAR] == nStar);
@@ -3982,7 +3983,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
 
     /* Figure out the minimum number of particles */
     inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = in.nGrid;
-    mdl->RunService<ServiceFftSizes>(sizeof(inFFTSizes),&inFFTSizes,&outFFTSizes);
+    mdl->RunService<ServiceFftSizes>(sizeof(inFFTSizes),&inFFTSizes,&outFFTSizes,sizeof(outFFTSizes));
     print("Grid size {} x {} x {}, per node {} x {} x {} and {} x {} x {}\n",
           inFFTSizes.nx, inFFTSizes.ny, inFFTSizes.nz,
           inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,
@@ -4201,7 +4202,7 @@ double MSR::Read(std::string_view achInFile) {
 
 // This sets the local pkd->bnd.
 void MSR::CalcBound(Bound &bnd) {
-    mdl->RunService<ServiceCalcBound>(&bnd);
+    mdl->RunService<ServiceCalcBound>(&bnd,sizeof(bnd));
 }
 void MSR::CalcBound() {
     Bound bnd;
@@ -4392,13 +4393,13 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
 uint64_t MSR::CountSelected() {
     uint64_t N;
-    mdl->RunService<ServiceCountSelected>(&N);
+    mdl->RunService<ServiceCountSelected>(&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelSpecies(uint64_t mSpecies,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelSpecies::input in(mSpecies,setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelSpecies>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelSpecies>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelAll(int setIfTrue,int clearIfFalse) {
@@ -4420,56 +4421,56 @@ uint64_t MSR::SelDeleted(int setIfTrue,int clearIfFalse) {
 uint64_t MSR::SelActives(int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelActives::input in(setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelActives>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelActives>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelBlackholes(int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelBlackholes::input in(setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelBlackholes>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelBlackholes>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelGroup(int iGroup,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelGroup::input in(iGroup,setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelGroup>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelGroup>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelById::input in(idStart,idEnd,setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelById>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelById>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelMass(double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelMass::input in(dMinMass,dMaxMass,setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelMass>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelMass>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelPhaseDensity::input in(dMinPhaseDensity,dMaxPhaseDensity,setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelPhaseDensity>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelPhaseDensity>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelBox(blitz::TinyVector<double,3> center, blitz::TinyVector<double,3> size,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelBox::input in(center,size,setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelBox>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelBox>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelSphere(blitz::TinyVector<double,3> r, double dRadius,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelSphere::input in(r,dRadius,setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelSphere>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelSphere>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 uint64_t MSR::SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius,
                           int setIfTrue, int clearIfFalse ) {
     uint64_t N;
     ServiceSelCylinder::input in(dP1,dP2,dRadius,setIfTrue,clearIfFalse);
-    mdl->RunService<ServiceSelCylinder>(sizeof(in),&in,&N);
+    mdl->RunService<ServiceSelCylinder>(sizeof(in),&in,&N,sizeof(N));
     return N;
 }
 
@@ -4751,7 +4752,7 @@ uint64_t MSR::CountDistance(double dRadius2Outer,double dRadius2Inner) {
     ServiceCountDistance::output out;
     in.dRadius2Inner = dRadius2Inner;
     in.dRadius2Outer = dRadius2Outer;
-    auto nOut = mdl->RunService<ServiceCountDistance>(sizeof(in),&in,&out);
+    auto nOut = mdl->RunService<ServiceCountDistance>(sizeof(in),&in,&out,sizeof(out));
     assert(nOut == sizeof(out));
     return out;
 }
@@ -5240,7 +5241,7 @@ void MSR::RsReorderIds() {
     pOrds[mdl->Threads()] = N;
     print("Reordering particle IDS\n");
     TimerStart(TIMER_NONE);
-    mdl->RunService<ServiceGetOrdSplits>(pOrds);
+    mdl->RunService<ServiceGetOrdSplits>(pOrds,msg.size(0));
     mdl->RunService<ServiceRsReorderIds>(msg);
     TimerStop(TIMER_NONE);
     auto dsec = TimerGet(TIMER_NONE);
@@ -5263,7 +5264,7 @@ void MSR::RsExtract(std::string_view filename_template) {
     auto pOrds = static_cast<ServiceRsExtract::input *>(msg.data(1));
     pOrds[mdl->Threads()] = N;
     TimerStart(TIMER_NONE);
-    mdl->RunService<ServiceGetOrdSplits>(pOrds);
+    mdl->RunService<ServiceGetOrdSplits>(pOrds,msg.size(1));
     mdl->RunService<ServiceRsExtract>(msg);
     TimerStop(TIMER_NONE);
     auto dsec = TimerGet(TIMER_NONE);

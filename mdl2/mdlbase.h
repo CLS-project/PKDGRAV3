@@ -254,12 +254,20 @@ public:
     int  RunService(std::string_view service_name, void *pOut=nullptr) { return RunService(service_name,0,nullptr,pOut); }
 public:
     template<typename T>
-    int  RunService(int nIn, void *pIn, void *pOut=nullptr) {
+    int  RunService(int nIn, void *pIn, void *pOut,int nOut) {
         return RunService(T::name, nIn, pIn, pOut);
     }
     template<typename T>
-    int  RunService(ServiceBuffer &b, void *pOut=nullptr) {
-        return RunService<T>(b.size(), b.data(), pOut);
+    int  RunService(int nIn, void *pIn) {
+        return RunService<T>(nIn, pIn, nullptr, 0);
+    }
+    template<typename T>
+    int  RunService(ServiceBuffer &b, void *pOut, int nOut) {
+        return RunService<T>(b.size(), b.data(), pOut, nOut);
+    }
+    template<typename T>
+    int  RunService(ServiceBuffer &b) {
+        return RunService<T>(b.size(), b.data(), nullptr, 0);
     }
     template<typename T>
     int  RunService(int nIn, void *pIn, ServiceBufferOut &out) {
@@ -267,15 +275,15 @@ public:
     }
     template<typename T>
     int  RunService(ServiceBuffer &b, ServiceBufferOut &out) {
-        return RunService<T>(b.size(), b.data(), out.data());
+        return RunService<T>(b.size(), b.data(), out.data(), out.size());
     }
     template<typename T>
-    int  RunService(ServiceBufferOut &out) {
-        return RunService<T>(0, nullptr, out.data());
+    int  RunService(void *pOut,int nOut) {
+        return RunService<T>(0, nullptr, pOut, nOut);
     }
     template<typename T>
-    int  RunService(void *pOut=nullptr) {
-        return RunService<T>(0, nullptr, pOut);
+    int  RunService() {
+        return RunService<T>(0, nullptr, nullptr, 0);
     }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
     BasicService *GetService(std::string_view service_name) {
