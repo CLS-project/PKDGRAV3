@@ -52,7 +52,7 @@ public:
     uint64_t DecoratorIndex(const value_type *d) const {
         return (reinterpret_cast<const char *>(d)-reinterpret_cast<char *const>(pStore))/ElementSize();
     }
-    void Add(int i) { append(); }
+    void Add(int i) { append(i); }
     int SetLocal(int n) {
         resize(n);
         return n;
