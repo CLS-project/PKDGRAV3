@@ -82,7 +82,7 @@ public:
                 if (j>=0) {
                     field_offset[j] = offset;
                     offset += field_length[j];
-                    field_length[j] = 0;
+                    field_length[j] = 0; // consume the field (do not assign it below)
                 }
                 else offset += size;
             }
@@ -154,7 +154,7 @@ public:
         auto ifield = static_cast<int>(f);
         dfields.overlay_field[ifield] = overlay_field;
         dfields.overlay_offset[ifield] = offset;
-        dfields.field_length[ifield] = sizeof(T);
+        dfields.field_present[ifield] = true;
     }
 };
 
@@ -177,6 +177,7 @@ protected:
     size_t max_align = log2(alignof(DATA));
     size_t element_size = sizeof(DATA);
     blitz::TinyVector<offset_type, field_count> field_offset;  // Offset to the field within the specified alignment
+    blitz::TinyVector<bool,        field_count> field_present; // Indicates that the field is present
     blitz::TinyVector<overlay_type,field_count> overlay_field; // Overlay index or NO_OVERLAY
     blitz::TinyVector<offset_type, field_count> overlay_offset;// Offset within the overlay
     std::vector<char> swap_buffer; // Buffer for swapping fields
@@ -184,6 +185,7 @@ protected:
 public:
     Fields() :
         field_offset(offset_type(0)),
+        field_present(false),
         overlay_field(NO_OVERLAY),
         overlay_offset(offset_type(0))
     {}
@@ -238,12 +240,14 @@ public:
     //! \param f The field id
     template<typename T>
     void add(FIELD f,std::string_view name) {
+        field_present[static_cast<unsigned int>(f)] = true;
         fields<FIELD>::template add<T>(f,name);
     }
 
     //! Overlay a field on top of another field. This is used to create a union of fields.
     //! \param f The field id
     auto overlay(FIELD f) {
+        field_present[static_cast<unsigned int>(f)] = true;
         return Overlay<DATA,FIELD>(*this,f);
     }
 
@@ -253,7 +257,7 @@ public:
     auto offset(FIELD f) const noexcept {return field_offset[static_cast<unsigned int>(f)];}
     //! Returns true if the field is present, otherwise false.
     //! \param f The field id
-    auto present(FIELD f) const noexcept {return field_length[static_cast<unsigned int>(f)]!= 0;}
+    auto present(FIELD f) const noexcept {return field_present[static_cast<unsigned int>(f)];}
     //! Returns a pointer to the field if present or nullptr if not.
     //! \param p Pointer to an element
     //! \param f The field id
