@@ -2750,7 +2750,7 @@ void MSR::ActiveOrder() {
 int MSR::CountRungs(uint64_t *nRungs) {
     ServiceCountRungs::output out;
     int i, iMaxRung=0;
-    mdl->RunService<ServiceCountRungs>(sizeof(out),&out);
+    mdl->RunService<ServiceCountRungs>(&out);
     for (i=0; i<=MAX_RUNG; ++i) {
         nRung[i] = out[i];
         if (nRung[i]) iMaxRung = i;
