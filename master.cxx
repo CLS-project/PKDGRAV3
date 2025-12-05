@@ -156,6 +156,8 @@ namespace rockstar {
 #include "gravity/countrungs.h"
 #include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
+
+#include "meshless/hydro/endstep.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
@@ -1990,6 +1992,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dEtaCourant = parameters.get_dEtaCourant();
     smf->bMeshlessHydro = MeshlessHydro();
     smf->bIterativeSmoothingLength = parameters.get_bIterativeSmoothingLength();
+    smf->bConditionedBarthJespersen = parameters.get_bConditionedBarthJespersen();
     smf->bStricterSlopeLimiter = parameters.get_bStricterSlopeLimiter();
     smf->bUpdateBall = bUpdateBall;
     smf->nBucket = parameters.get_nBucket();
@@ -2598,7 +2601,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
 }
 
 void MSR::EndTimestepIntegration(double dTime,double dDelta) {
-    struct inEndTimestep in;
+    ServiceEndTimestepIntegration::input in;
     in.units = UNITS(parameters,csm->val.h);
 #ifdef GRACKLE
     marshal_string(in.achCoolingTable, parameters.get_achCoolingTables());
@@ -2625,7 +2628,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
 
     print("Computing primitive variables... ");
     TimerStart(TIMER_ENDINT);
-    pstEndTimestepIntegration(pst,&in,sizeof(in),NULL,0);
+    mdl->RunService<ServiceEndTimestepIntegration>(sizeof(in), &in);
 
     TimerStop(TIMER_ENDINT);
     dsec = TimerGet(TIMER_ENDINT);

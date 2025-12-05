@@ -239,33 +239,6 @@ struct inChemCompInit {
 #endif
 };
 
-struct inEndTimestep {
-    UNITS units;
-#ifdef GRACKLE
-    char achCoolingTable[PATH_MAX];
-#endif
-    double dTime;
-    double dDelta;
-    double dConstGamma;
-    double dTuFac;
-#ifdef STAR_FORMATION
-    double dSFThresholdOD;
-#endif
-#ifdef COOLING
-    double dCoolingFloorOD;
-    double dCoolingFloorDen;
-    double dCoolingFlooru;
-#endif
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    struct eEOSparam eEOS;
-#endif
-#ifdef BLACKHOLES
-    double dBHRadiativeEff;
-#endif
-#ifdef STELLAR_EVOLUTION
-    int bChemEnrich;
-#endif
-};
 
 #ifdef STAR_FORMATION
 struct inStarForm {

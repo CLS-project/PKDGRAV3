@@ -421,13 +421,10 @@ if(ROCKSTAR_PATH)
     target_sources(${PROJECT_NAME} PRIVATE analysis/rshaloloadids.cxx analysis/rshalocount.cxx)
 endif()
 
-option(HYDRO "Compile with hydrodynamics support" ON)
-if (HYDRO)
-   message("-- Compiling with hydrodynamics support")
-   target_sources(${PROJECT_NAME} PRIVATE  meshless/hydro/hydro.cxx meshless/hydro/density.cxx
-                  meshless/hydro/gradient.cxx meshless/hydro/flux.cxx meshless/hydro/step.cxx)
-   target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/meshless)
-endif(HYDRO)
+# Meshless hydrodynamics
+target_sources(${PROJECT_NAME} PRIVATE  meshless/hydro/hydro.cxx meshless/hydro/density.cxx
+              meshless/hydro/gradient.cxx meshless/hydro/flux.cxx meshless/hydro/step.cxx meshless/hydro/endstep.cxx)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/meshless)
 
 option(MFM_FLUX_CORRECTION "Use SPH to correct the MFM thermal energy flux under certain conditions" OFF)
 if (MFM_FLUX_CORRECTION)
@@ -436,27 +433,15 @@ endif(MFM_FLUX_CORRECTION)
 
 option(FORCE_2D "Flag for running 2D cases" OFF)
 if (FORCE_2D)
-   message("-- NOT RECOMMENDED: Ignoring fluxes in the z-direction and interactions among misaligned particles")
+   message("-- DEBUG-ONLY: Ignoring fluxes in the z-direction and interactions among misaligned particles")
    target_compile_options(${PROJECT_NAME} PRIVATE -DFORCE_2D)
 endif(FORCE_2D)
 
 option(FORCE_1D "Flag for running 1D cases" OFF)
 if (FORCE_1D)
-   message("-- NOT RECOMMENDED: Ignoring fluxes in the z and y directions and interactions among misaligned particles")
+   message("-- DEBUG-ONLY: Ignoring fluxes in the z and y directions and interactions among misaligned particles")
    target_compile_options(${PROJECT_NAME} PRIVATE -DFORCE_1D)
 endif(FORCE_1D)
-
-option(LIMITER_BARTH "Use the Barth-Jespersen limiter" OFF)
-if (LIMITER_BARTH)
-   message("-- Using the Barth-Jespersen limiter")
-   target_compile_options(${PROJECT_NAME} PRIVATE -DLIMITER_BARTH)
-endif(LIMITER_BARTH)
-
-option(LIMITER_CONDBARTH "Use the Conditioned Barth-Jespersen limiter" ON)
-if (LIMITER_CONDBARTH)
-   message("-- Using the Conditioned Barth-Jespersen limiter")
-   target_compile_options(${PROJECT_NAME} PRIVATE -DLIMITER_CONDBARTH)
-endif(LIMITER_CONDBARTH)
 
 option(ENTROPY_SWITCH "Assume entropy conservation when a cold flow is detected" OFF)
 if (ENTROPY_SWITCH)

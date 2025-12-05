@@ -198,11 +198,6 @@ enum pst_service {
     PST_LIGHTCONE,
     PST_CALCEANDL,
     PST_DRIFT,
-    PST_COMPUTEPRIMVARS,
-    PST_WAKEPARTICLES,
-#ifdef DEBUG_CACHED_FLUXES
-    PST_FLUXSTATS,
-#endif
 #ifdef GRACKLE
     PST_GRACKLEINIT,
 #endif
@@ -668,9 +663,6 @@ struct outFluxStats {
     int nAvoided;
     int nComputed;
 };
-#ifdef DEBUG_CACHED_FLUXES
-    int pstFluxStats(PST, void *, int, void *, int);
-#endif
 
 /* PST_ROPARTICLECACHE */
 

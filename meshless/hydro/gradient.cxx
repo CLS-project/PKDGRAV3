@@ -185,13 +185,10 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
     }
 
     /* Now we can limit the gradients */
-#ifdef LIMITER_BARTH
-    const double beta = 1.;
-#endif
-
-#ifdef LIMITER_CONDBARTH
-    const double beta = std::max(1., 2.*std::min(1.,10./psph.Ncond));
-#endif
+    double beta = 1.;
+    if (smf->bConditionedBarthJespersen) {
+        beta = std::max(1.,2.*std::min(1.,10./psph.Ncond));
+    }
 
     if (smf->bStricterSlopeLimiter) {
         max_face_dist *= 0.5;

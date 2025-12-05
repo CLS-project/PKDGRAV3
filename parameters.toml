@@ -1465,6 +1465,11 @@ flag="iterh"
 default=true
 help="Use an iterative scheme to obtain h"
 
+["Gas".bConditionedBarthJespersen]
+flag="condbj"
+default=true
+help="Take into account the condition number around the particle to use a less restrictive Barth-Jespersen limiter for quasi-regular geometries"
+
 ["Gas".bStricterSlopeLimiter]
 flag="stricterlim"
 default=false

@@ -155,20 +155,6 @@ void pstAddServices(PST pst,mdl::mdlClass * mdl) {
     mdl->AddService(PST_DRIFT,pst,(fcnService_t *)pstDrift,
                     sizeof(struct inDrift),0,
                     Legacy::Drift);
-    mdl->AddService(PST_COMPUTEPRIMVARS,pst,
-                    (fcnService_t *) pstEndTimestepIntegration,
-                    sizeof(struct inEndTimestep),0,
-                    Legacy::ComputePrimVars);
-    mdl->AddService(PST_WAKEPARTICLES,pst,
-                    (fcnService_t *) pstWakeParticles,
-                    sizeof(struct inDrift),0,
-                    Legacy::WakeParticles);
-#ifdef DEBUG_CACHED_FLUXES
-    mdl->AddService(PST_FLUXSTATS,pst,
-                    (fcnService_t *) pstFluxStats,
-                    0, sizeof(struct outFluxStats),
-                    Legacy::FluxStats);
-#endif
     mdl->AddService(PST_SETGLOBALDT,pst,
                     (fcnService_t *) pstSetGlobalDt,
                     sizeof(struct outGetMinDt),0,
@@ -1527,63 +1513,6 @@ int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 #endif
 
-#ifdef DEBUG_CACHED_FLUXES
-int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto out = static_cast<struct outFluxStats *>(vout);
-    struct outFluxStats outUpper;
-
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_FLUXSTATS,NULL,0);
-        pstFluxStats(pst->pstLower,NULL,0,vout,nOut);
-        nOut = pst->mdl->GetReply(rID,outUpper);
-        assert(nOut==sizeof(struct outFluxStats));
-        out->nAvoided += outUpper.nAvoided;
-        out->nComputed += outUpper.nComputed;
-    }
-    else {
-        LCL *plcl = pst->plcl;
-
-        int avoided = 0;
-        int computed = 0;
-        pkdFluxStats(plcl->pkd, &computed, &avoided);
-        out->nAvoided = avoided;
-        out->nComputed = computed;
-    }
-    return sizeof(struct outFluxStats);
-}
-#endif
-
-int pstEndTimestepIntegration(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inEndTimestep *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inEndTimestep));
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_COMPUTEPRIMVARS,in,nIn);
-        pstEndTimestepIntegration(pst->pstLower,in,nIn,NULL,0);
-        pst->mdl->GetReply(rID);
-    }
-    else {
-        pkdEndTimestepIntegration(plcl->pkd, *in);
-    }
-    return 0;
-}
-
-int pstWakeParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inDrift *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_WAKEPARTICLES,in,nIn);
-        pstWakeParticles(pst->pstLower,in,nIn,NULL,0);
-        pst->mdl->GetReply(rID);
-    }
-    else {
-        pkdWakeParticles(plcl->pkd,in->iRoot, in->dTime, in->dDelta);
-    }
-    return 0;
-}
 
 #ifdef GRACKLE
 int pstGrackleInit(PST pst,void *vin,int nIn,void *vout,int nOut) {

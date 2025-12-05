@@ -50,6 +50,7 @@ typedef struct smfParameters {
     /* IA: Meshless hydro */
     int bMeshlessHydro;
     int bIterativeSmoothingLength;
+    int bConditionedBarthJespersen;
     int bStricterSlopeLimiter;
     int bUpdateBall;
     int nBucket;

@@ -79,6 +79,9 @@
 #include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 
+#include "meshless/hydro/wakeup.h"
+#include "meshless/hydro/endstep.h"
+
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
 
@@ -105,6 +108,8 @@ void *worker_init(MDL vmdl) {
     plcl->pkd = NULL;
     pstInitialize(&pst,mdl,plcl);
     pstAddServices(pst,mdl);
+    mdl->AddService<ServiceWakeParticles>(pst);
+    mdl->AddService<ServiceEndTimestepIntegration>(pst);
     mdl->AddService<ServiceSetAdd>(pst);
     mdl->AddService<ServiceSwapAll>(pst);
     mdl->AddService<ServiceHostname>(pst);

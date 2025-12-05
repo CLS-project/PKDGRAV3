@@ -2,6 +2,7 @@
 #include "hydro/hydro.h"
 #include "master.h"
 #include "potential/potential.h"
+#include "wakeup.h"
 
 using blitz::TinyVector;
 using blitz::dot;
@@ -32,11 +33,8 @@ void MSR::HydroStep(double dTime, double dDelta) {
     printf("took %.5f seconds\n", dsec);
 
     if (parameters.get_bWakeUpParticles()) {
-        struct inDrift in;
-        in.iRoot = 0; // Not used
-        in.dTime = dTime;
-        in.dDelta = 0; // Not used
-        pstWakeParticles(pst,&in,sizeof(in),NULL,0);
+        ServiceWakeParticles::input in{dTime};
+        mdl->RunService<ServiceWakeParticles>(sizeof(in), &in);
     }
 }
 
@@ -198,11 +196,11 @@ void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *n
     }
 }
 
-/* Wake the particles whose uWake is greater than zero (see hydroStep)
- *
- * TODO: clean unused function arguments
- */
-void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
+// Wake the particles whose uWake is greater than zero
+int ServiceWakeParticles::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto in = static_cast<struct input *>(vin);
+    auto pkd = pst->plcl->pkd;
+    auto dTime = in->dTime;
     for (auto &p : pkd->particles) {
         if (p.is_gas()) {
             auto &sph = p.sph();
@@ -212,7 +210,8 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
                 p.set_new_rung(uWake);
                 assert(p.is_active());
 
-                // We revert to the state at the end of the previous timestep
+                // We revert to the state at the end of
+                // the previous timestep
                 p.set_mass(sph.lastMass);
                 sph.lastUpdateTime = dTime;
                 sph.mom = sph.lastMom;
@@ -237,4 +236,5 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
             }
         }
     }
+    return 0;
 }
