@@ -33,9 +33,7 @@
 #include "core/memory.h"
 #include "pkd_parameters.h"
 #include "pkd_enumerations.h"
-#ifdef COOLING
-    #include "cooling/cooling_struct.h"
-#endif
+#include "cooling/cooling_struct.h"
 
 #define MSR_INIT_E      1
 #define MSR_STEP_E      0
@@ -307,10 +305,8 @@ public:
         double acc;
     } ti[TOTAL_TIMERS];
 
-#ifdef COOLING
     struct cooling_function_data *cooling;
     struct cooling_tables *cooling_table;
-#endif
 #ifdef STAR_FORMATION
     int starFormed;
     double massFormed;
@@ -514,12 +510,10 @@ protected:
     void ChemCompInit();
     void EndTimestepIntegration(double dTime,double dDelta);
 
-#ifdef COOLING
     // Cooling
     void SetCoolingParam();
     void CoolingUpdate(float redshift);
     void CoolingInit(float redshift);
-#endif
 #ifdef GRACKLE
     void GrackleInit(int bComove, double dScaleFactor);
 #endif

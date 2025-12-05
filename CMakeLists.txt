@@ -468,13 +468,7 @@ else(FIXED_NSMOOTH_STRICT)
    endif(FIXED_NSMOOTH_RELAXED)
 endif(FIXED_NSMOOTH_STRICT)
 
-option(COOLING "Activate the chemistry and the cooling for the gas particles. Also makes effective a internal energy floor" OFF)
-if (COOLING)
-   target_sources(${PROJECT_NAME} PRIVATE  meshless/cooling/cooling.cxx meshless/cooling/cooling_tables.cxx )
-   target_compile_options(${PROJECT_NAME} PRIVATE -DCOOLING)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_HELIUM -DHAVE_CARBON -DHAVE_NITROGEN -DHAVE_OXYGEN -DHAVE_NEON -DHAVE_MAGNESIUM -DHAVE_SILICON -DHAVE_IRON)
-   message("-- Cooling is ACTIVE")
-endif(COOLING)
+target_sources(${PROJECT_NAME} PRIVATE  meshless/cooling/cooling.cxx meshless/cooling/cooling_tables.cxx meshless/cooling/services.cxx )
 
 option(GRACKLE "Activate the cooling using grackle" OFF)
 if (GRACKLE)
@@ -518,7 +512,6 @@ option(STELLAR_EVOLUTION "Activate time-resolved mass return from star particles
 if (STELLAR_EVOLUTION)
    target_sources(${PROJECT_NAME} PRIVATE  meshless/stellarevolution/stellarevolution.cxx)
    target_compile_options(${PROJECT_NAME} PRIVATE -DSTELLAR_EVOLUTION)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_HELIUM -DHAVE_CARBON -DHAVE_NITROGEN -DHAVE_OXYGEN -DHAVE_NEON -DHAVE_MAGNESIUM -DHAVE_SILICON -DHAVE_IRON -DHAVE_METALLICITY)
    message("-- Stellar evolution is ACTIVE")
 endif(STELLAR_EVOLUTION)
 

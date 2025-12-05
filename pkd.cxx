@@ -79,9 +79,7 @@ using namespace fmt::literals;        // Gives us ""_a and ""_format literals
 extern "C" {
 #include "core/healpix.h"
 }
-#ifdef COOLING
-    #include "cooling/cooling.h"
-#endif
+#include "cooling/cooling.h"
 #if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
     #include "eEOS/eEOS.h"
 #endif
@@ -610,9 +608,7 @@ pkdContext::~pkdContext() {
     }
     if (interp_scale) gsl_spline_free(interp_scale);
     if (interp_accel) gsl_interp_accel_free(interp_accel);
-#ifdef COOLING
     cooling_clean(cooling);
-#endif
 #ifdef STELLAR_EVOLUTION
     free(StelEvolData);
 #endif
@@ -1542,10 +1538,12 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
             assert(p.have_mfm());
             auto &Sph = p.sph();
             {
-#if defined(COOLING)
-                const double dRedshift = dvFacGas - 1.;
-                float temperature = cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, &Sph);
-#elif defined(GRACKLE)
+                float temperature = 0;
+                if (pkd->cooling) {
+                    const double dRedshift = dvFacGas - 1.;
+                    temperature = cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, &Sph);
+                }
+#ifdef GRACKLE
                 gr_float fMetalDensity = Sph.fMetalMass * Sph.omega;
                 gr_float fSpecificUint = Sph.Uint / fMass;
 
@@ -1563,8 +1561,6 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                 err = local_calculate_temperature(pkd->grackle_data, pkd->grackle_rates, pkd->grackle_units, pkd->grackle_field,
                                                   &temperature);
                 if (err == 0) fprintf(stderr, "Error in calculate_temperature.\n");
-#else
-                float temperature = 0;
 #endif
 
                 metals = Sph.ElemMass / fMass;
@@ -1778,11 +1774,12 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
 #endif
     fioSetAttr(fio, HDF5_HEADER_G, "Flag_Feedback", FIO_TYPE_INT, 1, &flag);
 
-#ifdef COOLING
-    flag=1;
-#else
-    flag=0;
-#endif
+    if (pkd->cooling) {
+        flag=1;
+    }
+    else {
+        flag=0;
+    }
     fioSetAttr(fio, HDF5_HEADER_G, "Flag_Cooling", FIO_TYPE_INT, 1, &flag);
 
 #ifdef STAR_FORMATION
@@ -2735,35 +2732,17 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
 
             if (Sph.ElemMass[ELEMENT_H] < 0.0f) {
                 Sph.ElemMass[ELEMENT_H]  = in.dInitialH  * fMass;
-#ifdef HAVE_HELIUM
                 Sph.ElemMass[ELEMENT_He] = in.dInitialHe * fMass;
-#endif
-#ifdef HAVE_CARBON
                 Sph.ElemMass[ELEMENT_C]  = in.dInitialC  * fMass;
-#endif
-#ifdef HAVE_NITROGEN
                 Sph.ElemMass[ELEMENT_N]  = in.dInitialN  * fMass;
-#endif
-#ifdef HAVE_OXYGEN
                 Sph.ElemMass[ELEMENT_O]  = in.dInitialO  * fMass;
-#endif
-#ifdef HAVE_NEON
                 Sph.ElemMass[ELEMENT_Ne] = in.dInitialNe * fMass;
-#endif
-#ifdef HAVE_MAGNESIUM
                 Sph.ElemMass[ELEMENT_Mg] = in.dInitialMg * fMass;
-#endif
-#ifdef HAVE_SILICON
                 Sph.ElemMass[ELEMENT_Si] = in.dInitialSi * fMass;
-#endif
-#ifdef HAVE_IRON
                 Sph.ElemMass[ELEMENT_Fe] = in.dInitialFe * fMass;
-#endif
             }
-#ifdef HAVE_METALLICITY
             if (Sph.fMetalMass < 0.0f)
                 Sph.fMetalMass = in.dInitialMetallicity * fMass;
-#endif
         }
 
 #ifdef STELLAR_EVOLUTION
@@ -2772,30 +2751,14 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
 
             if (Star.ElemAbun[ELEMENT_H] < 0.0f) {
                 Star.ElemAbun[ELEMENT_H]  = in.dInitialH;
-#ifdef HAVE_HELIUM
                 Star.ElemAbun[ELEMENT_He] = in.dInitialHe;
-#endif
-#ifdef HAVE_CARBON
                 Star.ElemAbun[ELEMENT_C]  = in.dInitialC;
-#endif
-#ifdef HAVE_NITROGEN
                 Star.ElemAbun[ELEMENT_N]  = in.dInitialN;
-#endif
-#ifdef HAVE_OXYGEN
                 Star.ElemAbun[ELEMENT_O]  = in.dInitialO;
-#endif
-#ifdef HAVE_NEON
                 Star.ElemAbun[ELEMENT_Ne] = in.dInitialNe;
-#endif
-#ifdef HAVE_MAGNESIUM
                 Star.ElemAbun[ELEMENT_Mg] = in.dInitialMg;
-#endif
-#ifdef HAVE_SILICON
                 Star.ElemAbun[ELEMENT_Si] = in.dInitialSi;
-#endif
-#ifdef HAVE_IRON
                 Star.ElemAbun[ELEMENT_Fe] = in.dInitialFe;
-#endif
             }
             if (Star.fMetalAbun < 0.0f)
                 Star.fMetalAbun = in.dInitialMetallicity;

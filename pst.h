@@ -201,12 +201,6 @@ enum pst_service {
 #ifdef GRACKLE
     PST_GRACKLEINIT,
 #endif
-#ifdef COOLING
-    PST_COOLINGUPDATE,
-    PST_COOLINGUPDATEZ,
-    PST_COOLINGINIT,
-    PST_COOLINGHYDREION,
-#endif
     PST_CHEMCOMPINIT,
 #ifdef BLACKHOLES
     PST_BH_PLACESEED,
@@ -507,33 +501,6 @@ struct outSmooth {
 };
 int pstSmooth(PST,void *,int,void *,int);
 
-#ifdef COOLING
-#include "cooling/cooling_struct.h"
-struct inCoolUpdate {
-    int z_index;
-    int previous_z_index;
-    float dz;
-    float metal_heating[eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ];
-    float H_plus_He_heating[eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating];
-    float H_plus_He_electron_abundance[eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance];
-    float temperature[eagle_cooling_N_loaded_redshifts * num_elements_temperature];
-    float electron_abundance[eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance];
-};
-int pstCoolingUpdate(PST,void *,int,void *,int);
-int pstCoolingUpdateZ(PST,void *,int,void *,int);
-struct inCoolInit {
-    struct cooling_function_data in_cooling_data;
-    float Redshifts[eagle_cooling_N_redshifts];
-    float nH[eagle_cooling_N_density];
-    float Temp[eagle_cooling_N_temperature];
-    float HeFrac[eagle_cooling_N_He_frac];
-    float Therm[eagle_cooling_N_temperature];
-    float SolarAbundances[eagle_cooling_N_temperature];
-    float SolarAbundances_inv[eagle_cooling_N_temperature];
-};
-int pstCoolingInit(PST,void *,int,void *,int);
-int pstCoolingHydReion(PST,void *,int,void *,int);
-#endif
 #ifdef GRACKLE
 struct inGrackleInit {
     char achCoolingTable[PATH_MAX];
@@ -839,33 +806,15 @@ struct inGenerateIC {
     int nBucket;
     double dInitialT;
     double dInitialH;
-#ifdef HAVE_HELIUM
     double dInitialHe;
-#endif
-#ifdef HAVE_CARBON
     double dInitialC;
-#endif
-#ifdef HAVE_NITROGEN
     double dInitialN;
-#endif
-#ifdef HAVE_OXYGEN
     double dInitialO;
-#endif
-#ifdef HAVE_NEON
     double dInitialNe;
-#endif
-#ifdef HAVE_MAGNESIUM
     double dInitialMg;
-#endif
-#ifdef HAVE_SILICON
     double dInitialSi;
-#endif
-#ifdef HAVE_IRON
     double dInitialFe;
-#endif
-#ifdef HAVE_METALLICITY
     double dInitialMetallicity;
-#endif
     double dTuFac;
     int bComove;
     int nTf;
@@ -898,33 +847,15 @@ struct inMoveIC {
     int nBucket;
     double dInitialT;
     double dInitialH;
-#ifdef HAVE_HELIUM
     double dInitialHe;
-#endif
-#ifdef HAVE_CARBON
     double dInitialC;
-#endif
-#ifdef HAVE_NITROGEN
     double dInitialN;
-#endif
-#ifdef HAVE_OXYGEN
     double dInitialO;
-#endif
-#ifdef HAVE_NEON
     double dInitialNe;
-#endif
-#ifdef HAVE_MAGNESIUM
     double dInitialMg;
-#endif
-#ifdef HAVE_SILICON
     double dInitialSi;
-#endif
-#ifdef HAVE_IRON
     double dInitialFe;
-#endif
-#ifdef HAVE_METALLICITY
     double dInitialMetallicity;
-#endif
     double dExpansion;
     double dBaryonFraction;
     double dTuFac;

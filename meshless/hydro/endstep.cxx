@@ -1,5 +1,6 @@
 #include "endstep.h"
 #include "hydro.h"
+#include "meshless/cooling/cooling.h"
 
 int ServiceEndTimestepIntegration::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto pkd = pst->plcl->pkd;
@@ -52,11 +53,11 @@ int ServiceEndTimestepIntegration::Service(PST pst,void *vin,int nIn,void *vout,
             hydroSyncEnergies(pkd, p, &sph, pa, in->dConstGamma);
 
             // ##### Cooling
-#ifdef COOLING
-            double dRedshift = 1./dScaleFactor - 1.;
-            const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
-            cooling_cool_part(pkd, pkd->cooling, p, &sph, pDelta, in->dTime, delta_redshift, dRedshift);
-#endif
+            if (pkd->cooling) {
+                double dRedshift = 1./dScaleFactor - 1.;
+                const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
+                cooling_cool_part(pkd, pkd->cooling, p, &sph, pDelta, in->dTime, delta_redshift, dRedshift);
+            }
 #ifdef GRACKLE
             pkdGrackleCooling(pkd, p, pDelta, in->dTuFac);
 #endif

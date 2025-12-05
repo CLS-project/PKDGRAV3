@@ -1522,6 +1522,11 @@ help="If size of the interaction list is above this value, dynamic maximum group
 ########## Cooling
 ################################################################################
 
+["Cooling".bDoCooling]
+flag="cooling"
+default=false
+help="Do radiative cooling for the meshless hydrodynamics"
+
 ["Cooling".achCoolingTables]
 flag="coolingtables"
 default=""

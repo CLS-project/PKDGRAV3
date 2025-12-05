@@ -1011,9 +1011,9 @@ void MSR::SetDerivedParameters(bool bRestart) {
     dTuFacPrimNeutral = dTuPrefac * dInvPrimNeutralMu;
     dTuFacPrimIonised = dTuPrefac * dInvPrimIonisedMu;
 
-#ifdef COOLING
-    SetCoolingParam();
-#endif
+    if (parameters.get_bDoCooling()) {
+        SetCoolingParam();
+    }
 #ifdef STAR_FORMATION
     SetStarFormationParam();
 #endif
@@ -3079,17 +3079,17 @@ int MSR::NewTopStepKDK(
     }
     dTime += dDeltaRung;
     *pdStep += 1.0/(uintmax_t(1) << *puRungMax);
-#ifdef COOLING
-    if (csm->val.bComove) {
-        const float a = csmTime2Exp(csm,dTime);
-        const float z = 1./a - 1.;
+    if (parameters.get_bDoCooling()) {
+        if (csm->val.bComove) {
+            const float a = csmTime2Exp(csm,dTime);
+            const float z = 1./a - 1.;
 
-        CoolingUpdate(z);
+            CoolingUpdate(z);
+        }
+        else {
+            CoolingUpdate(0.);
+        }
     }
-    else {
-        CoolingUpdate(0.);
-    }
-#endif
 #ifdef STAR_FORMATION
     StarForm(dTime, dDelta, uRung);
 #endif
@@ -3370,17 +3370,17 @@ void MSR::TopStepKDK(
         dTime += dDeltaRung;
         dStep += 1.0/(uintmax_t(1) << iRung);
 
-#ifdef COOLING
-        if (csm->val.bComove) {
-            const float a = csmTime2Exp(csm,dTime);
-            const float z = 1./a - 1.;
+        if (parameters.get_bDoCooling()) {
+            if (csm->val.bComove) {
+                const float a = csmTime2Exp(csm,dTime);
+                const float z = 1./a - 1.;
 
-            CoolingUpdate(z);
+                CoolingUpdate(z);
+            }
+            else {
+                CoolingUpdate(0.);
+            }
         }
-        else {
-            CoolingUpdate(0.);
-        }
-#endif
 
         ActiveRung(iKickRung,1);
         DomainDecomp(iKickRung);
@@ -3580,33 +3580,15 @@ void MSR::Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable, 
 void MSR::ChemCompInit() {
     struct inChemCompInit in;
     in.dInitialH = parameters.get_dInitialH();
-#ifdef HAVE_HELIUM
     in.dInitialHe = parameters.get_dInitialHe();
-#endif
-#ifdef HAVE_CARBON
     in.dInitialC = parameters.get_dInitialC();
-#endif
-#ifdef HAVE_NITROGEN
     in.dInitialN = parameters.get_dInitialN();
-#endif
-#ifdef HAVE_OXYGEN
     in.dInitialO = parameters.get_dInitialO();
-#endif
-#ifdef HAVE_NEON
     in.dInitialNe = parameters.get_dInitialNe();
-#endif
-#ifdef HAVE_MAGNESIUM
     in.dInitialMg = parameters.get_dInitialMg();
-#endif
-#ifdef HAVE_SILICON
     in.dInitialSi = parameters.get_dInitialSi();
-#endif
-#ifdef HAVE_IRON
     in.dInitialFe = parameters.get_dInitialFe();
-#endif
-#ifdef HAVE_METALLICITY
     in.dInitialMetallicity = parameters.get_dInitialMetallicity();
-#endif
 
     pstChemCompInit(pst, &in, sizeof(in), NULL, 0);
 }
@@ -3892,33 +3874,15 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.nBucket = parameters.get_nBucket();
     in.dInitialT = parameters.get_dInitialT();
     in.dInitialH = parameters.get_dInitialH();
-#ifdef HAVE_HELIUM
     in.dInitialHe = parameters.get_dInitialHe();
-#endif
-#ifdef HAVE_CARBON
     in.dInitialC = parameters.get_dInitialC();
-#endif
-#ifdef HAVE_NITROGEN
     in.dInitialN = parameters.get_dInitialN();
-#endif
-#ifdef HAVE_OXYGEN
     in.dInitialO = parameters.get_dInitialO();
-#endif
-#ifdef HAVE_NEON
     in.dInitialNe = parameters.get_dInitialNe();
-#endif
-#ifdef HAVE_MAGNESIUM
     in.dInitialMg = parameters.get_dInitialMg();
-#endif
-#ifdef HAVE_SILICON
     in.dInitialSi = parameters.get_dInitialSi();
-#endif
-#ifdef HAVE_IRON
     in.dInitialFe = parameters.get_dInitialFe();
-#endif
-#ifdef HAVE_METALLICITY
     in.dInitialMetallicity = parameters.get_dInitialMetallicity();
-#endif
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;

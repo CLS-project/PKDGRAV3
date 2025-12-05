@@ -1003,33 +1003,15 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         icUp.bICgas = in->bICgas;
         icUp.dInitialT = in->dInitialT;
         icUp.dInitialH = in->dInitialH;
-#ifdef HAVE_HELIUM
         icUp.dInitialHe = in->dInitialHe;
-#endif
-#ifdef HAVE_CARBON
         icUp.dInitialC = in->dInitialC;
-#endif
-#ifdef HAVE_NITROGEN
         icUp.dInitialN = in->dInitialN;
-#endif
-#ifdef HAVE_OXYGEN
         icUp.dInitialO = in->dInitialO;
-#endif
-#ifdef HAVE_NEON
         icUp.dInitialNe = in->dInitialNe;
-#endif
-#ifdef HAVE_MAGNESIUM
         icUp.dInitialMg = in->dInitialMg;
-#endif
-#ifdef HAVE_SILICON
         icUp.dInitialSi = in->dInitialSi;
-#endif
-#ifdef HAVE_IRON
         icUp.dInitialFe = in->dInitialFe;
-#endif
-#ifdef HAVE_METALLICITY
         icUp.dInitialMetallicity = in->dInitialMetallicity;
-#endif
         icUp.dExpansion = in->dExpansion;
         icUp.dBaryonFraction = in->dBaryonFraction;
         icUp.dTuFac = in->dTuFac;
@@ -1123,33 +1105,15 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 pgas.set_decorator_index(pkd->decorators.append());
                 auto &Sph = pgas.sph();
                 Sph.ElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
-#ifdef HAVE_HELIUM
                 Sph.ElemMass[ELEMENT_He] = in->dInitialHe * fGasMass;
-#endif
-#ifdef HAVE_CARBON
                 Sph.ElemMass[ELEMENT_C]  = in->dInitialC  * fGasMass;
-#endif
-#ifdef HAVE_NITROGEN
                 Sph.ElemMass[ELEMENT_N]  = in->dInitialN  * fGasMass;
-#endif
-#ifdef HAVE_OXYGEN
                 Sph.ElemMass[ELEMENT_O]  = in->dInitialO  * fGasMass;
-#endif
-#ifdef HAVE_NEON
                 Sph.ElemMass[ELEMENT_Ne] = in->dInitialNe * fGasMass;
-#endif
-#ifdef HAVE_MAGNESIUM
                 Sph.ElemMass[ELEMENT_Mg] = in->dInitialMg * fGasMass;
-#endif
-#ifdef HAVE_SILICON
                 Sph.ElemMass[ELEMENT_Si] = in->dInitialSi * fGasMass;
-#endif
-#ifdef HAVE_IRON
                 Sph.ElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
-#endif
-#ifdef HAVE_METALLICITY
                 Sph.fMetalMass = in->dInitialMetallicity * fGasMass;
-#endif
                 Sph.Frho = 0.0;
                 Sph.Fmom = 0.0;
                 Sph.Fene = 0.0;
@@ -1315,33 +1279,15 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         move.nBucket = in->nBucket;
         move.dInitialT = in->dInitialT;
         move.dInitialH = in->dInitialH;
-#ifdef HAVE_HELIUM
         move.dInitialHe = in->dInitialHe;
-#endif
-#ifdef HAVE_CARBON
         move.dInitialC = in->dInitialC;
-#endif
-#ifdef HAVE_NITROGEN
         move.dInitialN = in->dInitialN;
-#endif
-#ifdef HAVE_OXYGEN
         move.dInitialO = in->dInitialO;
-#endif
-#ifdef HAVE_NEON
         move.dInitialNe = in->dInitialNe;
-#endif
-#ifdef HAVE_MAGNESIUM
         move.dInitialMg = in->dInitialMg;
-#endif
-#ifdef HAVE_SILICON
         move.dInitialSi = in->dInitialSi;
-#endif
-#ifdef HAVE_IRON
         move.dInitialFe = in->dInitialFe;
-#endif
-#ifdef HAVE_METALLICITY
         move.dInitialMetallicity = in->dInitialMetallicity;
-#endif
         move.dExpansion = in->dExpansion;
         move.dBaryonFraction = in->dBaryonFraction;
         move.dTuFac = in->dTuFac;

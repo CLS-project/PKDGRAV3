@@ -31,6 +31,7 @@
 
 #include "cooling.h"
 #include "cooling_rates.h"
+#include "services.h"
 
 #include "pkd.h"
 #include "master.h"
@@ -78,7 +79,7 @@ void MSR::CoolingUpdate(float redshift) {
     cooling->dz = dz;
 
     // We update dz in each process
-    pstCoolingUpdateZ(pst, &dz, sizeof(float), NULL, 0);
+    mdl->RunService<ServiceCoolingUpdateZ>(sizeof(float),&dz);
 
     /* Do we already have the correct tables loaded? */
     if (cooling->z_index == z_index) return;
@@ -103,7 +104,7 @@ void MSR::CoolingUpdate(float redshift) {
         if (!cooling->H_reion_done) {
             printf("Hydrogen reionization! Injecting %.1f eV per proton\n",
                    parameters.get_fH_reion_eV_p_H());
-            pstCoolingHydReion(pst, NULL, 0, NULL, 0);
+            mdl->RunService<ServiceCoolingHydReionization>();
 
             /* Flag that reionization happened */
             cooling->H_reion_done = 1;
@@ -114,7 +115,7 @@ void MSR::CoolingUpdate(float redshift) {
     cooling->z_index = z_index;
     // We send the newly loaded table
     printf("Sending cooling tables...\n");
-    struct inCoolUpdate in;
+    ServiceCoolingUpdate::input in;
     in.z_index = cooling->z_index;
     in.previous_z_index = cooling->previous_z_index;
     in.dz = cooling->dz;
@@ -134,7 +135,7 @@ void MSR::CoolingUpdate(float redshift) {
     for (int i=0; i<eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance; i++)
         in.electron_abundance[i] = cooling->table.electron_abundance[i];
 
-    pstCoolingUpdate(pst, &in, sizeof(in), NULL, 0);
+    mdl->RunService<ServiceCoolingUpdate>(sizeof(in),&in);
 }
 
 /**
@@ -221,7 +222,7 @@ void MSR::CoolingInit(float redshift) {
     cooling->previous_z_index = eagle_cooling_N_redshifts - 2;
 
     // We prepare the data to be scattered among the processes
-    struct inCoolInit in;
+    ServiceCoolingInit::input in;
     in.in_cooling_data = *(cooling);
     for (int i=0; i<eagle_cooling_N_redshifts; i++) in.Redshifts[i] = cooling->Redshifts[i];
     for (int i=0; i<eagle_cooling_N_density; i++) in.nH[i] = cooling->nH[i];
@@ -231,7 +232,7 @@ void MSR::CoolingInit(float redshift) {
     for (int i=0; i<eagle_cooling_N_abundances; i++) in.SolarAbundances[i] = cooling->SolarAbundances[i];
     for (int i=0; i<eagle_cooling_N_abundances; i++) in.SolarAbundances_inv[i] = cooling->SolarAbundances_inv[i];
 
-    pstCoolingInit(pst,&in,sizeof(in),NULL,0);
+    mdl->RunService<ServiceCoolingInit>(sizeof(in),&in);
 }
 
 /**
@@ -849,7 +850,7 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
     allocate_cooling_tables(pkd->cooling);
 }
 
-void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in) {
+void pkd_cooling_update(PKD pkd, ServiceCoolingUpdate::input *in) {
 
     pkd->cooling->z_index = in->z_index;
     pkd->cooling->previous_z_index = in->previous_z_index;

@@ -82,6 +82,8 @@
 #include "meshless/hydro/wakeup.h"
 #include "meshless/hydro/endstep.h"
 
+#include "meshless/cooling/services.h"
+
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
 
@@ -108,6 +110,10 @@ void *worker_init(MDL vmdl) {
     plcl->pkd = NULL;
     pstInitialize(&pst,mdl,plcl);
     pstAddServices(pst,mdl);
+    mdl->AddService<ServiceCoolingInit>(pst);
+    mdl->AddService<ServiceCoolingUpdate>(pst);
+    mdl->AddService<ServiceCoolingUpdateZ>(pst);
+    mdl->AddService<ServiceCoolingHydReionization>(pst);
     mdl->AddService<ServiceWakeParticles>(pst);
     mdl->AddService<ServiceEndTimestepIntegration>(pst);
     mdl->AddService<ServiceSetAdd>(pst);

@@ -51,12 +51,10 @@ typedef float  mass_t;
 // There are a number of "parameters" that are calculated from regular parameters
 // These are stored in the following structure, but maybe they should be removed
 struct CALC {
-#ifdef COOLING
-    // IA: Cooling parameters
+    // Cooling parameters
     double dCoolingMinu;
     static constexpr double fCa_over_Si_in_Solar = 1;
     static constexpr double fS_over_Si_in_Solar = 1;
-#endif
     // Internal energy floor parameters
 #if defined(EEOS_POLYTROPE)
     double dEOSFloorDen;
@@ -210,33 +208,15 @@ struct pkdLightconeParameters {
 
 struct inChemCompInit {
     double dInitialH;
-#ifdef HAVE_HELIUM
     double dInitialHe;
-#endif
-#ifdef HAVE_CARBON
     double dInitialC;
-#endif
-#ifdef HAVE_NITROGEN
     double dInitialN;
-#endif
-#ifdef HAVE_OXYGEN
     double dInitialO;
-#endif
-#ifdef HAVE_NEON
     double dInitialNe;
-#endif
-#ifdef HAVE_MAGNESIUM
     double dInitialMg;
-#endif
-#ifdef HAVE_SILICON
     double dInitialSi;
-#endif
-#ifdef HAVE_IRON
     double dInitialFe;
-#endif
-#ifdef HAVE_METALLICITY
     double dInitialMetallicity;
-#endif
 };
 
 

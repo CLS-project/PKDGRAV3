@@ -90,9 +90,7 @@ struct MFM {
 #endif
 
         (blitz::TinyVector<float,ELEMENT_COUNT>, ElemMass),
-#ifdef HAVE_METALLICITY
         (float, fMetalMass),
-#endif
 
 #ifdef STELLAR_EVOLUTION
         (blitz::TinyVector<float,3>, ReceivedMom),

@@ -52,9 +52,7 @@
 #include "io/output.h"
 #include "core/swapall.h"
 
-#ifdef COOLING
-    #include "cooling/cooling.h"
-#endif
+#include "cooling/cooling.h"
 #ifdef GRACKLE
     #include "cooling_grackle/cooling_grackle.h"
 #endif
@@ -159,24 +157,6 @@ void pstAddServices(PST pst,mdl::mdlClass * mdl) {
                     (fcnService_t *) pstSetGlobalDt,
                     sizeof(struct outGetMinDt),0,
                     Legacy::SetGlobalDt);
-#ifdef COOLING
-    mdl->AddService(PST_COOLINGUPDATE,pst,
-                    (fcnService_t *) pstCoolingUpdate,
-                    sizeof(struct inCoolUpdate),0,
-                    Legacy::CoolingUpdate);
-    mdl->AddService(PST_COOLINGUPDATEZ,pst,
-                    (fcnService_t *) pstCoolingUpdateZ,
-                    sizeof(float),0,
-                    Legacy::CoolingUpdateZ);
-    mdl->AddService(PST_COOLINGINIT,pst,
-                    (fcnService_t *) pstCoolingInit,
-                    sizeof(struct inCoolInit),0,
-                    Legacy::CoolingInit);
-    mdl->AddService(PST_COOLINGHYDREION,pst,
-                    (fcnService_t *) pstCoolingHydReion,
-                    0,0,
-                    Legacy::CoolingHydReion);
-#endif
 #ifdef GRACKLE
     mdl->AddService(PST_GRACKLEINIT,pst,
                     (fcnService_t *) pstGrackleInit,
@@ -1528,75 +1508,6 @@ int pstGrackleInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         pkdGrackleInit(plcl->pkd, in->bComove, in->dScaleFactor, in->achCoolingTable,
                        in->units);
-    }
-    return 0;
-}
-#endif
-
-#ifdef COOLING
-int pstCoolingInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inCoolInit *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inCoolInit));
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_COOLINGINIT,in,nIn);
-        pstCoolingInit(pst->pstLower,in,nIn,NULL,0);
-        pst->mdl->GetReply(rID);
-    }
-    else {
-        pkd_cooling_init_backend(plcl->pkd, in->in_cooling_data,
-                                 in->Redshifts,
-                                 in->nH,
-                                 in->Temp,
-                                 in->HeFrac,
-                                 in->Therm,
-                                 in->SolarAbundances,
-                                 in->SolarAbundances_inv);
-    }
-    return 0;
-}
-
-int pstCoolingUpdate(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inCoolUpdate *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inCoolUpdate));
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_COOLINGUPDATE,in,nIn);
-        pstCoolingUpdate(pst->pstLower,in,nIn,NULL,0);
-        pst->mdl->GetReply(rID);
-    }
-    else {
-        pkd_cooling_update(plcl->pkd, in);
-    }
-    return 0;
-}
-int pstCoolingUpdateZ(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<float *>(vin);
-
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_COOLINGUPDATEZ,in,nIn);
-        pstCoolingUpdateZ(pst->pstLower,in,nIn,NULL,0);
-        pst->mdl->GetReply(rID);
-    }
-    else {
-        plcl->pkd->cooling->dz = *in;
-    }
-    return 0;
-}
-
-int pstCoolingHydReion(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-
-    if (pst->nLeaves > 1) {
-        int rID = pst->mdl->ReqService(pst->idUpper,PST_COOLINGHYDREION,NULL,0);
-        pstCoolingHydReion(pst->pstLower,NULL,0,NULL,0);
-        pst->mdl->GetReply(rID);
-    }
-    else {
-        cooling_Hydrogen_reionization(plcl->pkd);
     }
     return 0;
 }

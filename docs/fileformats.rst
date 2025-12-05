@@ -116,7 +116,7 @@ the snapshot.
     Header {
         BoxSize                // Size of the box in Mpc/h
         Cosmological run       // Whether or not this is a cosmological run
-        Flag_Cooling           // Whether or not the code was compiled with the COOLING flag
+        Flag_Cooling           // Whether or not the simulation included cooling
         Flag_DoublePrecision   // Whether or not position and velocities are stored in double precision
         Flag_Feedback          // Whether or not the code was compiled with the FEEDBACK flag
         Flag_Metals            // Whether or not gas and star particles contain a metallicity dataset

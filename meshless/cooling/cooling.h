@@ -26,6 +26,7 @@
 
 /* Local includes. */
 #include "cooling_struct.h"
+#include "services.h"
 #include "pkd.h"
 
 #ifdef __cplusplus
@@ -42,7 +43,7 @@ float cooling_get_temperature(PKD pkd, const float redshift,
 }
 #endif
 
-void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in);
+void pkd_cooling_update(PKD pkd, ServiceCoolingUpdate::input *in);
 void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data,
                               float Redshifts[eagle_cooling_N_redshifts],
                               float nH[eagle_cooling_N_density],
