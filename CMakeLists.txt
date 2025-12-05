@@ -773,6 +773,7 @@ option(NEW_REORDER "Used the new MDL swap based particle reorder method" OFF)
 if(NEW_REORDER)
    target_sources(${PROJECT_NAME} PRIVATE domains/reorder.cxx)
 endif(NEW_REORDER)
+option(FIXED_SIZE_TREES "Use fixed size trees rather than dynamically allocated ones" OFF)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})

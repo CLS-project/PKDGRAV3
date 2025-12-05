@@ -654,6 +654,15 @@ public:
 };
 using PKD = pkdContext *;
 
+#ifdef FIXED_SIZE_TREES
+class treeCACHEhelper : public mdl::arrayCACHEhelper {
+protected:
+    pkdContext *pkd;
+public:
+    explicit treeCACHEhelper(pkdContext *pkd)
+        : arrayCACHEhelper(pkd->tree.ElementSize(),pkd->tree,pkd->Local(),false), pkd(pkd) {}
+};
+#else
 class treeCACHEhelper : public mdl::CACHEhelper {
 protected:
     pkdContext *pkd;
@@ -664,6 +673,7 @@ public:
         return pkd->tree[i];
     }
 };
+#endif
 
 class particleCACHEhelper : public mdl::arrayCACHEhelper {
 protected:

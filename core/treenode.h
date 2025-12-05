@@ -70,7 +70,13 @@ typedef struct sphBounds {
     } A,B,BI;
 } SPHBNDS;
 
-class treeStore : public splitStore<KDN,KDN_FIELD>, protected Integerize {
+class treeStore :
+#ifdef FIXED_SIZE_TREES
+    public dataStore<KDN,KDN_FIELD>,
+#else
+    public splitStore<KDN,KDN_FIELD>,
+#endif
+    protected Integerize {
 protected:
     bool bIntegerPosition = false;
     particleStore *pstore;

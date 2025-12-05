@@ -477,7 +477,11 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     // Ideally we would have nStore/nBucket leaf nodes, and thus twice that total tree nodes.
     // The buckets are not always full, and the tree is not completely balanced, so it will be more in practice.
     ephemeral.reset(); // The monotonic buffer resource will be invalidated by the new allocation
+#ifdef FIXED_SIZE_TREES
+    uint64_t nTreeNodes = (nStore+1) / uint64_t(std::max(1.0,std::ceil(nBucket-std::sqrt(nBucket)))) * 3;
+#else
     uint64_t nTreeNodes = (nStore+1) / nBucket * 2;
+#endif
     static_assert(nSegments==4);
     TinyVector<size_t,nSegments> nElements{uint64_t(nStore+1),nEphemeral,uint64_t(nDecoratorStore+1),nTreeNodes};
     TinyVector<size_t,nSegments> nBytesPerElement{particles.ParticleSize(),nEphemeralBytes,decorators.ElementSize(),tree.ElementSize()};

@@ -49,6 +49,7 @@
 #cmakedefine NEW_REORDER 1
 #cmakedefine HAVE_ROCKSTAR 1
 #cmakedefine INSTRUMENT_MPI 1
+#cmakedefine FIXED_SIZE_TREES 1
 
 #cmakedefine USE_SIMD 1
 #ifdef USE_SIMD
