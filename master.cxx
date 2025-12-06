@@ -5157,7 +5157,7 @@ void MSR::RsHaloLoadIds(const std::string_view filename_template,bool bAppend) {
     hdr.iReaderWriter = 0;
     hdr.nElementSize = 1;
     auto out = new ServiceFileSizes::output[ServiceFileSizes::max_files];
-    auto n = mdl->RunService<ServiceRsHaloCount>(sizeof(hdr),&hdr,out);
+    auto n = mdl->RunService<ServiceRsHaloCount>(sizeof(hdr),&hdr,out,sizeof(ServiceFileSizes::output)*ServiceFileSizes::max_files);
     n /= sizeof(ServiceFileSizes::output);
     counts.resize(n);
     for (auto i=0; i<n; ++i) {
