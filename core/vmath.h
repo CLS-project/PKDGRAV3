@@ -167,6 +167,134 @@ dvec exp(const dvec &x) {
     return r;
 }
 
+static inline dvec log_poly(const dvec &m) {
+    // m in [1,2), t = m - 1 in [0,1]
+    const dvec t  = m - 1.0;
+    dvec tpow = 1.0;
+
+    // Q(t) = a0 + a1 t + ... + a12 t^12
+    // log(1+t) ≈ t * Q(t)
+    const dvec a0  = 9.99999999940960782e-01;
+    const dvec a1  = -4.99999988894528569e-01;
+    const dvec a2  = 3.33332814506182407e-01;
+    const dvec a3  = -2.49989386749519288e-01;
+    const dvec a4  = 1.99880786360059820e-01;
+    const dvec a5  = -1.65837785714768954e-01;
+    const dvec a6  = 1.39020881042502709e-01;
+    const dvec a7  = -1.12595369219835192e-01;
+    const dvec a8  = 8.20632177197394008e-02;
+    const dvec a9  = -4.91258177129472937e-02;
+    const dvec a10 = 2.16911029784248484e-02;
+    const dvec a11 = -6.09830024373608868e-03;
+    const dvec a12 = 8.05026589618270359e-04;
+
+    dvec q = a0;
+    tpow = t;           q += a1  * tpow;
+    tpow = tpow * t;    q += a2  * tpow;
+    tpow = tpow * t;    q += a3  * tpow;
+    tpow = tpow * t;    q += a4  * tpow;
+    tpow = tpow * t;    q += a5  * tpow;
+    tpow = tpow * t;    q += a6  * tpow;
+    tpow = tpow * t;    q += a7  * tpow;
+    tpow = tpow * t;    q += a8  * tpow;
+    tpow = tpow * t;    q += a9  * tpow;
+    tpow = tpow * t;    q += a10 * tpow;
+    tpow = tpow * t;    q += a11 * tpow;
+    tpow = tpow * t;    q += a12 * tpow;
+
+    // log(m) ≈ t * Q(t)
+    return t * q;
+}
+
+#if defined(__AVX512F__)
+static inline dvec log(const dvec &x) {
+    const __m512i exp_mask = _mm512_set1_epi64(0x7FF0000000000000ULL);
+    const __m512i man_mask = _mm512_set1_epi64(0x000FFFFFFFFFFFFFULL);
+    const __m512i one_exp  = _mm512_set1_epi64(1023ULL << 52);
+
+    __m512i xi = _mm512_castpd_si512(x);
+
+    // Extract exponent (unbiased)
+    __m512i e = _mm512_srli_epi64(_mm512_and_si512(xi, exp_mask), 52);
+    e = _mm512_sub_epi64(e, _mm512_set1_epi64(1023));
+
+    // Normalized mantissa m ∈ [1,2)
+    __m512i mi = _mm512_or_si512(_mm512_and_si512(xi, man_mask), one_exp);
+    dvec m = _mm512_castsi512_pd(mi);
+
+    dvec logm = log_poly(m);
+
+    // e → double
+    dvec ed = _mm512_cvtepi64_pd(e);
+
+    const dvec ln2 = 0.6931471805599453094172321215;
+    return logm + ed * ln2;
+}
+#elif defined(__AVX__)
+static inline dvec log(const dvec &x) {
+    const __m256i exp_mask = _mm256_set1_epi64x(0x7FF0000000000000ULL);
+    const __m256i man_mask = _mm256_set1_epi64x(0x000FFFFFFFFFFFFFULL);
+    const __m256i one_exp  = _mm256_set1_epi64x(1023ULL << 52);
+
+    __m256i xi = _mm256_castpd_si256(x);
+
+    // Extract exponent (unbiased)
+    __m256i e64 = _mm256_srli_epi64(_mm256_and_si256(xi, exp_mask), 52);
+    e64 = _mm256_sub_epi64(e64, _mm256_set1_epi64x(1023));
+
+    // Convert exponent lanes → doubles (via two SSE halves)
+    __m128i e_lo = _mm256_castsi256_si128(e64);
+    __m128i e_hi = _mm256_extractf128_si256(e64, 1);
+
+    __m128i e32_lo = _mm_shuffle_epi32(e_lo, _MM_SHUFFLE(2,2,2,0));
+    __m128i e32_hi = _mm_shuffle_epi32(e_hi, _MM_SHUFFLE(2,2,2,0));
+
+    __m128d ed_lo = _mm_cvtepi32_pd(e32_lo);
+    __m128d ed_hi = _mm_cvtepi32_pd(e32_hi);
+
+    dvec ed = _mm256_castpd128_pd256(ed_lo);
+    ed = _mm256_insertf128_pd(ed, ed_hi, 1);
+
+    // Normalized mantissa m ∈ [1,2)
+    __m256i mi = _mm256_or_si256(_mm256_and_si256(xi, man_mask), one_exp);
+    dvec m = _mm256_castsi256_pd(mi);
+
+    dvec logm = log_poly(m);
+
+    const dvec ln2 = 0.6931471805599453094172321215;
+    return logm + ed * ln2;
+}
+#elif defined(__SSE2__) || defined(__ARM_NEON)
+static inline dvec log(const dvec &x) {
+    const __m128i exp_mask = _mm_set1_epi64x(0x7FF0000000000000ULL);
+    const __m128i man_mask = _mm_set1_epi64x(0x000FFFFFFFFFFFFFULL);
+    const __m128i one_exp  = _mm_set1_epi64x(1023ULL << 52);
+
+    __m128i xi = _mm_castpd_si128(x);
+
+    // Extract exponent (unbiased)
+    __m128i e64 = _mm_srli_epi64(_mm_and_si128(xi, exp_mask), 52);
+    e64 = _mm_sub_epi64(e64, _mm_set1_epi64x(1023));
+
+    // Pack lower 32-bit parts for conversion
+    __m128i e32 = _mm_shuffle_epi32(e64, _MM_SHUFFLE(2,2,2,0));
+    dvec ed = _mm_cvtepi32_pd(e32);
+
+    // Normalized mantissa m in [1,2)
+    __m128i mi = _mm_or_si128(_mm_and_si128(xi, man_mask), one_exp);
+    dvec m = _mm_castsi128_pd(mi);
+
+    dvec logm = log_poly(m);
+
+    const dvec ln2 = 0.6931471805599453094172321215;
+    return logm + ed * ln2;
+}
+#endif
+
+static inline dvec pow(const dvec &x, const dvec &y) {
+    return exp( y * log(x) );
+}
+
 /*
 ** This is an optimized version of erf that is accurate for all ranges.
 ** The exp() value is passed in because it it needed outside as well.
@@ -294,37 +422,4 @@ extern "C" {
 #endif
 }
 
-static inline
-dvec pow(const dvec &xx,const dvec &yy) {
-    dvec t;
-#if defined(__AVX512F__)
-#if defined(HAVE_MM512_POW)
-    t =_mm512_pow_pd(xx, yy);
-#elif defined(HAVE_LIBVECM_POW)
-    t =_ZGVeN8vv_pow(xx, yy);
-#else
-    assert(0);
-#endif
-
-#elif defined(__AVX__)
-#if defined(HAVE_MM256_POW)
-    t = _mm256_pow_pd(xx, yy);
-#elif defined(HAVE_LIBVECM256_POW)
-    t = _ZGVdN4vv_pow(xx, yy);
-#else
-    assert(0);
-#endif
-
-#elif defined(__SSE__)
-#if defined(HAVE_MM_POW)
-    t = _mm_pow_pd(xx, yy);
-#elif defined (HAVE_LIBVECM_POW)
-    t = _ZGVbN2vv_pow(xx, yy);
-#else
-    assert(0);
-#endif
-
-#endif
-    return t;
-}
 #endif/*VMATH_H*/
