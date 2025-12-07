@@ -232,22 +232,33 @@ static inline dvec log(const dvec &x) {
 }
 #elif defined(__AVX__)
 static inline dvec log(const dvec &x) {
-    const __m256i exp_mask = _mm256_set1_epi64x(0x7FF0000000000000ULL);
-    const __m256i man_mask = _mm256_set1_epi64x(0x000FFFFFFFFFFFFFULL);
-    const __m256i one_exp  = _mm256_set1_epi64x(1023ULL << 52);
-
-    __m256i xi = _mm256_castpd_si256(x);
+    const __m256d exp_mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x7FF0000000000000ULL));
+    const __m256d man_mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x000FFFFFFFFFFFFFULL));
+    const __m256d one_exp  = _mm256_castsi256_pd(_mm256_set1_epi64x(1023ULL << 52));
 
     // Extract exponent (unbiased)
-    __m256i e64 = _mm256_srli_epi64(_mm256_and_si256(xi, exp_mask), 52);
+    __m256i e64 = _mm256_castpd_si256(_mm256_and_pd(x, exp_mask));
+#if defined(__AVX2__) // AVX2 has 64-bit integer shift and subtract
+    e64 = _mm256_srli_epi64(e64, 52);
     e64 = _mm256_sub_epi64(e64, _mm256_set1_epi64x(1023));
-
+#endif
     // Convert exponent lanes → doubles (via two SSE halves)
+    // We want _mm256_cvtepi64_pd which only appears in AVX512
     __m128i e_lo = _mm256_castsi256_si128(e64);
     __m128i e_hi = _mm256_extractf128_si256(e64, 1);
-
-    __m128i e32_lo = _mm_shuffle_epi32(e_lo, _MM_SHUFFLE(2,2,2,0));
-    __m128i e32_hi = _mm_shuffle_epi32(e_hi, _MM_SHUFFLE(2,2,2,0));
+#if defined(__AVX2__)
+    // e → 32-bit integers for conversion (lanes 0 and 2)
+    __m128i e32_lo = _mm_shuffle_epi32(e_lo, _MM_SHUFFLE(3,3,2,0));
+    __m128i e32_hi = _mm_shuffle_epi32(e_hi, _MM_SHUFFLE(3,3,2,0));
+#else
+    // e → 32-bit integers for conversion (lanes 1 and 3)
+    __m128i e32_lo = _mm_shuffle_epi32(e_lo, _MM_SHUFFLE(0,0,3,1));
+    __m128i e32_hi = _mm_shuffle_epi32(e_hi, _MM_SHUFFLE(0,0,3,1));
+    e32_lo = _mm_srli_epi32(e32_lo, 20);
+    e32_hi = _mm_srli_epi32(e32_hi, 20);
+    e32_lo = _mm_sub_epi32(e32_lo, _mm_set1_epi32(1023));
+    e32_hi = _mm_sub_epi32(e32_hi, _mm_set1_epi32(1023));
+#endif
 
     __m128d ed_lo = _mm_cvtepi32_pd(e32_lo);
     __m128d ed_hi = _mm_cvtepi32_pd(e32_hi);
@@ -256,8 +267,7 @@ static inline dvec log(const dvec &x) {
     ed = _mm256_insertf128_pd(ed, ed_hi, 1);
 
     // Normalized mantissa m ∈ [1,2)
-    __m256i mi = _mm256_or_si256(_mm256_and_si256(xi, man_mask), one_exp);
-    dvec m = _mm256_castsi256_pd(mi);
+    dvec m = _mm256_or_pd(_mm256_and_pd(x, man_mask), one_exp);
 
     dvec logm = log_poly(m);
 
