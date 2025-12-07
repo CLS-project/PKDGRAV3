@@ -37,7 +37,7 @@
 // so that the base class can use the derived class'
 // types. All this at compile-time, so no run-time
 // overhead due to virtualization or anything.
-template <typename Traits> class BaseInteraction {
+template <typename Traits, class Derived> class BaseInteraction {
 
 public:
     // Access the derived classes types via trait class
@@ -52,32 +52,64 @@ public:
     // building the service. We do a delayed initialization
     // later in setup(), which is called at Service runtime,
     // not construction.
-    BaseInteraction() { il = new IL(); };
+    BaseInteraction() {};
 
-    void setup(PKD pkd, Options options) {
-        this->pkd = pkd;
-        this->options = options;
+    void setup(PKD pkd, Options *options) {
+        if constexpr (requires(Derived d) { d.setup(pkd, options); }) {
+            top().setup(pkd, options);
+        }
+        else {
+            this->pkd = pkd;
+            this->options = options;
+        }
     }
 
     // Generic interfaces to the interaction list(s).
     // If the interaction has more than one, these
     // functions should be overloaded accordingly.
-    void clearIL() { il->clear(); };
-    void recenterIL(blitz::TinyVector<double, 3> ref) { il->recenter(ref); };
+    void clearIL() {
+        if constexpr (requires(Derived d) { d.clearIL(); }) {
+            top().clearIL();
+        }
+        else {
+            il->clear();
+        }
+    };
     void setReferenceIL(blitz::TinyVector<double, 3> ref) {
-        il->setReference(ref);
+        if constexpr (requires(Derived d) { d.setReferenceIL(); }) {
+            top().setReferenceIL(ref);
+        }
+        else {
+            il->setReference(ref);
+        }
     };
     blitz::TinyVector<double, 3> getReferenceIL() {
-        return il->getReference();
+        if constexpr (requires(Derived d) { d.getReferenceIL(); }) {
+            return top().getReferenceIL();
+        }
+        else {
+            return il->getReference();
+        }
     };
 
     // Test that the IL(s) has been populated correctly, only
     // for debugging runs
-    void extensiveILTest() {};
+    void extensiveILTest() {
+        if constexpr (requires(Derived d) { d.getReferenceIL(); })
+        top().extensiveILTest();
+    }
+
+private:
+    inline Derived &top() {
+        static_assert(std::is_base_of<BaseInteraction, Derived>::value,
+                      "Invalid Top class specified.");
+        return static_cast<Derived &>(*this);
+    }
 
 protected:
     PKD pkd;
-    Options options;
+    Options *options;
+    blitz::TinyVector<double, 3> kdn_r;
 
     // By default we only have one interaction list,
     // but derived classes can manually add more
@@ -86,7 +118,7 @@ protected:
 
     struct workParticle {
         // Use a constructor for convenience
-        workParticle(PKD pkd, treeStore::NodePointer k) {
+        workParticle(PKD pkd, treeStore::NodePointer k, IL *il) {
             nRefs = 1; /* I am using it currently */
             ctx = pkd;
             dFlop = 0.0;
@@ -124,25 +156,57 @@ protected:
         double dFlopDoubleGPU;
     };
 
+    // Allow for some flexibility when initializing this at it
+    // could contain information of the interaction (e.g., IL)
+    void initializeInfoIn(workParticle *wp, int nP,
+                          particleStore::ParticlePointer p) {
+        if constexpr (requires(Derived d) { d.initializeInfoIn(wp, nP, p); }) {
+            top().initializeInfoIn(wp, nP, p);
+        }
+        else {
+            wp->pInfoIn[nP].init(p);
+        }
+    };
+    void initializeInfoOut(workParticle *wp, int nP,
+                           particleStore::ParticlePointer p) {
+        if constexpr (requires(Derived d) { d.initializeInfoOut(wp, nP, p); }) {
+            top().initializeInfoIn(wp, nP, p);
+        }
+        else {
+            wp->pInfoOut[nP].init(p);
+        }
+    };
+
     // This hook allows or explicit cloning of the IL
     // if needed (it seems to be used when bDensity & bGPU)
-    void cloneIL(workParticle *wp) { wp->il = il; }
+    void cloneIL(workParticle *wp) {
+        if constexpr (requires(Derived d) { d.cloneIL(wp); }) {
+            top().cloneIL(wp);
+        }
+        else {
+            wp->il = il;
+        }
+    }
 
     // This would wrap all the queues or any processing
     // required by a derived class.
     // By default just queue it.
-    void processWorkParticle(workParticle *wp) { queueInteraction(wp, il); };
+    void processWorkParticle(workParticle *wp) {
+        top().processWorkParticle(wp);
+    };
 
     // Acts on own workParticle, overloaded by the
     // different choices in pkdParticleWorkDone
-    void particleWorkDone(workParticle *wp) {};
-
-    // queuePP, queueMFM,...
-    void queueInteraction(workParticle *wp, IL *il) {};
+    void particleWorkDone(workParticle *wp) { top().particleWorkDone(wp); };
 
     // Condition for not processing a particle
     bool particleSkipCondition(particleStore::ParticlePointer p) {
-        return !p->is_rung_range(options.uRungLo, options.uRungHi);
+        if constexpr (requires(Derived d) { d.particleSkipCondition(p); }) {
+            return top().particleSkipCondition(p);
+        }
+        else {
+            return !p->is_rung_range(options->uRungLo, options->uRungHi);
+        }
     };
 
     void aggregateResult(PINFOOUT &out, ResultInteraction &result) = delete;
@@ -154,20 +218,18 @@ public:
     // Returns the number of interactions and the flops
     std::tuple<int, double> interact(treeStore::NodePointer pkdn, int iRoot1,
                                      int iRoot2) {
-        float fBall;
-        int i, nSoft, nActive;
+        int nActive;
         int nP;
 
-        auto kdn_r = pkdn->position();
+        this->kdn_r = pkdn->position();
 
         /*
         ** Now process the two interaction lists for each active particle.
         */
         nActive = 0;
-        nSoft = 0;
 
         /* Collect the bucket particle information */
-        auto wp = new workParticle(pkd, pkdn);
+        auto wp = new workParticle(pkd, pkdn, il);
         assert(wp != NULL);
 
         ++pkd->nWpPending;
@@ -208,120 +270,10 @@ public:
             nP = wp->nP++;
             wp->pPart[nP] = &p;
             wp->iPart[nP] = &p - pkd->particles.begin();
-            wp->pInfoIn[nP].init(&p);
-            wp->pInfoOut[nP].init(&p);
+            initializeInfoIn(wp, nP, &p);
+            initializeInfoOut(wp, nP, &p);
 
-            //                 wp->pInfoIn[nP].r = pkd->ilc.get_dr(r);
-
-            //                 if (p.have_newsph()) {
-            //                     const auto &NewSph = p.newsph();
-            //                     wp->pInfoIn[nP].fBall = pkdIsGas(pkd, &p) ?
-            //                     p.ball() : 1.0f; wp->pInfoIn[nP].isTooLarge =
-            //                     0; wp->pInfoIn[nP].Omega = pkdIsGas(pkd, &p)
-            //                     ? NewSph.Omega : 1.0f; wp->pInfoIn[nP].iMat =
-            //                     p.imaterial(); SPHpredictOnTheFly(pkd, p,
-            //                     kick, wp->SPHoptions->nPredictRung,
-            //                     wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P,
-            //                     &wp->pInfoIn[nP].cs, NULL,
-            //                     &wp->pInfoIn[nP].Sxx, &wp->pInfoIn[nP].Syy,
-            //                     &wp->pInfoIn[nP].Sxy, &wp->pInfoIn[nP].Sxz,
-            //                     &wp->pInfoIn[nP].Syz, SPHoptions);
-            //                     wp->pInfoIn[nP].rho = pkdIsGas(pkd, &p) ?
-            //                     p.density() : 1.0f; wp->pInfoIn[nP].isGas =
-            //                     pkdIsGas(pkd, &p) ? 1.0f : 0.0f;
-
-            //                     wp->pInfoOut[nP].rho = 0.0f;
-            //                     wp->pInfoOut[nP].drhodfball = 0.0f;
-            //                     wp->pInfoOut[nP].nden = 0.0f;
-            //                     wp->pInfoOut[nP].dndendfball = 0.0f;
-            //                     wp->pInfoOut[nP].fBall = 0.0f;
-            //                     wp->pInfoOut[nP].nSmooth = 0.0f;
-            //                     wp->pInfoOut[nP].imbalanceX = 0.0f;
-            //                     wp->pInfoOut[nP].imbalanceY = 0.0f;
-            //                     wp->pInfoOut[nP].imbalanceZ = 0.0f;
-            //                     wp->pInfoOut[nP].uDot = 0.0f;
-            //                     wp->pInfoOut[nP].divv = 0.0f;
-            //                     wp->pInfoOut[nP].dtEst = 1e14f;
-            //                     wp->pInfoOut[nP].maxRung = 0.0f;
-            //                     wp->pInfoOut[nP].corrT = 0.0f;
-            //                     wp->pInfoOut[nP].corrP = 0.0f;
-            //                     wp->pInfoOut[nP].corr = 0.0f;
-            //                     if (SPHoptions->doShearStrengthModel) {
-            //                         wp->pInfoOut[nP].dvxdx = 0.0f;
-            //                         wp->pInfoOut[nP].dvxdy = 0.0f;
-            //                         wp->pInfoOut[nP].dvxdz = 0.0f;
-            //                         wp->pInfoOut[nP].dvydx = 0.0f;
-            //                         wp->pInfoOut[nP].dvydy = 0.0f;
-            //                         wp->pInfoOut[nP].dvydz = 0.0f;
-            //                         wp->pInfoOut[nP].dvzdx = 0.0f;
-            //                         wp->pInfoOut[nP].dvzdy = 0.0f;
-            //                         wp->pInfoOut[nP].dvzdz = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvxx = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvxy = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvxz = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvyx = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvyy = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvyz = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvzx = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvzy = 0.0f;
-            //                         wp->pInfoOut[nP].Cinvzz = 0.0f;
-            //                     }
-            //                 }
-            //                 if (p.have_mfm()) {
-            //                     if (pkdIsGas(pkd, &p)) {
-            //                         const auto &psph = p.sph();
-            //                         wp->pInfoIn[nP].fBall = pkdIsGas(pkd, &p)
-            //                         ? p.ball() : 1.0f; wp->pInfoIn[nP].isGas
-            //                         = pkdIsGas(pkd, &p) ? 1.0f : 0.0f;
-            //                         wp->pInfoIn[nP].isActive =
-            //                         pkdIsActive(pkd, &p) ? 1.0f : 0.0f;
-            //                         wp->pInfoIn[nP].isMarked = p.marked()
-            //                         ? 1.0f : 0.0f; wp->pInfoIn[nP].Omega =
-            //                         psph.omega; wp->pInfoIn[nP].rho =
-            //                         pkdIsGas(pkd, &p) ? p.density() : 1.0f;
-            //                         wp->pInfoIn[nP].spheom= psph.spheom;
-            //                         wp->pInfoIn[nP].last  =
-            //                         psph.lastUpdateTime; wp->pInfoIn[nP].Dt =
-            //                         wp->ts->dDelta/(1<<p.rung());
-            //                         wp->pInfoIn[nP].BXX   = psph.B[XX];
-            //                         wp->pInfoIn[nP].BXY   = psph.B[XY];
-            //                         wp->pInfoIn[nP].BXZ   = psph.B[XZ];
-            //                         wp->pInfoIn[nP].BYY   = psph.B[YY];
-            //                         wp->pInfoIn[nP].BYZ   = psph.B[YZ];
-            //                         wp->pInfoIn[nP].BZZ   = psph.B[ZZ];
-            //                         wp->pInfoIn[nP].v[0] = p.velocity()[0];
-            //                         wp->pInfoIn[nP].v[1] = p.velocity()[1];
-            //                         wp->pInfoIn[nP].v[2] = p.velocity()[2];
-            //                         wp->pInfoIn[nP].P  = psph.P;
-            //                         wp->pInfoIn[nP].S = 0.0f; //psph.S;
-            //                         wp->pInfoIn[nP].gradRhox =
-            //                         psph.gradRho[0]; wp->pInfoIn[nP].gradRhoy
-            //                         = psph.gradRho[1];
-            //                         wp->pInfoIn[nP].gradRhoz =
-            //                         psph.gradRho[2]; wp->pInfoIn[nP].gradPx =
-            //                         psph.gradP[0]; wp->pInfoIn[nP].gradPy =
-            //                         psph.gradP[1]; wp->pInfoIn[nP].gradPz =
-            //                         psph.gradP[2]; wp->pInfoIn[nP].gradVxx =
-            //                         psph.gradVx[0]; wp->pInfoIn[nP].gradVxy =
-            //                         psph.gradVx[1]; wp->pInfoIn[nP].gradVxz =
-            //                         psph.gradVx[2]; wp->pInfoIn[nP].gradVyx =
-            //                         psph.gradVy[0]; wp->pInfoIn[nP].gradVyy =
-            //                         psph.gradVy[1]; wp->pInfoIn[nP].gradVyz =
-            //                         psph.gradVy[2]; wp->pInfoIn[nP].gradVzx =
-            //                         psph.gradVz[0]; wp->pInfoIn[nP].gradVzy =
-            //                         psph.gradVz[1]; wp->pInfoIn[nP].gradVzz =
-            //                         psph.gradVz[2]; wp->pInfoIn[nP].lastAccx
-            //                         = psph.lastAcc[0];
-            //                         wp->pInfoIn[nP].lastAccy =
-            //                         psph.lastAcc[1]; wp->pInfoIn[nP].lastAccz
-            //                         = psph.lastAcc[2]; wp->pInfoOut[nP].Frho
-            //                         = 0.0f; wp->pInfoOut[nP].Fmom[0] = 0.0f;
-            //                         wp->pInfoOut[nP].Fmom[1] = 0.0f;
-            //                         wp->pInfoOut[nP].Fmom[2] = 0.0f;
-            //                         wp->pInfoOut[nP].Fene = 0.0f;
-            //                         wp->pInfoOut[nP].FS = 0.0f;
-            //                     }
-            //                 }
+            //  wp->pInfoIn[nP].r = pkd->ilc.get_dr(r);
 
             // wp->pInfoOut[nP].a[0] = 0.0f;
             // wp->pInfoOut[nP].a[1] = 0.0f;
@@ -381,7 +333,7 @@ public:
 
         nActive += wp->nP;
 
-        if (options.doExtensiveTest) {
+        if (options->doExtensiveTest) {
             extensiveILTest();
         }
         // if (SPHoptions->doExtensiveILPTest && !(SPHoptions->doSetDensityFlags

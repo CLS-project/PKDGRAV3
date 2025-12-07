@@ -47,8 +47,9 @@
 #endif
 #include "io/service.h"
 #include "io/restore.h"
-#include "interaction/exampleinteraction.h"
-#include "walk/examplewalk.h"
+
+#include "walk/gravitywalk.h"
+#include "interaction/gravity.h"
 
 #include "analysis/analysis.h"
 #ifdef HAVE_ROCKSTAR
@@ -146,7 +147,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService<ServiceGetOrdSplits>(pst);
     mdl->AddService<ServiceSaveGroupStats>(pst);
     mdl->AddService<ServiceCountDistance>(pst);
-    mdl->AddService<ExampleWalk<ExampleInteraction>>(pst);
+    mdl->AddService<GravityWalk<GravityInteraction>>(pst);
 #ifdef HAVE_ROCKSTAR
     mdl->AddService<ServiceRsHaloCount>(pst);
     mdl->AddService<ServiceRsHaloLoadIds>(pst);
