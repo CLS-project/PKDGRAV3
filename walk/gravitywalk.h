@@ -245,7 +245,7 @@ protected:
             iOpenB = mask_mov(mask_mov(iOpenA, T4, i32v(ACCEPT_MULTIPOLE)), T3,
                               iOpenA);
             P1 = mask_mov(i32v(OPEN_CELL), T2, i32v(OPEN_BUCKET));
-            P2 = mask_mov(iOpenB, T7, i32v(0));
+            P2 = mask_mov(iOpenB, T7, i32v(KEEP_ON_CL));
             P3 = mask_mov(P2, T6, P1);
             P4 = mask_mov(P3, T1, i32v(ACCEPT_LOCAL_EXPANSION));
             iOpen = mask_mov(i32v(REMOVE_CELL), T0, P4);
@@ -293,11 +293,9 @@ protected:
                     this->interaction.setReferenceIL(r);
                 }
                 auto v = p.velocity();
-                this->pkd->ilp.append(
-                    r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile],
-                    r[2] + blk.zOffset[jTile], blk.m[jTile], blk.fourh2[jTile],
-                    v[0], v[1], v[2], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(),
-                    0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+                this->interaction.addParticleIL(r[0] + blk.xOffset[jTile],
+                                                r[1] + blk.yOffset[jTile],
+                                                r[2] + blk.zOffset[jTile], blk.m[jTile], blk.fourh2[jTile], &p);
             }
             else {
                 assert(id >= 0);
@@ -329,13 +327,9 @@ protected:
                     fMass = p.mass();
                     fSoft = p.soft();
                     r = p.position();
-                    auto v = p.velocity();
-                    this->pkd->ilp.append(
+                    this->interaction.addParticleIL(
                         r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile],
-                        r[2] + blk.zOffset[jTile], fMass, 4 * fSoft * fSoft,
-                        v[0], v[1], v[2], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0,
-                        p.rung(), 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                        0.0f);
+                        r[2] + blk.zOffset[jTile], fMass, 4*fSoft*fSoft, &p);
                 }
             }
             break;
@@ -616,12 +610,12 @@ protected:
         this->out->dFlopDoubleGPU = 1e-9 * this->walkStats.dFlopDoubleGPU;
         this->out->nTilesTotal = this->walkStats.nTilesTotal;
         this->out->nTilesCPU = this->walkStats.nTilesCPU;
-        this->out->nActive = this->nActive;
+        this->out->nActive = this->walkStats.nActive;
 
-        double dActive = static_cast<double>(this->nActive);
+        double dActive = static_cast<double>(this->walkStats.nActive);
         // Set dSum for the rest of statistics
         this->out->sFlop.dSum = this->dFlop;
-        if (this->nActive) {
+        if (this->walkStats.nActive) {
             this->out->sCell.dSum = this->dCellSum / dActive;
             this->out->sPart.dSum = this->dPartSum / dActive;
             this->out->sPartNumAccess.dSum =
@@ -645,7 +639,7 @@ protected:
         this->out->sSynchronizing.dSum = this->pkd->mdl->TimeSynchronizing();
 
         this->out->sLocal.dSum = this->pkd->Local();
-        this->out->sActive.dSum = (double)this->out->nActive;
+        this->out->sActive.dSum = dActive;
 
 #ifdef __linux__
         FILE *fp;

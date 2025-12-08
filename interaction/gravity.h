@@ -10,6 +10,35 @@
 #include "smooth/smooth.h"
 #include "walk/stats.h"
 
+// IA: Taken from grav2.cxx, why here and not simd/vmath?
+#if 1
+#if defined(USE_SIMD) && (defined(__SSE2__) || defined(__ARM_NEON))
+/* Caution: This uses v/sqrt(v) so v cannot be zero! */
+static inline float asqrtf(float v) {
+    __m128 r2 = _mm_max_ss(_mm_set_ss(v), _mm_set_ss(FLT_MIN));
+    __m128 r = _mm_rsqrt_ps(r2);
+    r = _mm_mul_ss(r, _mm_sub_ss(_mm_set_ss(3.0 / 2.0),
+                                 _mm_mul_ss(_mm_mul_ss(r, r),
+                                            _mm_mul_ss(r2, _mm_set_ss(0.5)))));
+    r = _mm_mul_ss(r, r2);
+    v = _mm_cvtss_f32(r);
+    return v;
+}
+static inline float rsqrtf(float v) {
+    __m128 r2 = _mm_max_ss(_mm_set_ss(v), _mm_set_ss(FLT_MIN));
+    __m128 r = _mm_rsqrt_ps(r2);
+    r = _mm_mul_ss(r, _mm_sub_ss(_mm_set_ss(3.0 / 2.0),
+                                 _mm_mul_ss(_mm_mul_ss(r, r),
+                                            _mm_mul_ss(r2, _mm_set_ss(0.5)))));
+    v = _mm_cvtss_f32(r);
+    return v;
+}
+#else
+static inline float asqrtf(float v) { return sqrtf(v); }
+static inline float rsqrtf(float v) { return 1.0f / sqrtf(v); }
+#endif
+#endif
+
 /*
  * INTERACTION TRAITS
  */
@@ -52,6 +81,8 @@ public:
         float fPot;
         float dirsum, normsum;
         float rhopmax;
+        float dtEst;
+        float maxRung;
 
         void init(particleStore::ParticlePointer p, float dirLsum,
                   float normLsum) {
@@ -60,6 +91,8 @@ public:
             dirsum = dirLsum;
             normsum = normLsum;
             rhopmax = 0.0f;
+            dtEst = 1e14f;
+            maxRung = 0.0f;
         }
     } PINFOOUT;
 
@@ -539,6 +572,13 @@ public:
         ilc->setReference(ref);
     };
 
+    void addParticleILImpl(double x, double y, double z, float fMass,
+                           float fourh2, particleStore::ParticlePointer p) {
+        auto v = p->velocity();
+        this->il->append(x, y, z, fMass, fourh2, -v[0], v[1], v[2], 0.0f, 0.0f,
+                         0.0f, 0.0f, 0.0f, 0, -p->rung(), 0, 0.0f, 0.0f, 0.0f,
+                         0.0f, 0.0f, 0.0f, 0.0f, -0.0f);
+    }
     // These two functions are required in the special case of the gravity
     // because there are some IL that are filled during the opening criteria
     // of the tree walk
@@ -1114,13 +1154,208 @@ private:
         // }
     }
     void particleWorkDoneImpl(workParticle *wp) {
-        base::particleWorkDoneImpl(wp);
-        // We overwrite the dFlop, in the case of the gravity
-        // wp->dFlop only accounts for the Ewald, the rest is
-        // accounted for manually
-        this->walkStats->dFlop =
-            wp->dFlop + wp->nP * (this->pkd->ilp.count() * COST_FLOP_PP +
-                                  this->pkd->ilc.count() * COST_FLOP_PC);
+
+        if (--wp->nRefs == 0) {
+
+            base::particleWorkDoneImpl(wp);
+            // We overwrite the dFlop, in the case of the gravity
+            // wp->dFlop only accounts for the Ewald, the rest is
+            // accounted for manually here
+            this->walkStats->dFlop +=
+                wp->nP * (this->pkd->ilp.count() * COST_FLOP_PP +
+                          this->pkd->ilc.count() * COST_FLOP_PC);
+
+            // Now actually update the particles with the
+            // information gathered during this interaction
+            auto p = this->pkd->particles[this->pkd->Local()];
+            for (auto i = 0; i < wp->nP; i++) {
+                p = this->pkd->particles[wp->pPart[i]];
+                auto r = p.position();
+                auto m = p.mass();
+#ifdef EXTERNAL_POTENTIAL
+                auto out = external_potential(r);
+                auto acc = std::get<POT_ACC>(out);
+
+                wp->pInfoOut[i].a[0] += acc[0];
+                wp->pInfoOut[i].a[1] += acc[1];
+                wp->pInfoOut[i].a[2] += acc[2];
+#endif
+                if (this->pkd->particles.present(PKD_FIELD::oAcceleration)) {
+                    printf("%e %e %e\n", wp->pInfoOut[i].a[0], wp->pInfoOut[i].a[1], wp->pInfoOut[i].a[2]);
+                    p.acceleration() = wp->pInfoOut[i].a;
+                }
+                if (this->pkd->particles.present(PKD_FIELD::oPotential)) {
+                    p.potential() = wp->pInfoOut[i].fPot;
+                }
+                if (this->pkd->ga != NULL) {
+                    auto gid = p.group();
+                    if (gid &&
+                            wp->pInfoOut[i].fPot < this->pkd->ga[gid].minPot) {
+                        this->pkd->ga[gid].minPot = wp->pInfoOut[i].fPot;
+                        this->pkd->ga[gid].iMinPart = wp->iPart[i];
+                    }
+                }
+                this->pkd->dEnergyU += 0.5 * m * wp->pInfoOut[i].fPot;
+                this->pkd->dEnergyW += m * blitz::dot(r, wp->pInfoOut[i].a);
+                this->pkd->dEnergyF += m * wp->pInfoOut[i].a;
+
+                auto uNewRung = computeParticleTimeStep(wp, i);
+                /*
+                ** Now we want to kick the particle velocities with a closing
+                *kick
+                ** based on the old rung and an opening kick based on the new
+                *rung.
+                ** However, we are not always allowed to decrease uNewRung by an
+                ** arbitrary amount, as this depends on where we are in the
+                ** substep hierarchy.
+                ** This also requires the various timestep factors to have been
+                ** pre-calculated for this dTime and all possible rungs at play.
+                ** Note that the only persistent info needed is the old rung
+                *which
+                ** gets updated at the end of this so that p.uRung indicates
+                ** which particles are active in this time step.
+                ** p.uRung = uNewRung could be done here, but we let the outside
+                ** code handle this.
+                */
+                if (this->pkd->particles.present(PKD_FIELD::oVelocity)) {
+                    auto &v = p.velocity();
+                    auto kick = &this->options->kick;
+                    if (kick && kick->bKickClose) {
+                        v[0] += kick->dtClose[p.rung()] * wp->pInfoOut[i].a[0] *
+                                p.accFac();
+                        v[1] += kick->dtClose[p.rung()] * wp->pInfoOut[i].a[1] *
+                                p.accFac();
+                        v[2] += kick->dtClose[p.rung()] * wp->pInfoOut[i].a[2] *
+                                p.accFac();
+                    }
+                    auto v2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+                    /*
+                    ** Now calculate the kinetic energy term.
+                    */
+                    this->pkd->dEnergyT += 0.5 * m * v2;
+                    /* L is calculated with respect to the origin (0,0,0) */
+                    this->pkd->dEnergyL[0] += m * (r[1] * v[2] - r[2] * v[1]);
+                    this->pkd->dEnergyL[1] += m * (r[2] * v[0] - r[0] * v[2]);
+                    this->pkd->dEnergyL[2] += m * (r[0] * v[1] - r[1] * v[0]);
+
+                    if (kick && kick->bKickOpen) {
+                        p.set_rung(uNewRung);
+                        ++this->pkd->nRung[p.rung()];
+                        v[0] += kick->dtOpen[p.rung()] * wp->pInfoOut[i].a[0] *
+                                p.accFac();
+                        v[1] += kick->dtOpen[p.rung()] * wp->pInfoOut[i].a[1] *
+                                p.accFac();
+                        v[2] += kick->dtOpen[p.rung()] * wp->pInfoOut[i].a[2] *
+                                p.accFac();
+                        /*
+                        ** On KickOpen we also always check for intersection
+                        *with the lightcone
+                        ** surface over the entire next timestep of the particle
+                        *(not a half
+                        ** timestep as is usual for kicking (we are drifting
+                        *afterall).
+                        */
+                        auto lc = &this->options->lc;
+                        if (lc->dLookbackFac > 0) {
+                            pkdProcessLightCone(
+                                this->pkd, &p, wp->pInfoOut[i].fPot,
+                                lc->dLookbackFac, lc->dLookbackFacLCP,
+                                lc->dtLCDrift[p.rung()], lc->dtLCKick[p.rung()],
+                                lc->dBoxSize, lc->bLightConeParticles, lc->hLCP,
+                                lc->tanalpha_2);
+                        }
+                    }
+                    p.set_marked(true);
+                }
+                // IA: I do not understand this
+                auto q =
+                    this->pkd->particles[this->pkd->mdl->template AcquireWrite<
+                                                                  PARTICLE>(CID_PARTICLE, wp->iPart[i])];
+                q = p;
+                this->pkd->mdl->ReleaseWrite(CID_PARTICLE, &q);
+            }
+        }
+    }
+
+    inline unsigned char computeParticleTimeStep(workParticle *wp, int i) {
+        auto p = this->pkd->particles[wp->pPart[i]];
+        auto ts = &this->options->ts;
+        float maga, dT, dtGrav;
+        unsigned char uNewRung;
+        float fiDelta = 1.0 / ts->dDelta;
+        float fEta = ts->dEta;
+        float fiAccFac = 1.0 / ts->dAccFac;
+
+        // Begin calculation of timestep size, initializing dT and
+        // uNewRung
+        dT = 2.0f * ts->dDelta;
+        uNewRung = 0;
+
+        // Gravity timestep criteria
+        if (ts->bGravStep) {
+            float dirsum = wp->pInfoOut[i].dirsum;
+            float normsum = wp->pInfoOut[i].normsum;
+            /*
+            ** If this is the first time through, the accelerations will
+            *have
+            ** all been zero resulting in zero for normsum (and nan for
+            *dtGrav).
+            ** We repeat this process again, so dtGrav will be correct.
+            */
+            if (normsum > 0.0) {
+                /*
+                ** Use new acceleration here!
+                */
+                maga = blitz::dot(wp->pInfoOut[i].a, wp->pInfoOut[i].a);
+                if (maga > 0.0f)
+                    maga = asqrtf(maga);
+                dtGrav = maga * dirsum / normsum;
+            }
+            else
+                dtGrav = 0.0;
+            dtGrav += ts->dPreFacRhoLoc * wp->pInfoIn[i].fDensity;
+            dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav ? wp->pInfoOut[i].rhopmax
+                      : dtGrav);
+            if (dtGrav > 0.0) {
+                dT = std::min(dT, fEta * rsqrtf(dtGrav * ts->dRhoFac));
+            }
+            else if (maga > 0.0f &&
+                     this->pkd->particles.present(PKD_FIELD::oNewSph)) {
+                float imaga = rsqrtf(maga) * fiAccFac;
+                dT = std::min(dT, fEta * asqrtf(0.5f * p.ball() * imaga));
+            }
+        } /* end of wp->bGravStep */
+        else {
+            /*
+            ** We are doing eps/a timestepping.
+            */
+            maga = blitz::dot(wp->pInfoOut[i].a, wp->pInfoOut[i].a);
+            if (maga > 0.0f) {
+                float imaga = rsqrtf(maga) * fiAccFac;
+                dT = std::min(dT, fEta * asqrtf(p.soft() * imaga));
+            }
+        }
+
+        // Courant criterium
+        if (p.have_newsph() && pkdIsGas(this->pkd, wp->pPart[i])) {
+            dT = std::min(dT, wp->pInfoOut[i].dtEst);
+        }
+
+        // Calculate rung from timestep size
+        uNewRung = pkdDtToRungInverse(dT, fiDelta, ts->uMaxRung - 1);
+
+        /*
+        ** Here we must make sure we do not try to take a larger opening
+        ** timestep than the current active particles involved in the
+        ** gravity calculation!
+        */
+        if (uNewRung < ts->uRungLo)
+            uNewRung = ts->uRungLo;
+        else if (uNewRung > ts->uRungHi)
+            uNewRung = ts->uRungHi;
+        if (!this->pkd->bNoParticleOrder)
+            p.set_new_rung(uNewRung);
+        return uNewRung;
     }
 
     void processWorkParticleImpl(workParticle *wp) {

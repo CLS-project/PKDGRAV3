@@ -229,7 +229,6 @@ protected:
     // Any variable that must be accumulated during the walk
     double dPartSum;
     double dCellSum;
-    int nActive = 0;
     double dFlopTotal;
 
     void addChildImpl(PKD pkd, int iCache, clList &cl, int iChild, int id,
@@ -260,7 +259,7 @@ protected:
         blitz::TinyVector<float, 3> fOffset;
         float dirLsum, normLsum;
         float fMass, fSoft;
-        int j, jTile, pj, nCLActive;
+        int j, jTile, pj;
         static const blitz::TinyVector<float, 3> fZero3(0, 0, 0);
         int iCidPart;
 
@@ -270,7 +269,6 @@ protected:
         ** Clear monopole sentinel and local expansion and the timestepping
         *sums.
         */
-        nCLActive = 0;
         this->initCLAccumulatedVariables();
 
         /*
@@ -380,7 +378,6 @@ protected:
                         ** Softened multi-poles are also an exception.
                         */
                         // assert(pkd->ilp.count() == 0);
-                        // assert(pkd->ilhydro.count() == 0);
                         // assert(pkd->ilc.count() == 0);
 
                         /*
@@ -434,7 +431,6 @@ protected:
                 */
                 dPartSum += nActiveInt * pkd->ilp.count();
                 dCellSum += nActiveInt * pkd->ilc.count();
-                nCLActive += nActiveInt;
             }
             /* Get the next cell to process from the stack */
             if (clStack.empty())
@@ -456,7 +452,6 @@ protected:
         }
 doneCheckList:
         this->doneChecklist();
-        nActive += nCLActive;
     }
 
     void doneChecklistImpl() {
@@ -525,7 +520,7 @@ protected:
         ** Walk tree 1 against trees 1 (and optionally 2) if there are active
         *particles
         */
-        auto k = pkd->tree[iTop1];
+        auto k = pkd->tree[options->iRoot1];
         if (k->count() && this->testAddNodeCL(k)) {
             /*
             ** Initially we set our cell pointer to
@@ -548,18 +543,18 @@ protected:
                         this->addChild(pkd, CID_CELL, pkd->cl, iTop1, id,
                                        fOffset);
 #ifndef SINGLE_CACHES
-                        if (iTop2 > 0)
+                        if (options->iRoot2 > 0)
                             this->addChild(pkd, CID_CELL2, pkd->cl, iTop2, id,
                                            fOffset);
 #else
-                        if (iTop2 > 0)
+                        if (options->iRoot2 > 0)
                             this->addChild(pkd, CID_CELL, pkd->cl, iTop2, id,
                                            fOffset);
 #endif
                     }
                 }
             }
-            this->processCheckList(pkd, iTop1, iTop2);
+            this->processCheckList(pkd, options->iRoot1, options->iRoot2);
         }
         this->doneWalk();
     }
@@ -579,6 +574,7 @@ protected:
 
     // Initialize flop/counts statistics for latter analisis
     void initStatsImpl() {
+        walkStats.nActive = 0;
         walkStats.dFlopDoubleCPU = 0;
         walkStats.dFlopDoubleGPU = 0;
         walkStats.dFlopSingleGPU = 0;
