@@ -2,6 +2,7 @@
 #define BASE_INTERACTION_H
 #include "pkd.h"
 #include "pkd_config.h"
+#include "walk/stats.h"
 
 // Question, how to make this scheme to work on smooths
 // like the gradients that does:
@@ -31,99 +32,20 @@
 // the gravity loop (as with NewSPH) was way slower in
 // my tests.
 
-// I'm using traits classes for the interactions.
-// These contains all the types information used for
-// the class, and is passed here as a template parameter
-// so that the base class can use the derived class'
-// types. All this at compile-time, so no run-time
-// overhead due to virtualization or anything.
-template <typename Traits, class Derived> class BaseInteraction {
-
+template <typename Traits, class Derived> class BaseInteractionInterface {
 public:
-    // Access the derived classes types via trait class
-    using IL = typename Traits::IL;
-    using Options = typename Traits::Options;
     using PINFOIN = typename Traits::PINFOIN;
     using PINFOOUT = typename Traits::PINFOOUT;
-    using name = typename Traits::name;
-    using ResultInteraction = typename Traits::template ResultInteraction<fvec>;
-
-    // Default constructor without argument is needed when
-    // building the service. We do a delayed initialization
-    // later in setup(), which is called at Service runtime,
-    // not construction.
-    BaseInteraction() {};
-
-    void setup(PKD pkd, Options *options) {
-        if constexpr (requires(Derived d) { d.setup(pkd, options); }) {
-            top().setup(pkd, options);
-        }
-        else {
-            this->pkd = pkd;
-            this->options = options;
-        }
-    }
-
-    // Generic interfaces to the interaction list(s).
-    // If the interaction has more than one, these
-    // functions should be overloaded accordingly.
-    void clearIL() {
-        if constexpr (requires(Derived d) { d.clearIL(); }) {
-            top().clearIL();
-        }
-        else {
-            il->clear();
-        }
-    };
-    void setReferenceIL(blitz::TinyVector<double, 3> ref) {
-        if constexpr (requires(Derived d) { d.setReferenceIL(); }) {
-            top().setReferenceIL(ref);
-        }
-        else {
-            il->setReference(ref);
-        }
-    };
-    blitz::TinyVector<double, 3> getReferenceIL() {
-        if constexpr (requires(Derived d) { d.getReferenceIL(); }) {
-            return top().getReferenceIL();
-        }
-        else {
-            return il->getReference();
-        }
-    };
-
-    // Test that the IL(s) has been populated correctly, only
-    // for debugging runs
-    void extensiveILTest() {
-        if constexpr (requires(Derived d) { d.getReferenceIL(); })
-        top().extensiveILTest();
-    }
-
-private:
-    inline Derived &top() {
-        static_assert(std::is_base_of<BaseInteraction, Derived>::value,
-                      "Invalid Top class specified.");
-        return static_cast<Derived &>(*this);
-    }
-
-protected:
-    PKD pkd;
-    Options *options;
-    blitz::TinyVector<double, 3> kdn_r;
-
-    // By default we only have one interaction list,
-    // but derived classes can manually add more
-    // if required
-    IL *il;
-
     struct workParticle {
         // Use a constructor for convenience
-        workParticle(PKD pkd, treeStore::NodePointer k, IL *il) {
+        workParticle(PKD pkd, treeStore::NodePointer k,
+                     typename Traits::IL *il) {
             nRefs = 1; /* I am using it currently */
             ctx = pkd;
             dFlop = 0.0;
             dFlopSingleCPU = dFlopSingleGPU = 0.0;
             dFlopDoubleCPU = dFlopDoubleGPU = 0.0;
+            nTilesTotal = nTilesCPU = 0;
             nP = 0;
 
             auto knP = k->count();
@@ -138,7 +60,13 @@ protected:
             c[2] = il->getReference(2);
             // assert(wp->c[2] == ilc.getReference(2));
         };
-        IL *il;
+        ~workParticle() {
+            delete[] pPart;
+            delete[] iPart;
+            delete[] pInfoIn;
+            delete[] pInfoOut;
+        }
+        typename Traits::IL *il;
 
         PARTICLE **pPart;
         uint32_t *iPart;
@@ -154,71 +82,214 @@ protected:
         double dFlopSingleGPU;
         double dFlopDoubleCPU;
         double dFlopDoubleGPU;
+        int nTilesTotal;
+        int nTilesCPU;
     };
+    inline void setup(PKD pkd, typename Traits::Options *options,
+                      WalkStats *walkStats) {
+        derived().setupImpl(pkd, options, walkStats);
+    };
+    inline void clearIL() { derived().clearILImpl(); };
+    inline void setReferenceIL(blitz::TinyVector<double, 3> ref) {
+        derived().setReferenceILImpl(ref);
+    };
+    inline blitz::TinyVector<double, 3> getReferenceIL() {
+        return derived().getReferenceILImpl();
+    };
+    inline void extensiveILTest() { derived().extensiveILTestImpl(); };
+    inline void initializeInfoIn(workParticle *wp, int nP,
+                                 particleStore::ParticlePointer p) {
+        derived().initializeInfoInImpl(wp, nP, p);
+    };
+    inline void initializeInfoOut(workParticle *wp, int nP,
+                                  particleStore::ParticlePointer p) {
+        derived().initializeInfoOutImpl(wp, nP, p);
+    };
+    inline void cloneIL(workParticle *wp) { derived().cloneILImpl(wp); };
+    inline void processWorkParticle(workParticle *wp) {
+        derived().processWorkParticleImpl(wp);
+    };
+    inline void particleWorkDone(workParticle *wp) {
+        derived().particleWorkDoneImpl(wp);
+    };
+    inline bool particleSkipCondition(particleStore::ParticlePointer p) {
+        return derived().particleSkipConditionImpl(p);
+    };
+    inline void
+    aggregateResult(PINFOOUT &out,
+                    typename Traits::template ResultInteraction<fvec> &result) {
+        derived().aggregateResultImpl(out, result);
+    };
+    inline void evalInteraction(const PINFOIN &Part,
+                                typename Traits::IL::tile_type &tile,
+                                PINFOOUT &out) {
+        derived().evalInteractionImpl(Part, tile, out);
+    };
+    inline int interact(treeStore::NodePointer pkdn,
+                        int iRoot1, int iRoot2) {
+        return derived().interactImpl(pkdn, iRoot1, iRoot2);
+    };
+
+protected:
+    inline void setupImpl(PKD pkd, typename Traits::Options *options,
+                          WalkStats *walkStats) {
+        derived().setupImpl(pkd, options, walkStats);
+    };
+    inline void clearILImpl() { derived().clearILImpl(); };
+    inline void setReferenceILImpl(blitz::TinyVector<double, 3> ref) {
+        derived().setReferenceILImpl(ref);
+    };
+    inline blitz::TinyVector<double, 3> getReferenceILImpl() {
+        return derived().getReferenceILImpl();
+    };
+    inline void extensiveILTestImpl() { derived().extensiveILTestImpl(); };
+    inline void initializeInfoInImpl(workParticle *wp, int nP,
+                                     particleStore::ParticlePointer p) {
+        derived().initializeInfoInImpl(wp, nP, p);
+    };
+    inline void initializeInfoOutImpl(workParticle *wp, int nP,
+                                      particleStore::ParticlePointer p) {
+        derived().initializeInfoOutImpl(wp, nP, p);
+    };
+    inline void cloneILImpl(workParticle *wp) { derived().cloneILImpl(wp); };
+    inline void processWorkParticleImpl(workParticle *wp) {
+        derived().processWorkParticleImpl(wp);
+    };
+    inline void particleWorkDoneImpl(workParticle *wp) {
+        derived().particleWorkDoneImpl(wp);
+    };
+    inline bool particleSkipConditionImpl(particleStore::ParticlePointer p) {
+        return derived().particleSkipConditionImpl(p);
+    };
+    inline void aggregateResultImpl(
+        PINFOOUT &out,
+        typename Traits::template ResultInteraction<fvec> &result) {
+        derived().aggregateResultImpl(out, result);
+    };
+    inline void evalInteractionImpl(const PINFOIN &Part,
+                                    typename Traits::IL::tile_type &tile,
+                                    PINFOOUT &out) {
+        derived().evalInteractionImpl(Part, tile, out);
+    };
+    inline std::tuple<int, double> interactImpl(treeStore::NodePointer pkdn,
+            int iRoot1, int iRoot2) {
+        return derived().interactImpl(pkdn, iRoot1, iRoot2);
+    };
+    inline Derived &derived() { return static_cast<Derived &>(*this); };
+};
+
+// I'm using traits classes for the interactions.
+// These contains all the types information used for
+// the class, and is passed here as a template parameter
+// so that the base class can use the derived class'
+// types. All this at compile-time, so no run-time
+// overhead due to virtualization or anything.
+template <typename Traits, class Derived>
+class BaseInteraction : public BaseInteractionInterface<Traits, Derived> {
+    using impl = BaseInteractionInterface<Traits, Derived>;
+    friend impl;
+
+public:
+    // Access the derived classes types via trait class
+    using IL = typename Traits::IL;
+    using Options = typename Traits::Options;
+    using PINFOIN = typename Traits::PINFOIN;
+    using PINFOOUT = typename Traits::PINFOOUT;
+    using name = typename Traits::name;
+    using ResultInteraction = typename Traits::template ResultInteraction<fvec>;
+    using workParticle = typename impl::workParticle;
+
+    // Default constructor without argument is needed when
+    // building the service. We do a delayed initialization
+    // later in setup(), which is called at Service runtime,
+    // not construction.
+    BaseInteraction() {};
+
+    void setupImpl(PKD pkd, Options *options, WalkStats *stats) {
+        this->pkd = pkd;
+        this->options = options;
+        this->walkStats = stats;
+    }
+
+    // Generic interfaces to the interaction list(s).
+    // If the interaction has more than one, these
+    // functions should be overloaded accordingly.
+    void clearILImpl() { il->clear(); };
+    void setReferenceILImpl(blitz::TinyVector<double, 3> ref) {
+        il->setReference(ref);
+    };
+    blitz::TinyVector<double, 3> getReferenceILImpl() {
+        return il->getReference();
+    };
+
+    // Test that the IL(s) has been populated correctly, only
+    // for debugging runs
+    void extensiveILTestImpl() {}
+
+protected:
+    PKD pkd;
+    Options *options;
+    WalkStats *walkStats;
+
+    blitz::TinyVector<double, 3> kdn_r;
+
+    // By default we only have one interaction list,
+    // but derived classes can manually add more
+    // if required
+    IL *il;
 
     // Allow for some flexibility when initializing this at it
     // could contain information of the interaction (e.g., IL)
-    void initializeInfoIn(workParticle *wp, int nP,
-                          particleStore::ParticlePointer p) {
-        if constexpr (requires(Derived d) { d.initializeInfoIn(wp, nP, p); }) {
-            top().initializeInfoIn(wp, nP, p);
-        }
-        else {
-            wp->pInfoIn[nP].init(p);
-        }
+    void initializeInfoInImpl(workParticle *wp, int nP,
+                              particleStore::ParticlePointer p) {
+        wp->pInfoIn[nP].init(p);
     };
-    void initializeInfoOut(workParticle *wp, int nP,
-                           particleStore::ParticlePointer p) {
-        if constexpr (requires(Derived d) { d.initializeInfoOut(wp, nP, p); }) {
-            top().initializeInfoIn(wp, nP, p);
-        }
-        else {
-            wp->pInfoOut[nP].init(p);
-        }
+    void initializeInfoOutImpl(workParticle *wp, int nP,
+                               particleStore::ParticlePointer p) {
+        wp->pInfoOut[nP].init(p);
     };
 
     // This hook allows or explicit cloning of the IL
     // if needed (it seems to be used when bDensity & bGPU)
-    void cloneIL(workParticle *wp) {
-        if constexpr (requires(Derived d) { d.cloneIL(wp); }) {
-            top().cloneIL(wp);
-        }
-        else {
-            wp->il = il;
-        }
-    }
+    void cloneILImpl(workParticle *wp) { wp->il = il; }
 
     // This would wrap all the queues or any processing
     // required by a derived class.
     // By default just queue it.
-    void processWorkParticle(workParticle *wp) {
-        top().processWorkParticle(wp);
-    };
+    void processWorkParticleImpl(workParticle *wp) {};
 
     // Acts on own workParticle, overloaded by the
     // different choices in pkdParticleWorkDone
-    void particleWorkDone(workParticle *wp) { top().particleWorkDone(wp); };
-
-    // Condition for not processing a particle
-    bool particleSkipCondition(particleStore::ParticlePointer p) {
-        if constexpr (requires(Derived d) { d.particleSkipCondition(p); }) {
-            return top().particleSkipCondition(p);
-        }
-        else {
-            return !p->is_rung_range(options->uRungLo, options->uRungHi);
-        }
+    void particleWorkDoneImpl(workParticle *wp) {
+        this->walkStats->dFlopSingleCPU += wp->dFlopSingleCPU;
+        this->walkStats->dFlopSingleGPU += wp->dFlopSingleGPU;
+        this->walkStats->dFlopDoubleCPU += wp->dFlopDoubleCPU;
+        this->walkStats->dFlopDoubleGPU += wp->dFlopDoubleGPU;
+        this->walkStats->nTilesTotal += wp->nTilesTotal;
+        this->walkStats->nTilesCPU += wp->nTilesCPU;
+        this->walkStats->nActive += wp->nP;
+        this->walkStats->dFlop += wp->dFlop;
     };
 
-    void aggregateResult(PINFOOUT &out, ResultInteraction &result) = delete;
-    void evalInteraction(const PINFOIN &Part, typename IL::tile_type &tile,
-                         PINFOOUT &out) = delete;
+    // Condition for not processing a particle
+    bool particleSkipConditionImpl(particleStore::ParticlePointer p) {
+        return !p->is_rung_range(options->uRungLo, options->uRungHi);
+    };
+
+    void aggregateResultImpl(PINFOOUT &out, ResultInteraction &result) {
+        static_assert(true, "aggregateResult must be overloaded");
+    };
+    void evalInteractionImpl(const PINFOIN &Part, typename IL::tile_type &tile,
+                             PINFOOUT &out) {
+        static_assert(true, "evalInteraction must be overloaded");
+    };
 
 public:
     // pkdGravInteract
     // Returns the number of interactions and the flops
-    std::tuple<int, double> interact(treeStore::NodePointer pkdn, int iRoot1,
-                                     int iRoot2) {
-        int nActive;
+    int interactImpl(treeStore::NodePointer pkdn,
+                     int iRoot1, int iRoot2) {
+        int nActive = 0;
         int nP;
 
         this->kdn_r = pkdn->position();
@@ -226,7 +297,6 @@ public:
         /*
         ** Now process the two interaction lists for each active particle.
         */
-        nActive = 0;
 
         /* Collect the bucket particle information */
         auto wp = new workParticle(pkd, pkdn, il);
@@ -254,7 +324,7 @@ public:
         // wp->options = options;
 
         for (auto &p : *pkdn) {
-            if (particleSkipCondition(&p))
+            if (this->particleSkipCondition(&p))
                 continue;
             // if (SPHoptions->doMFM) {
             //     if (!p.is_marked()) continue;
@@ -270,8 +340,8 @@ public:
             nP = wp->nP++;
             wp->pPart[nP] = &p;
             wp->iPart[nP] = &p - pkd->particles.begin();
-            initializeInfoIn(wp, nP, &p);
-            initializeInfoOut(wp, nP, &p);
+            this->initializeInfoIn(wp, nP, &p);
+            this->initializeInfoOut(wp, nP, &p);
 
             //  wp->pInfoIn[nP].r = pkd->ilc.get_dr(r);
 
@@ -315,7 +385,7 @@ public:
         ** we need to clone the ilp,
         ** otherwise we use the reference to the global ilp.
         */
-        cloneIL(wp);
+        this->cloneIL(wp);
         // #ifdef USE_CUDA
         //             if (SPHoptions->doDensity && bGPU) {
         //                 wp->ilp = new ilpList;
@@ -334,7 +404,7 @@ public:
         nActive += wp->nP;
 
         if (options->doExtensiveTest) {
-            extensiveILTest();
+            this->extensiveILTest();
         }
         // if (SPHoptions->doExtensiveILPTest && !(SPHoptions->doSetDensityFlags
         // || SPHoptions->doSetNNflags)) {
@@ -342,7 +412,7 @@ public:
         // }
         // extensiveILHTest(pkd, wp, pkd->ilhydro);
 
-        processWorkParticle(wp);
+        this->processWorkParticle(wp);
         /*
         ** Evaluate the local expansion.
         */
@@ -522,11 +592,11 @@ public:
         // }
         // #endif
 
-        particleWorkDone(wp);
+        this->particleWorkDone(wp);
 
-        //*pdFlop += nActive*(pkd->ilp.count()*COST_FLOP_PP +
-        // pkd->ilc.count()*COST_FLOP_PC) + nSoft*15; return (nActive);
-        return std::tuple<int, double>(nActive, wp->dFlop);
+        --pkd->nWpPending;
+        delete wp;
+        return nActive;
     };
 };
 

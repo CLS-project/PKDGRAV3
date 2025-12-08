@@ -4,9 +4,11 @@
 #include "basetype.h"
 #include "core/simd.h"
 #include "core/vmath.h"
+#include "gravity/qeval.h"
 #include "pkd.h"
 #include "pkd_config.h"
 #include "smooth/smooth.h"
+#include "walk/stats.h"
 
 /*
  * INTERACTION TRAITS
@@ -485,9 +487,22 @@ struct ilist::EvalBlock<GravityInteractionTraits::ResultPC<fvec>, BLOCK> {
 /*
  * INTERACTION CLASS
  */
-class GravityInteraction
-    : public BaseInteraction<GravityInteractionTraits, GravityInteraction> {
+template <typename Derived>
+class GravityInteractionImpl
+    : public BaseInteraction<GravityInteractionTraits, Derived> {
+    using base = BaseInteraction<GravityInteractionTraits, Derived>;
+    using impl = BaseInteractionInterface<GravityInteractionTraits, Derived>;
+    friend impl;
+
 public:
+    using IL = typename GravityInteractionTraits::IL;
+    using Options = typename GravityInteractionTraits::Options;
+    using PINFOIN = typename GravityInteractionTraits::PINFOIN;
+    using PINFOOUT = typename GravityInteractionTraits::PINFOOUT;
+    using name = typename GravityInteractionTraits::name;
+    using ResultInteraction =
+        typename GravityInteractionTraits::template ResultInteraction<fvec>;
+    using workParticle = typename impl::workParticle;
     // Internal state for the interaction, that should be
     // setup during the the walk and may vary between calls
     // to interact
@@ -497,26 +512,30 @@ public:
     SMX smx;
     SMF smf;
 
-    GravityInteraction() {};
+    GravityInteractionImpl() : base() {};
 
-    void setup(PKD pkd, Options *options) {
-        this->pkd = pkd;
-        this->options = options;
+    void setupImpl(PKD pkd, Options *options, WalkStats *walkStats) {
+        base::setupImpl(pkd, options, walkStats);
         // We just use the PKD ones, but could be
         // separated in the future
         this->il = &this->pkd->ilp;
         this->ilc = &this->pkd->ilc;
         this->ill = &this->pkd->ill;
+
+        if (this->options->bEwald)
+            pkdEwaldInit(this->pkd, this->options->nReps, this->options->dEwCut,
+                         this->options->dEwhCut,
+                         this->options->bGPU); /* ignored in Flop count! */
     }
 
-    void clearIL() {
-        il->clear();
+    void clearILImpl() {
+        this->il->clear();
         ilc->clear();
         // ill->clear();
     };
     void clearILL() { ill->clear(); }
-    void setReferenceIL(blitz::TinyVector<double, 3> ref) {
-        il->setReference(ref);
+    void setReferenceILImpl(blitz::TinyVector<double, 3> ref) {
+        this->il->setReference(ref);
         ilc->setReference(ref);
     };
 
@@ -532,12 +551,11 @@ public:
     }
 
 private:
-    friend class BaseInteraction<GravityInteractionTraits, GravityInteraction>;
     ilcList *ilc;
     ilcList *ill;
 
-    void initializeInfoIn(workParticle *wp, int nP,
-                          particleStore::ParticlePointer p) {
+    void initializeInfoInImpl(workParticle *wp, int nP,
+                              particleStore::ParticlePointer p) {
         auto r = p->position();
         wp->pInfoIn[nP].r = this->pkd->ilc.get_dr(r);
         if (this->options->ts.bGravStep) {
@@ -559,15 +577,15 @@ private:
         }
     };
 
-    void initializeInfoOut(workParticle *wp, int nP,
-                           particleStore::ParticlePointer p) {
+    void initializeInfoOutImpl(workParticle *wp, int nP,
+                               particleStore::ParticlePointer p) {
         wp->pInfoOut[nP].init(p, dirLsum, normLsum);
     };
 
     void queuePC(PKD pkd, workParticle *wp, ilcList &ilc, int bGravStep,
                  bool bGPU = true) {
         for (auto &tile : ilc) {
-            ++pkd->nTilesTotal;
+            ++wp->nTilesTotal;
             if (bGPU) {
                 // #ifdef USE_CUDA
                 //                 if (pkd->cudaClient->queuePC(wp, tile,
@@ -580,7 +598,7 @@ private:
                 //                     continue;
                 // #endif
             }
-            ++pkd->nTilesCPU;
+            ++wp->nTilesCPU;
             for (auto i = 0; i < wp->nP; ++i) {
                 pkdGravEvalPC(wp->pInfoIn[i], tile, wp->pInfoOut[i]);
                 wp->dFlopSingleCPU += COST_FLOP_PC * tile.size();
@@ -624,7 +642,7 @@ private:
     void queuePP(PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep,
                  bool bGPU = true) {
         for (auto &tile : ilp) {
-            ++pkd->nTilesTotal;
+            ++wp->nTilesTotal;
             // if (bGPU) {
             // #ifdef USE_CUDA
             //     if (pkd->cudaClient->queuePP(wp, tile, bGravStep))
@@ -635,7 +653,7 @@ private:
             //         continue;
             //#endif
             //}
-            ++pkd->nTilesCPU;
+            ++wp->nTilesCPU;
             for (auto i = 0; i < wp->nP; ++i) {
                 pkdGravEvalPP(wp->pInfoIn[i], tile, wp->pInfoOut[i]);
                 wp->dFlopSingleCPU += COST_FLOP_PP * tile.size();
@@ -663,7 +681,7 @@ private:
                 pkdParticleEwald(pkd, r, out->a.data(), &out->fPot,
                                  &wp->dFlopSingleCPU, &wp->dFlopDoubleCPU);
         }
-        particleWorkDone(wp);
+        this->particleWorkDone(wp);
     }
 
     double pkdParticleEwald(PKD pkd, double *r, float *pa, float *pPot,
@@ -897,7 +915,215 @@ private:
         return dFlopDouble + dFlopSingle;
     }
 
-    void processWorkParticle(workParticle *wp) {
+    void pkdEwaldInit(PKD pkd, int nReps, double fEwCut, double fhCut,
+                      bool bGPU) {
+        struct EwaldVariables *const ew = &pkd->ew;
+        EwaldTable *const ewt = &pkd->ewt;
+        const MOMC *restrict mom = &ew->mom;
+        int i, hReps, hx, hy, hz, h2;
+        double k4, L;
+        double gam[6], mfacc, mfacs;
+        double ax, ay, az;
+        const int iOrder = 4;
+
+        L = pkd->fPeriod[0];
+        ew->Lbox = L;
+        /*
+        ** Create SIMD versions of the moments.
+        */
+#if defined(USE_SIMD_EWALD) && (defined(__SSE2__) || defined(__ARM_NEON))
+        pkd->es.ewm.m = dvec(mom->m);
+        pkd->es.ewm.xx = dvec(mom->xx);
+        pkd->es.ewm.yy = dvec(mom->yy);
+        pkd->es.ewm.xy = dvec(mom->xy);
+        pkd->es.ewm.xz = dvec(mom->xz);
+        pkd->es.ewm.yz = dvec(mom->yz);
+        pkd->es.ewm.xxx = dvec(mom->xxx);
+        pkd->es.ewm.xyy = dvec(mom->xyy);
+        pkd->es.ewm.xxy = dvec(mom->xxy);
+        pkd->es.ewm.yyy = dvec(mom->yyy);
+        pkd->es.ewm.xxz = dvec(mom->xxz);
+        pkd->es.ewm.yyz = dvec(mom->yyz);
+        pkd->es.ewm.xyz = dvec(mom->xyz);
+        pkd->es.ewm.xxxx = dvec(mom->xxxx);
+        pkd->es.ewm.xyyy = dvec(mom->xyyy);
+        pkd->es.ewm.xxxy = dvec(mom->xxxy);
+        pkd->es.ewm.yyyy = dvec(mom->yyyy);
+        pkd->es.ewm.xxxz = dvec(mom->xxxz);
+        pkd->es.ewm.yyyz = dvec(mom->yyyz);
+        pkd->es.ewm.xxyy = dvec(mom->xxyy);
+        pkd->es.ewm.xxyz = dvec(mom->xxyz);
+        pkd->es.ewm.xyyz = dvec(mom->xyyz);
+        pkd->es.ewm.zz = dvec(mom->zz);
+        pkd->es.ewm.xzz = dvec(mom->xzz);
+        pkd->es.ewm.yzz = dvec(mom->yzz);
+        pkd->es.ewm.zzz = dvec(mom->zzz);
+        pkd->es.ewm.xxzz = dvec(mom->xxzz);
+        pkd->es.ewm.xyzz = dvec(mom->xyzz);
+        pkd->es.ewm.xzzz = dvec(mom->xzzz);
+        pkd->es.ewm.yyzz = dvec(mom->yyzz);
+        pkd->es.ewm.yzzz = dvec(mom->yzzz);
+        pkd->es.ewm.zzzz = dvec(mom->zzzz);
+#endif
+
+        /*
+        ** Set up traces of the complete multipole moments.
+        */
+        ew->Q4xx = 0.5 * (mom->xxxx + mom->xxyy + mom->xxzz);
+        ew->Q4xy = 0.5 * (mom->xxxy + mom->xyyy + mom->xyzz);
+        ew->Q4xz = 0.5 * (mom->xxxz + mom->xyyz + mom->xzzz);
+        ew->Q4yy = 0.5 * (mom->xxyy + mom->yyyy + mom->yyzz);
+        ew->Q4yz = 0.5 * (mom->xxyz + mom->yyyz + mom->yzzz);
+        ew->Q4zz = 0.5 * (mom->xxzz + mom->yyzz + mom->zzzz);
+        ew->Q4 = 0.25 * (ew->Q4xx + ew->Q4yy + ew->Q4zz);
+        ew->Q3x = 0.5 * (mom->xxx + mom->xyy + mom->xzz);
+        ew->Q3y = 0.5 * (mom->xxy + mom->yyy + mom->yzz);
+        ew->Q3z = 0.5 * (mom->xxz + mom->yyz + mom->zzz);
+        ew->Q2 = 0.5 * (mom->xx + mom->yy + mom->zz);
+        ew->nReps = nReps;
+        ew->nEwReps = ceil(fEwCut);
+        ew->nEwReps = ew->nEwReps > nReps ? ew->nEwReps : nReps;
+        ew->fEwCut2 = fEwCut * fEwCut * L * L;
+        ew->fInner2 = 1.2e-3 * L * L;
+        ew->alpha = 2.0 / L;
+        ew->ialpha = 0.5 * L;
+        ew->alpha2 = ew->alpha * ew->alpha;
+        ew->k1 = M_PI / (ew->alpha2 * L * L * L);
+        ew->ka = 2.0 * ew->alpha / sqrt(M_PI);
+#if defined(USE_SIMD_EWALD) && (defined(__SSE2__) || defined(__ARM_NEON))
+        pkd->es.ewp.Q4xx = dvec(ew->Q4xx);
+        pkd->es.ewp.Q4xy = dvec(ew->Q4xy);
+        pkd->es.ewp.Q4xz = dvec(ew->Q4xz);
+        pkd->es.ewp.Q4yy = dvec(ew->Q4yy);
+        pkd->es.ewp.Q4yz = dvec(ew->Q4yz);
+        pkd->es.ewp.Q4zz = dvec(ew->Q4zz);
+        pkd->es.ewp.Q4 = dvec(ew->Q4);
+        pkd->es.ewp.Q3x = dvec(ew->Q3x);
+        pkd->es.ewp.Q3y = dvec(ew->Q3y);
+        pkd->es.ewp.Q3z = dvec(ew->Q3z);
+        pkd->es.ewp.Q2 = dvec(ew->Q2);
+        pkd->es.ewp.fEwCut2 = dvec(ew->fEwCut2);
+        pkd->es.ewp.fInner2 = dvec(ew->fInner2);
+        pkd->es.ewp.alpha = dvec(ew->alpha);
+        pkd->es.ewp.ialpha = dvec(ew->ialpha);
+        pkd->es.ewp.alpha2 = dvec(ew->alpha2);
+        pkd->es.ewp.k1 = dvec(ew->k1);
+        pkd->es.ewp.ka = dvec(ew->ka);
+#endif
+
+        /*
+        ** Now setup stuff for the h-loop.
+        */
+        hReps = ceil(fhCut);
+        k4 = M_PI * M_PI / (ew->alpha * ew->alpha * L * L);
+
+        i = (int)pow(1 + 2 * hReps, 3);
+#if defined(USE_SIMD_EWALD) && defined(__SSE__)
+        i = (i + fvec::mask()) & ~fvec::mask();
+#endif
+        if (i > ew->nMaxEwhLoop) {
+            ew->nMaxEwhLoop = i;
+            ewt->hx.f = new (std::align_val_t(sizeof(fvec)))
+            ewaldFloatType[ew->nMaxEwhLoop];
+            assert(ewt->hx.f != NULL);
+            ewt->hy.f = new (std::align_val_t(sizeof(fvec)))
+            ewaldFloatType[ew->nMaxEwhLoop];
+            assert(ewt->hy.f != NULL);
+            ewt->hz.f = new (std::align_val_t(sizeof(fvec)))
+            ewaldFloatType[ew->nMaxEwhLoop];
+            assert(ewt->hz.f != NULL);
+            ewt->hCfac.f = new (std::align_val_t(sizeof(fvec)))
+            ewaldFloatType[ew->nMaxEwhLoop];
+            assert(ewt->hCfac.f != NULL);
+            ewt->hSfac.f = new (std::align_val_t(sizeof(fvec)))
+            ewaldFloatType[ew->nMaxEwhLoop];
+            assert(ewt->hSfac.f != NULL);
+        }
+        ew->nEwhLoop = i;
+        i = (int)pow(1 + 2 * ew->nEwReps, 3);
+#if defined(USE_SIMD_EWALD) && (defined(__SSE2__) || defined(__ARM_NEON))
+        i = (i + fvec::mask()) & ~fvec::mask();
+#endif
+        i = 0;
+        for (hx = -hReps; hx <= hReps; ++hx) {
+            for (hy = -hReps; hy <= hReps; ++hy) {
+                for (hz = -hReps; hz <= hReps; ++hz) {
+                    h2 = hx * hx + hy * hy + hz * hz;
+                    if (h2 == 0)
+                        continue;
+                    if (h2 > fhCut * fhCut)
+                        continue;
+                    assert(i < ew->nMaxEwhLoop);
+                    gam[0] = exp(-k4 * h2) / (M_PI * h2 * L);
+                    gam[1] = 2 * M_PI / L * gam[0];
+                    gam[2] = -2 * M_PI / L * gam[1];
+                    gam[3] = 2 * M_PI / L * gam[2];
+                    gam[4] = -2 * M_PI / L * gam[3];
+                    gam[5] = 2 * M_PI / L * gam[4];
+                    gam[1] = 0.0;
+                    gam[3] = 0.0;
+                    gam[5] = 0.0;
+                    ax = 0.0;
+                    ay = 0.0;
+                    az = 0.0;
+                    mfacc = 0.0;
+                    QEVAL(iOrder, ew->mom, gam, hx, hy, hz, ax, ay, az, mfacc);
+                    gam[0] = exp(-k4 * h2) / (M_PI * h2 * L);
+                    gam[1] = 2 * M_PI / L * gam[0];
+                    gam[2] = -2 * M_PI / L * gam[1];
+                    gam[3] = 2 * M_PI / L * gam[2];
+                    gam[4] = -2 * M_PI / L * gam[3];
+                    gam[5] = 2 * M_PI / L * gam[4];
+                    gam[0] = 0.0;
+                    gam[2] = 0.0;
+                    gam[4] = 0.0;
+                    ax = 0.0;
+                    ay = 0.0;
+                    az = 0.0;
+                    mfacs = 0.0;
+                    QEVAL(iOrder, ew->mom, gam, hx, hy, hz, ax, ay, az, mfacs);
+                    ewt->hx.f[i] = 2 * M_PI / L * hx;
+                    ewt->hy.f[i] = 2 * M_PI / L * hy;
+                    ewt->hz.f[i] = 2 * M_PI / L * hz;
+                    ewt->hCfac.f[i] = mfacc;
+                    ewt->hSfac.f[i] = mfacs;
+                    ++i;
+                }
+            }
+        }
+        ew->nEwhLoop = i;
+        while (i < ew->nMaxEwhLoop) {
+            ewt->hx.f[i] = 0;
+            ewt->hy.f[i] = 0;
+            ewt->hz.f[i] = 0;
+            ewt->hCfac.f[i] = 0;
+            ewt->hSfac.f[i] = 0;
+            ++i;
+        }
+        // if (bGPU) {
+        // #ifdef USE_CL
+        //     clEwaldInit(pkd->mdl->clCtx, ew, ewt);
+        //     mdlThreadBarrier(pkd->mdl);
+        // #endif
+        // #ifdef USE_CUDA
+        //     // Only one thread needs to transfer the tables to the GPU
+        //     if (pkd->mdl->Core() == 0)
+        //         pkd->cudaClient->setupEwald(ew, ewt);
+        //     pkd->mdl->ThreadBarrier();
+        // #endif
+        // }
+    }
+    void particleWorkDoneImpl(workParticle *wp) {
+        base::particleWorkDoneImpl(wp);
+        // We overwrite the dFlop, in the case of the gravity
+        // wp->dFlop only accounts for the Ewald, the rest is
+        // accounted for manually
+        this->walkStats->dFlop =
+            wp->dFlop + wp->nP * (this->pkd->ilp.count() * COST_FLOP_PP +
+                                  this->pkd->ilc.count() * COST_FLOP_PC);
+    }
+
+    void processWorkParticleImpl(workParticle *wp) {
         /*
         ** Evaluate the local expansion.
         */
@@ -924,13 +1150,19 @@ private:
             }
         }
 
-        queuePC(pkd, wp, pkd->ilc, this->options->ts.bGravStep,
+        queuePC(this->pkd, wp, *this->ilc, this->options->ts.bGravStep,
                 this->options->bGPU);
 
-        queuePP(pkd, wp, pkd->ilp, this->options->ts.bGravStep,
+        queuePP(this->pkd, wp, *this->il, this->options->ts.bGravStep,
                 this->options->bGPU);
 
-        queueEwald(pkd, wp, this->options->bGPU);
+        if (this->options->bEwald)
+            queueEwald(this->pkd, wp, this->options->bGPU);
     }
+};
+class GravityInteraction : public GravityInteractionImpl<GravityInteraction> {
+public:
+    explicit GravityInteraction()
+        : GravityInteractionImpl<GravityInteraction>() {}
 };
 #endif

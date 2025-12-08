@@ -1,20 +1,11 @@
 #ifndef BASE_WALK_H
 #define BASE_WALK_H
 #include "../TraversePST.h"
+#include "stats.h"
 #include "gravity/cl.h"
 #include "pkd.h"
 #include "pkd_config.h"
 #include "smooth/smooth.h"
-
-template <auto BasePtr, auto DerivedPtr> constexpr bool is_overridden() {
-    using BaseType = decltype(BasePtr);
-    using DerivedType = decltype(DerivedPtr);
-
-    // force identical pointer-to-member type
-    using Common = BaseType;
-
-    return static_cast<Common>(DerivedPtr) != static_cast<Common>(BasePtr);
-}
 
 // A little help from ChatGPT for the string concatenation at
 // compile time... but probably with newer C++ standards can
@@ -37,12 +28,12 @@ template <typename A, typename B> struct Concat {
 
 template <class Derived>
 class BaseTreeWalkInterface : public TraverseCombinePST {
-  public:
+public:
     explicit BaseTreeWalkInterface(PST pst, std::string_view service_name, int nInBytes, int nOutBytes)
         : TraverseCombinePST(pst, service_name, nInBytes, nOutBytes) {
     };
 
-    inline void addChild(PKD pkd, int iCache, clList& cl, int iChild, int id,
+    inline void addChild(PKD pkd, int iCache, clList &cl, int iChild, int id,
                          blitz::TinyVector<float, 3> fOffset) {
         derived().addChildImpl(pkd, iCache, cl, iChild, id, fOffset);
     }
@@ -73,7 +64,7 @@ class BaseTreeWalkInterface : public TraverseCombinePST {
         updateMomentTensorFromStackImpl();
     };
     inline void openOutcomeBlock(treeStore::NodePointer k, int n,
-                                 clBlock& blk) {
+                                 clBlock &blk) {
         openOutcomeBlockImpl(k, n, blk);
     };
     inline void selectOutcome(clBlock blk, int outcome, int jTile) {
@@ -88,19 +79,19 @@ class BaseTreeWalkInterface : public TraverseCombinePST {
     inline void setupCache() { setupCacheImpl(); };
     inline void initStats() { initStatsImpl(); };
     inline void computeStats() { computeStatsImpl(); };
-    inline std::tuple<int, double> interact_wrapper(treeStore::NodePointer k,
-                                                    int iRoot, int iRoot2) {
+    inline int interact_wrapper(treeStore::NodePointer k,
+                                int iRoot, int iRoot2) {
         return interact_wrapperImpl(k, iRoot, iRoot2);
     };
-    int Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    int Service(PST pst, void *vin, int nIn, void *vout, int nOut) {
         return ServiceImpl(pst, vin, nIn, vout, nOut);
     };
-    virtual int Combine(void* vout, void* vout2) {
-      return CombineImpl(vout, vout2);
+    virtual int Combine(void *vout, void *vout2) {
+        return CombineImpl(vout, vout2);
     }
 
-  protected:
-    inline void addChildImpl(PKD pkd, int iCache, clList& cl, int iChild,
+protected:
+    inline void addChildImpl(PKD pkd, int iCache, clList &cl, int iChild,
                              int id, blitz::TinyVector<float, 3> fOffset) {
         derived().addChildImpl(pkd, iCache, cl, iChild, id, fOffset);
     };
@@ -131,7 +122,7 @@ class BaseTreeWalkInterface : public TraverseCombinePST {
         derived().updateMomentTensorFromStackImpl();
     };
     inline void openOutcomeBlockImpl(treeStore::NodePointer k, int n,
-                                     clBlock& blk) {
+                                     clBlock &blk) {
         derived().openOutcomeBlockImpl(k, n, blk);
     };
     inline void selectOutcomeImpl(clBlock blk, int outcome, int jTile) {
@@ -146,17 +137,17 @@ class BaseTreeWalkInterface : public TraverseCombinePST {
     inline void setupCacheImpl() { derived().setupCacheImpl(); };
     inline void initStatsImpl() { derived().initStatsImpl(); };
     inline void computeStatsImpl() { derived().computeStatsImpl(); };
-    inline std::tuple<int, double>
+    inline int
     interact_wrapperImpl(treeStore::NodePointer k, int iRoot, int iRoot2) {
         return derived().interact_wrapperImpl(k, iRoot, iRoot2);
     };
-    inline int ServiceImpl(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    inline int ServiceImpl(PST pst, void *vin, int nIn, void *vout, int nOut) {
         return derived().ServiceImpl(pst, vin, nIn, vout, nOut);
     };
-    inline int CombineImpl(void* vout, void* vout2) {
-      return derived().CombineImpl(vout, vout2);
+    inline int CombineImpl(void *vout, void *vout2) {
+        return derived().CombineImpl(vout, vout2);
     }
-    inline Derived& derived() { return static_cast<Derived&>(*this); }
+    inline Derived &derived() { return static_cast<Derived &>(*this); };
 
 };
 
@@ -171,7 +162,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
     using impl = BaseTreeWalkInterface<Derived>;
     friend impl;
 
-  public:
+public:
     using Options = typename Traits::Options;
     using output = typename Traits::output;
     using name = typename Traits::name;
@@ -193,31 +184,32 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
 
     explicit BaseTreeWalk(PST pst)
         : BaseTreeWalkInterface<Derived>(pst, service_name.data(), sizeof(OptionPack),
-                             sizeof(output)) {
+                                         sizeof(output)) {
         // cl = new CL();
         clStack.reserve(40); // Start with a sensible stack size
     };
 
-  protected:
+protected:
     PKD pkd;
     SMX smx;
     Interaction interaction;
-    Options* options;
-    output* out;
+    Options *options;
+    output *out;
+    WalkStats walkStats;
 
-    clList* clSib;
-    clList* clNew;
+    clList *clSib;
+    clList *clNew;
 
     int bReferenceFound;
 
-    void initStat(STAT* ps, int id) {
+    void initStat(STAT *ps, int id) {
         ps->idMax = id;
         ps->dMax = ps->dSum;
         ps->dSum2 = ps->dSum * ps->dSum;
         ps->n = 1; /* sometimes we will need to zero this */
     }
 
-    void combStat(STAT* ps, STAT* pa) {
+    void combStat(STAT *ps, STAT *pa) {
         if (pa->dMax > ps->dMax) {
             ps->idMax = pa->idMax;
             ps->dMax = pa->dMax;
@@ -227,7 +219,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
         ps->n += pa->n;
     }
 
-  protected:
+protected:
     // IA: We still use the clList defined in PKD, I do not know why
     // is done that way and if we can simply define and allocate
     // one for us here.
@@ -237,21 +229,21 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
     // Any variable that must be accumulated during the walk
     double dPartSum;
     double dCellSum;
-    int nActive;
+    int nActive = 0;
     double dFlopTotal;
 
-    void addChildImpl(PKD pkd, int iCache, clList& cl, int iChild, int id,
+    void addChildImpl(PKD pkd, int iCache, clList &cl, int iChild, int id,
                       blitz::TinyVector<float, 3> fOffset) {
         auto c = (id == pkd->Self())
-                     ? pkd->tree[iChild]
-                     : pkd->tree[pkd->mdl->Fetch<KDN>(iCache, iChild, id)];
+                 ? pkd->tree[iChild]
+                 : pkd->tree[pkd->mdl->Fetch<KDN>(iCache, iChild, id)];
         auto nc =
             (c->is_remote() || c->is_top_tree()) ? 1000000000 : c->count();
         auto cOpen = c->bMax() * pkd->fiCritTheta;
         auto c_r = c->position();
         auto cbnd = c->bound();
         auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
-        const auto& SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
+        const auto &SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
         cl.append(iCache, id, iChild, idLower, iLower, idUpper, iUpper, nc,
                   cOpen, c->mass(), 4.0f * c->fSoft2(), c_r, fOffset, cbnd,
                   SPHbob);
@@ -271,9 +263,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
         int j, jTile, pj, nCLActive;
         static const blitz::TinyVector<float, 3> fZero3(0, 0, 0);
         int iCidPart;
-        double dFlop;
 
-        pkd->dFlop = 0.0; /* Flops are accumulated here! */
         clStack.clear();
 
         /*
@@ -281,7 +271,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
         *sums.
         */
         nCLActive = 0;
-        impl::initCLAccumulatedVariables();
+        this->initCLAccumulatedVariables();
 
         /*
         ** We are now going to work on the local tree.
@@ -289,35 +279,36 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
         */
         auto k = pkd->tree[iCell = iRoot];
         k_r = k->position();
-        printf("stuck??\n");
         while (1) {
             bReferenceFound = 0;
             while (1) {
                 /*
                 ** Process the Checklist.
                 */
-                impl::beforeCLProcessing(k);
+                this->beforeCLProcessing(k);
                 /*
                 ** For cells which will remain on the checklist for a further
                 *deeper level of
                 ** level of the tree we will be using the stack cl (even if no
                 *push happens later).
                 */
-                this->clSib = new clList(pkd->clFreeList);
+                clList clB(pkd->clFreeList);
+                this->clSib = &clB;
                 do {
-                    for (auto& tile : pkd->cl) {
+                    for (auto &tile : pkd->cl) {
                         openOutcomeSIMD(k, tile);
                     }
-                    this->clNew = new clList(pkd->clFreeList);
-                    for (auto& tile : pkd->cl) {
+                    clList clA(pkd->clFreeList);
+                    this->clNew = &clA;
+                    for (auto &tile : pkd->cl) {
                         auto nBlocks = tile.count() / tile.width;
                         for (auto iBlock = 0; iBlock <= nBlocks; ++iBlock) {
                             int n = iBlock < nBlocks
-                                        ? tile.width
-                                        : tile.count() - nBlocks * tile.width;
-                            auto& blk = tile[iBlock];
+                                    ? tile.width
+                                    : tile.count() - nBlocks * tile.width;
+                            auto &blk = tile[iBlock];
                             for (jTile = 0; jTile < n; ++jTile) {
-                              impl::selectOutcome(blk, blk.iOpen[jTile], jTile);
+                                this->selectOutcome(blk, blk.iOpen[jTile], jTile);
                             }
                         }
                     } /* end of CL_LOOP */
@@ -326,7 +317,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                 /*
                 ** Now calculate the local expansion.
                 */
-                impl::calculateLocalExpansion(k);
+                this->calculateLocalExpansion(k);
                 /*
                 ** Done processing of the Checklist.
                 ** Now prepare to proceed to the next deeper
@@ -342,7 +333,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                 iCell = k->lchild();
                 k = pkd->tree[iCell];
                 k_r = k->position();
-                for (auto& p : *k) {
+                for (auto &p : *k) {
                     if (p.is_marked())
                         assert(k->is_marked());
                 }
@@ -351,7 +342,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                 ** rung check here when we start using tree repair, but
                 ** for now this is just as good.
                 */
-                if (impl::testAddNodeCL(k)) {
+                if (this->testAddNodeCL(k)) {
                     /*
                     ** iCell is active, continue processing it.
                     ** Put the sibling onto the checklist.
@@ -364,7 +355,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                     ** have to be careful to not pop the stack when we
                     ** hit the sibling.
                     */
-                    if (impl::testAddNodeCL(c)) {
+                    if (this->testAddNodeCL(c)) {
                         // if ((c->min_rung()<=ts->uRungHi && c->max_rung() >=
                         // ts->uRungLo)
                         // || (SPHoptions->useDensityFlags && c->is_marked()) ||
@@ -397,14 +388,16 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                         *S[iStack] (iStack+1 was used previously), just need to
                         *add one.
                         */
-                        impl::updateStackMomentTensor(c, xParent, yParent, zParent);
-                    } else {
+                        this->updateStackMomentTensor(c, xParent, yParent, zParent);
+                    }
+                    else {
                         /*
                         ** Otherwise we can simple grab it.
                         */
                         pkd->cl = std::move(*clSib);
                     }
-                } else {
+                }
+                else {
                     /*
                     ** Skip iCell, but add it to the Checklist.
                     ** No need to push anything onto the stack here.
@@ -418,14 +411,14 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                     k_r = k->position();
                 }
 
-                    impl::shiftToNextNode(k_r, xParent, yParent, zParent);
+                this->shiftToNextNode(k_r, xParent, yParent, zParent);
             }
             /*
             ** Now the interaction list should be complete and the
             ** Checklist should be empty! Calculate gravity on this
             ** Bucket!
             */
-            auto [nActiveInt, flops] = impl::interact_wrapper(k, iRoot, iRoot2);
+            auto nActiveInt = this->interact_wrapper(k, iRoot, iRoot2);
 
             /*
             ** Update the limit for a shift of the center here based on the
@@ -458,12 +451,11 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
             */
             assert(pkd->cl.count() == 0);
             pkd->cl = std::move(clStack.back().cl);
-            impl::updateMomentTensorFromStack();
+            this->updateMomentTensorFromStack();
             clStack.pop_back();
         }
-    doneCheckList:
-        assert(0);
-        impl::doneChecklist();
+doneCheckList:
+        this->doneChecklist();
         nActive += nCLActive;
     }
 
@@ -475,10 +467,9 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
         pkd->metalClient->flushMETAL();
 #endif
         pkd->mdl->CompleteAllWork();
-        dFlopTotal += pkd->dFlop; /* Accumulate work flops (notably Ewald) */
     }
 
-  protected:
+protected:
     // Convenient hooks when processing the CL to add gravity-related
     // operations.
     void initCLAccumulatedVariablesImpl() {}
@@ -496,15 +487,15 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                              double yParent, double zParent) {}
 
     // Opening criteria
-    void openOutcomeBlockImpl(treeStore::NodePointer k, int n, clBlock& blk) {}
+    void openOutcomeBlockImpl(treeStore::NodePointer k, int n, clBlock &blk) {}
 
-    void openOutcomeSIMD(treeStore::NodePointer k, clTile& tile) {
+    void openOutcomeSIMD(treeStore::NodePointer k, clTile &tile) {
         // Do the full blocks, followed by the last (probably not full) block
         auto nBlocks = tile.count() / tile.width;
         for (auto iBlock = 0; iBlock < nBlocks; ++iBlock) {
-            impl::openOutcomeBlock(k, tile.width, tile[iBlock]);
+            this->openOutcomeBlock(k, tile.width, tile[iBlock]);
         }
-        impl::openOutcomeBlock(k, tile.count() - nBlocks * tile.width,
+        this->openOutcomeBlock(k, tile.count() - nBlocks * tile.width,
                                tile[nBlocks]);
     }
 
@@ -524,7 +515,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
         int ix, iy, iz;
         int iTop1, iTop2;
 
-        impl::initWalk();
+        this->initWalk();
 
         iTop1 = pkd->iTopTree[options->iRoot1];
         iTop2 = pkd->iTopTree[options->iRoot2];
@@ -535,7 +526,7 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
         *particles
         */
         auto k = pkd->tree[iTop1];
-        if (k->count() && impl::testAddNodeCL(k)) {
+        if (k->count() && this->testAddNodeCL(k)) {
             /*
             ** Initially we set our cell pointer to
             ** point to the top tree.
@@ -554,23 +545,23 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                     fOffset[1] = iy * pkd->fPeriod[1];
                     for (iz = -options->nReps; iz <= options->nReps; ++iz) {
                         fOffset[2] = iz * pkd->fPeriod[2];
-                        impl::addChild(pkd, CID_CELL, pkd->cl, iTop1, id,
+                        this->addChild(pkd, CID_CELL, pkd->cl, iTop1, id,
                                        fOffset);
 #ifndef SINGLE_CACHES
                         if (iTop2 > 0)
-                            impl::addChild(pkd, CID_CELL2, pkd->cl, iTop2, id,
+                            this->addChild(pkd, CID_CELL2, pkd->cl, iTop2, id,
                                            fOffset);
 #else
                         if (iTop2 > 0)
-                            impl::addChild(pkd, CID_CELL, pkd->cl, iTop2, id,
+                            this->addChild(pkd, CID_CELL, pkd->cl, iTop2, id,
                                            fOffset);
 #endif
                     }
                 }
             }
-            impl::processCheckList(pkd, iTop1, iTop2);
+            this->processCheckList(pkd, iTop1, iTop2);
         }
-        impl::doneWalk();
+        this->doneWalk();
     }
 
     // initWalkGrav
@@ -587,15 +578,22 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
     }
 
     // Initialize flop/counts statistics for latter analisis
-    void initStatsImpl() {}
+    void initStatsImpl() {
+        walkStats.dFlopDoubleCPU = 0;
+        walkStats.dFlopDoubleGPU = 0;
+        walkStats.dFlopSingleGPU = 0;
+        walkStats.dFlopSingleCPU = 0;
+        walkStats.nTilesCPU = 0;
+        walkStats.nTilesTotal = 0;
+    }
 
-    // Process the gatheres statistics during the walk (which should be
+    // Process the gathered statistics during the walk (which should be
     // available as private variables)
     void computeStatsImpl() {}
 
     // We abstract this a bit to allow passing different interaction lists
-    std::tuple<int, double> interact_wrapperImpl(treeStore::NodePointer k,
-                                                 int iRoot, int iRoot2) {
+    int interact_wrapperImpl(treeStore::NodePointer k,
+                             int iRoot, int iRoot2) {
 
         return interaction.interact(k, iRoot, iRoot2);
     }
@@ -604,33 +602,33 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
                   std::is_standard_layout<Options>());
     static_assert(std::is_void<output>() || std::is_standard_layout<output>());
 
-  public:
+public:
     // pkdGravAll
-    int ServiceImpl(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    int ServiceImpl(PST pst, void *vin, int nIn, void *vout, int nOut) {
         this->pkd = pst->plcl->pkd;
-        auto* optpack = static_cast<OptionPack*>(vin);
+        auto *optpack = static_cast<OptionPack *>(vin);
         typename Interaction::Options opt = optpack->inter;
         this->options = &optpack->walk;
-        this->out = static_cast<output*>(vout);
-        assert(sizeof(this->options) == nIn);
-        interaction.setup(this->pkd, &opt);
+        this->out = static_cast<output *>(vout);
+        assert(sizeof(*this->options) == nIn);
+        assert(sizeof(*this->out) == nOut);
+        interaction.setup(this->pkd, &opt, &this->walkStats);
 
         // options->copyToDevice(); // or something similar
-        impl::setupCache();
+        this->setupCache();
 
-        impl::initStats();
+        this->initStats();
 
-        impl::walk();
+        this->walk();
 
-        impl::computeStats();
+        this->computeStats();
 
         pkd->mdl->FinishCache(CID_PARTICLE);
-        // This kind of thing should go inside doneWalk
-        return sizeof(output);
+        return sizeof(*this->out);
     }
 
     // pstGravity combination of statistics
-    virtual int CombineImpl(void* vout, void* vout2) {
+    virtual int CombineImpl(void *vout, void *vout2) {
         return sizeof(output);
     }
 };

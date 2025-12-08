@@ -9,6 +9,7 @@
 #include "interaction/gravity.h"
 #include "pkd.h"
 #include "smooth/smooth.h"
+#include "walk/stats.h"
 
 class GravityWalkTraits {
 public:
@@ -51,14 +52,16 @@ public:
 };
 
 template <typename Interaction, typename Derived>
-class GravityWalkImpl : public BaseTreeWalk<GravityWalkTraits, Interaction,
-    GravityWalkImpl<Interaction,Derived>> {
+class GravityWalkImpl
+    : public BaseTreeWalk<GravityWalkTraits, Interaction,
+      GravityWalkImpl<Interaction, Derived>> {
 
-  using impl = BaseTreeWalkInterface<Derived>;
-  // Note here to but the template outside to be "friend" with all the
-  // template specializations of the base class
-  template <class T>
-  friend class BaseTreeWalkInterface;
+    // Note here to but the template outside to be "friend" with all the
+    // template specializations of the base class
+    template <class T> friend class BaseTreeWalkInterface;
+    using base = BaseTreeWalk<GravityWalkTraits, Interaction,
+          GravityWalkImpl<Interaction, Derived>>;
+
 public:
     explicit GravityWalkImpl(PST pst)
         : BaseTreeWalk<GravityWalkTraits, Interaction, GravityWalkImpl>(pst) {}
@@ -67,26 +70,22 @@ public:
         this->pkd = pst->plcl->pkd;
         this->options = static_cast<GravityWalkTraits::Options *>(vin);
         this->out = static_cast<GravityWalkTraits::output *>(vout);
+        assert(sizeof(*this->out) == nOut);
         assert(sizeof(*this->options) == nIn);
         // We reuse the same options for the interaction
-        this->interaction.setup(this->pkd, this->options);
-        printf("after setup\n");
+        this->interaction.setup(this->pkd, this->options, &this->walkStats);
 
         // options->copyToDevice(); // or something similar
         this->setupCache();
-        printf("after cache\n");
 
         this->initStats();
-        printf("after stats\n");
 
         this->walk();
-        printf("after walk\n");
 
         this->computeStats();
 
         this->pkd->mdl->FinishCache(CID_PARTICLE);
-        // This kind of thing should go inside doneWalk
-        return sizeof(this->out);
+        return sizeof(*this->out);
     }
 
 private:
@@ -97,10 +96,7 @@ private:
     SMX smx;
     SMF smf;
     double dFlop;
-    double dFlopSingleCPU, dFlopDoubleCPU;
-    double dFlopSingleGPU, dFlopDoubleGPU;
     int nWpPending;
-    uint64_t nTilesTotal, nTilesCPU;
 
 protected:
     void initCLAccumulatedVariablesImpl() {
@@ -258,7 +254,7 @@ protected:
 
         double dFlop = COST_FLOP_OPEN * n;
         dFlop += dFlop;
-        dFlopSingleCPU += dFlop;
+        this->walkStats.dFlopSingleCPU += dFlop;
     };
 
     void selectOutcomeImpl(clBlock blk, int outcome, int jTile) {
@@ -451,7 +447,7 @@ protected:
                 dFlop = momLocrAddMono5(&L, blk.m[jTile], dir, dx[0], dx[1],
                                         dx[2], &tax, &tay, &taz);
                 this->dFlop += dFlop;
-                dFlopDoubleCPU += dFlop;
+                this->walkStats.dFlopDoubleCPU += dFlop;
                 if (this->options->ts.bGravStep) {
                     float adotai = a[0] * tax + a[1] * tay + a[2] * taz;
                     if (adotai > 0) {
@@ -486,7 +482,7 @@ protected:
                     momLocrAddFmomr5cm(&L, &c->moment(), c->bMax(), dir, dx[0],
                                        dx[1], dx[2], &tax, &tay, &taz);
                 this->dFlop += dFlop;
-                dFlopDoubleCPU += dFlop;
+                this->walkStats.dFlopDoubleCPU += dFlop;
                 if (options->ts.bGravStep) {
                     float adotai = a[0] * tax + a[1] * tay + a[2] * taz;
                     if (adotai > 0) {
@@ -518,14 +514,14 @@ protected:
             dFlop = momFlocrSetVFmomr5cm(&Lf, v, this->pkd->ill, a.data(),
                                          &dirLsum, &normLsum);
             this->dFlop += dFlop;
-            dFlopSingleCPU += dFlop;
+            this->walkStats.dFlopSingleCPU += dFlop;
             momLocrAddFlocr(&this->L, &Lf, v);
         }
 #endif
     };
 
     void updateStackMomentTensorImpl(treeStore::NodePointer c, double xParent,
-                                 double yParent, double zParent) {
+                                     double yParent, double zParent) {
         this->clStack.back().L = L;
         this->clStack.back().dirLsum = dirLsum;
         this->clStack.back().normLsum = normLsum;
@@ -541,11 +537,11 @@ protected:
     }
 
     void shiftToNextNodeImpl(blitz::TinyVector<double, 3> k_r, double xParent,
-                         double yParent, double zParent) {
+                             double yParent, double zParent) {
         auto dFlopMom = momShiftLocr(&this->L, k_r[0] - xParent,
                                      k_r[1] - yParent, k_r[2] - zParent);
         dFlop += dFlopMom;
-        dFlopDoubleCPU += dFlopMom;
+        this->walkStats.dFlopDoubleCPU += dFlopMom;
     }
 
     bool testAddNodeCLImpl(treeStore::NodePointer k) {
@@ -553,8 +549,7 @@ protected:
                 k->max_rung() >= this->options->ts.uRungLo);
     }
 
-    std::tuple<int, double> interact_wrapperImpl(treeStore::NodePointer k,
-            int iRoot, int iRoot2) {
+    int interact_wrapperImpl(treeStore::NodePointer k, int iRoot, int iRoot2) {
         // Prepare the internal state of the interaction
         this->interaction.dirLsum = dirLsum;
         this->interaction.normLsum = normLsum;
@@ -610,22 +605,48 @@ protected:
 
     void initStatsImpl() {
         dFlop = 0.0;
-        dFlopSingleCPU = dFlopDoubleCPU = 0.0;
-        dFlopSingleGPU = dFlopDoubleGPU = 0.0;
-        nWpPending = 0;
-        nTilesTotal = 0;
-        nTilesCPU = 0;
+        base::initStatsImpl();
     }
 
     void computeStatsImpl() {
-        this->out->dFlopSingleCPU = 1e-9 * dFlopSingleCPU;
-        this->out->dFlopDoubleCPU = 1e-9 * dFlopDoubleCPU;
-        this->out->dFlopSingleGPU = 1e-9 * dFlopSingleGPU;
-        this->out->dFlopDoubleGPU = 1e-9 * dFlopDoubleGPU;
-        this->out->nTilesTotal = nTilesTotal;
-        this->out->nTilesCPU = nTilesCPU;
+        // Flop and tile count
+        this->out->dFlopSingleCPU = 1e-9 * this->walkStats.dFlopSingleCPU;
+        this->out->dFlopDoubleCPU = 1e-9 * this->walkStats.dFlopDoubleCPU;
+        this->out->dFlopSingleGPU = 1e-9 * this->walkStats.dFlopSingleGPU;
+        this->out->dFlopDoubleGPU = 1e-9 * this->walkStats.dFlopDoubleGPU;
+        this->out->nTilesTotal = this->walkStats.nTilesTotal;
+        this->out->nTilesCPU = this->walkStats.nTilesCPU;
+        this->out->nActive = this->nActive;
+
+        double dActive = static_cast<double>(this->nActive);
+        // Set dSum for the rest of statistics
+        this->out->sFlop.dSum = this->dFlop;
+        if (this->nActive) {
+            this->out->sCell.dSum = this->dCellSum / dActive;
+            this->out->sPart.dSum = this->dPartSum / dActive;
+            this->out->sPartNumAccess.dSum =
+                this->pkd->mdl->NumAccess(CID_PARTICLE) / dActive;
+            this->out->sCellNumAccess.dSum =
+                this->pkd->mdl->NumAccess(CID_CELL) / dActive;
+        }
+        else {
+            this->out->sCell.dSum = 0;
+            this->out->sPart.dSum = 0;
+            this->out->sPartNumAccess.dSum = 0;
+            this->out->sCellNumAccess.dSum = 0;
+        }
+        this->out->sCellMissRatio.dSum =
+            100.0 * this->pkd->mdl->MissRatio(CID_CELL);
+        this->out->sPartMissRatio.dSum =
+            100.0 * this->pkd->mdl->MissRatio(CID_PARTICLE);
+
+        this->out->sComputing.dSum = this->pkd->mdl->TimeComputing();
+        this->out->sWaiting.dSum = this->pkd->mdl->TimeWaiting();
+        this->out->sSynchronizing.dSum = this->pkd->mdl->TimeSynchronizing();
+
         this->out->sLocal.dSum = this->pkd->Local();
         this->out->sActive.dSum = (double)this->out->nActive;
+
 #ifdef __linux__
         FILE *fp;
         char buffer[512], *save, *f, *v;
@@ -685,9 +706,6 @@ protected:
         this->initStat(&this->out->sCellMissRatio, this->pkd->Self());
         this->initStat(&this->out->sFlop, this->pkd->Self());
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-        this->out->sComputing.dSum = this->pkd->mdl->TimeComputing();
-        this->out->sWaiting.dSum = this->pkd->mdl->TimeWaiting();
-        this->out->sSynchronizing.dSum = this->pkd->mdl->TimeSynchronizing();
         this->initStat(&this->out->sComputing, this->pkd->Self());
         this->initStat(&this->out->sWaiting, this->pkd->Self());
         this->initStat(&this->out->sSynchronizing, this->pkd->Self());
@@ -748,8 +766,9 @@ public:
     };
 };
 template <typename Interaction>
-class GravityWalk : public GravityWalkImpl<Interaction, GravityWalk<Interaction>> {
-    public:
+class GravityWalk
+    : public GravityWalkImpl<Interaction, GravityWalk<Interaction>> {
+public:
     explicit GravityWalk(PST pst)
         : GravityWalkImpl<Interaction, GravityWalk<Interaction>>(pst) {}
 };
