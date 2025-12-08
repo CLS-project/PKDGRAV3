@@ -5,6 +5,7 @@
 #include "blitz/tinyvec2.h"
 #include "core/simd.h"
 #include "gravity/moments.h"
+#include "gravity/vmoments.h"
 #include "interaction/gravity.h"
 #include "pkd.h"
 #include "smooth/smooth.h"
@@ -49,15 +50,20 @@ public:
     };
 };
 
-template <typename Interaction>
-class GravityWalk : public BaseTreeWalk<GravityWalkTraits, Interaction,
-    GravityWalk<Interaction>> {
+template <typename Interaction, typename Derived>
+class GravityWalkImpl : public BaseTreeWalk<GravityWalkTraits, Interaction,
+    GravityWalkImpl<Interaction,Derived>> {
 
+  using impl = BaseTreeWalkInterface<Derived>;
+  // Note here to but the template outside to be "friend" with all the
+  // template specializations of the base class
+  template <class T>
+  friend class BaseTreeWalkInterface;
 public:
-    explicit GravityWalk(PST pst)
-        : BaseTreeWalk<GravityWalkTraits, Interaction, GravityWalk>(pst) {}
+    explicit GravityWalkImpl(PST pst)
+        : BaseTreeWalk<GravityWalkTraits, Interaction, GravityWalkImpl>(pst) {}
 
-    int Service(PST pst, void *vin, int nIn, void *vout, int nOut) {
+    int ServiceImpl(PST pst, void *vin, int nIn, void *vout, int nOut) {
         this->pkd = pst->plcl->pkd;
         this->options = static_cast<GravityWalkTraits::Options *>(vin);
         this->out = static_cast<GravityWalkTraits::output *>(vout);
@@ -76,7 +82,7 @@ public:
         this->walk();
         printf("after walk\n");
 
-        computeStats();
+        this->computeStats();
 
         this->pkd->mdl->FinishCache(CID_PARTICLE);
         // This kind of thing should go inside doneWalk
@@ -96,17 +102,8 @@ private:
     int nWpPending;
     uint64_t nTilesTotal, nTilesCPU;
 
-public:
-    // In principle we should be able to put these as protected
-    // or privates given that we have the friend class. However,
-    // when testing for the existence of the methods with
-    // "requires", it only sees them if they are public. Note
-    // that this does not happen in the case of the Interaction
-    // because in this case we have a template parameters that
-    // changes everything.
-    friend class BaseTreeWalk<GravityInteractionTraits, GravityInteraction,
-               GravityWalk<GravityInteraction>>;
-    void initCLAccumulatedVariables() {
+protected:
+    void initCLAccumulatedVariablesImpl() {
         momClearFmomr(&monoPole);
         momClearLocr(&L);
         dirLsum = 0;
@@ -114,9 +111,9 @@ public:
         a = 0;
     };
 
-    void beforeCLProcessing(treeStore::NodePointer k) {
+    void beforeCLProcessingImpl(treeStore::NodePointer k) {
 #ifdef USE_SIMD_FMM
-        a = (this->options->bGravStep) ? k->acceleration() : 0.0f;
+        a = (this->options->ts.bGravStep) ? k->acceleration() : 0.0f;
 #else
         float imaga;
         if (this->options->ts.bGravStep) {
@@ -142,7 +139,7 @@ public:
     };
 
     // Mock opening criteria, only for compiling tests
-    void openOutcomeBlock(treeStore::NodePointer k, int n, clBlock &blk) {
+    void openOutcomeBlockImpl(treeStore::NodePointer k, int n, clBlock &blk) {
         const float walk_min_multipole = 3;
         fmask T0, T1, T2, T3, T4, T6, T7;
         i32v P1, P2, P3, P4;
@@ -264,7 +261,7 @@ public:
         dFlopSingleCPU += dFlop;
     };
 
-    void selectOutcome(clBlock blk, int outcome, int jTile) {
+    void selectOutcomeImpl(clBlock blk, int outcome, int jTile) {
         blitz::TinyVector<float, 3> fOffset;
         blitz::TinyVector<double, 3> r, dx, k_r, c_r, dOffset;
         treeStore::NodePointer c(this->pkd->tree);
@@ -336,7 +333,6 @@ public:
                     fMass = p.mass();
                     fSoft = p.soft();
                     r = p.position();
-                    assert(0);
                     auto v = p.velocity();
                     this->pkd->ilp.append(
                         r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile],
@@ -513,7 +509,7 @@ public:
         }
     }
 
-    void calculateLocalExpansion(treeStore::NodePointer k) {
+    void calculateLocalExpansionImpl(treeStore::NodePointer k) {
         FLOCR Lf;
 #ifdef USE_SIMD_FMM
         // Need to get the scaling factor correct here
@@ -528,7 +524,7 @@ public:
 #endif
     };
 
-    void updateStackMomentTensor(treeStore::NodePointer c, double xParent,
+    void updateStackMomentTensorImpl(treeStore::NodePointer c, double xParent,
                                  double yParent, double zParent) {
         this->clStack.back().L = L;
         this->clStack.back().dirLsum = dirLsum;
@@ -538,13 +534,13 @@ public:
                      c_r[1] - yParent, c_r[2] - zParent);
     }
 
-    void updateMomentTensorFromStack() {
+    void updateMomentTensorFromStackImpl() {
         L = this->clStack.back().L;
         dirLsum = this->clStack.back().dirLsum;
         normLsum = this->clStack.back().normLsum;
     }
 
-    void shiftToNextNode(blitz::TinyVector<double, 3> k_r, double xParent,
+    void shiftToNextNodeImpl(blitz::TinyVector<double, 3> k_r, double xParent,
                          double yParent, double zParent) {
         auto dFlopMom = momShiftLocr(&this->L, k_r[0] - xParent,
                                      k_r[1] - yParent, k_r[2] - zParent);
@@ -552,12 +548,12 @@ public:
         dFlopDoubleCPU += dFlopMom;
     }
 
-    bool testAddNodeCL(treeStore::NodePointer k) {
+    bool testAddNodeCLImpl(treeStore::NodePointer k) {
         return (k->min_rung() <= this->options->ts.uRungHi &&
                 k->max_rung() >= this->options->ts.uRungLo);
     }
 
-    std::tuple<int, double> interact_wrapper(treeStore::NodePointer k,
+    std::tuple<int, double> interact_wrapperImpl(treeStore::NodePointer k,
             int iRoot, int iRoot2) {
         // Prepare the internal state of the interaction
         this->interaction.dirLsum = dirLsum;
@@ -570,7 +566,7 @@ public:
         return this->interaction.interact(k, iRoot, iRoot2);
     }
 
-    void initWalk() {
+    void initWalkImpl() {
         this->pkd->dEnergyU = 0.0;
         this->pkd->dEnergyT = 0.0;
         this->pkd->dEnergyW = 0.0;
@@ -603,7 +599,7 @@ public:
             smx = NULL;
     }
 
-    void doneWalk() {
+    void doneWalkImpl() {
         if (smx) {
             smSmoothFinish(smx);
             smFinish(smx, &smf);
@@ -612,7 +608,7 @@ public:
             this->out->nRung[i] = this->pkd->nRung[i];
     }
 
-    void initStats() {
+    void initStatsImpl() {
         dFlop = 0.0;
         dFlopSingleCPU = dFlopDoubleCPU = 0.0;
         dFlopSingleGPU = dFlopDoubleGPU = 0.0;
@@ -621,7 +617,7 @@ public:
         nTilesCPU = 0;
     }
 
-    void computeStats() {
+    void computeStatsImpl() {
         this->out->dFlopSingleCPU = 1e-9 * dFlopSingleCPU;
         this->out->dFlopDoubleCPU = 1e-9 * dFlopDoubleCPU;
         this->out->dFlopSingleGPU = 1e-9 * dFlopSingleGPU;
@@ -710,7 +706,8 @@ public:
         }
     }
 
-    virtual int Combine(void *vout, void *vout2) {
+public:
+    virtual int CombineImpl(void *vout, void *vout2) {
         auto tmp = static_cast<typename GravityWalkTraits::output *>(vout2);
         auto out = static_cast<typename GravityWalkTraits::output *>(vout);
 #ifdef __linux__
@@ -749,5 +746,11 @@ public:
 
         return sizeof(out);
     };
+};
+template <typename Interaction>
+class GravityWalk : public GravityWalkImpl<Interaction, GravityWalk<Interaction>> {
+    public:
+    explicit GravityWalk(PST pst)
+        : GravityWalkImpl<Interaction, GravityWalk<Interaction>>(pst) {}
 };
 #endif

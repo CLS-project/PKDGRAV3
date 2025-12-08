@@ -6,9 +6,8 @@
 #include "pkd_config.h"
 #include "smooth/smooth.h"
 
-template <auto BasePtr, auto DerivedPtr>
-constexpr bool is_overridden() {
-    using BaseType    = decltype(BasePtr);
+template <auto BasePtr, auto DerivedPtr> constexpr bool is_overridden() {
+    using BaseType = decltype(BasePtr);
     using DerivedType = decltype(DerivedPtr);
 
     // force identical pointer-to-member type
@@ -16,7 +15,6 @@ constexpr bool is_overridden() {
 
     return static_cast<Common>(DerivedPtr) != static_cast<Common>(BasePtr);
 }
-
 
 // A little help from ChatGPT for the string concatenation at
 // compile time... but probably with newer C++ standards can
@@ -37,15 +35,143 @@ template <typename A, typename B> struct Concat {
     }();
 };
 
+template <class Derived>
+class BaseTreeWalkInterface : public TraverseCombinePST {
+  public:
+    explicit BaseTreeWalkInterface(PST pst, std::string_view service_name, int nInBytes, int nOutBytes)
+        : TraverseCombinePST(pst, service_name, nInBytes, nOutBytes) {
+    };
+
+    inline void addChild(PKD pkd, int iCache, clList& cl, int iChild, int id,
+                         blitz::TinyVector<float, 3> fOffset) {
+        derived().addChildImpl(pkd, iCache, cl, iChild, id, fOffset);
+    }
+    inline void processCheckList(PKD pkd, int iRoot, int iRoot2) {
+        derived().processCheckListImpl(pkd, iRoot, iRoot2);
+    }
+    inline void doneChecklist() { derived().doneChecklistImpl(); };
+    inline void initCLAccumulatedVariables() {
+        initCLAccumulatedVariablesImpl();
+    };
+    inline void beforeCLProcessing(treeStore::NodePointer k) {
+        beforeCLProcessingImpl(k);
+    };
+    inline void calculateLocalExpansion(treeStore::NodePointer k) {
+        calculateLocalExpansionImpl(k);
+    }
+    inline void updateStackMomentTensor(treeStore::NodePointer c,
+                                        double xParent, double yParent,
+                                        double zParent) {
+        updateStackMomentTensorImpl(c, xParent, yParent, zParent);
+    };
+    inline void shiftToNextNode(blitz::TinyVector<double, 3> k_r,
+                                double xParent, double yParent,
+                                double zParent) {
+        shiftToNextNodeImpl(k_r, xParent, yParent, zParent);
+    };
+    inline void updateMomentTensorFromStack() {
+        updateMomentTensorFromStackImpl();
+    };
+    inline void openOutcomeBlock(treeStore::NodePointer k, int n,
+                                 clBlock& blk) {
+        openOutcomeBlockImpl(k, n, blk);
+    };
+    inline void selectOutcome(clBlock blk, int outcome, int jTile) {
+        selectOutcomeImpl(blk, outcome, jTile);
+    };
+    inline bool testAddNodeCL(treeStore::NodePointer k) {
+        return testAddNodeCLImpl(k);
+    };
+    inline void walk() { walkImpl(); };
+    inline void initWalk() { initWalkImpl(); };
+    inline void doneWalk() { doneWalkImpl(); };
+    inline void setupCache() { setupCacheImpl(); };
+    inline void initStats() { initStatsImpl(); };
+    inline void computeStats() { computeStatsImpl(); };
+    inline std::tuple<int, double> interact_wrapper(treeStore::NodePointer k,
+                                                    int iRoot, int iRoot2) {
+        return interact_wrapperImpl(k, iRoot, iRoot2);
+    };
+    int Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+        return ServiceImpl(pst, vin, nIn, vout, nOut);
+    };
+    virtual int Combine(void* vout, void* vout2) {
+      return CombineImpl(vout, vout2);
+    }
+
+  protected:
+    inline void addChildImpl(PKD pkd, int iCache, clList& cl, int iChild,
+                             int id, blitz::TinyVector<float, 3> fOffset) {
+        derived().addChildImpl(pkd, iCache, cl, iChild, id, fOffset);
+    };
+    inline void processCheckListImpl(PKD pkd, int iRoot, int iRoot2) {
+        derived().processCheckListImpl(pkd, iRoot, iRoot2);
+    }
+    inline void doneChecklistImpl() { derived().doneChecklistImpl(); };
+    inline void initCLAccumulatedVariablesImpl() {
+        derived().initCLAccumulatedVariablesImpl();
+    };
+    inline void beforeCLProcessingImpl(treeStore::NodePointer k) {
+        derived().beforeCLProcessingImpl(k);
+    };
+    inline void calculateLocalExpansionImpl(treeStore::NodePointer k) {
+        derived().calculateLocalExpansionImpl(k);
+    }
+    inline void updateStackMomentTensorImpl(treeStore::NodePointer c,
+                                            double xParent, double yParent,
+                                            double zParent) {
+        derived().updateStackMomentTensorImpl(c, xParent, yParent, zParent);
+    };
+    inline void shiftToNextNodeImpl(blitz::TinyVector<double, 3> k_r,
+                                    double xParent, double yParent,
+                                    double zParent) {
+        derived().shiftToNextNodeImpl(k_r, xParent, yParent, zParent);
+    };
+    inline void updateMomentTensorFromStackImpl() {
+        derived().updateMomentTensorFromStackImpl();
+    };
+    inline void openOutcomeBlockImpl(treeStore::NodePointer k, int n,
+                                     clBlock& blk) {
+        derived().openOutcomeBlockImpl(k, n, blk);
+    };
+    inline void selectOutcomeImpl(clBlock blk, int outcome, int jTile) {
+        derived().selectOutcomeImpl(blk, outcome, jTile);
+    };
+    inline bool testAddNodeCLImpl(treeStore::NodePointer k) {
+        return derived().testAddNodeCLImpl(k);
+    };
+    inline void walkImpl() { derived().walkImpl(); };
+    inline void initWalkImpl() { derived().initWalkImpl(); };
+    inline void doneWalkImpl() { derived().doneWalkImpl(); };
+    inline void setupCacheImpl() { derived().setupCacheImpl(); };
+    inline void initStatsImpl() { derived().initStatsImpl(); };
+    inline void computeStatsImpl() { derived().computeStatsImpl(); };
+    inline std::tuple<int, double>
+    interact_wrapperImpl(treeStore::NodePointer k, int iRoot, int iRoot2) {
+        return derived().interact_wrapperImpl(k, iRoot, iRoot2);
+    };
+    inline int ServiceImpl(PST pst, void* vin, int nIn, void* vout, int nOut) {
+        return derived().ServiceImpl(pst, vin, nIn, vout, nOut);
+    };
+    inline int CombineImpl(void* vout, void* vout2) {
+      return derived().CombineImpl(vout, vout2);
+    }
+    inline Derived& derived() { return static_cast<Derived&>(*this); }
+
+};
+
 // As with the interaction, we define traits for the
 // derived tree walks to that we can access their types
 // from the base class.
 template <typename Traits, typename Interaction, class Derived>
-class BaseTreeWalk : public TraverseCombinePST {
+class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
     // We choose to derive TraverseCombinePST to allow gathering
     // of information of the underlying walk/interactions, such
     // as the statistics shown for the gravity.
-public:
+    using impl = BaseTreeWalkInterface<Derived>;
+    friend impl;
+
+  public:
     using Options = typename Traits::Options;
     using output = typename Traits::output;
     using name = typename Traits::name;
@@ -66,32 +192,32 @@ public:
         Concat<typename Traits::name, typename Interaction::name>::value;
 
     explicit BaseTreeWalk(PST pst)
-        : TraverseCombinePST(pst, service_name.data(), sizeof(OptionPack),
+        : BaseTreeWalkInterface<Derived>(pst, service_name.data(), sizeof(OptionPack),
                              sizeof(output)) {
         // cl = new CL();
         clStack.reserve(40); // Start with a sensible stack size
     };
 
-protected:
+  protected:
     PKD pkd;
     SMX smx;
     Interaction interaction;
-    Options *options;
-    output *out;
+    Options* options;
+    output* out;
 
-    clList *clSib;
-    clList *clNew;
+    clList* clSib;
+    clList* clNew;
 
     int bReferenceFound;
 
-    void initStat(STAT *ps, int id) {
+    void initStat(STAT* ps, int id) {
         ps->idMax = id;
         ps->dMax = ps->dSum;
         ps->dSum2 = ps->dSum * ps->dSum;
         ps->n = 1; /* sometimes we will need to zero this */
     }
 
-    void combStat(STAT *ps, STAT *pa) {
+    void combStat(STAT* ps, STAT* pa) {
         if (pa->dMax > ps->dMax) {
             ps->idMax = pa->idMax;
             ps->dMax = pa->dMax;
@@ -101,14 +227,7 @@ protected:
         ps->n += pa->n;
     }
 
-private:
-    inline Derived &top() {
-        static_assert(std::is_base_of<BaseTreeWalk, Derived>::value,
-                      "Invalid Top class specified.");
-        return static_cast<Derived &>(*this);
-    }
-
-protected:
+  protected:
     // IA: We still use the clList defined in PKD, I do not know why
     // is done that way and if we can simply define and allocate
     // one for us here.
@@ -121,24 +240,24 @@ protected:
     int nActive;
     double dFlopTotal;
 
-    void addChild(PKD pkd, int iCache, clList &cl, int iChild, int id,
-                  blitz::TinyVector<float, 3> fOffset) {
+    void addChildImpl(PKD pkd, int iCache, clList& cl, int iChild, int id,
+                      blitz::TinyVector<float, 3> fOffset) {
         auto c = (id == pkd->Self())
-                 ? pkd->tree[iChild]
-                 : pkd->tree[pkd->mdl->Fetch<KDN>(iCache, iChild, id)];
+                     ? pkd->tree[iChild]
+                     : pkd->tree[pkd->mdl->Fetch<KDN>(iCache, iChild, id)];
         auto nc =
             (c->is_remote() || c->is_top_tree()) ? 1000000000 : c->count();
         auto cOpen = c->bMax() * pkd->fiCritTheta;
         auto c_r = c->position();
         auto cbnd = c->bound();
         auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
-        const auto &SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
+        const auto& SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
         cl.append(iCache, id, iChild, idLower, iLower, idUpper, iUpper, nc,
                   cOpen, c->mass(), 4.0f * c->fSoft2(), c_r, fOffset, cbnd,
                   SPHbob);
     }
 
-    void processCheckList(PKD pkd, int iRoot, int iRoot2) {
+    void processCheckListImpl(PKD pkd, int iRoot, int iRoot2) {
         treeStore::NodePointer c(pkd->tree);
         int id, iCell, iSib, iCheckCell, iCheckLower;
         FLOCR Lf;
@@ -162,7 +281,7 @@ protected:
         *sums.
         */
         nCLActive = 0;
-        initCLAccumulatedVariables();
+        impl::initCLAccumulatedVariables();
 
         /*
         ** We are now going to work on the local tree.
@@ -177,7 +296,7 @@ protected:
                 /*
                 ** Process the Checklist.
                 */
-                beforeCLProcessing(k);
+                impl::beforeCLProcessing(k);
                 /*
                 ** For cells which will remain on the checklist for a further
                 *deeper level of
@@ -186,19 +305,19 @@ protected:
                 */
                 this->clSib = new clList(pkd->clFreeList);
                 do {
-                    for (auto &tile : pkd->cl) {
+                    for (auto& tile : pkd->cl) {
                         openOutcomeSIMD(k, tile);
                     }
                     this->clNew = new clList(pkd->clFreeList);
-                    for (auto &tile : pkd->cl) {
+                    for (auto& tile : pkd->cl) {
                         auto nBlocks = tile.count() / tile.width;
                         for (auto iBlock = 0; iBlock <= nBlocks; ++iBlock) {
                             int n = iBlock < nBlocks
-                                    ? tile.width
-                                    : tile.count() - nBlocks * tile.width;
-                            auto &blk = tile[iBlock];
+                                        ? tile.width
+                                        : tile.count() - nBlocks * tile.width;
+                            auto& blk = tile[iBlock];
                             for (jTile = 0; jTile < n; ++jTile) {
-                                selectOutcome(blk, blk.iOpen[jTile], jTile);
+                              impl::selectOutcome(blk, blk.iOpen[jTile], jTile);
                             }
                         }
                     } /* end of CL_LOOP */
@@ -207,7 +326,7 @@ protected:
                 /*
                 ** Now calculate the local expansion.
                 */
-                calculateLocalExpansion(k);
+                impl::calculateLocalExpansion(k);
                 /*
                 ** Done processing of the Checklist.
                 ** Now prepare to proceed to the next deeper
@@ -223,7 +342,7 @@ protected:
                 iCell = k->lchild();
                 k = pkd->tree[iCell];
                 k_r = k->position();
-                for (auto &p : *k) {
+                for (auto& p : *k) {
                     if (p.is_marked())
                         assert(k->is_marked());
                 }
@@ -232,7 +351,7 @@ protected:
                 ** rung check here when we start using tree repair, but
                 ** for now this is just as good.
                 */
-                if (testAddNodeCL(k)) {
+                if (impl::testAddNodeCL(k)) {
                     /*
                     ** iCell is active, continue processing it.
                     ** Put the sibling onto the checklist.
@@ -245,7 +364,7 @@ protected:
                     ** have to be careful to not pop the stack when we
                     ** hit the sibling.
                     */
-                    if (testAddNodeCL(c)) {
+                    if (impl::testAddNodeCL(c)) {
                         // if ((c->min_rung()<=ts->uRungHi && c->max_rung() >=
                         // ts->uRungLo)
                         // || (SPHoptions->useDensityFlags && c->is_marked()) ||
@@ -278,16 +397,14 @@ protected:
                         *S[iStack] (iStack+1 was used previously), just need to
                         *add one.
                         */
-                        updateStackMomentTensor(c, xParent, yParent, zParent);
-                    }
-                    else {
+                        impl::updateStackMomentTensor(c, xParent, yParent, zParent);
+                    } else {
                         /*
                         ** Otherwise we can simple grab it.
                         */
                         pkd->cl = std::move(*clSib);
                     }
-                }
-                else {
+                } else {
                     /*
                     ** Skip iCell, but add it to the Checklist.
                     ** No need to push anything onto the stack here.
@@ -301,14 +418,14 @@ protected:
                     k_r = k->position();
                 }
 
-                shiftToNextNode(k_r, xParent, yParent, zParent);
+                    impl::shiftToNextNode(k_r, xParent, yParent, zParent);
             }
             /*
             ** Now the interaction list should be complete and the
             ** Checklist should be empty! Calculate gravity on this
             ** Bucket!
             */
-            auto [nActiveInt, flops] = interact_wrapper(k, iRoot, iRoot2);
+            auto [nActiveInt, flops] = impl::interact_wrapper(k, iRoot, iRoot2);
 
             /*
             ** Update the limit for a shift of the center here based on the
@@ -341,16 +458,16 @@ protected:
             */
             assert(pkd->cl.count() == 0);
             pkd->cl = std::move(clStack.back().cl);
-            updateMomentTensorFromStack();
+            impl::updateMomentTensorFromStack();
             clStack.pop_back();
         }
-doneCheckList:
+    doneCheckList:
         assert(0);
-        doneChecklist();
+        impl::doneChecklist();
         nActive += nCLActive;
     }
 
-    void doneChecklist() {
+    void doneChecklistImpl() {
 #ifdef USE_CUDA
         pkd->cudaClient->flushCUDA();
 #endif
@@ -361,82 +478,53 @@ doneCheckList:
         dFlopTotal += pkd->dFlop; /* Accumulate work flops (notably Ewald) */
     }
 
-protected:
+  protected:
     // Convenient hooks when processing the CL to add gravity-related
     // operations.
-    void initCLAccumulatedVariables() {
-        if constexpr (&Derived::initCLAccumulatedVariables != &Base::initCLAccumulatedVariables)
-            top().initCLAccumulatedVariables();
-    }
+    void initCLAccumulatedVariablesImpl() {}
 
-    void beforeCLProcessing(treeStore::NodePointer k) {
-        if constexpr (&Derived::beforeCLProcessing != &Base::beforeCLProcessing)
-            top().beforeCLProcessing(k);
-    }
+    void beforeCLProcessingImpl(treeStore::NodePointer k) {}
 
-    void calculateLocalExpansion(treeStore::NodePointer k) {
-        if constexpr (&Derived::calculateLocalExpansion != &Base::calculateLocalExpansion)
-            top().calculateLocalExpansion();
-    }
+    void calculateLocalExpansionImpl(treeStore::NodePointer k) {}
 
-    void updateStackMomentTensor(treeStore::NodePointer c, double xParent,
-                                 double yParent, double zParent) {
-        if constexpr (&Derived::updateStackMomentTensor != &Base::updateStackMomentTensor)
-            top().updateStackMomentTensor(c, xParent, yParent, zParent);
-    }
+    void updateStackMomentTensorImpl(treeStore::NodePointer c, double xParent,
+                                     double yParent, double zParent) {}
 
-    void updateMomentTensorFromStack() {
-        if constexpr (&Derived::updateMomentTensorFromStack != &Base::updateMomentTensorFromStack)
-            top().updateMomentTensorFromStack();
-    }
+    void updateMomentTensorFromStackImpl() {}
 
-    void shiftToNextNode(blitz::TinyVector<double, 3> k_r, double xParent,
-                         double yParent, double zParent) {
-        if constexpr (&Derived::shiftToNextNode != &Base::shiftToNextNode)
-            top().shiftToNextNode(k_r, xParent, yParent, zParent);
-    }
+    void shiftToNextNodeImpl(blitz::TinyVector<double, 3> k_r, double xParent,
+                             double yParent, double zParent) {}
 
     // Opening criteria
-    void openOutcomeBlock(treeStore::NodePointer k, int n, clBlock &blk) {
-        top().openOutcomeBlock(k, n, blk);
-    }
+    void openOutcomeBlockImpl(treeStore::NodePointer k, int n, clBlock& blk) {}
 
-    void openOutcomeSIMD(treeStore::NodePointer k, clTile &tile) {
+    void openOutcomeSIMD(treeStore::NodePointer k, clTile& tile) {
         // Do the full blocks, followed by the last (probably not full) block
         auto nBlocks = tile.count() / tile.width;
         for (auto iBlock = 0; iBlock < nBlocks; ++iBlock) {
-            openOutcomeBlock(k, tile.width, tile[iBlock]);
+            impl::openOutcomeBlock(k, tile.width, tile[iBlock]);
         }
-        openOutcomeBlock(k, tile.count() - nBlocks * tile.width, tile[nBlocks]);
+        impl::openOutcomeBlock(k, tile.count() - nBlocks * tile.width,
+                               tile[nBlocks]);
     }
 
     // Based on openOutcomeBlock do something.
     // We split it so allow for child classes
     // to reuse the same criteria easily
-    void selectOutcome(clBlock blk, int outcome, int jTile) {
-        top().selectOutcome(blk, outcome, jTile);
-    }
+    void selectOutcomeImpl(clBlock blk, int outcome, int jTile) {}
 
     // Whether a node is eligible for adding
     // it to the interaction list
-    bool testAddNodeCL(treeStore::NodePointer k) {
-        if constexpr (&Derived::testAddNodeCL != &Base::testAddNodeCL) {
-            return top().testAddNodeCL(k);
-        }
-        else {
-            return true;
-        }
-    }
+    bool testAddNodeCLImpl(treeStore::NodePointer k) { return true; }
 
     // pkdGravWalk
-    void walk() {
-        assert(0);
+    void walkImpl() {
         int id;
         float fOffset[3];
         int ix, iy, iz;
         int iTop1, iTop2;
 
-        initWalk();
+        impl::initWalk();
 
         iTop1 = pkd->iTopTree[options->iRoot1];
         iTop2 = pkd->iTopTree[options->iRoot2];
@@ -447,7 +535,7 @@ protected:
         *particles
         */
         auto k = pkd->tree[iTop1];
-        if (k->count() && testAddNodeCL(k)) {
+        if (k->count() && impl::testAddNodeCL(k)) {
             /*
             ** Initially we set our cell pointer to
             ** point to the top tree.
@@ -466,121 +554,84 @@ protected:
                     fOffset[1] = iy * pkd->fPeriod[1];
                     for (iz = -options->nReps; iz <= options->nReps; ++iz) {
                         fOffset[2] = iz * pkd->fPeriod[2];
-                        addChild(pkd, CID_CELL, pkd->cl, iTop1, id, fOffset);
+                        impl::addChild(pkd, CID_CELL, pkd->cl, iTop1, id,
+                                       fOffset);
 #ifndef SINGLE_CACHES
                         if (iTop2 > 0)
-                            addChild(pkd, CID_CELL2, pkd->cl, iTop2, id,
-                                     fOffset);
+                            impl::addChild(pkd, CID_CELL2, pkd->cl, iTop2, id,
+                                           fOffset);
 #else
                         if (iTop2 > 0)
-                            addChild(pkd, CID_CELL, pkd->cl, iTop2, id,
-                                     fOffset);
+                            impl::addChild(pkd, CID_CELL, pkd->cl, iTop2, id,
+                                           fOffset);
 #endif
                     }
                 }
             }
-            processCheckList(pkd, iTop1, iTop2);
+            impl::processCheckList(pkd, iTop1, iTop2);
         }
-        doneWalk();
+        impl::doneWalk();
     }
 
     // initWalkGrav
-    void initWalk() {
-        if constexpr (&Derived::initWalk != &Base::initWalk)
-            top().initWalk();
-    }
+    void initWalkImpl() {}
 
     // doneWalkGrav
-    void doneWalk() {
-        if constexpr (&Derived::doneWalk != &Base::doneWalk)
-            top().doneWalk();
-    }
+    void doneWalkImpl() {}
 
     // Allow derived classes to start a cache with a different helper to allow
     // for packing, for example
-    void setupCache() {
-        if constexpr (&Derived::setupCache != &Base::setupCache) {
-            top().setupCache();
-        }
-        else {
-            printf("initilzing cache\n");
-            pkd->mdl->CacheInitialize(
-                CID_PARTICLE, std::make_shared<particleCACHEhelper>(pkd));
-        }
+    void setupCacheImpl() {
+        pkd->mdl->CacheInitialize(CID_PARTICLE,
+                                  std::make_shared<particleCACHEhelper>(pkd));
     }
 
     // Initialize flop/counts statistics for latter analisis
-public:
-    void initStats() {
-        if constexpr (&Base::initStats != &Derived::initStats)
-            top().initStats();
-    }
+    void initStatsImpl() {}
 
     // Process the gatheres statistics during the walk (which should be
     // available as private variables)
-    void computeStats() {
-        if constexpr (&Derived::computeStats != &Base::computeStats)
-            top().computeStats();
-    }
+    void computeStatsImpl() {}
 
     // We abstract this a bit to allow passing different interaction lists
-    std::tuple<int, double> interact_wrapper(treeStore::NodePointer k,
-            int iRoot, int iRoot2) {
+    std::tuple<int, double> interact_wrapperImpl(treeStore::NodePointer k,
+                                                 int iRoot, int iRoot2) {
 
-        // static_assert(std::is_same<decltype(&Derived::initStats),
-        //                            decltype(&BaseTreeWalk::initStats)>::value);
-        // static_assert(requires(Derived d) { d.interact_wrapper(k, iRoot,
-        // iRoot2); });
-        if constexpr (&Derived::interact_wrapper != &Base::interact_wrapper) {
-            return top().interact_wrapper(k, iRoot, iRoot2);
-        }
-        else {
-            return interaction.interact(k, iRoot, iRoot2);
-        }
+        return interaction.interact(k, iRoot, iRoot2);
     }
 
     static_assert(std::is_void<Options>() ||
                   std::is_standard_layout<Options>());
     static_assert(std::is_void<output>() || std::is_standard_layout<output>());
 
-public:
+  public:
     // pkdGravAll
-    int Service(PST pst, void *vin, int nIn, void *vout, int nOut) {
-        if constexpr (&Derived::Service != &Base::Service) {
-            return top().Service(pst, vin, nIn, vout, nOut);
-        }
-        else {
-            this->pkd = pst->plcl->pkd;
-            auto *optpack = static_cast<OptionPack *>(vin);
-            typename Interaction::Options opt = optpack->inter;
-            this->options = &optpack->walk;
-            this->out = static_cast<output *>(vout);
-            assert(sizeof(this->options) == nIn);
-            interaction.setup(this->pkd, &opt);
+    int ServiceImpl(PST pst, void* vin, int nIn, void* vout, int nOut) {
+        this->pkd = pst->plcl->pkd;
+        auto* optpack = static_cast<OptionPack*>(vin);
+        typename Interaction::Options opt = optpack->inter;
+        this->options = &optpack->walk;
+        this->out = static_cast<output*>(vout);
+        assert(sizeof(this->options) == nIn);
+        interaction.setup(this->pkd, &opt);
 
-            // options->copyToDevice(); // or something similar
-            setupCache();
+        // options->copyToDevice(); // or something similar
+        impl::setupCache();
 
-            initStats();
+        impl::initStats();
 
-            walk();
+        impl::walk();
 
-            computeStats();
+        impl::computeStats();
 
-            pkd->mdl->FinishCache(CID_PARTICLE);
-            // This kind of thing should go inside doneWalk
-            return sizeof(output);
-        }
+        pkd->mdl->FinishCache(CID_PARTICLE);
+        // This kind of thing should go inside doneWalk
+        return sizeof(output);
     }
 
     // pstGravity combination of statistics
-    virtual int Combine(void *vout, void *vout2) {
-        if constexpr (&Derived::Combine != &Base::Combine) {
-            return top().Combine(vout, vout2);
-        }
-        else {
-            return sizeof(output);
-        }
+    virtual int CombineImpl(void* vout, void* vout2) {
+        return sizeof(output);
     }
 };
 #endif
