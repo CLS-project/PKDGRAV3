@@ -12,7 +12,7 @@
 #include "walk/stats.h"
 
 class GravityWalkTraits {
-  public:
+public:
     struct name {
         static constexpr std::string_view value = "GravityWalk";
     };
@@ -54,22 +54,22 @@ class GravityWalkTraits {
 template <typename Interaction, typename Derived>
 class GravityWalkImpl
     : public BaseTreeWalk<GravityWalkTraits, Interaction,
-                          GravityWalkImpl<Interaction, Derived>> {
+      GravityWalkImpl<Interaction, Derived>> {
 
     // Note here to but the template outside to be "friend" with all the
     // template specializations of the base class
     template <class T> friend class BaseTreeWalkInterface;
     using base = BaseTreeWalk<GravityWalkTraits, Interaction,
-                              GravityWalkImpl<Interaction, Derived>>;
+          GravityWalkImpl<Interaction, Derived>>;
 
-  public:
+public:
     explicit GravityWalkImpl(PST pst)
         : BaseTreeWalk<GravityWalkTraits, Interaction, GravityWalkImpl>(pst) {}
 
-    int ServiceImpl(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    int ServiceImpl(PST pst, void *vin, int nIn, void *vout, int nOut) {
         this->pkd = pst->plcl->pkd;
-        this->options = static_cast<GravityWalkTraits::Options*>(vin);
-        this->out = static_cast<GravityWalkTraits::output*>(vout);
+        this->options = static_cast<GravityWalkTraits::Options *>(vin);
+        this->out = static_cast<GravityWalkTraits::output *>(vout);
         assert(sizeof(*this->out) == nOut);
         assert(sizeof(*this->options) == nIn);
         // We reuse the same options for the interaction
@@ -88,7 +88,7 @@ class GravityWalkImpl
         return sizeof(*this->out);
     }
 
-  private:
+private:
     blitz::TinyVector<float, 3> a;
     float dirLsum, normLsum;
     FMOMR monoPole;
@@ -98,7 +98,7 @@ class GravityWalkImpl
     double dFlop;
     int nWpPending;
 
-  protected:
+protected:
     void initCLAccumulatedVariablesImpl() {
         momClearFmomr(&monoPole);
         momClearLocr(&L);
@@ -135,15 +135,15 @@ class GravityWalkImpl
     };
 
     // Mock opening criteria, only for compiling tests
-    void openOutcomeBlockImpl(treeStore::NodePointer k, int n, clBlock& blk) {
+    void openOutcomeBlockImpl(treeStore::NodePointer k, int n, clBlock &blk) {
         const float walk_min_multipole = 3;
         fmask T0, T1, T2, T3, T4, T6, T7;
         i32v P1, P2, P3, P4;
         fvec xc, yc, zc, dx, dy, dz, d2, diCrit, cOpen, cOpen2, d2Open, mink2,
-            minbnd2, fourh2;
+             minbnd2, fourh2;
         fvec distk2, distc2;
         fvec box1xMin, box1xMax, box1yMin, box1yMax, box1zMin, box1zMax,
-            box2xMin, box2xMax, box2yMin, box2yMax, box2zMin, box2zMax;
+             box2xMin, box2xMax, box2yMin, box2yMax, box2zMin, box2zMax;
         int i;
         i32v iOpen, iOpenA, iOpenB;
         fvec k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
@@ -175,7 +175,7 @@ class GravityWalkImpl
         k_bMax = k->bMax();
         k_notgrp = cvt_fvec(i32v(k->is_group())) == 0.0;
         k_Open = 1.5f * k_bMax * diCrit;
-        const auto& SPHbob = k->have_BOB() ? k->BOB() : SPHBOB();
+        const auto &SPHbob = k->have_BOB() ? k->BOB() : SPHBOB();
         fvec k_fBoBr2 = SPHbob.fBoBr * SPHbob.fBoBr;
         fvec blk_fBoBr2 = 0.0f;
         distk2 = HUGE_VALF;
@@ -266,12 +266,12 @@ class GravityWalkImpl
         int j, pj;
         int jTile;
         auto k_r = k->position();
-        for (auto& tile : this->pkd->cl) {
+        for (auto &tile : this->pkd->cl) {
             auto nBlocks = tile.count() / tile.width;
             for (auto iBlock = 0; iBlock <= nBlocks; ++iBlock) {
                 int n = iBlock < nBlocks ? tile.width
-                                         : tile.count() - nBlocks * tile.width;
-                auto& blk = tile[iBlock];
+                        : tile.count() - nBlocks * tile.width;
+                auto &blk = tile[iBlock];
                 for (jTile = 0; jTile < n; ++jTile) {
                     switch (blk.iOpen[jTile]) {
                     case KEEP_ON_CL:
@@ -290,13 +290,13 @@ class GravityWalkImpl
                         if (iCheckCell < 0) {
                             pj = -1 - iCheckCell;
                             iCidPart = blk.iCache[jTile] == CID_CELL
-                                           ? CID_PARTICLE
-                                           : CID_PARTICLE2;
+                                       ? CID_PARTICLE
+                                       : CID_PARTICLE2;
                             auto p = (id == this->pkd->Self())
-                                         ? this->pkd->particles[pj]
-                                         : this->pkd->particles
-                                               [this->pkd->mdl->template Fetch<
-                                                   PARTICLE>(iCidPart, pj, id)];
+                                     ? this->pkd->particles[pj]
+                                     : this->pkd->particles
+                                     [this->pkd->mdl->template Fetch<
+                                                               PARTICLE>(iCidPart, pj, id)];
                             r = p.position();
                             if (!this->bReferenceFound) {
                                 this->bReferenceFound = 1;
@@ -308,36 +308,37 @@ class GravityWalkImpl
                                 r[1] + blk.yOffset[jTile],
                                 r[2] + blk.zOffset[jTile], blk.m[jTile],
                                 blk.fourh2[jTile], &p);
-                        } else {
+                        }
+                        else {
                             assert(id >= 0);
                             c = (id == this->pkd->Self())
-                                    ? this->pkd->tree[iCheckCell]
-                                    : this->pkd->tree[this->pkd->mdl
-                                                          ->template Fetch<KDN>(
-                                                              blk.iCache[jTile],
-                                                              iCheckCell, id)];
+                                ? this->pkd->tree[iCheckCell]
+                                : this->pkd->tree[this->pkd->mdl
+                                                  ->template Fetch<KDN>(
+                                                      blk.iCache[jTile],
+                                                      iCheckCell, id)];
                             iCidPart = blk.iCache[jTile] == CID_CELL
-                                           ? CID_PARTICLE
-                                           : CID_PARTICLE2;
+                                       ? CID_PARTICLE
+                                       : CID_PARTICLE2;
                             if (!this->bReferenceFound) {
                                 this->bReferenceFound = 1;
                                 auto p =
                                     (id == this->pkd->Self())
-                                        ? this->pkd->particles[c->lower()]
-                                        : this->pkd->particles
-                                              [this->pkd->mdl->template Fetch<
-                                                  PARTICLE>(iCidPart,
-                                                            c->lower(), id)];
+                                    ? this->pkd->particles[c->lower()]
+                                    : this->pkd->particles
+                                    [this->pkd->mdl->template Fetch<
+                                                              PARTICLE>(iCidPart,
+                                                                        c->lower(), id)];
                                 r = p.position();
                                 this->interaction.setReferenceIL(r);
                             }
                             for (pj = c->lower(); pj <= c->upper(); ++pj) {
                                 auto p =
                                     (id == this->pkd->Self())
-                                        ? this->pkd->particles[pj]
-                                        : this->pkd->particles
-                                              [this->pkd->mdl->template Fetch<
-                                                  PARTICLE>(iCidPart, pj, id)];
+                                    ? this->pkd->particles[pj]
+                                    : this->pkd->particles
+                                    [this->pkd->mdl->template Fetch<
+                                                              PARTICLE>(iCidPart, pj, id)];
                                 fMass = p.mass();
                                 fSoft = p.soft();
                                 r = p.position();
@@ -364,19 +365,19 @@ class GravityWalkImpl
                         fOffset[2] = blk.zOffset[jTile];
                         assert(id >= 0);
                         c = (id == this->pkd->Self())
-                                ? this->pkd->tree[iCheckCell]
-                                : this->pkd->tree
-                                      [this->pkd->mdl->template Fetch<KDN>(
-                                          blk.iCache[jTile], iCheckCell, id)];
+                            ? this->pkd->tree[iCheckCell]
+                            : this->pkd->tree
+                            [this->pkd->mdl->template Fetch<KDN>(
+                                                          blk.iCache[jTile], iCheckCell, id)];
                         iCidPart = blk.iCache[jTile] == CID_CELL
-                                       ? CID_PARTICLE
-                                       : CID_PARTICLE2;
+                                   ? CID_PARTICLE
+                                   : CID_PARTICLE2;
                         for (pj = c->lower(); pj <= c->upper(); ++pj) {
                             auto p = (id == this->pkd->Self())
-                                         ? this->pkd->particles[pj]
-                                         : this->pkd->particles
-                                               [this->pkd->mdl->template Fetch<
-                                                   PARTICLE>(iCidPart, pj, id)];
+                                     ? this->pkd->particles[pj]
+                                     : this->pkd->particles
+                                     [this->pkd->mdl->template Fetch<
+                                                               PARTICLE>(iCidPart, pj, id)];
                             r = p.position();
                             fMass = p.mass();
                             fSoft = p.soft();
@@ -420,10 +421,10 @@ class GravityWalkImpl
                         assert(iCheckCell >= 0);
                         id = blk.idCell[jTile];
                         c = (id == this->pkd->Self())
-                                ? this->pkd->tree[iCheckCell]
-                                : this->pkd->tree
-                                      [this->pkd->mdl->template Fetch<KDN>(
-                                          blk.iCache[jTile], iCheckCell, id)];
+                            ? this->pkd->tree[iCheckCell]
+                            : this->pkd->tree
+                            [this->pkd->mdl->template Fetch<KDN>(
+                                                          blk.iCache[jTile], iCheckCell, id)];
                         r[0] = blk.x[jTile] + blk.xOffset[jTile];
                         r[1] = blk.y[jTile] + blk.yOffset[jTile];
                         r[2] = blk.z[jTile] + blk.zOffset[jTile];
@@ -480,17 +481,18 @@ class GravityWalkImpl
                                 }
                             }
 #endif
-                        } else {
+                        }
+                        else {
                             id = blk.idCell[jTile];
                             dOffset[0] = blk.xOffset[jTile];
                             dOffset[1] = blk.yOffset[jTile];
                             dOffset[2] = blk.zOffset[jTile];
                             c = (id == this->pkd->Self())
-                                    ? this->pkd->tree[iCheckCell]
-                                    : this->pkd->tree[this->pkd->mdl
-                                                          ->template Fetch<KDN>(
-                                                              blk.iCache[jTile],
-                                                              iCheckCell, id)];
+                                ? this->pkd->tree[iCheckCell]
+                                : this->pkd->tree[this->pkd->mdl
+                                                  ->template Fetch<KDN>(
+                                                      blk.iCache[jTile],
+                                                      iCheckCell, id)];
                             c_r = c->position();
 #ifdef USE_SIMD_FMM
                             dx = k_r - (c_r + dOffset);
@@ -505,8 +507,8 @@ class GravityWalkImpl
                             double dir = 1.0 / sqrt(d2);
                             double tax, tay, taz;
                             dFlop = momLocrAddFmomr5cm(
-                                &L, &c->moment(), c->bMax(), dir, dx[0], dx[1],
-                                dx[2], &tax, &tay, &taz);
+                                        &L, &c->moment(), c->bMax(), dir, dx[0], dx[1],
+                                        dx[2], &tax, &tay, &taz);
                             this->dFlop += dFlop;
                             this->walkStats.dFlopDoubleCPU += dFlop;
                             if (options->ts.bGravStep) {
@@ -596,9 +598,9 @@ class GravityWalkImpl
         this->pkd->dEnergyT = 0.0;
         this->pkd->dEnergyW = 0.0;
         this->pkd->dEnergyF[0] = this->pkd->dEnergyF[1] =
-            this->pkd->dEnergyF[2] = 0.0;
+                                     this->pkd->dEnergyF[2] = 0.0;
         this->pkd->dEnergyL[0] = this->pkd->dEnergyL[1] =
-            this->pkd->dEnergyL[2] = 0.0;
+                                     this->pkd->dEnergyL[2] = 0.0;
 
         this->pkd->fiCritTheta = 1.0f / this->options->dTheta;
 
@@ -619,7 +621,8 @@ class GravityWalkImpl
             smInitializeRO(&smx, this->pkd, &smf, this->options->ts.nPartRhoLoc,
                            this->options->bPeriodic, SMX_DENSITY_F1);
             smSmoothInitialize(smx);
-        } else
+        }
+        else
             smx = NULL;
     }
 
@@ -657,7 +660,8 @@ class GravityWalkImpl
                 this->pkd->mdl->NumAccess(CID_PARTICLE) / dActive;
             this->out->sCellNumAccess.dSum =
                 this->pkd->mdl->NumAccess(CID_CELL) / dActive;
-        } else {
+        }
+        else {
             this->out->sCell.dSum = 0;
             this->out->sPart.dSum = 0;
             this->out->sPartNumAccess.dSum = 0;
@@ -676,7 +680,7 @@ class GravityWalkImpl
         this->out->sActive.dSum = dActive;
 
 #ifdef __linux__
-        FILE* fp;
+        FILE *fp;
         char buffer[512], *save, *f, *v;
         fp = fopen("/proc/self/stat", "r");
         if (fp != NULL) {
@@ -699,7 +703,8 @@ class GravityWalkImpl
                 }
                 f = strtok_r(NULL, " ", &save);
             }
-        } else
+        }
+        else
             this->out->sRSS.dSum = 0;
 
         fp = fopen("/proc/meminfo", "r");
@@ -709,7 +714,7 @@ class GravityWalkImpl
                 f = strtok_r(buffer, ":", &save);
                 v = strtok_r(NULL, " ", &save);
                 if (strcmp(f, "MemFree") == 0 || strcmp(f, "Buffers") == 0 ||
-                    strcmp(f, "Cached") == 0) {
+                        strcmp(f, "Cached") == 0) {
                     this->out->sFreeMemory.dSum -= atol(v) * 1.0 / 1024 / 1024;
                 }
             }
@@ -751,10 +756,10 @@ class GravityWalkImpl
         }
     }
 
-  public:
-    virtual int CombineImpl(void* vout, void* vout2) {
-        auto tmp = static_cast<typename GravityWalkTraits::output*>(vout2);
-        auto out = static_cast<typename GravityWalkTraits::output*>(vout);
+public:
+    virtual int CombineImpl(void *vout, void *vout2) {
+        auto tmp = static_cast<typename GravityWalkTraits::output *>(vout2);
+        auto out = static_cast<typename GravityWalkTraits::output *>(vout);
 #ifdef __linux__
         this->combStat(&this->out->sRSS, &tmp->sRSS);
         this->combStat(&this->out->sFreeMemory, &tmp->sFreeMemory);
@@ -795,7 +800,7 @@ class GravityWalkImpl
 template <typename Interaction>
 class GravityWalk
     : public GravityWalkImpl<Interaction, GravityWalk<Interaction>> {
-  public:
+public:
     explicit GravityWalk(PST pst)
         : GravityWalkImpl<Interaction, GravityWalk<Interaction>>(pst) {}
 };
