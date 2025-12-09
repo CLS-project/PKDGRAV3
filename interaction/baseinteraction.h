@@ -72,12 +72,12 @@ public:
         uint32_t *iPart;
         PINFOIN *pInfoIn;
         PINFOOUT *pInfoOut;
-        double dFlop;
         blitz::TinyVector<double, 3> c;
         int nP;
         int nRefs;
         void *ctx;
 
+        double dFlop;
         double dFlopSingleCPU;
         double dFlopSingleGPU;
         double dFlopDoubleCPU;

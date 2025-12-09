@@ -95,8 +95,9 @@ private:
     LOCR L;
     SMX smx;
     SMF smf;
-    double dFlop;
     int nWpPending;
+    double dPartSum;
+    double dCellSum;
 
 protected:
     void initCLAccumulatedVariablesImpl() {
@@ -252,9 +253,9 @@ protected:
             blk.iOpen.v[i] = iOpen;
         }
 
-        double dFlop = COST_FLOP_OPEN * n;
-        dFlop += dFlop;
-        this->walkStats.dFlopSingleCPU += dFlop;
+        double dFlopOpening = COST_FLOP_OPEN * n;
+        this->walkStats.dFlop += dFlopOpening;
+        this->walkStats.dFlopSingleCPU += dFlopOpening;
     };
 
     void selectOutcomeImpl(treeStore::NodePointer k) {
@@ -466,11 +467,11 @@ protected:
                             /* *pdFlop +=
                             momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);*/
                             double tax, tay, taz;
-                            dFlop =
+                            auto dFlopLoc =
                                 momLocrAddMono5(&L, blk.m[jTile], dir, dx[0],
                                                 dx[1], dx[2], &tax, &tay, &taz);
-                            this->dFlop += dFlop;
-                            this->walkStats.dFlopDoubleCPU += dFlop;
+                            this->walkStats.dFlop += dFlopLoc;
+                            this->walkStats.dFlopDoubleCPU += dFlopLoc;
                             if (this->options->ts.bGravStep) {
                                 float adotai =
                                     a[0] * tax + a[1] * tay + a[2] * taz;
@@ -506,11 +507,11 @@ protected:
                             double d2 = blitz::dot(dx, dx);
                             double dir = 1.0 / sqrt(d2);
                             double tax, tay, taz;
-                            dFlop = momLocrAddFmomr5cm(
-                                        &L, &c->moment(), c->bMax(), dir, dx[0], dx[1],
-                                        dx[2], &tax, &tay, &taz);
-                            this->dFlop += dFlop;
-                            this->walkStats.dFlopDoubleCPU += dFlop;
+                            auto dFlopLoc = momLocrAddFmomr5cm(
+                                                &L, &c->moment(), c->bMax(), dir, dx[0], dx[1],
+                                                dx[2], &tax, &tay, &taz);
+                            this->walkStats.dFlop += dFlopLoc;
+                            this->walkStats.dFlopDoubleCPU += dFlopLoc;
                             if (options->ts.bGravStep) {
                                 float adotai =
                                     a[0] * tax + a[1] * tay + a[2] * taz;
@@ -543,10 +544,10 @@ protected:
         // Need to get the scaling factor correct here
         if (this->pkd->ill.count()) {
             float v = k->bMax();
-            dFlop = momFlocrSetVFmomr5cm(&Lf, v, this->pkd->ill, a.data(),
-                                         &dirLsum, &normLsum);
-            this->dFlop += dFlop;
-            this->walkStats.dFlopSingleCPU += dFlop;
+            auto dFlopLocal = momFlocrSetVFmomr5cm(&Lf, v, this->pkd->ill, a.data(),
+                                                   &dirLsum, &normLsum);
+            this->walkStats.dFlop += dFlopLocal;
+            this->walkStats.dFlopSingleCPU += dFlopLocal;
             momLocrAddFlocr(&this->L, &Lf, v);
         }
 #endif
@@ -572,7 +573,7 @@ protected:
                              double yParent, double zParent) {
         auto dFlopMom = momShiftLocr(&this->L, k_r[0] - xParent,
                                      k_r[1] - yParent, k_r[2] - zParent);
-        dFlop += dFlopMom;
+        this->walkStats.dFlop += dFlopMom;
         this->walkStats.dFlopDoubleCPU += dFlopMom;
     }
 
@@ -590,7 +591,13 @@ protected:
         this->interaction.smf = smf;
 
         // The gravity can make use of the smx/smf structs
-        return this->interaction.interact(k, iRoot, iRoot2);
+        auto nActiveInt = this->interaction.interact(k, iRoot, iRoot2);
+
+        if (nActiveInt) {
+            dPartSum += nActiveInt * this->pkd->ilp.count();
+            dCellSum += nActiveInt * this->pkd->ilc.count();
+        }
+        return nActiveInt;
     }
 
     void initWalkImpl() {
@@ -636,12 +643,14 @@ protected:
     }
 
     void initStatsImpl() {
-        dFlop = 0.0;
+        dCellSum = 0.0;
+        dPartSum = 0.0;
         base::initStatsImpl();
     }
 
     void computeStatsImpl() {
         // Flop and tile count
+        this->out->sFlop.dSum = 1e-9 * this->walkStats.dFlop;
         this->out->dFlopSingleCPU = 1e-9 * this->walkStats.dFlopSingleCPU;
         this->out->dFlopDoubleCPU = 1e-9 * this->walkStats.dFlopDoubleCPU;
         this->out->dFlopSingleGPU = 1e-9 * this->walkStats.dFlopSingleGPU;
@@ -652,10 +661,9 @@ protected:
 
         double dActive = static_cast<double>(this->walkStats.nActive);
         // Set dSum for the rest of statistics
-        this->out->sFlop.dSum = this->dFlop;
         if (this->walkStats.nActive) {
-            this->out->sCell.dSum = this->dCellSum / dActive;
-            this->out->sPart.dSum = this->dPartSum / dActive;
+            this->out->sCell.dSum = dCellSum / dActive;
+            this->out->sPart.dSum = dPartSum / dActive;
             this->out->sPartNumAccess.dSum =
                 this->pkd->mdl->NumAccess(CID_PARTICLE) / dActive;
             this->out->sCellNumAccess.dSum =

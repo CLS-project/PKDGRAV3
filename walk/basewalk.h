@@ -226,10 +226,6 @@ protected:
     // clList *cl;
     std::vector<CSTACK> clStack;
 
-    // Any variable that must be accumulated during the walk
-    double dPartSum;
-    double dCellSum;
-    double dFlopTotal;
 
     void addChildImpl(PKD pkd, int iCache, clList &cl, int iChild, int id,
                       blitz::TinyVector<float, 3> fOffset) {
@@ -406,21 +402,6 @@ protected:
             */
             auto nActiveInt = this->interact_wrapper(k, iRoot, iRoot2);
 
-            /*
-            ** Update the limit for a shift of the center here based on the
-            *opening radius of this
-            ** cell (the one we just evaluated).
-            */
-            if (nActiveInt) {
-                /*
-                ** Here we used to set the weights of particles based on the
-                *work done, but now we just assume that
-                ** all particles cost the same in domain decomposition, so we
-                *really don't need to set anything here.
-                */
-                dPartSum += nActiveInt * pkd->ilp.count();
-                dCellSum += nActiveInt * pkd->ilc.count();
-            }
             /* Get the next cell to process from the stack */
             if (clStack.empty())
                 goto doneCheckList;
@@ -568,6 +549,7 @@ protected:
         walkStats.dFlopDoubleGPU = 0;
         walkStats.dFlopSingleGPU = 0;
         walkStats.dFlopSingleCPU = 0;
+        walkStats.dFlop = 0;
         walkStats.nTilesCPU = 0;
         walkStats.nTilesTotal = 0;
     }
