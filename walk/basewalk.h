@@ -67,8 +67,8 @@ public:
                                  clBlock &blk) {
         openOutcomeBlockImpl(k, n, blk);
     };
-    inline void selectOutcome(treeStore::NodePointer k, clBlock blk, int outcome, int jTile) {
-        selectOutcomeImpl(k, blk, outcome, jTile);
+    inline void selectOutcome(treeStore::NodePointer k) {
+        selectOutcomeImpl(k);
     };
     inline bool testAddNodeCL(treeStore::NodePointer k) {
         return testAddNodeCLImpl(k);
@@ -125,8 +125,8 @@ protected:
                                      clBlock &blk) {
         derived().openOutcomeBlockImpl(k, n, blk);
     };
-    inline void selectOutcomeImpl(treeStore::NodePointer k, clBlock blk, int outcome, int jTile) {
-        derived().selectOutcomeImpl(k, blk, outcome, jTile);
+    inline void selectOutcomeImpl(treeStore::NodePointer k) {
+        derived().selectOutcomeImpl(k);
     };
     inline bool testAddNodeCLImpl(treeStore::NodePointer k) {
         return derived().testAddNodeCLImpl(k);
@@ -298,18 +298,7 @@ protected:
                     }
                     clList clA(pkd->clFreeList);
                     this->clNew = &clA;
-                    for (auto &tile : pkd->cl) {
-                        auto nBlocks = tile.count() / tile.width;
-                        for (auto iBlock = 0; iBlock <= nBlocks; ++iBlock) {
-                            int n = iBlock < nBlocks
-                                    ? tile.width
-                                    : tile.count() - nBlocks * tile.width;
-                            auto &blk = tile[iBlock];
-                            for (jTile = 0; jTile < n; ++jTile) {
-                                this->selectOutcome(k, blk, blk.iOpen[jTile], jTile);
-                            }
-                        }
-                    } /* end of CL_LOOP */
+                    this->selectOutcome(k);
                     pkd->cl = std::move(*clNew);
                 } while (pkd->cl.count());
                 /*
@@ -497,7 +486,7 @@ protected:
     // Based on openOutcomeBlock do something.
     // We split it so allow for child classes
     // to reuse the same criteria easily
-    void selectOutcomeImpl(treeStore::NodePointer k, clBlock blk, int outcome, int jTile) {}
+    void selectOutcomeImpl(treeStore::NodePointer k) {}
 
     // Whether a node is eligible for adding
     // it to the interaction list
