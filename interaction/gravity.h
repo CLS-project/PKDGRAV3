@@ -1181,7 +1181,6 @@ private:
                 wp->pInfoOut[i].a[2] += acc[2];
 #endif
                 if (this->pkd->particles.present(PKD_FIELD::oAcceleration)) {
-                    printf("%e %e %e\n", wp->pInfoOut[i].a[0], wp->pInfoOut[i].a[1], wp->pInfoOut[i].a[2]);
                     p.acceleration() = wp->pInfoOut[i].a;
                 }
                 if (this->pkd->particles.present(PKD_FIELD::oPotential)) {

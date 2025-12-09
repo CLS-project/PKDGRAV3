@@ -257,13 +257,14 @@ protected:
         this->walkStats.dFlopSingleCPU += dFlop;
     };
 
-    void selectOutcomeImpl(clBlock blk, int outcome, int jTile) {
+    void selectOutcomeImpl(treeStore::NodePointer k, clBlock blk, int outcome, int jTile) {
         blitz::TinyVector<float, 3> fOffset;
-        blitz::TinyVector<double, 3> r, dx, k_r, c_r, dOffset;
+        blitz::TinyVector<double, 3> r, dx, c_r, dOffset;
         treeStore::NodePointer c(this->pkd->tree);
         float fMass, fSoft;
         int id, iCell, iSib, iCheckCell, iCheckLower, iCidPart;
         int j, pj;
+        auto k_r = k->position();
         switch (outcome) {
         case KEEP_ON_CL:
             /*
@@ -299,7 +300,7 @@ protected:
             }
             else {
                 assert(id >= 0);
-                auto c =
+                c =
                     (id == this->pkd->Self())
                     ? this->pkd->tree[iCheckCell]
                     : this->pkd->tree[this->pkd->mdl->template Fetch<KDN>(

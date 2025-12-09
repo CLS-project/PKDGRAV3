@@ -67,8 +67,8 @@ public:
                                  clBlock &blk) {
         openOutcomeBlockImpl(k, n, blk);
     };
-    inline void selectOutcome(clBlock blk, int outcome, int jTile) {
-        selectOutcomeImpl(blk, outcome, jTile);
+    inline void selectOutcome(treeStore::NodePointer k, clBlock blk, int outcome, int jTile) {
+        selectOutcomeImpl(k, blk, outcome, jTile);
     };
     inline bool testAddNodeCL(treeStore::NodePointer k) {
         return testAddNodeCLImpl(k);
@@ -125,8 +125,8 @@ protected:
                                      clBlock &blk) {
         derived().openOutcomeBlockImpl(k, n, blk);
     };
-    inline void selectOutcomeImpl(clBlock blk, int outcome, int jTile) {
-        derived().selectOutcomeImpl(blk, outcome, jTile);
+    inline void selectOutcomeImpl(treeStore::NodePointer k, clBlock blk, int outcome, int jTile) {
+        derived().selectOutcomeImpl(k, blk, outcome, jTile);
     };
     inline bool testAddNodeCLImpl(treeStore::NodePointer k) {
         return derived().testAddNodeCLImpl(k);
@@ -306,7 +306,7 @@ protected:
                                     : tile.count() - nBlocks * tile.width;
                             auto &blk = tile[iBlock];
                             for (jTile = 0; jTile < n; ++jTile) {
-                                this->selectOutcome(blk, blk.iOpen[jTile], jTile);
+                                this->selectOutcome(k, blk, blk.iOpen[jTile], jTile);
                             }
                         }
                     } /* end of CL_LOOP */
@@ -497,7 +497,7 @@ protected:
     // Based on openOutcomeBlock do something.
     // We split it so allow for child classes
     // to reuse the same criteria easily
-    void selectOutcomeImpl(clBlock blk, int outcome, int jTile) {}
+    void selectOutcomeImpl(treeStore::NodePointer k, clBlock blk, int outcome, int jTile) {}
 
     // Whether a node is eligible for adding
     // it to the interaction list

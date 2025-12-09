@@ -2383,8 +2383,8 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 
 
     TimerStart(TIMER_GRAVITY);
-
-    // /*
+#define NEW_WALK
+#ifdef NEW_WALK
     GravityWalkTraits::Options input;
     GravityWalkTraits::output outr;
     // Temporarily manually copy everything from the inGravity
@@ -2406,10 +2406,10 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     input.iRoot1 = in.iRoot1;
     input.iRoot2 = in.iRoot2;
     mdl->RunService("GravityWalkGravityInteraction", sizeof(input), &input, &outr);
-    // */
-
-    // outGravityReduct outr;
-    // pstGravity(pst,&in,sizeof(in),&outr,sizeof(outr));
+#else
+    outGravityReduct outr;
+    pstGravity(pst,&in,sizeof(in),&outr,sizeof(outr));
+#endif
 
     TimerStop(TIMER_GRAVITY);
     dsec = TimerGet(TIMER_GRAVITY);
