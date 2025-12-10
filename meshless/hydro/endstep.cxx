@@ -1,6 +1,7 @@
 #include "endstep.h"
 #include "hydro.h"
 #include "meshless/cooling/cooling.h"
+#include "meshless/starformation/feedback.h"
 
 int ServiceEndTimestepIntegration::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto pkd = pst->plcl->pkd;
@@ -77,10 +78,8 @@ int ServiceEndTimestepIntegration::Service(PST pst,void *vin,int nIn,void *vout,
             }
 #endif
 
-#if defined(FEEDBACK) || defined(BLACKHOLES)
             // ##### Apply feedback
             pkdAddFBEnergy(pkd, p, &sph, in->dConstGamma);
-#endif
 
             // Actually set the primitive variables
             hydroSetPrimitives(pkd, p, &sph, in->dTuFac, in->dConstGamma);

@@ -96,9 +96,7 @@ struct MFM {
         (float, fReceivedE),
 #endif
 
-#if defined(FEEDBACK) || defined(BLACKHOLES)
         (float, fAccFBEnergy),
-#endif
 
 #ifdef BLACKHOLES
         // This could ideally be stored in a temporal buffer (pLite), but it has some
@@ -136,11 +134,9 @@ struct STAR {
         (STAR_METALS, Lifetime),
         (float, fSNIaOnsetTime),
 #endif
-#ifdef FEEDBACK
         (int, bCCSNFBDone),
         (int, bSNIaFBDone),
         (float, fSNEfficiency),
-#endif
         (float, fTimer)  /* Time of formation */
     );
 }; // STAR

@@ -92,9 +92,6 @@ extern "C" {
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
-#ifdef FEEDBACK
-    #include "starformation/feedback.h"
-#endif
 
 #ifdef _MSC_VER
     #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
@@ -767,9 +764,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     Sph.lastUpdateTime = -1.;
                     // Sph.nLastNeighs = 100;
                     Sph.SFR = -1.;
-#if defined(FEEDBACK) || defined(BLACKHOLES)
                     Sph.fAccFBEnergy = 0.;
-#endif
 #ifdef BLACKHOLES
                     Sph.BHAccretor.iIndex = NOT_ACCRETED;
                     Sph.BHAccretor.iPid   = NOT_ACCRETED;
@@ -796,12 +791,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                 auto &Star = p.star();
                 Star.fTimer = fTimer;
                 Star.omega  = 0.;
-#ifdef FEEDBACK
                 // We avoid that star in the IC could explode
                 Star.bCCSNFBDone = 1;
                 Star.bSNIaFBDone = 1;
                 Star.fSNEfficiency = afStarOtherData[3];
-#endif
 #ifdef STELLAR_EVOLUTION
                 Star.ElemAbun = metals;
                 Star.fMetalAbun = afStarOtherData[0];
@@ -1603,9 +1596,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
         otherData[3] = Star.fInitialMass;
         otherData[4] = Star.fLastEnrichTime;
 #endif
-#ifdef FEEDBACK
         otherData[5] = Star.fSNEfficiency;
-#endif
         fioWriteStar(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
                      metals.data(),&otherData[0]);
     }

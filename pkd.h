@@ -620,9 +620,7 @@ public:
     grackle_field_data *grackle_field = nullptr;
     code_units *grackle_units = nullptr;
 #endif
-#ifdef STELLAR_EVOLUTION
     struct StellarEvolutionData *StelEvolData = nullptr;
-#endif
 
 #ifdef USE_CUDA
     std::unique_ptr<CudaClient> cudaClient;
@@ -693,19 +691,6 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
 
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 
-#if defined(FEEDBACK) || defined(BLACKHOLES)
-static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph, double dConstGamma) {
-#ifndef OLD_FB_SCHEME
-    psph->Uint += psph->fAccFBEnergy;
-    psph->E += psph->fAccFBEnergy;
-#ifdef ENTROPY_SWITCH
-    psph->S += psph->fAccFBEnergy*(dConstGamma-1.) *
-               pow(p.density(), -dConstGamma+1);
-#endif
-    psph->fAccFBEnergy = 0.0;
-#endif //OLD_FB_SCHEME
-}
-#endif
 
 /*
 ** The size of a particle is variable based on the memory model.

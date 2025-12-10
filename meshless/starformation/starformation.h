@@ -2,6 +2,8 @@
 #define STARFORMATION_H
 
 #include "TraversePST.h"
+#include "feedback.h"
+
 /*
  * ---------------------
  * STRUCTURE DEFINITIONS
@@ -41,14 +43,12 @@ struct inStarForm {
     double dEOSPolyFloorDen;
     double dEOSPolyFlooru;
 
-#ifdef FEEDBACK
     int bCCSNFeedback;
     int bSNIaFeedback;
     double dSNFBEfficiency;
     double dSNFBMaxEff;
     double dSNFBEffIndex;
     double dSNFBEffnH0;
-#endif
 
 #ifdef STELLAR_EVOLUTION
     double dSNIaMaxMass;
@@ -172,7 +172,6 @@ private:
                                              in.dCCSNMaxMass);
 #endif
 
-#ifdef FEEDBACK
                         star.bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
                         star.bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
 
@@ -186,7 +185,6 @@ private:
                         star.fSNEfficiency = SNFeedbackEfficiency(
                                                  fMetalAbun, p.density() * a_m3, in.dSNFBEfficiency,
                                                  in.dSNFBMaxEff, in.dSNFBEffIndex, in.dSNFBEffnH0);
-#endif
 
                         // Safety check
                         assert(p.is_star());
@@ -219,15 +217,7 @@ private:
             const double maxUint = INFINITY;
 #endif
 
-#if defined(FEEDBACK) || defined(BLACKHOLES)
-#ifdef OLD_FB_SCHEME
-            const double dUint = sph.Uint;
-#else
             const double dUint = sph.Uint + sph.fAccFBEnergy;
-#endif
-#else
-            const double dUint = sph.Uint;
-#endif
 
             if (std::max(dUint, sph.lastUint) > maxUint || fDens < dThreshDen) {
                 return 0.0;

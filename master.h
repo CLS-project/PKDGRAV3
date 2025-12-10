@@ -57,9 +57,7 @@ enum msrTimers {
     TIMER_TIMESTEP,
     TIMER_DRIFT,
     TIMER_FOF,
-#ifdef FEEDBACK
     TIMER_FEEDBACK,
-#endif
     TIMER_STARFORM,
 #ifdef BLACKHOLES
     TIMER_BHS,
@@ -407,6 +405,9 @@ protected:
     int MeshlessHydro()   const {
         return MeshlessFiniteMass() || MeshlessFiniteVolume();
     }
+    int DoStellarFeedback()   const {
+        return parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback();
+    }
     int DoGravity()       const {
         return parameters.get_bDoGravity();
     }
@@ -517,9 +518,7 @@ protected:
     int  ValidateStarFormationParam();
     void StarFormInit(double dTime);
     void StarForm(double dTime, double dDelta, int iRung);
-#ifdef FEEDBACK
     void SetFeedbackParam();
-#endif
 #ifdef STELLAR_EVOLUTION
     void SetStellarEvolutionParam();
     void StellarEvolutionInit(double dTime);

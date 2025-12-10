@@ -2,9 +2,6 @@
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
-#ifdef FEEDBACK
-    #include "starformation/feedback.h"
-#endif
 #include "eEOS/eEOS.h"
 #include "master.h"
 
@@ -61,14 +58,12 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
 #ifdef HAVE_METALLICITY
     in.bSFThresholdDenSchaye2004 = parameters.get_bSFThresholdDenSchaye2004();
 #endif
-#ifdef FEEDBACK
     in.bCCSNFeedback = parameters.get_bCCSNFeedback();
     in.bSNIaFeedback = parameters.get_bSNIaFeedback();
     in.dSNFBEfficiency = parameters.get_dSNFBEfficiency();
     in.dSNFBMaxEff = parameters.get_dSNFBMaxEff();
     in.dSNFBEffIndex = parameters.get_dSNFBEffIndex();
     in.dSNFBEffnH0 = calc.dSNFBEffnH0;
-#endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     in.eEOS = eEOSparam(parameters,calc);
 #endif

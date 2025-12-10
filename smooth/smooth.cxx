@@ -34,9 +34,7 @@
 #include "smooth.h"
 #include "pkd.h"
 #include "hydro/hydro.h"
-#ifdef FEEDBACK
-    #include "starformation/feedback.h"
-#endif
+#include "starformation/feedback.h"
 #ifdef BLACKHOLES
     #include "blackhole/merger.h"
     #include "blackhole/evolve.h"
@@ -311,13 +309,11 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnSmooth = hydroStep;
         helper = std::make_shared<SmoothHelperHydroStep>(pkd);
         break;
-#ifdef FEEDBACK
     case SMX_SN_FEEDBACK:
         smx->fcnSmooth = smSNFeedback;
         smx->bSearchGasOnly = 1;
         helper = std::make_shared<SmoothHelperSNFeedback>(pkd);
         break;
-#endif
 #ifdef BLACKHOLES
     case SMX_BH_MERGER:
         smx->fcnSmooth = smBHmerger;
@@ -738,7 +734,6 @@ void smSmooth(SMX smx,SMF *smf) {
             }
         }
         break;
-#ifdef FEEDBACK
     case SMX_SN_FEEDBACK:
         for (auto &p : pkd->particles) {
             if (p.is_star()) {
@@ -754,7 +749,6 @@ void smSmooth(SMX smx,SMF *smf) {
             }
         }
         break;
-#endif
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
         for (auto &p : pkd->particles) {
@@ -1123,14 +1117,13 @@ uint64_t smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                             continue;
 #endif
 
-#if defined(FEEDBACK) && !defined(STELLAR_EVOLUTION)
                         // If there is only feedback, once the particle explodes
                         // there is no need to updated its fBall.
                         // However, if we have stellar evolution, fBall needs to be
                         // always updated.
-                        if (p.is_star() && p.star().bCCSNFBDone && p.star().bSNIaFBDone)
-                            continue;
-#endif
+                        if (!pkd->StelEvolData)
+                            if (p.is_star() && p.star().bCCSNFBDone && p.star().bSNIaFBDone)
+                                continue;
 
 #ifndef OPTIM_REORDER_IN_NODES
                         // Explicit check of the types

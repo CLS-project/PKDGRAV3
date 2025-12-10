@@ -69,14 +69,12 @@ struct CALC {
     double dSFThresholdDen;
     double dSFThresholdOD;
     double dSFnormalizationKS;
-#ifdef FEEDBACK
     double dSNFBEffnH0;
     double dSNFBDu;
     double dCCSNFBDelay;
     double dCCSNFBSpecEnergy;
     double dSNIaFBDelay;
     double dSNIaFBSpecEnergy;
-#endif
 #ifdef BLACKHOLES
     double dBHAccretionEddFac;
     double dBHFBEff;

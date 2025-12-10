@@ -496,12 +496,7 @@ if (EEOS_JEANS)
 endif(EEOS_JEANS)
 
 
-option(FEEDBACK "Allow for spawned star particles to explode as type II supernova" OFF)
-if (FEEDBACK)
-   target_sources(${PROJECT_NAME} PRIVATE  meshless/starformation/feedback.cxx meshless/starformation/init.cxx)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DFEEDBACK)
-   message("-- Feedback from SNII is ACTIVE")
-endif(FEEDBACK)
+target_sources(${PROJECT_NAME} PRIVATE  meshless/starformation/feedback.cxx meshless/starformation/init.cxx)
 
 option(STELLAR_EVOLUTION "Activate time-resolved mass return from star particles into their surrounding media" OFF)
 if (STELLAR_EVOLUTION)

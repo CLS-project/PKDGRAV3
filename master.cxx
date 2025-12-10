@@ -218,9 +218,7 @@ double MSR::TimerGetAcc(int iTimer) {
 static const char *timer_names[TOTAL_TIMERS] = {
     "Gravity",  "IO", "Tree", "DomainDecom",  "KickOpen", "KickClose",
     "Density", "EndTimeStep",  "Gradient", "Flux", "TimeStep", "Drift", "FoF",
-#ifdef FEEDBACK
     "Feedback",
-#endif
     "StarForm",
 #ifdef BLACKHOLES
     "BHs",
@@ -1014,9 +1012,8 @@ void MSR::SetDerivedParameters(bool bRestart) {
     }
     if (parameters.get_bDoStarFormation())
         SetStarFormationParam();
-#ifdef FEEDBACK
-    SetFeedbackParam();
-#endif
+    if (DoStellarFeedback())
+        SetFeedbackParam();
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     SetEOSParam();
 #endif
@@ -2000,13 +1997,11 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     smf->eEOS = eEOSparam(parameters,calc);
 #endif
-#ifdef FEEDBACK
     smf->dSNFBDu = calc.dSNFBDu;
     smf->dCCSNFBDelay = calc.dCCSNFBDelay;
     smf->dCCSNFBSpecEnergy = calc.dCCSNFBSpecEnergy;
     smf->dSNIaFBDelay = calc.dSNIaFBDelay;
     smf->dSNIaFBSpecEnergy = calc.dSNIaFBSpecEnergy;
-#endif
 #ifdef BLACKHOLES
     smf->dBHFBEff = calc.dBHFBEff;
     smf->dBHFBEcrit = calc.dBHFBEcrit;
@@ -3247,19 +3242,17 @@ int MSR::NewTopStepKDK(
                              1,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
     }
 
-#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
-    ActiveRung(uRung,0);
-#ifdef FEEDBACK
-    if (parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback()) {
-        Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1,parameters.get_nSmooth());
-    }
-#endif
+    if (DoStellarFeedback() /* or STELLAR_EVOLUTION */) {
+        ActiveRung(uRung,0);
+        if (DoStellarFeedback()) {
+            Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1,parameters.get_nSmooth());
+        }
 #ifdef STELLAR_EVOLUTION
-    if (parameters.get_bChemEnrich()) {
-        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,parameters.get_nSmooth());
+        if (parameters.get_bChemEnrich()) {
+            Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,parameters.get_nSmooth());
+        }
+#endif
     }
-#endif
-#endif
 
     ActiveRung(uRung,1);
     if (DoGas() && MeshlessHydro()) {
@@ -3418,32 +3411,30 @@ void MSR::TopStepKDK(
                     SPHoptions);
         }
 
-#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
-        ActiveRung(iKickRung,0);
-        double dsec;
-#ifdef FEEDBACK
-        print("Computing feedback... ");
+        if (DoStellarFeedback() /* or STELLAR_EVOLUTION */) {
+            ActiveRung(iKickRung,0);
+            double dsec;
+            print("Computing feedback... ");
+            TimerStart(TIMER_FEEDBACK);
+            if (DoStellarFeedback()) {
+                Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1,parameters.get_nSmooth());
+            }
+            TimerStop(TIMER_FEEDBACK);
+            dsec = TimerGet(TIMER_FEEDBACK);
+            print("took {:.5f} seconds\n", dsec);
 
-        TimerStart(TIMER_FEEDBACK);
-        if (parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback()) {
-            Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1,parameters.get_nSmooth());
-        }
-        TimerStop(TIMER_FEEDBACK);
-        dsec = TimerGet(TIMER_FEEDBACK);
-        print("took {:.5f} seconds\n", dsec);
-#endif
 #ifdef STELLAR_EVOLUTION
-        print("Computing stellar evolution... ");
-        TimerStart(TIMER_STEV);
-        if (parameters.get_bChemEnrich()) {
-            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,parameters.get_nSmooth());
+            print("Computing stellar evolution... ");
+            TimerStart(TIMER_STEV);
+            if (parameters.get_bChemEnrich()) {
+                Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,parameters.get_nSmooth());
+            }
+            TimerStop(TIMER_STEV);
+            dsec = TimerGet(TIMER_STEV);
+            print("took {:.5f} seconds\n", dsec);
+#endif
         }
-        TimerStop(TIMER_STEV);
-        dsec = TimerGet(TIMER_STEV);
-        print("took {:.5f} seconds\n", dsec);
-#endif
         ActiveRung(iKickRung,1);
-#endif
 
         if (DoGas() && MeshlessHydro()) {
             EndTimestepIntegration(dTime, dDeltaStep);

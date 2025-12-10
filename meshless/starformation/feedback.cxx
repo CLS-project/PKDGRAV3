@@ -1,6 +1,5 @@
-#ifdef FEEDBACK
 #include <numeric>
-#include "starformation/feedback.h"
+#include "feedback.h"
 #include "master.h"
 #include "imf.h"
 
@@ -96,15 +95,7 @@ void SmoothHelperSNFeedback::init(void *dst) {
     if (p.is_gas()) {
         auto &sph = p.sph();
 
-#ifdef OLD_FB_SCHEME
-        sph.E = 0.;
-        sph.Uint = 0.;
-#ifdef ENTROPY_SWITCH
-        sph.S = 0.;
-#endif
-#else // OLD_FB_SCHEME
         sph.fAccFBEnergy = 0.;
-#endif
     }
 }
 
@@ -115,15 +106,7 @@ void SmoothHelperSNFeedback::flush(void *dst, const void *src) {
     if (p2.is_gas()) {
         const auto &sph = p2.sph();
 
-#ifdef OLD_FB_SCHEME
-        p1->E = sph.E;
-        p1->Uint = sph.Uint;
-#ifdef ENTROPY_SWITCH
-        p1->S = sph.S;
-#endif
-#else // OLD_FB_SCHEME
         p1->fAccFBEnergy = sph.fAccFBEnergy;
-#endif
     }
 }
 
@@ -134,15 +117,7 @@ void SmoothHelperSNFeedback::combine(void *dst, const void *src, const void *key
     if (p1.is_gas()) {
         auto &sph = p1.sph();
 
-#ifdef OLD_FB_SCHEME
-        sph.E += p2->E;
-        sph.Uint += p2->Uint;
-#ifdef ENTROPY_SWITCH
-        sph.S += p2->S;
-#endif
-#else // OLD_FB_SCHEME
         sph.fAccFBEnergy += p2->fAccFBEnergy;
-#endif
     }
 }
 
@@ -163,18 +138,7 @@ static inline void snFeedback(PKD pkd, PARTICLE *pIn, int nSmooth, NN *nnList,
             auto &qsph = q.sph();
             const double dEnergyInput = dCorrFac * dDeltau * q.mass();
 
-#ifdef OLD_FB_SCHEME
-            qsph.Uint += dEnergyInput;
-            qsph.E += dEnergyInput;
-#ifdef ENTROPY_SWITCH
-            qsph.S += dEnergyInput * (dConstGamma - 1.0) *
-                      pow(q.density(), 1.0 - dConstGamma);
-#endif
-#else // OLD_FB_SCHEME
             qsph.fAccFBEnergy += dEnergyInput;
-#endif
         }
     }
 }
-
-#endif // FEEDBACK

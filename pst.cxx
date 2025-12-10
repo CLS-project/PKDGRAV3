@@ -227,18 +227,6 @@ void pstAddServices(PST pst,mdl::mdlClass *mdl) {
     mdl->AddService(PST_ACCELSTEP,pst,(fcnService_t *)pstAccelStep,
                     sizeof(struct inAccelStep), 0,
                     Legacy::AccelStep);
-#ifdef STAR_FORMATION
-    mdl->AddService(PST_STARFORM,pst,
-                    (fcnService_t *) pstStarForm,
-                    sizeof(struct inStarForm),sizeof(struct outStarForm),
-                    Legacy::StarForm);
-#endif
-#if defined(STAR_FORMATION) || defined(FEEDBACK)
-    mdl->AddService(PST_STARFORMINIT,pst,
-                    (fcnService_t *) pstStarFormInit,
-                    sizeof(struct inStarFormInit),sizeof(struct outStarForm),
-                    Legacy::StarFormInit);
-#endif
     mdl->AddService(PST_RESMOOTH,pst,(fcnService_t *) pstReSmooth,
                     sizeof(struct inSmooth),sizeof(struct outSmooth),
                     Legacy::ReSmooth);

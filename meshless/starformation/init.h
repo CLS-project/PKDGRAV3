@@ -5,12 +5,11 @@
 
 struct inStarFormInit {
     double dTime;
-#ifdef FEEDBACK
-    int bCCSNFeedback;
-    int bSNIaFeedback;
     double dCCSNFBDelay;
     double dSNIaFBDelay;
-#endif
+    int bCCSNFeedback;
+    int bSNIaFeedback;
+    bool bFeedback;
 };
 
 class ServiceStarFormInit : public TraverseCount<struct outStarForm> {
@@ -33,25 +32,25 @@ protected:
         }
 
         void pkdStarFormInit(PKD pkd, struct inStarFormInit &in, int *nFormed) {
-#ifdef FEEDBACK
-            *nFormed = 0;
-            for (auto &p : pkd->particles) {
-                if (p.is_star()) {
-                    auto &star = p.star();
-                    if (star.fTimer >= 0) { // fTimer < 0 can be used for stars
-                        // in the IC that are not supossed to explode
-                        if ((in.dTime - star.fTimer) < in.dCCSNFBDelay)
-                            star.bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
+            if (in.bFeedback) {
+                *nFormed = 0;
+                for (auto &p : pkd->particles) {
+                    if (p.is_star()) {
+                        auto &star = p.star();
+                        if (star.fTimer >= 0) { // fTimer < 0 can be used for stars
+                            // in the IC that are not supossed to explode
+                            if ((in.dTime - star.fTimer) < in.dCCSNFBDelay)
+                                star.bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
 
-                        if ((in.dTime - star.fTimer) < in.dSNIaFBDelay)
-                            star.bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
+                            if ((in.dTime - star.fTimer) < in.dSNIaFBDelay)
+                                star.bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
 
-                        if (!(star.bCCSNFBDone && star.bSNIaFBDone))
-                            *nFormed += 1;
+                            if (!(star.bCCSNFBDone && star.bSNIaFBDone))
+                                *nFormed += 1;
+                        }
                     }
                 }
             }
-#endif
         }
     };
 #endif

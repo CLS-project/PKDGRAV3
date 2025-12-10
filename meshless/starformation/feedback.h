@@ -1,6 +1,17 @@
 #include "pkd.h"
 #include "smooth/smooth.h"
 
+static inline void pkdAddFBEnergy(PKD pkd,
+                                  particleStore::ParticleReference &p,
+                                  decorators::MFM *psph, double dConstGamma) {
+    psph->Uint += psph->fAccFBEnergy;
+    psph->E += psph->fAccFBEnergy;
+#ifdef ENTROPY_SWITCH
+    psph->S += psph->fAccFBEnergy*(dConstGamma-1.) *
+               pow(p.density(), -dConstGamma+1);
+#endif
+    psph->fAccFBEnergy = 0.0;
+}
 
 struct snFeedbackPack {
     blitz::TinyVector<double,3> position;
@@ -13,15 +24,7 @@ struct snFeedbackPack {
 
 
 struct snFeedbackFlush {
-#ifdef OLD_FB_SCHEME
-    double E;
-    double Uint;
-#ifdef ENTROPY_SWITCH
-    double S;
-#endif
-#else // OLD_FB_SCHEME
     float fAccFBEnergy;
-#endif
 };
 
 

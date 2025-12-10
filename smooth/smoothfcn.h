@@ -59,13 +59,11 @@ typedef struct smfParameters {
     double dhMinOverSoft;
     double dNeighborsStd;
     struct eEOSparam eEOS;
-#ifdef FEEDBACK
     double dSNFBDu;
     double dCCSNFBDelay;
     double dCCSNFBSpecEnergy;
     double dSNIaFBDelay;
     double dSNIaFBSpecEnergy;
-#endif
 #ifdef BLACKHOLES
     double dBHFBEff;
     double dBHFBEcrit;
