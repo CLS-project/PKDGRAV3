@@ -235,7 +235,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     if (parameters.get_nGridPk()>0) OutputPk(iStartStep,dTime);
 
     int bKickOpen, bKickClose=0;
-    uint8_t uRungMax;
+    uint8_t uRungMax = 0;
     int iSec = time(0);
 
     double dDelta = SwitchDelta(dTime,iStartStep);
@@ -312,6 +312,8 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     }
     if (MeshlessHydro()) {
         InitSph(dTime, dDelta,bRestart);
+        auto uRungMaxHydro = GetMinDt();
+        uRungMax = std::max(uRungMax, uRungMaxHydro);
     }
 
     if (bDoStartFof) {
@@ -320,7 +322,6 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     }
 
 #ifdef BLACKHOLES
-    uRungMax = GetMinDt();
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
@@ -397,11 +398,26 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
                 }
-                else if (parameters.get_bDoGravity()) {
-                    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
-                    SPHoptions.doGravity = parameters.get_bDoGravity();
-                    uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+                else {
+                    if (parameters.get_bDoGravity()) {
+                        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
+                        SPHoptions.doGravity = parameters.get_bDoGravity();
+                        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
+                                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+                    }
+                    if (MeshlessHydro()) {
+                        // We need to recompute the rungs of the
+                        // particles as the dDelta that was used
+                        // at the end of the last KDK may have
+                        // changed now
+                        HydroStep(dTime, dDelta);
+                        UpdateRung(0);
+                        uint8_t iTempRung;
+                        for (iTempRung=0; iTempRung <= iCurrMaxRung; ++iTempRung) {
+                            if (nRung[iTempRung] == 0) continue;
+                            uRungMax = iTempRung;
+                        }
+                    }
                 }
                 /* Set the grids of the linear species */
                 auto nGridLin = parameters.get_nGridLin();

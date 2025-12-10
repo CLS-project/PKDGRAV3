@@ -29,14 +29,12 @@ public:
         double dDelta;
         double dConstGamma;
         double dTuFac;
-#ifdef STAR_FORMATION
+        // Star formation
         double dSFThresholdOD;
-#endif
-#ifdef COOLING
+        // Cooling
         double dCoolingFloorOD;
         double dCoolingFloorDen;
         double dCoolingFlooru;
-#endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
         struct eEOSparam eEOS;
 #endif
