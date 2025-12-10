@@ -218,44 +218,6 @@ struct inChemCompInit {
 };
 
 
-struct inStarForm {
-    int bSFThresholdDenSchaye2004;
-
-    double dHubble;
-    double dDelta;
-    double dTime;
-    double dScaleFactor;
-
-    double dSFindexKS;
-    double dSFnormalizationKS;
-    double dConstGamma;
-    double dSFGasFraction;
-    double dSFThresholdDen;
-    double dSFThresholdOD;
-    double dSFThresholdu;
-    double dSFEfficiency;
-
-    double dEOSPolyFloorIndex;
-    double dEOSPolyFloorDen;
-    double dEOSPolyFlooru;
-
-#ifdef FEEDBACK
-    int bCCSNFeedback;
-    int bSNIaFeedback;
-    double dSNFBEfficiency;
-    double dSNFBMaxEff;
-    double dSNFBEffIndex;
-    double dSNFBEffnH0;
-#endif
-
-#ifdef STELLAR_EVOLUTION
-    double dSNIaMaxMass;
-    double dCCSNMinMass;
-    double dCCSNMaxMass;
-#endif
-    struct eEOSparam eEOS;
-
-};
 
 /*
 ** Accumulates the work for a set of particles

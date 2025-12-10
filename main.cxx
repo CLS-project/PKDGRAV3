@@ -16,6 +16,7 @@
  */
 
 #include "pkd_config.h"
+#include "starformation/init.h"
 
 #ifdef ENABLE_FE
     #include <fenv.h>
@@ -83,6 +84,8 @@
 #include "meshless/hydro/endstep.h"
 
 #include "meshless/cooling/services.h"
+#include "meshless/starformation/init.h"
+#include "meshless/starformation/starformation.h"
 
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
@@ -110,6 +113,8 @@ void *worker_init(MDL vmdl) {
     plcl->pkd = NULL;
     pstInitialize(&pst,mdl,plcl);
     pstAddServices(pst,mdl);
+    mdl->AddService<ServiceStarFormInit>(pst);
+    mdl->AddService<ServiceStarForm>(pst);
     mdl->AddService<ServiceCoolingInit>(pst);
     mdl->AddService<ServiceCoolingUpdate>(pst);
     mdl->AddService<ServiceCoolingUpdateZ>(pst);
