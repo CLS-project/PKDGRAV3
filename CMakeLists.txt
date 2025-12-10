@@ -483,12 +483,6 @@ endif(GRACKLE)
 
 target_sources(${PROJECT_NAME} PRIVATE  meshless/starformation/starformation.cxx meshless/starformation/init.cxx)
 
-option(EEOS_POLYTROPE "Apply a polytropic effective EOS" OFF)
-if (EEOS_POLYTROPE)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DEEOS_POLYTROPE)
-   message("-- Polytropic effective EOS")
-endif(EEOS_POLYTROPE)
-
 option(EEOS_JEANS "Apply an effective EOS to enforce that the Jeans length is resolved" OFF)
 if (EEOS_JEANS)
    target_compile_options(${PROJECT_NAME} PRIVATE -DEEOS_JEANS)

@@ -2,6 +2,7 @@
 #include "hydro.h"
 #include "meshless/cooling/cooling.h"
 #include "meshless/starformation/feedback.h"
+#include "eEOS/eEOS.h"
 
 int ServiceEndTimestepIntegration::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto pkd = pst->plcl->pkd;
@@ -63,20 +64,20 @@ int ServiceEndTimestepIntegration::Service(PST pst,void *vin,int nIn,void *vout,
             pkdGrackleCooling(pkd, p, pDelta, in->dTuFac);
 #endif
 
-#if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
             // ##### Effective Equation Of State
-            const double a_inv3 = 1. / (dScaleFactor * dScaleFactor * dScaleFactor);
-            const double dFlooru = eEOSEnergyFloor<vec<double,double>,mmask<bool>>(a_inv3, p.density(), p.ball(),
-                                   in->dConstGamma, in->eEOS);
-            if (dFlooru != NOT_IN_EEOS) {
-                const double dEOSUint = p.mass() * dFlooru;
-                if (sph.Uint < dEOSUint) {
-                    sph.E = sph.E - sph.Uint;
-                    sph.Uint = dEOSUint;
-                    sph.E = sph.E + sph.Uint;
+            if (in->eEOS.bDoEOS) {
+                const double a_inv3 = 1. / (dScaleFactor * dScaleFactor * dScaleFactor);
+                const double dFlooru = eEOSEnergyFloor<vec<double,double>,mmask<bool>>(a_inv3, p.density(), p.ball(),
+                                       in->dConstGamma, in->eEOS);
+                if (dFlooru != NOT_IN_EEOS) {
+                    const double dEOSUint = p.mass() * dFlooru;
+                    if (sph.Uint < dEOSUint) {
+                        sph.E = sph.E - sph.Uint;
+                        sph.Uint = dEOSUint;
+                        sph.E = sph.E + sph.Uint;
+                    }
                 }
             }
-#endif
 
             // ##### Apply feedback
             pkdAddFBEnergy(pkd, p, &sph, in->dConstGamma);

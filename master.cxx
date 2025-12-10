@@ -1014,9 +1014,7 @@ void MSR::SetDerivedParameters(bool bRestart) {
         SetStarFormationParam();
     if (DoStellarFeedback())
         SetFeedbackParam();
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     SetEOSParam();
-#endif
 #ifdef BLACKHOLES
     SetBlackholeParam();
 #endif
@@ -1994,9 +1992,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dConstGamma = parameters.get_dConstGamma();
     smf->dhMinOverSoft = parameters.get_dhMinOverSoft();
     smf->dNeighborsStd = parameters.get_dNeighborsStd();
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     smf->eEOS = eEOSparam(parameters,calc);
-#endif
     smf->dSNFBDu = calc.dSNFBDu;
     smf->dCCSNFBDelay = calc.dCCSNFBDelay;
     smf->dCCSNFBSpecEnergy = calc.dCCSNFBSpecEnergy;
@@ -2599,9 +2595,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.dConstGamma = parameters.get_dConstGamma();
     in.dTuFac = dTuFacPrimNeutral;
     in.dSFThresholdOD = calc.dSFThresholdOD;
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     in.eEOS = eEOSparam(parameters,calc);
-#endif
 #ifdef BLACKHOLES
     in.dBHRadiativeEff = parameters.get_dBHRadiativeEff();
 #endif

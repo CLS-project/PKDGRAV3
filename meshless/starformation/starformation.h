@@ -3,6 +3,7 @@
 
 #include "TraversePST.h"
 #include "feedback.h"
+#include "eEOS/eEOS.h"
 
 /*
  * ---------------------
@@ -202,20 +203,22 @@ private:
                      const double a_m3, const double dThreshDen,
                      const double dSFnormalizationKS, const double dSFindexKS,
                      const double dSFGasFraction, const double dConstGamma,
-                     eEOSparam eEOS, decorators::MFM &sph) {
+                     eEOSparam &eEOS, decorators::MFM &sph) {
             // Two SF thresholds are applied:
             //      a) Minimum density, computed at the master level
             //      b) Maximum temperature of a factor 0.5 dex (i.e., 3.1622)
             //         above the polytropic eEOS
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-            const double maxUint = 3.16228 * fMass *
-                                   eEOSEnergyFloor<vec<double, double>, mmask<bool>>(
-                                       a_m3, fDens, fBall, dConstGamma, eEOS);
-#else
-            // This configuration is allowed, but can easily produce numerical
-            // fragmentation!!!
-            const double maxUint = INFINITY;
-#endif
+            double maxUint;
+            if (eEOS.bDoEOS) {
+                maxUint = 3.16228 * fMass *
+                          eEOSEnergyFloor<vec<double, double>, mmask<bool>>(
+                              a_m3, fDens, fBall, dConstGamma, eEOS);
+            }
+            else {
+                // This configuration is allowed, but can easily produce numerical
+                // fragmentation!!!
+                maxUint = INFINITY;
+            }
 
             const double dUint = sph.Uint + sph.fAccFBEnergy;
 

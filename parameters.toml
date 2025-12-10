@@ -1571,6 +1571,11 @@ help="Minimum allowed temperature, K"
 ########## Effective equation of state
 ################################################################################
 
+["Effective equation of state".bDoEOS]
+flag="EOS"
+default=false
+help="Pressurize the gas at high densities following a polytropic effective EOS"
+
 ["Effective equation of state".dEOSFloornH]
 flag="EOSFloornH"
 default=1e-5

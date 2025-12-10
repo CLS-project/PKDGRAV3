@@ -80,9 +80,6 @@ extern "C" {
 #include "core/healpix.h"
 }
 #include "cooling/cooling.h"
-#if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
-    #include "eEOS/eEOS.h"
-#endif
 #ifdef BLACKHOLES
     #include "blackhole/evolve.h"
 #endif

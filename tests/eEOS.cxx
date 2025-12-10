@@ -1,5 +1,4 @@
 #include "gtest/gtest.h"
-#define EEOS_POLYTROPE
 #include "pkd.h"
 #include "core/simd.h"
 #include "eEOS/eEOS_struct.h"

@@ -56,7 +56,6 @@ struct CALC {
     static constexpr double fCa_over_Si_in_Solar = 1;
     static constexpr double fS_over_Si_in_Solar = 1;
     // Internal energy floor parameters
-#if defined(EEOS_POLYTROPE)
     double dEOSFloorDen;
     double dEOSFloorMinBaryonOD;
     double dEOSFlooru;
@@ -64,7 +63,6 @@ struct CALC {
     double dEOSPolyFloorExponent;
     double dEOSPolyFloorDen;
     double dEOSPolyFlooru;
-#endif
     double dSFThresholdu;
     double dSFThresholdDen;
     double dSFThresholdOD;

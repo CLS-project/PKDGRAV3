@@ -1,5 +1,6 @@
+#ifndef EEOS_H
+#define EEOS_H
 #include "eEOS/eEOS_struct.h"
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 
 /*
  * General interface to the eEOS module
@@ -31,7 +32,6 @@ inline static dtype constantPressureFloor(dtype a_inv3, dtype fDens,
            constantEnergyFloor(a_inv3, fDens, dConstGamma, eEOS);
 }
 
-#ifdef EEOS_POLYTROPE
 /*
  * General polytropic eEOS floor.
  * It is composed of a polytrope of arbitrary index and a constant temperature floor
@@ -57,6 +57,7 @@ inline static dtype polytropicPressureFloor(dtype a_inv3, dtype fDens, dtype dCo
     return fDens * (dConstGamma - 1. ) * polytropicEnergyFloor<dtype,mtype>(a_inv3, fDens, dConstGamma, eEOS);
 }
 
+#ifndef EEOS_JEANS
 template <typename dtype, typename mtype>
 inline static dtype eEOSEnergyFloor(dtype a_inv3, dtype fDens, dtype fBall,
                                     dtype dConstGamma, struct eEOSparam eEOS) {
@@ -75,9 +76,8 @@ inline static dtype eEOSPressureFloor(dtype a_inv3, dtype fDens, dtype fBall,
     mtype mask = constantPressure != NOT_IN_EEOS;
     return mask_mov( constantPressure, mask, max(polyPressure, constantPressure) );
 }
-#endif
 
-#ifdef EEOS_JEANS
+#else
 /*
  * Pressure floor based on the Jeans criterion, where the only parameter is
  *  the minimum "number" of resolution elements per Jeans length

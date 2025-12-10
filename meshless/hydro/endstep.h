@@ -35,9 +35,7 @@ public:
         double dCoolingFloorOD;
         double dCoolingFloorDen;
         double dCoolingFlooru;
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
         struct eEOSparam eEOS;
-#endif
 #ifdef BLACKHOLES
         double dBHRadiativeEff;
 #endif

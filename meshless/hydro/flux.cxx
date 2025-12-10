@@ -502,15 +502,15 @@ private:
         low_limit(L_p, pP, zero);
         low_limit(R_p, qP, zero);
 
-#ifdef EEOS_POLYTROPE
-        dtype a_inv3 = 1.0/(a*a*a);
-        const dtype pLpoly =
-            polytropicPressureFloor<dtype,mtype>(a_inv3, L_rho, dConstGamma,eEOS);
-        const dtype pRpoly =
-            polytropicPressureFloor<dtype,mtype>(a_inv3, R_rho, dConstGamma,eEOS);
-        L_p = max(L_p, pLpoly);
-        R_p = max(R_p, pRpoly);
-#endif
+        if (eEOS.bDoEOS) {
+            dtype a_inv3 = 1.0/(a*a*a);
+            const dtype pLpoly =
+                polytropicPressureFloor<dtype,mtype>(a_inv3, L_rho, dConstGamma,eEOS);
+            const dtype pRpoly =
+                polytropicPressureFloor<dtype,mtype>(a_inv3, R_rho, dConstGamma,eEOS);
+            L_p = max(L_p, pLpoly);
+            R_p = max(R_p, pRpoly);
+        }
         /*
         #ifdef EEOS_JEANS
         const double pLjeans =
@@ -616,8 +616,8 @@ private:
 
 #ifdef MFM_FLUX_CORRECTION
         if (!bMFV)  { // MFM
-            const dtype cs_p{sqrt(dConstGamma*pP/pDensity)};
-            const dtype cs_q{sqrt(dConstGamma*qP/qDensity)};
+            const dtype cs_p{sqrt(dConstGamma *pP/pDensity)};
+            const dtype cs_q{sqrt(dConstGamma *qP/qDensity)};
             mtype cond{abs(S_M/min(cs_p,cs_q)) < 0.6};
             if (movemask(cond)) {
                 const dtype dU_mfm_p = pVpredx*F_v[0] + pVpredy*F_v[1] + pVpredz*F_v[2] - F_p;
@@ -628,8 +628,8 @@ private:
                 const dtype dU_sph_q = dU_sph_fac * qSPHEoM * cubicSplineKernelDeriv(rpq, qBall) / qOmega;
 
                 mtype pIsCooler{cs_p < cs_q};
-                mtype pDoCorr{cond & pIsCooler & (dU_mfm_p < 0.0) & (dU_sph_p > dU_mfm_p)};
-                mtype qDoCorr{cond &~pIsCooler & (dU_mfm_q < 0.0) & (dU_sph_q > dU_mfm_q)};
+                mtype pDoCorr{cond &pIsCooler &(dU_mfm_p < 0.0) &(dU_sph_p > dU_mfm_p)};
+                mtype qDoCorr{cond &~pIsCooler &(dU_mfm_q < 0.0) &(dU_sph_q > dU_mfm_q)};
 
                 F_p = mask_mov(F_p, pDoCorr, F_p + dU_mfm_p - dU_sph_p);
                 F_p = mask_mov(F_p, qDoCorr, F_p - dU_mfm_q + dU_sph_q);

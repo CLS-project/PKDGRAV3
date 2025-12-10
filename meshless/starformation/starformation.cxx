@@ -29,9 +29,9 @@ void MSR::SetStarFormationParam() {
 }
 
 int MSR::ValidateStarFormationParam() {
-#if !defined(EEOS_POLYTROPE) && !defined(EEOS_JEANS)
-    fprintf(stderr,"WARNING: Star formation is active but no eEOS is selected!\n");
-#endif
+    if (!parameters.get_bDoEOS()) {
+        print_warning("WARNING: Star formation is active but no eEOS is selected!\n");
+    }
     return 1;
 }
 
@@ -64,9 +64,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dSNFBMaxEff = parameters.get_dSNFBMaxEff();
     in.dSNFBEffIndex = parameters.get_dSNFBEffIndex();
     in.dSNFBEffnH0 = calc.dSNFBEffnH0;
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     in.eEOS = eEOSparam(parameters,calc);
-#endif
 #ifdef STELLAR_EVOLUTION
     in.dSNIaMaxMass = parameters.get_dSNIaMaxMass();
     in.dCCSNMinMass = parameters.get_dCCSNMinMass();

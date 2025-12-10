@@ -523,10 +523,8 @@ protected:
     void SetStellarEvolutionParam();
     void StellarEvolutionInit(double dTime);
 #endif
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     void SetEOSParam();
     int ValidateEOSParam();
-#endif
 #ifdef BLACKHOLES
     void SetBlackholeParam();
     int  ValidateBlackholeParam();
