@@ -360,7 +360,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetBufferInfo == NULL) ||
                                            (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL) ) ) {
         fprintf(stderr, "ERROR: Trying to use particle buffer in node smooth,"
-                        "but not all the required fuctions are set\n");
+                "but not all the required fuctions are set\n");
         abort();
     }
     /*
@@ -1100,12 +1100,6 @@ uint64_t smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
             sinks.clear();
 #ifdef OPTIM_REORDER_IN_NODES
             auto pEnd = node->lower() + node->Ngas();
-#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-            //if (iSmoothType==SMX_HYDRO_DENSITY) pEnd += node->Nstar();
-#endif
-#ifdef BLACKHOLES
-            //if (iSmoothType==SMX_HYDRO_DENSITY) pEnd += node->Nbh();
-#endif
 #else // OPTIM_REORDER_IN_NODES
             auto pEnd = node->upper() + 1;
 #endif

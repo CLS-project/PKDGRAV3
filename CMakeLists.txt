@@ -481,12 +481,7 @@ if (GRACKLE)
    message("-- GRACKLE is ACTIVE")
 endif(GRACKLE)
 
-option(STAR_FORMATION "Activate the formation of star particles from cold, dense gas" OFF)
-if (STAR_FORMATION)
-   target_sources(${PROJECT_NAME} PRIVATE  meshless/starformation/starformation.cxx meshless/starformation/init.cxx)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DSTAR_FORMATION)
-   message("-- Star formation is ACTIVE")
-endif(STAR_FORMATION)
+target_sources(${PROJECT_NAME} PRIVATE  meshless/starformation/starformation.cxx meshless/starformation/init.cxx)
 
 option(EEOS_POLYTROPE "Apply a polytropic effective EOS" OFF)
 if (EEOS_POLYTROPE)

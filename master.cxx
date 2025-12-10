@@ -221,9 +221,7 @@ static const char *timer_names[TOTAL_TIMERS] = {
 #ifdef FEEDBACK
     "Feedback",
 #endif
-#ifdef STAR_FORMATION
     "StarForm",
-#endif
 #ifdef BLACKHOLES
     "BHs",
 #endif
@@ -429,9 +427,9 @@ uint64_t MSR::getMemoryModel() {
     if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_MFM | PKD_MODEL_ACCELERATION);
     if (MeshlessFiniteVolume())                mMemoryModel |=  PKD_MODEL_MFV;
 
-#if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
-    mMemoryModel |= PKD_MODEL_STAR;
-#endif
+    if (parameters.get_bStars()) {
+        mMemoryModel |= PKD_MODEL_STAR;
+    }
 #if BLACKHOLES
     mMemoryModel |= PKD_MODEL_BALL;
     mMemoryModel |= PKD_MODEL_BH;
@@ -1014,9 +1012,8 @@ void MSR::SetDerivedParameters(bool bRestart) {
     if (parameters.get_bDoCooling()) {
         SetCoolingParam();
     }
-#ifdef STAR_FORMATION
-    SetStarFormationParam();
-#endif
+    if (parameters.get_bDoStarFormation())
+        SetStarFormationParam();
 #ifdef FEEDBACK
     SetFeedbackParam();
 #endif
@@ -2577,9 +2574,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
 
         /* Write the header */
         fprintf(fpFineLog, "#First line:\n#dStep dTime ");
-#ifdef STAR_FORMATION
         fprintf(fpFineLog, "starsFormed massFormed ");
-#endif
         fprintf(fpFineLog, "\n");
 
         fprintf(fpFineLog, "#Second line:\n#nRung[0] nRung[1] nRung[...] nRung[iCurrMaxRung]\n");
@@ -2587,9 +2582,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
     else {
         /* First, we add a line with relevant statistics */
         fprintf(fpFineLog, "%e %e ", dStep, dTime);
-#ifdef STAR_FORMATION
         fprintf(fpFineLog, "%d %e ", starFormed, massFormed);
-#endif
         fprintf(fpFineLog, "\n");
 
         /* Second, we add the rung distribution */
@@ -2610,9 +2603,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.dDelta = dDelta;
     in.dConstGamma = parameters.get_dConstGamma();
     in.dTuFac = dTuFacPrimNeutral;
-#ifdef STAR_FORMATION
     in.dSFThresholdOD = calc.dSFThresholdOD;
-#endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     in.eEOS = eEOSparam(parameters,calc);
 #endif
@@ -3090,9 +3081,8 @@ int MSR::NewTopStepKDK(
             CoolingUpdate(0.);
         }
     }
-#ifdef STAR_FORMATION
-    StarForm(dTime, dDelta, uRung);
-#endif
+    if (parameters.get_bDoStarFormation())
+        StarForm(dTime, dDelta, uRung);
 
     ActiveRung(uRung,1);
     UpdateSoft(dTime);
@@ -3403,12 +3393,12 @@ void MSR::TopStepKDK(
         }
 #endif
 
-#ifdef STAR_FORMATION
-        StarForm(dTime, dDeltaStep, iKickRung);
-#endif
+        if (parameters.get_bDoStarFormation())
+            StarForm(dTime, dDeltaStep, iKickRung);
 
-#if defined(OPTIM_REORDER_IN_NODES) && (defined(STAR_FORMATION) || defined(BLACKHOLES))
-        ReorderWithinNodes();
+#ifdef OPTIM_REORDER_IN_NODES
+        if (parameters.get_bStars() || parameters.get_bBlackholes())
+            ReorderWithinNodes();
 #endif
 
         if (!iKickRung && parameters.get_bFindGroups()) {

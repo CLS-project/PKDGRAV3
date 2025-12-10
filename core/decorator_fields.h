@@ -85,9 +85,7 @@ struct MFM {
         /* IA: TODO temporarly */
         //(uint8_t, uNewRung),
 
-#ifdef STAR_FORMATION
         (float, SFR),
-#endif
 
         (blitz::TinyVector<float,ELEMENT_COUNT>, ElemMass),
         (float, fMetalMass),

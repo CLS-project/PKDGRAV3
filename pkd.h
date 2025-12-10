@@ -159,7 +159,7 @@ typedef struct partLightCone {
 struct CSTACK {
     using list_type = typename clList::list_type; // the boost::intrusive::list alias
     // CSTACK() = default;
-    explicit CSTACK(list_type& freeList) : cl(freeList) {}
+    explicit CSTACK(list_type &freeList) : cl(freeList) {}
     // clList is non-copyable (intrusive); but movable
     CSTACK(const CSTACK &) = delete;
     CSTACK &operator=(const CSTACK &) = delete;
@@ -538,6 +538,8 @@ public:
     */
     int bNoParticleOrder;
     int bIntegerPosition;
+    bool bStars;        // Stellar particles are allowed
+    bool bBlackholes;   // Blackhole particles are allowed
 
     /*
     ** Tree walk variables.

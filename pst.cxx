@@ -67,13 +67,11 @@
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
-#ifdef STAR_FORMATION
-    #include "starformation/starformation.h"
-#endif
+#include "starformation/starformation.h"
 
 #define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
 
-void pstAddServices(PST pst,mdl::mdlClass * mdl) {
+void pstAddServices(PST pst,mdl::mdlClass *mdl) {
     int nThreads;
 
     nThreads = mdl->Threads();

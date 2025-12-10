@@ -1143,9 +1143,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 //Sph.fLastBall = 0.0;
                 Sph.lastUpdateTime = -1.;
                 // Sph.nLastNeighs = 100;
-#ifdef STAR_FORMATION
-                Sph.SFR = 0.;
-#endif
+                Sph.SFR = -1.;
 #if defined(FEEDBACK) || defined(BLACKHOLES)
                 Sph.fAccFBEnergy = 0.;
 #endif

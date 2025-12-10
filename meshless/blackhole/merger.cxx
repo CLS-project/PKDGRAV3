@@ -146,9 +146,8 @@ uint64_t smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
             auto pStart = node->begin();
 #ifdef OPTIM_REORDER_IN_NODES
             pStart += node->Ngas();
-#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-            pStart += node->Nstar();
-#endif
+            if (pkd->tree.present(KDN_FIELD::oNodeNstar))
+                pStart += node->Nstar();
             auto pEnd = pStart + node->Nbh();
 #else
             auto pEnd = node->end();
@@ -302,9 +301,8 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int 
                 auto pStart = kdn->lower();
 #ifdef OPTIM_REORDER_IN_NODES
                 pStart += kdn->Ngas();
-#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-                pStart += kdn->Nstar();
-#endif
+                if (pkd->tree.present(KDN_FIELD::oNodeNstar))
+                    pStart += kdn->Nstar();
                 auto pEnd = pStart + kdn->Nbh();
 #else
                 auto pEnd = kdn->upper() + 1;
@@ -335,9 +333,8 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int 
                 auto pStart = kdn->lower();
 #ifdef OPTIM_REORDER_IN_NODES
                 pStart += kdn->Ngas();
-#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-                pStart += kdn->Nstar();
-#endif
+                if (pkd->tree.present(KDN_FIELD::oNodeNstar))
+                    pStart += kdn->Nstar();
                 auto pEnd = pStart + kdn->Nbh();
 #else
                 auto pEnd = kdn->upper() + 1;

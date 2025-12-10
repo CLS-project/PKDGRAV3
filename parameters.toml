@@ -1617,6 +1617,16 @@ help="Number of elements to resolve the Jeans length"
 ########## Star formation
 ################################################################################
 
+["Star formation".bStars]
+flag="stars"
+default=false
+help="Allow stellar particles in the simulation"
+
+["Star formation".bDoStarFormation]
+flag="sf"
+default=false
+help="Convert gas particles to stellar particles in dense, cold regions"
+
 ["Star formation".dSFThresholdDen]
 flag="SFThresholdDen"
 default=0.1
@@ -1664,7 +1674,7 @@ help="Star formation efficiency per free-fall time; set >0 to use density-based 
 
 ["Supernova feedback".bCCSNFeedback]
 flag="bCCSNFeedback"
-default=true
+default=false
 help="Activate energy feedback from CCSN events"
 
 ["Supernova feedback".bSNIaFeedback]
@@ -1725,6 +1735,11 @@ help="SNIa event energy, erg"
 ################################################################################
 ########## Blackholes
 ################################################################################
+
+["Blackholes".bBlackholes]
+flag="bh"
+default=false
+help="Allow blackhole particles in the simulation"
 
 ["Blackholes".bBHMerger]
 flag="bBHMerger"

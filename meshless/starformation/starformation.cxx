@@ -1,4 +1,3 @@
-#ifdef  STAR_FORMATION
 #include "starformation/starformation.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -256,7 +255,6 @@ void pkdStarForm(PKD pkd,
         }
     }
 }
-#endif
 
 static inline double pressure_SFR(const float fMass, const float fDens,
                                   const double fBall, const double a_m3,

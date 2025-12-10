@@ -65,12 +65,10 @@ struct CALC {
     double dEOSPolyFloorDen;
     double dEOSPolyFlooru;
 #endif
-#ifdef STAR_FORMATION
     double dSFThresholdu;
     double dSFThresholdDen;
     double dSFThresholdOD;
     double dSFnormalizationKS;
-#endif
 #ifdef FEEDBACK
     double dSNFBEffnH0;
     double dSNFBDu;
@@ -99,7 +97,7 @@ struct remoteID {
     int32_t  iIndex;    /* Index of item on the processor */
     remoteID() = default;
     remoteID(int32_t pid, int32_t index) : iPid(pid), iIndex(index) { }
-    bool operator<(const remoteID& other) const {
+    bool operator<(const remoteID &other) const {
         if (iPid != other.iPid)
             return iPid < other.iPid;
         return iIndex < other.iIndex;
@@ -220,11 +218,8 @@ struct inChemCompInit {
 };
 
 
-#ifdef STAR_FORMATION
 struct inStarForm {
-#ifdef HAVE_METALLICITY
     int bSFThresholdDenSchaye2004;
-#endif
 
     double dHubble;
     double dDelta;
@@ -261,7 +256,6 @@ struct inStarForm {
     struct eEOSparam eEOS;
 
 };
-#endif
 
 /*
 ** Accumulates the work for a set of particles

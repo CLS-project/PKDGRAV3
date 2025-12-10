@@ -3906,9 +3906,7 @@ static int hdf5WriteSph(
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_WRITING);
 
-#ifdef STAR_FORMATION
     float fSFR = pfOtherData[0];
-#endif
     float fGroup = pfOtherData[1];
 #ifdef HAVE_METALLICITY
     float fMetallicity = pfOtherData[2];
@@ -3935,10 +3933,10 @@ static int hdf5WriteSph(
             field_create(&base->fldFields[SPH_GROUP],base->group_id,
                          FIELD_GROUP, H5T_NATIVE_UINT64, H5T_NATIVE_UINT64, 1);
         }
-#ifdef STAR_FORMATION
-        field_create(&base->fldFields[SPH_SFR],base->group_id,
-                     FIELD_SFR, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
-#endif
+        if (fSFR >= 0.) {
+            field_create(&base->fldFields[SPH_SFR],base->group_id,
+                         FIELD_SFR, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+        }
 #ifdef HAVE_METALLICITY
         field_create(&base->fldFields[SPH_METALLICITY],base->group_id,
                      FIELD_METALLICITY, H5T_NATIVE_FLOAT, hio->fp16leType, 1);
@@ -3965,9 +3963,9 @@ static int hdf5WriteSph(
         uint64_t iGroup = (uint64_t) fGroup;
         field_add_uint64_t(&iGroup,&base->fldFields[SPH_GROUP],base->iIndex);
     }
-#ifdef STAR_FORMATION
-    field_add_float(&fSFR,&base->fldFields[SPH_SFR],base->iIndex);
-#endif
+    if (fSFR >= 0) {
+        field_add_float(&fSFR,&base->fldFields[SPH_SFR],base->iIndex);
+    }
 #ifdef HAVE_METALLICITY
     field_add_float(&fMetallicity,&base->fldFields[SPH_METALLICITY],base->iIndex);
 #endif

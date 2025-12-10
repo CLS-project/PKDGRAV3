@@ -14,11 +14,12 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     in.dBHMhaloMin = parameters.get_dBHMhaloMin();
     in.dTau = parameters.get_dTau();
     in.dBHSeedMass = parameters.get_dBHSeedMass();
-#ifdef STAR_FORMATION
-    in.dDenMin = calc.dSFThresholdDen*pow(in.dScaleFactor,3);
-#else
-    in.dDenMin = 0.0;
-#endif
+    if (parameters.get_bDoStarFormation()) {
+        in.dDenMin = calc.dSFThresholdDen*pow(in.dScaleFactor,3);
+    }
+    else {
+        in.dDenMin = 0.0;
+    }
 
     printf("Planting seeds...\n");
     TimerStart(TIMER_BHS);

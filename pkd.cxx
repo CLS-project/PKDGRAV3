@@ -324,11 +324,13 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
             gas.add<decorators::MFV>(DECORATOR_FIELD::oMFV,"mfv");
     }
 
+    this->bStars = (mMemoryModel&PKD_MODEL_STAR) ? 1 : 0;
     if ( mMemoryModel & PKD_MODEL_STAR ) {
         auto star = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the star field on the MFM field
         star.add<decorators::STAR>(DECORATOR_FIELD::oStar,"star");
     }
 
+    this->bBlackholes = (mMemoryModel&PKD_MODEL_BH) ? 1 : 0;
 #ifdef BLACKHOLES
     if ( mMemoryModel & PKD_MODEL_BH ) {
         auto bh = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the blackhole field on the MFM field
@@ -403,12 +405,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
         tree.add<Bound>(KDN_FIELD::oNodeVBnd,"vbnd");
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
         tree.add<double[3]>(KDN_FIELD::oNodeVelocity,"v");
-    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_BH) ) {
 #ifdef OPTIM_REORDER_IN_NODES
+    if ( mMemoryModel & (PKD_MODEL_MFM|PKD_MODEL_BH) ) {
         tree.add<int32_t>(KDN_FIELD::oNodeNgas,"ngas");
-#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
         tree.add<int32_t>(KDN_FIELD::oNodeNstar,"nstar");
-#endif
         tree.add<int32_t>(KDN_FIELD::oNodeNbh,"nbh");
 #endif
     }
@@ -766,9 +766,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     //Sph.fLastBall = 0.0;
                     Sph.lastUpdateTime = -1.;
                     // Sph.nLastNeighs = 100;
-#ifdef STAR_FORMATION
-                    Sph.SFR = 0.;
-#endif
+                    Sph.SFR = -1.;
 #if defined(FEEDBACK) || defined(BLACKHOLES)
                     Sph.fAccFBEnergy = 0.;
 #endif
@@ -1565,13 +1563,12 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
 
                 metals = Sph.ElemMass / fMass;
 
-#ifdef STAR_FORMATION
+                // TODO: if is present, then use it, otherwise -1 to signal
+                // the IO to not save it
                 float SFR = Sph.SFR;
-#else
-                float SFR=0.;
-#endif
 
                 float ph = 0.5 * p.ball();
+                // TODO: do something prettier
                 float otherData[3];
                 otherData[0] = SFR;
                 // Casting integers to floats will become a problem if the number of groups
@@ -1760,41 +1757,6 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
         fioSetAttr(fio, 0, "Redshift", FIO_TYPE_DOUBLE, 1, &z);
     }
     int flag;
-#ifdef STAR_FORMATION
-    flag=1;
-#else
-    flag=0;
-#endif
-    fioSetAttr(fio, HDF5_HEADER_G, "Flag_Sfr", FIO_TYPE_INT, 1, &flag);
-
-#ifdef FEEDBACK
-    flag=1;
-#else
-    flag=0;
-#endif
-    fioSetAttr(fio, HDF5_HEADER_G, "Flag_Feedback", FIO_TYPE_INT, 1, &flag);
-
-    if (pkd->cooling) {
-        flag=1;
-    }
-    else {
-        flag=0;
-    }
-    fioSetAttr(fio, HDF5_HEADER_G, "Flag_Cooling", FIO_TYPE_INT, 1, &flag);
-
-#ifdef STAR_FORMATION
-    flag=1;
-#else
-    flag=0;
-#endif
-    fioSetAttr(fio, HDF5_HEADER_G, "Flag_StellarAge", FIO_TYPE_INT, 1, &flag);
-
-#ifdef HAVE_METALLICITY
-    flag=1;
-#else
-    flag=0;
-#endif
-    fioSetAttr(fio, HDF5_HEADER_G, "Flag_Metals", FIO_TYPE_INT, 1, &flag);
 
     flag = (fio->mFlags&FIO_FLAG_DOUBLE_POS) && (fio->mFlags&FIO_FLAG_DOUBLE_VEL);
     fioSetAttr(fio, HDF5_HEADER_G, "Flag_DoublePrecision", FIO_TYPE_INT, 1, &flag);
@@ -2496,14 +2458,16 @@ void pkdReorderWithinNodes(PKD pkd) {
             auto i = std::partition(start,node->end(),[](auto &p) {return p.is_gas();});
             node->Ngas() = i - start;
             start = i;
-#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
             // We perform another swap, just to have nGas->nStar->DM
-            i = std::partition(start,node->end(),[](auto &p) {return p.is_star();});
-            node->Nstar() = i - start;
-            start = i;
-#endif
-            i = std::partition(start,node->end(),[](auto &p) {return p.is_bh();});
-            node->Nbh() = i - start;
+            if (pkd->bStars) {
+                i = std::partition(start,node->end(),[](auto &p) {return p.is_star();});
+                node->Nstar() = i - start;
+                start = i;
+            }
+            if (pkd->bBlackholes) {
+                i = std::partition(start,node->end(),[](auto &p) {return p.is_bh();});
+                node->Nbh() = i - start;
+            }
         }
     }
     if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);

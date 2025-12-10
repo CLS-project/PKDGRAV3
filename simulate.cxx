@@ -210,13 +210,13 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     }
 #endif
 
-#if defined(STAR_FORMATION) || defined(FEEDBACK)
-    StarFormInit(dTime);
-#ifdef STAR_FORMATION
-    starFormed = 0.;
-    massFormed = 0.;
-#endif
-#endif
+    if (parameters.get_bDoStarFormation() || parameters.get_bCCSNFeedback()) {
+        StarFormInit(dTime);
+        if (parameters.get_bDoStarFormation()) {
+            starFormed = 0.;
+            massFormed = 0.;
+        }
+    }
 
 #ifdef STELLAR_EVOLUTION
     StellarEvolutionInit(dTime);
@@ -505,7 +505,7 @@ static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
 template<typename... ExtraArgs>
 static void validate_path(const char *name,
                           const std::string_view &path,
-                          ExtraArgs&&... extra) {
+                          ExtraArgs &&... extra) {
     if (path.empty()) return;
 
     // helper: construct store with specific values for required fields
@@ -513,7 +513,7 @@ static void validate_path(const char *name,
                           int step,
                           std::string_view type,
                           std::string_view kind,
-    auto&&... overrides) {
+    auto &&... overrides) {
         fmt::dynamic_format_arg_store<fmt::format_context> s;
         s.push_back(fmt::arg("name", nm));
         s.push_back(fmt::arg("step", step));
@@ -632,9 +632,8 @@ int MSR::ValidateParameters() {
     if (!ValidateBlackholeParam()) return 0;
 #endif
 
-#ifdef STAR_FORMATION
-    if (!ValidateStarFormationParam()) return 0;
-#endif
+    if (parameters.get_bDoStarFormation())
+        if (!ValidateStarFormationParam()) return 0;
 
 #ifdef STELLAR_EVOLUTION
     if (parameters.get_bChemEnrich() && !parameters.get_bMemMass()) {
