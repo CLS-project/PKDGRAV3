@@ -160,7 +160,6 @@ class BaseTreeWalk : public BaseTreeWalkInterface<Derived> {
     // of information of the underlying walk/interactions, such
     // as the statistics shown for the gravity.
     using impl = BaseTreeWalkInterface<Derived>;
-    friend impl;
 
 public:
     using Options = typename Traits::Options;
@@ -573,12 +572,15 @@ public:
     // pkdGravAll
     int ServiceImpl(PST pst, void *vin, int nIn, void *vout, int nOut) {
         this->pkd = pst->plcl->pkd;
+
         auto *optpack = static_cast<OptionPack *>(vin);
+        assert(sizeof(*optpack) == nIn);
         typename Interaction::Options opt = optpack->inter;
         this->options = &optpack->walk;
+
         this->out = static_cast<output *>(vout);
-        assert(sizeof(*this->options) == nIn);
         assert(sizeof(*this->out) == nOut);
+
         interaction.setup(this->pkd, &opt, &this->walkStats);
 
         // options->copyToDevice(); // or something similar

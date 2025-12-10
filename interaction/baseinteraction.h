@@ -36,10 +36,12 @@ template <typename Traits, class Derived> class BaseInteractionInterface {
 public:
     using PINFOIN = typename Traits::PINFOIN;
     using PINFOOUT = typename Traits::PINFOOUT;
+    using IL = typename Traits::IL;
+    using ILtile = typename Traits::IL::tile_type;
     struct workParticle {
         // Use a constructor for convenience
         workParticle(PKD pkd, treeStore::NodePointer k,
-                     typename Traits::IL *il) {
+                     IL *il) {
             nRefs = 1; /* I am using it currently */
             ctx = pkd;
             dFlop = 0.0;
@@ -66,7 +68,7 @@ public:
             delete[] pInfoIn;
             delete[] pInfoOut;
         }
-        typename Traits::IL *il;
+        IL *il;
 
         PARTICLE **pPart;
         uint32_t *iPart;
@@ -90,6 +92,7 @@ public:
         derived().setupImpl(pkd, options, walkStats);
     };
     inline void clearIL() { derived().clearILImpl(); };
+    inline int countIL() { return derived().countILImpl(); };
     inline void setReferenceIL(blitz::TinyVector<double, 3> ref) {
         derived().setReferenceILImpl(ref);
     };
@@ -109,6 +112,12 @@ public:
         derived().initializeInfoOutImpl(wp, nP, p);
     };
     inline void cloneIL(workParticle *wp) { derived().cloneILImpl(wp); };
+    inline void queueInteraction(workParticle *wp) {
+        derived().queueInteractionImpl(wp);
+    };
+    inline int queueInteractionGPU(workParticle *wp, ILtile tile) {
+        return derived().queueInteractionGPUImpl(wp, tile);
+    };
     inline void processWorkParticle(workParticle *wp) {
         derived().processWorkParticleImpl(wp);
     };
@@ -118,13 +127,8 @@ public:
     inline bool particleSkipCondition(particleStore::ParticlePointer p) {
         return derived().particleSkipConditionImpl(p);
     };
-    inline void
-    aggregateResult(PINFOOUT &out,
-                    typename Traits::template ResultInteraction<fvec> &result) {
-        derived().aggregateResultImpl(out, result);
-    };
     inline void evalInteraction(const PINFOIN &Part,
-                                typename Traits::IL::tile_type &tile,
+                                ILtile &tile,
                                 PINFOOUT &out) {
         derived().evalInteractionImpl(Part, tile, out);
     };
@@ -139,6 +143,7 @@ protected:
         derived().setupImpl(pkd, options, walkStats);
     };
     inline void clearILImpl() { derived().clearILImpl(); };
+    inline int countILImpl() { return derived().countILImpl(); };
     inline void setReferenceILImpl(blitz::TinyVector<double, 3> ref) {
         derived().setReferenceILImpl(ref);
     };
@@ -161,19 +166,17 @@ protected:
     inline void processWorkParticleImpl(workParticle *wp) {
         derived().processWorkParticleImpl(wp);
     };
+    inline int queueInteractionGPUImpl(workParticle *wp, ILtile tile) {
+        return derived().queueInteractionGPUImpl(wp, tile);
+    };
     inline void particleWorkDoneImpl(workParticle *wp) {
         derived().particleWorkDoneImpl(wp);
     };
     inline bool particleSkipConditionImpl(particleStore::ParticlePointer p) {
         return derived().particleSkipConditionImpl(p);
     };
-    inline void aggregateResultImpl(
-        PINFOOUT &out,
-        typename Traits::template ResultInteraction<fvec> &result) {
-        derived().aggregateResultImpl(out, result);
-    };
     inline void evalInteractionImpl(const PINFOIN &Part,
-                                    typename Traits::IL::tile_type &tile,
+                                    ILtile &tile,
                                     PINFOOUT &out) {
         derived().evalInteractionImpl(Part, tile, out);
     };
@@ -193,11 +196,11 @@ protected:
 template <typename Traits, class Derived>
 class BaseInteraction : public BaseInteractionInterface<Traits, Derived> {
     using impl = BaseInteractionInterface<Traits, Derived>;
-    friend impl;
 
 public:
     // Access the derived classes types via trait class
     using IL = typename Traits::IL;
+    using ILtile = typename Traits::IL::tile_type;
     using Options = typename Traits::Options;
     using PINFOIN = typename Traits::PINFOIN;
     using PINFOOUT = typename Traits::PINFOOUT;
@@ -221,6 +224,7 @@ public:
     // If the interaction has more than one, these
     // functions should be overloaded accordingly.
     void clearILImpl() { il->clear(); };
+    int countILImpl() { return il->count(); };
     void setReferenceILImpl(blitz::TinyVector<double, 3> ref) {
         il->setReference(ref);
     };
@@ -262,7 +266,31 @@ protected:
     // This would wrap all the queues or any processing
     // required by a derived class.
     // By default just queue it.
-    void processWorkParticleImpl(workParticle *wp) {};
+    void processWorkParticleImpl(workParticle *wp) {
+        this->queueInteraction(wp);
+    };
+
+    int queueInteractionGPUImpl(workParticle *wp, ILtile tile) {
+        return 0;
+        // if (options->bGPU) {
+        // #ifdef USE_CUDA
+        //     if (pkd->cudaClient->queuePP(wp, tile))
+        //         continue;
+        // #endif
+        // }
+    }
+
+    void queueInteractionImpl(workParticle *wp) {
+        for (auto &tile : *this->il) {
+            ++wp->nTilesTotal;
+            if (this->queueInteractionGPU(wp, tile))
+                continue;
+            ++wp->nTilesCPU;
+            for (auto i = 0; i < wp->nP; ++i) {
+                this->evalInteraction(wp->pInfoIn[i], tile, wp->pInfoOut[i]);
+            }
+        }
+    }
 
     // Acts on own workParticle, overloaded by the
     // different choices in pkdParticleWorkDone
@@ -282,12 +310,9 @@ protected:
         return !p->is_rung_range(options->uRungLo, options->uRungHi);
     };
 
-    void aggregateResultImpl(PINFOOUT &out, ResultInteraction &result) {
-        static_assert(true, "aggregateResult must be overloaded");
-    };
-    void evalInteractionImpl(const PINFOIN &Part, typename IL::tile_type &tile,
+    void evalInteractionImpl(const PINFOIN &Part, ILtile &tile,
                              PINFOOUT &out) {
-        static_assert(true, "evalInteraction must be overloaded");
+        assert(0); // evalInteraction should be overloaded
     };
 
 public:
