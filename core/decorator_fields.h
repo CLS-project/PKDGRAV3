@@ -8,7 +8,6 @@ namespace decorators {
 namespace hana = boost::hana;
 typedef double myreal;
 
-#ifdef BLACKHOLES
 struct  BH_ACCRETOR {
     BOOST_HANA_DEFINE_STRUCT(
         BH_ACCRETOR,
@@ -16,7 +15,6 @@ struct  BH_ACCRETOR {
         (int, iIndex)
     );
 };
-#endif
 
 // These fields are required for meshless finite volume (MFV),
 // in addition to the meshless finate mass (MFM) fields (FIELDS).
@@ -98,11 +96,9 @@ struct MFM {
 
         (float, fAccFBEnergy),
 
-#ifdef BLACKHOLES
         // This could ideally be stored in a temporal buffer (pLite), but it has some
         // limitations as it has to be shared when doing mdlAcquire.
         (BH_ACCRETOR, BHAccretor),
-#endif
 
         (uint8_t, uWake)
     );

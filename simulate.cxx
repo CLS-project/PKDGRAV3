@@ -321,14 +321,14 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
         BuildTree(bEwald);
     }
 
-#ifdef BLACKHOLES
+    if (parameters.get_bBlackholes()) {
 #ifndef DEBUG_BH_ONLY
-    BlackholeInit(uRungMax);
+        BlackholeInit(uRungMax);
 #endif
-    if (parameters.get_bBHPlaceSeed()) {
-        PlaceBHSeed(dTime, uRungMax);
+        if (parameters.get_bBHPlaceSeed()) {
+            PlaceBHSeed(dTime, uRungMax);
+        }
     }
-#endif
 
     double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -628,9 +628,8 @@ int MSR::ValidateParameters() {
         }
     }
 
-#ifdef BLACKHOLES
-    if (!ValidateBlackholeParam()) return 0;
-#endif
+    if (parameters.get_bBlackholes())
+        if (!ValidateBlackholeParam()) return 0;
 
     if (parameters.get_bDoStarFormation())
         if (!ValidateStarFormationParam()) return 0;

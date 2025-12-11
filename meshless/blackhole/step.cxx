@@ -1,4 +1,3 @@
-#ifdef  BLACKHOLES
 #include "blackhole/step.h"
 #include "smooth/smooth.h"
 #include "master.h"
@@ -51,4 +50,3 @@ void smBHstep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nn
 #endif
 }
 
-#endif

@@ -35,12 +35,10 @@
 #include "pkd.h"
 #include "hydro/hydro.h"
 #include "starformation/feedback.h"
-#ifdef BLACKHOLES
-    #include "blackhole/merger.h"
-    #include "blackhole/evolve.h"
-    #include "blackhole/step.h"
-    #include "blackhole/drift.h"
-#endif
+#include "blackhole/merger.h"
+#include "blackhole/evolve.h"
+#include "blackhole/step.h"
+#include "blackhole/drift.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
@@ -314,7 +312,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->bSearchGasOnly = 1;
         helper = std::make_shared<SmoothHelperSNFeedback>(pkd);
         break;
-#ifdef BLACKHOLES
     case SMX_BH_MERGER:
         smx->fcnSmooth = smBHmerger;
         helper = std::make_shared<SmoothHelperBHmerger>(pkd);
@@ -334,7 +331,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->bSearchGasOnly = 1;
         helper = std::make_shared<SmoothHelperBHGasPin>(pkd);
         break;
-#endif
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
         smx->fcnSmooth = smChemEnrich;

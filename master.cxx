@@ -220,9 +220,7 @@ static const char *timer_names[TOTAL_TIMERS] = {
     "Density", "EndTimeStep",  "Gradient", "Flux", "TimeStep", "Drift", "FoF",
     "Feedback",
     "StarForm",
-#ifdef BLACKHOLES
     "BHs",
-#endif
 #ifdef STELLAR_EVOLUTION
     "Stev",
 #endif
@@ -428,10 +426,10 @@ uint64_t MSR::getMemoryModel() {
     if (parameters.get_bStars()) {
         mMemoryModel |= PKD_MODEL_STAR;
     }
-#if BLACKHOLES
-    mMemoryModel |= PKD_MODEL_BALL;
-    mMemoryModel |= PKD_MODEL_BH;
-#endif
+    if (parameters.get_bBlackholes()) {
+        mMemoryModel |= PKD_MODEL_BALL;
+        mMemoryModel |= PKD_MODEL_BH;
+    }
 
     if (parameters.get_bMemBall())             mMemoryModel |= PKD_MODEL_BALL;
 
@@ -486,9 +484,8 @@ std::tuple<int,int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemor
     if (DoGas()                         ) e |= EphemeralMemory(8);
     if (parameters.get_bMemBall()       ) e |= EphemeralMemory(8);
     if (parameters.get_bDoDensity()     ) e |= EphemeralMemory(12);
-#ifdef BLACKHOLES
-    e |= EphemeralMemory(8);
-#endif
+    if (parameters.get_bBlackholes()    ) e |= EphemeralMemory(8);
+
     // We need one grid to measure P(k); two if we are interlacing
     e |= EphemeralMemory(mdl,parameters.get_nGridPk(),parameters.get_bPkInterlace() ? 2 : 1);
     // Add some ephemeral memory (if needed) for the linGrid. 3 grids are stored : forceX, forceY, forceZ
@@ -1015,9 +1012,8 @@ void MSR::SetDerivedParameters(bool bRestart) {
     if (DoStellarFeedback())
         SetFeedbackParam();
     SetEOSParam();
-#ifdef BLACKHOLES
-    SetBlackholeParam();
-#endif
+    if (parameters.get_bBlackholes())
+        SetBlackholeParam();
 #ifdef STELLAR_EVOLUTION
     SetStellarEvolutionParam();
 #endif
@@ -1998,7 +1994,6 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dCCSNFBSpecEnergy = calc.dCCSNFBSpecEnergy;
     smf->dSNIaFBDelay = calc.dSNIaFBDelay;
     smf->dSNIaFBSpecEnergy = calc.dSNIaFBSpecEnergy;
-#ifdef BLACKHOLES
     smf->dBHFBEff = calc.dBHFBEff;
     smf->dBHFBEcrit = calc.dBHFBEcrit;
     smf->dBHAccretionEddFac = calc.dBHAccretionEddFac;
@@ -2006,7 +2001,6 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dBHAccretionCvisc = parameters.get_dBHAccretionCvisc();
     smf->bBHFeedback = parameters.get_bBHFeedback();
     smf->bBHAccretion = parameters.get_bBHAccretion();
-#endif
 #ifdef STELLAR_EVOLUTION
     smf->dWindSpecificEkin = calc.dWindSpecificEkin;
     smf->dSNIaNorm = calc.dSNIaNorm;
@@ -2518,11 +2512,11 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     struct inDrift in;
     double dsec;
 
-#if defined(BLACKHOLES) and !defined(DEBUG_BH_NODRIFT)
-    TimerStart(TIMER_BHS);
-    BHGasPin(dTime,dDelta);
-    TimerStop(TIMER_BHS);
-#endif
+    if (parameters.get_bBlackholes() && parameters.get_bBHPin()) {
+        TimerStart(TIMER_BHS);
+        BHGasPin(dTime,dDelta);
+        TimerStop(TIMER_BHS);
+    }
 
     TimerStart(TIMER_DRIFT);
 
@@ -2546,11 +2540,11 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     dsec = TimerGet(TIMER_DRIFT);
     print("Drift took {:.5f} seconds \n", dsec);
 
-#if defined(BLACKHOLES) and !defined(DEBUG_BH_NODRIFT)
-    TimerStart(TIMER_BHS);
-    BHReposition();
-    TimerStop(TIMER_BHS);
-#endif
+    if (parameters.get_bBlackholes() && parameters.get_bBHPin()) {
+        TimerStart(TIMER_BHS);
+        BHReposition();
+        TimerStop(TIMER_BHS);
+    }
 }
 
 void MSR::OutputFineStatistics(double dStep, double dTime) {
@@ -2596,9 +2590,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.dTuFac = dTuFacPrimNeutral;
     in.dSFThresholdOD = calc.dSFThresholdOD;
     in.eEOS = eEOSparam(parameters,calc);
-#ifdef BLACKHOLES
     in.dBHRadiativeEff = parameters.get_dBHRadiativeEff();
-#endif
 #ifdef STELLAR_EVOLUTION
     in.bChemEnrich = parameters.get_bChemEnrich();
 #endif
@@ -3043,11 +3035,9 @@ int MSR::NewTopStepKDK(
     }
     ZeroNewRung(uRung,MAX_RUNG,uRung);
 
-#ifdef BLACKHOLES
-    if (parameters.get_bBHPlaceSeed()) {
+    if (parameters.get_bBlackholes() && parameters.get_bBHPlaceSeed()) {
         PlaceBHSeed(dTime, *puRungMax);
     }
-#endif
     /* Drift the "ROOT" (active) tree or all particle */
     if (bDualTree) {
         print_detail("Drift very actives, uRung: {rung}\n","rung"_a=*puRungMax);
@@ -3087,16 +3077,16 @@ int MSR::NewTopStepKDK(
             SelAll(-1,1);
         }
 
-#ifdef BLACKHOLES
-        auto bBHMerger = parameters.get_bBHMerger();
-        if (bBHMerger) {
-            SelActives();
-            BHMerger(dTime);
+        if (parameters.get_bBlackholes()) {
+            auto bBHMerger = parameters.get_bBHMerger();
+            if (bBHMerger) {
+                SelActives();
+                BHMerger(dTime);
+            }
+            if (parameters.get_bBHAccretion() && !bBHMerger) {
+                RemoveDeleted();
+            }
         }
-        if (parameters.get_bBHAccretion() && !bBHMerger) {
-            RemoveDeleted();
-        }
-#endif
 
         BuildTree(bEwald);
     }
@@ -3306,9 +3296,9 @@ void MSR::TopStepKDK(
             BuildTree(0);
             DensityStep(iRung,MAX_RUNG,dTime,dDeltaStep);
         }
-#ifdef BLACKHOLES
-        BHStep(dTime, dDeltaStep);
-#endif
+        if (parameters.get_bBlackholes()) {
+            BHStep(dTime, dDeltaStep);
+        }
         UpdateRung(iRung);
     }
 
@@ -3364,21 +3354,21 @@ void MSR::TopStepKDK(
         if (parameters.get_bAddDelete()) RemoveDeleted();
         BuildTree(bEwald);
 
-#ifdef BLACKHOLES
+        if (parameters.get_bBlackholes()) {
 #ifndef DEBUG_BH_ONLY
-        auto bBHAccretion = parameters.get_bBHAccretion();
-        if (bBHAccretion || parameters.get_bBHFeedback()) {
-            BHEvolve(dTime, dDeltaStep);
-        }
-        if (bBHAccretion) {
-            BHAccretion(dTime);
-        }
+            auto bBHAccretion = parameters.get_bBHAccretion();
+            if (bBHAccretion || parameters.get_bBHFeedback()) {
+                BHEvolve(dTime, dDeltaStep);
+            }
+            if (bBHAccretion) {
+                BHAccretion(dTime);
+            }
 #endif
-        if (parameters.get_bBHMerger()) {
-            SelActives();
-            BHMerger(dTime);
+            if (parameters.get_bBHMerger()) {
+                SelActives();
+                BHMerger(dTime);
+            }
         }
-#endif
 
         if (parameters.get_bDoStarFormation())
             StarForm(dTime, dDeltaStep, iKickRung);
@@ -3454,9 +3444,9 @@ void MSR::TopStepKDK(
         if (parameters.get_bFindGroups()) GroupStats();
         if (parameters.get_bAddDelete()) RemoveDeleted();
         BuildTree(bEwald);
-#ifdef BLACKHOLES
-        if (parameters.get_bBHPlaceSeed()) PlaceBHSeed(dTime, CurrMaxRung());
-#endif
+        if (parameters.get_bBlackholes() && parameters.get_bBHPlaceSeed()) {
+            PlaceBHSeed(dTime, CurrMaxRung());
+        }
     }
 
 }

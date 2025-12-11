@@ -56,14 +56,12 @@
 #ifdef GRACKLE
     #include "cooling_grackle/cooling_grackle.h"
 #endif
-#ifdef BLACKHOLES
-    #include "blackhole/merger.h"
-    #include "blackhole/evolve.h"
-    #include "blackhole/seed.h"
-    #include "blackhole/init.h"
-    #include "blackhole/drift.h"
-    #include "blackhole/accretion.h"
-#endif
+#include "blackhole/merger.h"
+#include "blackhole/evolve.h"
+#include "blackhole/seed.h"
+#include "blackhole/init.h"
+#include "blackhole/drift.h"
+#include "blackhole/accretion.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
@@ -164,7 +162,6 @@ void pstAddServices(PST pst,mdl::mdlClass *mdl) {
                     (fcnService_t *) pstChemCompInit,
                     sizeof(struct inChemCompInit),0,
                     Legacy::ChemCompInit);
-#ifdef BLACKHOLES
     mdl->AddService(PST_BH_PLACESEED,pst,
                     (fcnService_t *) pstPlaceBHSeed,
                     sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed),
@@ -181,7 +178,6 @@ void pstAddServices(PST pst,mdl::mdlClass *mdl) {
                     (fcnService_t *) pstBHAccretion,
                     sizeof(struct inBHAccretion), 0,
                     Legacy::BHAccretion);
-#endif
     mdl->AddService(PST_GETMINDT,pst,
                     (fcnService_t *) pstGetMinDt,
                     0, sizeof(struct outGetMinDt),
@@ -1065,7 +1061,6 @@ int pstGroupStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 
-#ifdef BLACKHOLES
 int pstPlaceBHSeed(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inPlaceBHSeed *>(vin);
     auto out = static_cast<struct outPlaceBHSeed *>(vout);
@@ -1129,7 +1124,6 @@ int pstBHAccretion(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 
 }
-#endif
 
 int pstSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inSmooth *>(vin);
@@ -1207,12 +1201,12 @@ int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
         smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
                      in->bPeriodic,in->bSymmetric,in->iSmoothType);
-#ifdef BLACKHOLES
-        if (in->iSmoothType == SMX_BH_MERGER)
+        if (in->iSmoothType == SMX_BH_MERGER) {
             out->nSmoothed = smReSmoothBHNode(smx,&in->smf, in->iSmoothType);
-        else
-#endif
+        }
+        else {
             out->nSmoothed = smReSmoothNode(smx,&in->smf, in->iSmoothType);
+        }
         smFinish(smx,&in->smf);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
         if (out->nSmoothed) {

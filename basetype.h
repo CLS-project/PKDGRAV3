@@ -73,11 +73,9 @@ struct CALC {
     double dCCSNFBSpecEnergy;
     double dSNIaFBDelay;
     double dSNIaFBSpecEnergy;
-#ifdef BLACKHOLES
     double dBHAccretionEddFac;
     double dBHFBEff;
     double dBHFBEcrit;
-#endif
 #ifdef STELLAR_EVOLUTION
     double dWindSpecificEkin;
     double dSNIaNorm;

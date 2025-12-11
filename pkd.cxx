@@ -80,9 +80,7 @@ extern "C" {
 #include "core/healpix.h"
 }
 #include "cooling/cooling.h"
-#ifdef BLACKHOLES
-    #include "blackhole/evolve.h"
-#endif
+#include "blackhole/evolve.h"
 #ifdef GRACKLE
     #include "cooling_grackle/cooling_grackle.h"
 #endif
@@ -325,12 +323,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     }
 
     this->bBlackholes = (mMemoryModel&PKD_MODEL_BH) ? 1 : 0;
-#ifdef BLACKHOLES
     if ( mMemoryModel & PKD_MODEL_BH ) {
         auto bh = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the blackhole field on the MFM field
         bh.add<decorators::BLACKHOLE>(DECORATOR_FIELD::oBH,"bh");
     }
-#endif // BLACKHOLES
 
 
     decorators.commit();
@@ -376,7 +372,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
         particles.add<int32_t>(PKD_FIELD::oGroup,"group");
     }
     if ( (mMemoryModel & PKD_MODEL_NEWRUNG) && this->bNoParticleOrder) {
-        // If not bNoParticleOrder (i.e., ordered) the field is already present
+        // If not bNoParticleOrder (i.e., ordered) the field
+        // is already present
         particles.add<uint8_t>(PKD_FIELD::oNewRung,"newrung");
     }
 
@@ -652,10 +649,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         auto p = pkd->particles[pkd->Local()];
         pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_STAR,&p);
     }
-#ifdef BLACKHOLES
-    auto p = pkd->particles[pkd->Local()];
-    pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_BH,&p);
-#endif
+    if (pkd->decorators.present(DECORATOR_FIELD::oBH)) {
+        auto p = pkd->particles[pkd->Local()];
+        pkd->particles.setClass(0,0,0,1.0,FIO_SPECIES_BH,&p);
+    }
 
     // Protect against uninitialized values
     fMass = 0.0f;
@@ -762,10 +759,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     // Sph.nLastNeighs = 100;
                     Sph.SFR = -1.;
                     Sph.fAccFBEnergy = 0.;
-#ifdef BLACKHOLES
                     Sph.BHAccretor.iIndex = NOT_ACCRETED;
                     Sph.BHAccretor.iPid   = NOT_ACCRETED;
-#endif
                     Sph.uWake = 0;
                 }
             }

@@ -1746,6 +1746,11 @@ flag="bh"
 default=false
 help="Allow blackhole particles in the simulation"
 
+["Blackholes".bBHPin]
+flag="bhpin"
+default=true
+help="Pin light blackhole particles to the center of the potential well"
+
 ["Blackholes".bBHMerger]
 flag="bBHMerger"
 default=true

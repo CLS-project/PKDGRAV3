@@ -28,9 +28,7 @@
 #include "ic.h"
 #include "whitenoise.hpp"
 #include "core/gridinfo.hpp"
-#ifdef BLACKHOLES
-    #include "blackhole/evolve.h"
-#endif
+#include "blackhole/evolve.h"
 using namespace gridinfo;
 using namespace blitz;
 using namespace mdl;
@@ -1144,14 +1142,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 Sph.lastUpdateTime = -1.;
                 // Sph.nLastNeighs = 100;
                 Sph.SFR = -1.;
-#if defined(FEEDBACK) || defined(BLACKHOLES)
                 Sph.fAccFBEnergy = 0.;
-#endif
                 Sph.uWake = 0;
-#ifdef BLACKHOLES
                 Sph.BHAccretor.iIndex = NOT_ACCRETED;
                 Sph.BHAccretor.iPid   = NOT_ACCRETED;
-#endif
             }
         }
         if (in->bICgas) pkd->SetLocal( pkd->nActive = in->nMove * 2);

@@ -28,5 +28,5 @@ pipelines:
           size: 2x
           script:
             - >
-              cmake -DBLACKHOLES=on -DSTELLAR_EVOLUTION=on -S . -B build
+              cmake -DSTELLAR_EVOLUTION=on -S . -B build
             - cmake --build build -- -j 4

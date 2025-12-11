@@ -64,7 +64,6 @@ typedef struct smfParameters {
     double dCCSNFBSpecEnergy;
     double dSNIaFBDelay;
     double dSNIaFBSpecEnergy;
-#ifdef BLACKHOLES
     double dBHFBEff;
     double dBHFBEcrit;
     double dBHAccretionEddFac;
@@ -72,7 +71,6 @@ typedef struct smfParameters {
     double dBHAccretionCvisc;
     int bBHFeedback;
     int bBHAccretion;
-#endif
 #ifdef STELLAR_EVOLUTION
     double dWindSpecificEkin;
     double dSNIaNorm;

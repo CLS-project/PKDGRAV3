@@ -202,12 +202,10 @@ enum pst_service {
     PST_GRACKLEINIT,
 #endif
     PST_CHEMCOMPINIT,
-#ifdef BLACKHOLES
     PST_BH_PLACESEED,
     PST_BH_REPOSITION,
     PST_BH_INIT,
     PST_BH_ACCRETION,
-#endif
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
     PST_KICK,
@@ -511,7 +509,6 @@ struct inGrackleInit {
 int pstGrackleInit(PST, void *,int,void *,int);
 #endif
 int pstChemCompInit(PST,void *,int,void *,int);
-#ifdef BLACKHOLES
 struct inPlaceBHSeed {
     double dTime;
     double dScaleFactor;
@@ -531,7 +528,6 @@ struct inBHAccretion {
     double dScaleFactor;
 };
 int pstBHAccretion(PST,void *,int,void *,int);
-#endif
 
 /* PST_RESMOOTH */
 int pstReSmooth(PST,void *,int,void *,int);

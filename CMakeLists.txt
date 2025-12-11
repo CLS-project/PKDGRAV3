@@ -511,18 +511,11 @@ if (NFW_POTENTIAL)
   message("-- Analytical gravity ACTIVE -> NFW potential")
 endif(NFW_POTENTIAL)
 
-option(BLACKHOLES "Activate black hole model" OFF)
-if (BLACKHOLES)
-  target_compile_options(${PROJECT_NAME} PRIVATE -DBLACKHOLES)
-  target_sources(${PROJECT_NAME} PRIVATE  meshless/blackhole/merger.cxx)
-  target_sources(${PROJECT_NAME} PRIVATE  meshless/blackhole/seed.cxx)
-  target_sources(${PROJECT_NAME} PRIVATE  meshless/blackhole/evolve.cxx)
-  target_sources(${PROJECT_NAME} PRIVATE  meshless/blackhole/init.cxx)
-  target_sources(${PROJECT_NAME} PRIVATE  meshless/blackhole/step.cxx)
-  target_sources(${PROJECT_NAME} PRIVATE  meshless/blackhole/drift.cxx)
-  target_sources(${PROJECT_NAME} PRIVATE  meshless/blackhole/accretion.cxx)
-  message("-- Black holes are ACTIVE")
-endif(BLACKHOLES)
+target_sources(${PROJECT_NAME} PRIVATE  meshless/blackhole/merger.cxx
+  meshless/blackhole/seed.cxx meshless/blackhole/evolve.cxx
+  meshless/blackhole/init.cxx meshless/blackhole/step.cxx
+  meshless/blackhole/drift.cxx meshless/blackhole/accretion.cxx)
+
 option(DEBUG_BH_NODRIFT "Deactivate BH drift by the gas" OFF)
 if (DEBUG_BH_NODRIFT)
    target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_BH_NODRIFT)

@@ -36,9 +36,7 @@ public:
         double dCoolingFloorDen;
         double dCoolingFlooru;
         struct eEOSparam eEOS;
-#ifdef BLACKHOLES
         double dBHRadiativeEff;
-#endif
 #ifdef STELLAR_EVOLUTION
         int bChemEnrich;
 #endif

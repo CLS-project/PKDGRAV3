@@ -2,6 +2,7 @@
 #include "hydro.h"
 #include "meshless/cooling/cooling.h"
 #include "meshless/starformation/feedback.h"
+#include "meshless/blackhole/evolve.h"
 #include "eEOS/eEOS.h"
 
 int ServiceEndTimestepIntegration::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -91,9 +92,7 @@ int ServiceEndTimestepIntegration::Service(PST pst,void *vin,int nIn,void *vout,
             hydroResetFluxes(&sph);
         }
         else if (p.is_bh() && p.is_active()) {
-#ifdef BLACKHOLES
             pkdBHIntegrate(pkd, p, in->dTime, in->dDelta, in->dBHRadiativeEff);
-#endif
         }
     }
     return 0;

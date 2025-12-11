@@ -27,7 +27,7 @@ int ServiceUpdateRung::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto &out = * static_cast<output *>(vout);
     auto pkd = pst->plcl->pkd;
 
-    assert(pkd->particles.present(PKD_FIELD::oNewRung));
+    assert(pkd->particles.present(PKD_FIELD::oNewRung) || !pkd->bNoParticleOrder);
     out = 0;
     for (auto &p : pkd->particles) {
         if ( p.is_active() ) {

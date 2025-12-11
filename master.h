@@ -59,9 +59,7 @@ enum msrTimers {
     TIMER_FOF,
     TIMER_FEEDBACK,
     TIMER_STARFORM,
-#ifdef BLACKHOLES
     TIMER_BHS,
-#endif
 #ifdef STELLAR_EVOLUTION
     TIMER_STEV,
 #endif
@@ -525,7 +523,6 @@ protected:
 #endif
     void SetEOSParam();
     int ValidateEOSParam();
-#ifdef BLACKHOLES
     void SetBlackholeParam();
     int  ValidateBlackholeParam();
     void BlackholeInit(uint8_t uRungMax);
@@ -536,7 +533,6 @@ protected:
     void BHReposition();
     void BHAccretion(double dTime);
     void BHStep(double dTime, double dDelta);
-#endif
 
     void Initialize();
     void writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta);

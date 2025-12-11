@@ -1,4 +1,3 @@
-#ifdef  BLACKHOLES
 #include <algorithm>
 #include "blackhole/merger.h"
 #include "smooth/smooth.h"
@@ -377,4 +376,3 @@ NoIntersect:
 
 }
 
-#endif
