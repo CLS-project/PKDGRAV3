@@ -115,7 +115,7 @@ void sincosf(const fvec &xx, fvec &sin, fvec &cos) {
 /* Cost: AVX: 30 ops, SSE: 33 */
 static inline
 dvec exp(const dvec &x) {
-    dvec d,xx,pow2n,Pexp,Qexp;
+    dvec xx,pow2n,Pexp,Qexp;
 
     const dvec C1 = 6.93145751953125E-1;
     const dvec C2 = 1.42860682030941723212E-6;
@@ -128,7 +128,7 @@ dvec exp(const dvec &x) {
     const dvec q2 = 2.27265548208155028766E-1;
     const dvec q3 = 2.00000000000000000009E0;
 
-    d = M_LOG2E * x;
+    dvec d = M_LOG2E * x;
 #if defined(__AVX512F__)
     __m256i n1 = _mm512_cvtpd_epi32(d);
     d = _mm512_cvtepi32_pd(n1);
@@ -299,9 +299,124 @@ static inline dvec log(const dvec &x) {
     const dvec ln2 = 0.6931471805599453094172321215;
     return logm + ed * ln2;
 }
+
 #endif
 
+static inline fvec exp( fvec xx ) {
+    static const float LOG2EF = 1.44269504088896341f;
+    static const fvec C1 =   0.693359375f;
+    static const fvec C2 =  -2.12194440e-4f;
+
+    fvec z = floor( LOG2EF * xx + 0.5f ); /* floor() truncates toward -infinity. */
+    const fvec z_min = -126.0f;
+    const fvec z_max =  127.0f;
+    z = max(z, z_min);
+    z = min(z, z_max);
+    i32v n = cvt_i32v(z);   // now safely in valid exponent range
+
+    auto x = xx - z * C1 - z * C2; // Cody–Waite reduction
+
+    z = x * x;
+    z =
+        ((((( 1.9875691500E-4  * x
+              + 1.3981999507E-3) * x
+            + 8.3334519073E-3) * x
+           + 4.1665795894E-2) * x
+          + 1.6666665459E-1) * x
+         + 5.0000001201E-1) * z
+        + x
+        + 1.0;
+
+    // exponent bits: (n + 127) << 23
+    const i32v bias = 127;
+    i32v e = (n + i32v(127)) << 23;
+
+    // reinterpret as float -> scale = 2^n
+    fvec scale = cast_fvec(e);
+    z *= scale;
+    z = mask_mov(z, xx >  88.72283905206835, std::numeric_limits<float>::infinity());
+    z = mask_mov(z, xx < -103.278929903431851103, 0.0f);
+    return z;
+}
+
+static inline fvec log(const fvec &x_in) {
+    // Save original input for edge-case handling (x <= 0)
+    const i32v exp_mask  = 0x7F800000;     // exponent bits
+    const i32v mans_mask = 0x807FFFFF;     // mantissa bits + sign bit
+    const i32v half_exp  = 0x3F000000;     // exponent = 126 → mantissa in [0.5,1)
+    const fvec zero      = 0.0f;
+
+    // Subnormal handling
+    const fvec flt_min  = std::numeric_limits<float>::min();  // 1.175494e-38
+    const fvec scale24  = 16777216.0f;
+    auto pos_mask       = x_in > 0.0f;
+    auto sub_mask       = pos_mask & (x_in < flt_min);
+    fvec x_scaled       = x_in * scale24;
+    auto x_norm         = mask_mov(x_in, sub_mask, x_scaled);
+    //auto sub_adj        = maskz_mov(cast_i32v(sub_mask),i32v(24));
+    auto sub_adj        = maskz_mov(sub_mask,i32v(24));
+
+    // Now treat x_norm as the input for frexp()
+    i32v xi = cast_i32v(x_norm);
+
+    // 1. Extract exponent: (exp_bits >> 23) - 126
+    i32v e32 = ((xi & exp_mask) >> 23) - 126 - sub_adj;
+
+    // 2. Build mantissa in [0.5,1):
+    //    Replace exponent with 126, keep sign & mantissa.
+    //
+    i32v mi = (xi & mans_mask) | half_exp;
+    fvec m = cast_fvec(mi);
+
+    fvec SQRTHF_v = 0.707106781186547524f;
+    auto mask = m < SQRTHF_v;
+
+    i32v one_i  = 1;
+    //i32v mask_i = cast_i32v(mask);
+    //e32 -= mask_i & one_i;
+    e32 -= maskz_mov(mask,one_i);
+
+    fvec e = cvt_fvec(e32);
+
+    fvec x = mask_mov(m - 1.0f, mask, 2*m - 1.0f);
+
+    auto z = x * x;
+
+    auto y =
+        (((((((( 7.0376836292E-2 * x
+                 - 1.1514610310E-1) * x
+               + 1.1676998740E-1) * x
+              - 1.2420140846E-1) * x
+             + 1.4249322787E-1) * x
+            - 1.6668057665E-1) * x
+           + 2.0000714765E-1) * x
+          - 2.4999993993E-1) * x
+         + 3.3333331174E-1) * x * z;
+
+    auto nonzero_mask = e != 0.0f;
+
+    y += maskz_mov(nonzero_mask,-2.12194440e-4f * e);
+    y -= 0.5 * z;
+    z = x + y;
+    z += maskz_mov(nonzero_mask, 0.693359375f * e);
+
+    // Handle edge cases
+    const fvec nanv    = std::numeric_limits<float>::quiet_NaN();
+    const fvec pos_inf = std::numeric_limits<float>::infinity();
+    const fvec neg_inf = -std::numeric_limits<float>::infinity();
+    z = mask_mov(z, x_in == 0.0f,    neg_inf);  // x == 0 → −inf
+    z = mask_mov(z, x_in < 0.0f,     nanv);     // x < 0 → NaN (includes −inf)
+    z = mask_mov(z, x_in == pos_inf, pos_inf);  // +inf → +inf
+    z = mask_mov(z, x_in != x_in,    nanv);     // NaN → NaN
+
+    return z;
+}
+
 static inline dvec pow(const dvec &x, const dvec &y) {
+    return exp( y * log(x) );
+}
+
+static inline fvec pow(const fvec &x, const fvec &y) {
     return exp( y * log(x) );
 }
 
