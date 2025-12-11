@@ -148,6 +148,7 @@ public:
         auto ifield = static_cast<int>(f);
         fields<FIELD>::template add<T>(f,name);
         dfields.overlay_field[ifield] = overlay_field;
+        dfields.field_present[ifield] = true;
     }
     template<typename T>
     void add(FIELD f,std::string_view name, size_t offset) {
