@@ -1,0 +1,26 @@
+BasedOnStyle: LLVM
+ColumnLimit: 160
+IndentWidth: 4
+UseTab: Never
+PointerAlignment: Left
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterNamespace: false
+  AfterClass: false
+  AfterFunction: false
+  AfterControlStatement: false
+  AfterExternBlock: false
+  BeforeElse: true
+  BeforeWhile: false
+AllowShortBlocksOnASingleLine: false
+AllowShortLoopsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortFunctionsOnASingleLine: InlineOnly
+SpaceBeforeParens: ControlStatements
+AlwaysBreakTemplateDeclarations: Leave
+UseCRLF: false
+IndentPPDirectives: BeforeHash
+SortIncludes: false
+IncludeBlocks: Preserve
+StatementMacros:
+  - BOOST_HANA_DEFINE_STRUCT

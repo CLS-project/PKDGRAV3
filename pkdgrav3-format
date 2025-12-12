@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! CLANG_FORMAT=$(command -v clang-format); then
+    >&2 echo "[!] clang-format not installed. Unable to check source file format policy."
+    >&2 echo "Have you activated the Python virtual environment that you setup"
+    >&2 echo "with dependencies installed with pip install -r requirements.txt"
+    exit 1
+fi
+
+if test $# -ge 1 ; then
+    if test "$1" == "--update" -a $# -eq 1  ; then
+        OPTIONS="-i"
+    else
+        >&2 echo "USAGE: $0 [--update]"
+        exit 22
+    fi
+else
+    OPTIONS="--dry-run --Werror"
+fi
+BAD_FILES=$(
+    git ls-files \
+      | (egrep -v '^(mdl2/(openpa|boost|cycle\.h)|fmt|blitz|windows)/|core/sse2neon\.h' || true) \
+      | (egrep '\.(c|h|cxx|mm|metal|cu)$' || true) \
+      | tr '\n' '\0' \
+      | {
+          xargs -0 --no-run-if-empty $CLANG_FORMAT --ferror-limit=1 $OPTIONS 2>&1\
+            | awk -F: '/: error: .*clang-formatted/ { print $1 }' \
+            | sort -u
+            exit ${PIPESTATUS[0]}
+        } \
+        || {
+            echo "ERROR: formatting issues detected in the above files."
+            echo "Run clang-format -i on the affected file(s)"
+            echo "or $0 --update to process all files."
+        }
+)
+if test -n "$BAD_FILES" ; then
+    echo "$BAD_FILES"
+    exit 1
+fi

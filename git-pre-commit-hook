@@ -1,35 +1,36 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # This hook is installed automatically by CMake if a git repository is detected in
 # the source directory. To install it manually you can create a symbolic link,
 # normally something like
 #     ln -s ../../git-pre-commit-hook .git/hooks/pre-commit
 # Pull requests with code not properly formatted will be rejected!
+set -euo pipefail
 
-RETURN=0
-test -z "$ASTYLE" && ASTYLE=astyle
-ASTYLE=$(which $ASTYLE)
-if [ $? -ne 0 ]; then
-	echo "[!] astyle not installed. Unable to check source file format policy." >&2
-	echo "Ubuntu: sudo apt install astyle" >&2
-	echo "macOS: brew install astyle" >&2
-	echo "or download from http://astyle.sourceforge.net" >&2
-	exit 1
+if ! CLANG_FORMAT=$(command -v clang-format); then
+    >&2 echo "[!] clang-format not installed. Unable to check source file format policy."
+    >&2 echo "Have you activated the Python virtual environment that you setup"
+    >&2 echo "with dependencies installed with pip install -r requirements.txt"
+    exit 1
 fi
 
-GITROOTDIR=$(git rev-parse --show-toplevel)
-FILES=`git diff --cached --name-only --diff-filter=ACMR | egrep -v '^(mdl2/(openpa|boost)|fmt|blitz|windows)/' | egrep '\.(c|h|cxx|mm|metal|cu)$'`
-for FILE in $FILES; do
-	$ASTYLE --options=$GITROOTDIR/.astylerc --stdin=$FILE | cmp -s $FILE -
-	if [ $? -ne 0 ]; then
-		echo "[!] $FILE does not respect the agreed coding style." >&2
-		RETURN=1
-	fi
-done
-
-if [ $RETURN -eq 1 ]; then
-	echo "" >&2
-	echo "Make sure you have run astyle with the following options:" >&2
-	echo $ASTYLE --options=$GITROOTDIR/.astylerc >&2
+BAD_FILES=$(
+    git diff --cached --name-only --diff-filter=ACMR \
+      | (egrep -v '^(mdl2/(openpa|boost|cycle\.h)|fmt|blitz|windows)/|core/sse2neon\.h' || true) \
+      | (egrep '\.(c|h|cxx|mm|metal|cu)$' || true) \
+      | tr '\n' '\0' \
+      | {
+          xargs -0 --no-run-if-empty $CLANG_FORMAT --ferror-limit=1 --dry-run --Werror 2>&1\
+            | awk -F: '/: error: .*clang-formatted/ { print $1 }' \
+            | sort -u
+            exit ${PIPESTATUS[0]}
+        } \
+        || {
+            echo "ERROR: formatting issues detected in the above files."
+            echo "Run clang-format -i on the affected file(s)."
+        }
+)
+if test -n "$BAD_FILES" ; then
+    echo "$BAD_FILES"
+    exit 1
 fi
-
-exit $RETURN
+exit 0

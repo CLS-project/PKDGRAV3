@@ -21,7 +21,7 @@ RUN apt-get update && \
 
 # Python build tools
 RUN python3 -m pip install --no-cache-dir --upgrade \
-        Cython cmake dill
+        Cython cmake dill clang-format==21.1.7
 
 # Prepare build directory
 WORKDIR /build

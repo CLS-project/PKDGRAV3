@@ -1,5 +1,6 @@
 tomli; python_version < '3.11'
 Cython >= 3.0
+clang-format==21.1.7
 numpy >= 1.7
 unittest-xml-reporting
 ddt
