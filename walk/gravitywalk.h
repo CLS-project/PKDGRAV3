@@ -242,14 +242,14 @@ protected:
             T4 = (minbnd2 > fourh2) & ~bIntersectSource & ~bIntersectSink;
             T6 = cOpen > k_Open;
             T7 = k_notgrp;
-            iOpenA = mask_mov(i32v(OPEN_CELL), T2, i32v(ADD_PARTICLES_PP_LIST));
-            iOpenB = mask_mov(mask_mov(iOpenA, T4, i32v(ACCEPT_MULTIPOLE)), T3,
+            iOpenA = mask_mov(i32v(static_cast<int>(OPEN_CELL)), T2, i32v(static_cast<int>(ADD_PARTICLES_PP_LIST)));
+            iOpenB = mask_mov(mask_mov(iOpenA, T4, i32v(static_cast<int>(ACCEPT_MULTIPOLE))), T3,
                               iOpenA);
-            P1 = mask_mov(i32v(OPEN_CELL), T2, i32v(OPEN_BUCKET));
-            P2 = mask_mov(iOpenB, T7, i32v(KEEP_ON_CL));
+            P1 = mask_mov(i32v(static_cast<int>(OPEN_CELL)), T2, i32v(static_cast<int>(OPEN_BUCKET)));
+            P2 = mask_mov(iOpenB, T7, i32v(static_cast<int>(KEEP_ON_CL)));
             P3 = mask_mov(P2, T6, P1);
-            P4 = mask_mov(P3, T1, i32v(ACCEPT_LOCAL_EXPANSION));
-            iOpen = mask_mov(i32v(REMOVE_CELL), T0, P4);
+            P4 = mask_mov(P3, T1, i32v(static_cast<int>(ACCEPT_LOCAL_EXPANSION)));
+            iOpen = mask_mov(i32v(static_cast<int>(REMOVE_CELL)), T0, P4);
             blk.iOpen.v[i] = iOpen;
         }
 
