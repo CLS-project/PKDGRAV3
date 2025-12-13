@@ -17,7 +17,7 @@
 #include "pkd_parameters.h"
 #include "units.h"
 
-UNITS::UNITS(pkd_parameters &parameters,double h) {
+UNITS::UNITS(pkd_parameters& parameters, double h) {
     // Input units (from the parameter file)
     dMsolUnit = parameters.get_dMsolUnit();
     dKpcUnit = parameters.get_dKpcUnit();
@@ -27,42 +27,42 @@ UNITS::UNITS(pkd_parameters &parameters,double h) {
     // Convert kboltz/mhydrogen to system units, assuming that G == 1
     if (parameters.has_dMsolUnit() && parameters.has_dKpcUnit()) {
         /* code KBOLTZ/MHYDR */
-        dGasConst = dKpcUnit*KPCCM*KBOLTZ/MHYDR/GCGS/dMsolUnit/MSOLG;
+        dGasConst = dKpcUnit * KPCCM * KBOLTZ / MHYDR / GCGS / dMsolUnit / MSOLG;
         /* code energy per unit mass --> erg per g */
-        dErgPerGmUnit = GCGS*dMsolUnit*MSOLG/(dKpcUnit*KPCCM);
+        dErgPerGmUnit = GCGS * dMsolUnit * MSOLG / (dKpcUnit * KPCCM);
         /* code energy --> erg */
-        dErgUnit = GCGS*pow(dMsolUnit*MSOLG,2.0)/(dKpcUnit*KPCCM);
+        dErgUnit = GCGS * pow(dMsolUnit * MSOLG, 2.0) / (dKpcUnit * KPCCM);
         /* code density --> g per cc */
-        dGmPerCcUnit = (dMsolUnit*MSOLG)/pow(dKpcUnit*KPCCM,3.0);
+        dGmPerCcUnit = (dMsolUnit * MSOLG) / pow(dKpcUnit * KPCCM, 3.0);
         /* code time --> seconds */
-        dSecUnit = sqrt(1/(dGmPerCcUnit*GCGS));
+        dSecUnit = sqrt(1 / (dGmPerCcUnit * GCGS));
         /* code speed --> km/s */
-        dKmPerSecUnit = sqrt(GCGS*dMsolUnit*MSOLG/(dKpcUnit*KPCCM))/1e5;
+        dKmPerSecUnit = sqrt(GCGS * dMsolUnit * MSOLG / (dKpcUnit * KPCCM)) / 1e5;
         /* code comove density -->g per cc = units.dGmPerCcUnit(1+z)^3*/
         dComovingGmPerCcUnit = dGmPerCcUnit;
     }
     else if (parameters.get_nGrid()) {
         // We need to properly set a unit system, we do so following the
         // convention: G=1, rho=Omega0 in code units
-        dKpcUnit = parameters.get_dBoxSize()*1e3 / h;
+        dKpcUnit = parameters.get_dBoxSize() * 1e3 / h;
 
         // The mass unit is set such that we recover a correct dHubble0
         // in code units and 100h in physical
-        const double dHubbleCGS = 100.*h*1e5/(1e3*KPCCM); // 1/s
-        dMsolUnit = pow(dKpcUnit * KPCCM, 3 ) / MSOLG * 3.0 * pow( dHubbleCGS, 2 ) * M_1_PI / 8.0 / GCGS;
+        const double dHubbleCGS = 100. * h * 1e5 / (1e3 * KPCCM); // 1/s
+        dMsolUnit = pow(dKpcUnit * KPCCM, 3) / MSOLG * 3.0 * pow(dHubbleCGS, 2) * M_1_PI / 8.0 / GCGS;
 
         /* code KBOLTZ/MHYDR */
-        dGasConst = dKpcUnit*KPCCM*KBOLTZ/MHYDR/GCGS/dMsolUnit/MSOLG;
+        dGasConst = dKpcUnit * KPCCM * KBOLTZ / MHYDR / GCGS / dMsolUnit / MSOLG;
         /* code energy per unit mass --> erg per g */
-        dErgPerGmUnit = GCGS*dMsolUnit*MSOLG/(dKpcUnit*KPCCM);
+        dErgPerGmUnit = GCGS * dMsolUnit * MSOLG / (dKpcUnit * KPCCM);
         /* code energy --> erg */
-        dErgUnit = GCGS*pow(dMsolUnit*MSOLG,2.0)/(dKpcUnit*KPCCM);
+        dErgUnit = GCGS * pow(dMsolUnit * MSOLG, 2.0) / (dKpcUnit * KPCCM);
         /* code density --> g per cc */
-        dGmPerCcUnit = (dMsolUnit*MSOLG)/pow(dKpcUnit*KPCCM,3.0);
+        dGmPerCcUnit = (dMsolUnit * MSOLG) / pow(dKpcUnit * KPCCM, 3.0);
         /* code time --> seconds */
-        dSecUnit = sqrt(1/(dGmPerCcUnit*GCGS));
+        dSecUnit = sqrt(1 / (dGmPerCcUnit * GCGS));
         /* code speed --> km/s */
-        dKmPerSecUnit = sqrt(GCGS*dMsolUnit*MSOLG/(dKpcUnit*KPCCM))/1e5;
+        dKmPerSecUnit = sqrt(GCGS * dMsolUnit * MSOLG / (dKpcUnit * KPCCM)) / 1e5;
         /* code comove density -->g per cc = units.dGmPerCcUnit(1+z)^3*/
         dComovingGmPerCcUnit = dGmPerCcUnit;
 
@@ -80,5 +80,4 @@ UNITS::UNITS(pkd_parameters &parameters,double h) {
         dErgPerGmUnit = 1;
         dErgUnit = 1;
     }
-
 }

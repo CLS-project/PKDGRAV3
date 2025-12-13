@@ -19,16 +19,15 @@
 #include "io/service.h"
 
 class ServiceRsSaveIds : public ServiceOutput {
-public:
+  public:
     static constexpr std::string_view name = "RsSaveIds";
     using input = ServiceOutput::input;
     using output = void;
 
-    explicit ServiceRsSaveIds(PST pst)
-        : ServiceOutput(pst,name,sizeof(input)) {}
-protected:
-    virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
-};
+    explicit ServiceRsSaveIds(PST pst) : ServiceOutput(pst, name, sizeof(input)) {}
 
+  protected:
+    virtual void Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
+};
 
 #endif /* DF755BD8_0CD7_42F4_AE2E_201894E9ECAB */

@@ -2,8 +2,8 @@
 #include "hydro/hydro.h"
 #include "hydro/limiters.h"
 #include "master.h"
-using blitz::TinyVector;
 using blitz::dot;
+using blitz::TinyVector;
 
 void MSR::MeshlessGradients(double dTime, double dDelta) {
     double dsec;
@@ -11,12 +11,12 @@ void MSR::MeshlessGradients(double dTime, double dDelta) {
 
     TimerStart(TIMER_GRADIENTS);
 #ifdef OPTIM_SMOOTH_NODE
-#ifdef OPTIM_AVOID_IS_ACTIVE
+    #ifdef OPTIM_AVOID_IS_ACTIVE
     SelActives();
-#endif
-    ReSmoothNode(dTime,dDelta,SMX_HYDRO_GRADIENT,0);
+    #endif
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_GRADIENT, 0);
 #else
-    ReSmooth(dTime,dDelta,SMX_HYDRO_GRADIENT,0);
+    ReSmooth(dTime, dDelta, SMX_HYDRO_GRADIENT, 0);
 #endif
 
     TimerStop(TIMER_GRADIENTS);
@@ -24,9 +24,9 @@ void MSR::MeshlessGradients(double dTime, double dDelta) {
     printf("took %.5f seconds\n", dsec);
 }
 
-void SmoothHelperHydroGradients::pack(void *dst, const void *src) {
-    auto p1 = static_cast<pack_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperHydroGradients::pack(void* dst, const void* src) {
+    auto p1 = static_cast<pack_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
     p1->iClass = p2.get_class();
     if (p2.is_gas()) {
@@ -39,9 +39,9 @@ void SmoothHelperHydroGradients::pack(void *dst, const void *src) {
     }
 }
 
-void  SmoothHelperHydroGradients::unpack(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const pack_type *>(src);
+void SmoothHelperHydroGradients::unpack(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const pack_type*>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -56,7 +56,7 @@ void  SmoothHelperHydroGradients::unpack(void *dst, const void *src, const void 
     }
 }
 
-void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroGradients(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
 
     PKD pkd = smf->pkd;
     double rho_max, rho_min;
@@ -64,42 +64,39 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
     double p_max, p_min;
     double max_face_dist;
 
-    const auto &pv = p.velocity();
-    auto &psph = p.sph();
+    const auto& pv = p.velocity();
+    auto& psph = p.sph();
     const double pH = p.ball();
 
 #ifndef OPTIM_SMOOTH_NODE
     /* Compute the E matrix (Hopkins 2015, eq 14) */
-    TinyVector<double,6> E{0.0};  //  We are assumming 3D here!
+    TinyVector<double, 6> E{0.0}; //  We are assumming 3D here!
 
     for (auto i = 0; i < nSmooth; ++i) {
 
         const double rpq = sqrt(nnList[i].fDist2);
-        const auto &Hpq = pH;
+        const auto& Hpq = pH;
 
         const double Wpq = cubicSplineKernel(rpq, Hpq);
-        const auto &dr = nnList[i].dr;
+        const auto& dr = nnList[i].dr;
 
-        E[XX] += dr[0]*dr[0]*Wpq;
-        E[YY] += dr[1]*dr[1]*Wpq;
-        E[ZZ] += dr[2]*dr[2]*Wpq;
+        E[XX] += dr[0] * dr[0] * Wpq;
+        E[YY] += dr[1] * dr[1] * Wpq;
+        E[ZZ] += dr[2] * dr[2] * Wpq;
 
-        E[XY] += dr[1]*dr[0]*Wpq;
-        E[XZ] += dr[2]*dr[0]*Wpq;
-        E[YZ] += dr[1]*dr[2]*Wpq;
+        E[XY] += dr[1] * dr[0] * Wpq;
+        E[XZ] += dr[2] * dr[0] * Wpq;
+        E[YZ] += dr[1] * dr[2] * Wpq;
     }
 
     /* Normalize the matrix */
     E /= psph.omega;
 
-
-
-
     /* END of E matrix computation */
-    //printf("nSmooth %d fBall %e E_q [XX] %e \t [XY] %e \t [XZ] %e \n
-    //                       \t \t \t [YY] %e \t [YZ] %e \n
-    //                \t\t\t \t \t \t [ZZ] %e \n",
-    // nSmooth, fBall, E[XX], E[XY], E[XZ], E[YY], E[YZ], E[ZZ]);
+    // printf("nSmooth %d fBall %e E_q [XX] %e \t [XY] %e \t [XZ] %e \n
+    //                        \t \t \t [YY] %e \t [YZ] %e \n
+    //                 \t\t\t \t \t \t [ZZ] %e \n",
+    //  nSmooth, fBall, E[XX], E[XY], E[XZ], E[YY], E[YZ], E[ZZ]);
 
     /* Now, we need to do the inverse */
     inverseMatrix(E.data(), psph.B.data());
@@ -144,27 +141,27 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
     for (auto i = 0; i < nSmooth; ++i) {
         if (&p == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
-        const auto &qv = q.velocity();
-        auto &qsph = q.sph();
+        const auto& qv = q.velocity();
+        auto& qsph = q.sph();
 
         /* Vector from p to q; i.e., rq - rp */
-        const TinyVector<double,3> dr{-nnList[i].dr};
+        const TinyVector<double, 3> dr{-nnList[i].dr};
 
         const double rpq = sqrt(nnList[i].fDist2);
-        const auto &Hpq = pH;
+        const auto& Hpq = pH;
         const double Wpq = cubicSplineKernel(rpq, Hpq);
-        const double psi = Wpq/psph.omega;
+        const double psi = Wpq / psph.omega;
 
-        TinyVector<double,3> psiTilde_p;
-        psiTilde_p[0] = dot(dr, TinyVector<double,3> {psph.B[XX],psph.B[XY],psph.B[XZ]}) * psi;
-        psiTilde_p[1] = dot(dr, TinyVector<double,3> {psph.B[XY],psph.B[YY],psph.B[YZ]}) * psi;
-        psiTilde_p[2] = dot(dr, TinyVector<double,3> {psph.B[XZ],psph.B[YZ],psph.B[ZZ]}) * psi;
+        TinyVector<double, 3> psiTilde_p;
+        psiTilde_p[0] = dot(dr, TinyVector<double, 3>{psph.B[XX], psph.B[XY], psph.B[XZ]}) * psi;
+        psiTilde_p[1] = dot(dr, TinyVector<double, 3>{psph.B[XY], psph.B[YY], psph.B[YZ]}) * psi;
+        psiTilde_p[2] = dot(dr, TinyVector<double, 3>{psph.B[XZ], psph.B[YZ], psph.B[ZZ]}) * psi;
 
         psph.gradRho += psiTilde_p * (q.density() - p.density());
-        psph.gradVx  += psiTilde_p * (qv[0] - pv[0]);
-        psph.gradVy  += psiTilde_p * (qv[1] - pv[1]);
-        psph.gradVz  += psiTilde_p * (qv[2] - pv[2]);
-        psph.gradP   += psiTilde_p * (qsph.P - psph.P);
+        psph.gradVx += psiTilde_p * (qv[0] - pv[0]);
+        psph.gradVy += psiTilde_p * (qv[1] - pv[1]);
+        psph.gradVz += psiTilde_p * (qv[2] - pv[2]);
+        psph.gradP += psiTilde_p * (qsph.P - psph.P);
 
         rho_min = std::min(rho_min, static_cast<double>(q.density()));
         rho_max = std::max(rho_max, static_cast<double>(q.density()));
@@ -187,33 +184,33 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
     /* Now we can limit the gradients */
     double beta = 1.;
     if (smf->bConditionedBarthJespersen) {
-        beta = std::max(1.,2.*std::min(1.,10./psph.Ncond));
+        beta = std::max(1., 2. * std::min(1., 10. / psph.Ncond));
     }
 
     if (smf->bStricterSlopeLimiter) {
         max_face_dist *= 0.5;
         double var_max_extrap, c_fac;
 
-        var_max_extrap = sqrt(dot(psph.gradRho,psph.gradRho)) * max_face_dist;
-        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, var_max_extrap, beta);
+        var_max_extrap = sqrt(dot(psph.gradRho, psph.gradRho)) * max_face_dist;
+        psph.gradRho *= BarthJespersenLimiter(rho_max - p.density(), p.density() - rho_min, var_max_extrap, beta);
 
-        var_max_extrap = sqrt(dot(psph.gradVx,psph.gradVx)) * max_face_dist;
-        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, var_max_extrap, beta);
+        var_max_extrap = sqrt(dot(psph.gradVx, psph.gradVx)) * max_face_dist;
+        psph.gradVx *= BarthJespersenLimiter(vx_max - pv[0], pv[0] - vx_min, var_max_extrap, beta);
         c_fac = psph.c / var_max_extrap;
         if (c_fac < 1.) psph.gradVx *= c_fac;
 
-        var_max_extrap = sqrt(dot(psph.gradVy,psph.gradVy)) * max_face_dist;
-        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, var_max_extrap, beta);
+        var_max_extrap = sqrt(dot(psph.gradVy, psph.gradVy)) * max_face_dist;
+        psph.gradVy *= BarthJespersenLimiter(vy_max - pv[1], pv[1] - vy_min, var_max_extrap, beta);
         c_fac = psph.c / var_max_extrap;
         if (c_fac < 1.) psph.gradVy *= c_fac;
 
-        var_max_extrap = sqrt(dot(psph.gradVz,psph.gradVz)) * max_face_dist;
-        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, var_max_extrap, beta);
+        var_max_extrap = sqrt(dot(psph.gradVz, psph.gradVz)) * max_face_dist;
+        psph.gradVz *= BarthJespersenLimiter(vz_max - pv[2], pv[2] - vz_min, var_max_extrap, beta);
         c_fac = psph.c / var_max_extrap;
         if (c_fac < 1.) psph.gradVz *= c_fac;
 
-        var_max_extrap = sqrt(dot(psph.gradP,psph.gradP)) * max_face_dist;
-        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, var_max_extrap, beta);
+        var_max_extrap = sqrt(dot(psph.gradP, psph.gradP)) * max_face_dist;
+        psph.gradP *= BarthJespersenLimiter(p_max - psph.P, psph.P - p_min, var_max_extrap, beta);
     }
     else {
         /* We need an extra loop to compute the maximum and minimum extrapolation
@@ -225,7 +222,7 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
 
         for (auto i = 0; i < nSmooth; ++i) {
             /* Vector from p to the pq face */
-            const TinyVector<double,3> dr{-0.5*nnList[i].dr};
+            const TinyVector<double, 3> dr{-0.5 * nnList[i].dr};
 
             const auto rho_q_extrap = dot(dr, psph.gradRho);
             rho_min_extrap = std::min(rho_min_extrap, rho_q_extrap);
@@ -248,11 +245,11 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
             p_max_extrap = std::max(p_max_extrap, p_q_extrap);
         }
 
-        psph.gradRho *= BarthJespersenLimiter(rho_max-p.density(), p.density()-rho_min, rho_max_extrap, -rho_min_extrap, beta);
-        psph.gradVx *= BarthJespersenLimiter(vx_max-pv[0], pv[0]-vx_min, vx_max_extrap, -vx_min_extrap, beta);
-        psph.gradVy *= BarthJespersenLimiter(vy_max-pv[1], pv[1]-vy_min, vy_max_extrap, -vy_min_extrap, beta);
-        psph.gradVz *= BarthJespersenLimiter(vz_max-pv[2], pv[2]-vz_min, vz_max_extrap, -vz_min_extrap, beta);
-        psph.gradP *= BarthJespersenLimiter(p_max-psph.P, psph.P-p_min, p_max_extrap, -p_min_extrap, beta);
+        psph.gradRho *= BarthJespersenLimiter(rho_max - p.density(), p.density() - rho_min, rho_max_extrap, -rho_min_extrap, beta);
+        psph.gradVx *= BarthJespersenLimiter(vx_max - pv[0], pv[0] - vx_min, vx_max_extrap, -vx_min_extrap, beta);
+        psph.gradVy *= BarthJespersenLimiter(vy_max - pv[1], pv[1] - vy_min, vy_max_extrap, -vy_min_extrap, beta);
+        psph.gradVz *= BarthJespersenLimiter(vz_max - pv[2], pv[2] - vz_min, vz_max_extrap, -vz_min_extrap, beta);
+        psph.gradP *= BarthJespersenLimiter(p_max - psph.P, psph.P - p_min, p_max_extrap, -p_min_extrap, beta);
 
         double c_fac;
         c_fac = psph.c / std::max(std::abs(vx_min_extrap), std::abs(vx_max_extrap));
@@ -266,4 +263,3 @@ void hydroGradients(particleStore::ParticleReference &p,float fBall,int nSmooth,
     }
     /* END OF LIMITER */
 }
-

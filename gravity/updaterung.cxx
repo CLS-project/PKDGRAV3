@@ -19,21 +19,21 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceUpdateRung::input>  || std::is_standard_layout_v<ServiceUpdateRung::input>);
+static_assert(std::is_void_v<ServiceUpdateRung::input> || std::is_standard_layout_v<ServiceUpdateRung::input>);
 static_assert(std::is_void_v<ServiceUpdateRung::output> || std::is_standard_layout_v<ServiceUpdateRung::output>);
 
-int ServiceUpdateRung::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto const &in = * static_cast<input *>(vin);
-    auto &out = * static_cast<output *>(vout);
+int ServiceUpdateRung::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto const& in = *static_cast<input*>(vin);
+    auto& out = *static_cast<output*>(vout);
     auto pkd = pst->plcl->pkd;
 
     assert(pkd->particles.present(PKD_FIELD::oNewRung) || !pkd->bNoParticleOrder);
     out = 0;
-    for (auto &p : pkd->particles) {
-        if ( p.is_active() ) {
-            if ( p.new_rung() >  in.uMaxRung ) p.set_new_rung(in.uMaxRung);
-            if ( p.new_rung() >= in.uMinRung ) p.set_rung(p.new_rung());
-            else if ( p.rung() > in.uMinRung ) p.set_rung(in.uMinRung);
+    for (auto& p : pkd->particles) {
+        if (p.is_active()) {
+            if (p.new_rung() > in.uMaxRung) p.set_new_rung(in.uMaxRung);
+            if (p.new_rung() >= in.uMinRung) p.set_rung(p.new_rung());
+            else if (p.rung() > in.uMinRung) p.set_rung(in.uMinRung);
         }
         out[p.rung()] += 1;
     }

@@ -17,12 +17,12 @@
 #include "TraversePST.h"
 
 class ServiceIgnoreSIGBUS : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "IgnoreSIGBUS";
     typedef void input;
     typedef void output;
-    explicit ServiceIgnoreSIGBUS(PST pst)
-        : TraversePST(pst,name) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceIgnoreSIGBUS(PST pst) : TraversePST(pst, name) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

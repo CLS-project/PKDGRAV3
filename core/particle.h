@@ -43,52 +43,46 @@
 #else
     #define IORDERBITS 43
 #endif
-#define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
+#define IORDERMAX ((((uint64_t)1) << IORDERBITS) - 1)
 
 #define IRUNGBITS 6
-#define IRUNGMAX ((1<<IRUNGBITS)-1)
+#define IRUNGMAX ((1 << IRUNGBITS) - 1)
 
 /* Regular particle with order and all the goodies */
 struct PARTICLE {
-    uint64_t  uRung      :  IRUNGBITS;
-    uint64_t  bMarked    :  1;
-    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
-    uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+    uint64_t uRung : IRUNGBITS;
+    uint64_t bMarked : 1;
+    uint64_t uNewRung : IRUNGBITS; /* Optional with bNewKDK + bMemUnordered */
+    uint64_t iClass : 8;           /* Optional with bMemUnordered */
+    uint64_t iOrder : IORDERBITS;  /* Optional with bMemUnordered */
 #ifdef NN_FLAG_IN_PARTICLE
-    uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
+    uint64_t bNNflag : 1; /* Neighbor of Neighbor of active flag */
 #endif
 };
-static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
+static_assert(sizeof(PARTICLE) == sizeof(uint64_t));
 
 /* Abbreviated particle header with group id */
-#define IGROUPBITS (32-IRUNGBITS-1)
-#define IGROUPMAX ((1<<IGROUPBITS)-1)
+#define IGROUPBITS (32 - IRUNGBITS - 1)
+#define IGROUPMAX ((1 << IGROUPBITS) - 1)
 
 typedef struct uparticle {
-    uint32_t  uRung      :  IRUNGBITS;
-    uint32_t  bMarked    :  1;
-    uint32_t  iGroup     :  IGROUPBITS;
+    uint32_t uRung : IRUNGBITS;
+    uint32_t bMarked : 1;
+    uint32_t iGroup : IGROUPBITS;
 } UPARTICLE;
-static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
+static_assert(sizeof(UPARTICLE) == sizeof(uint32_t));
 
 struct PARTCLASS {
-    float       fMass;    /* Particle mass */
-    float       fSoft;    /* Current softening */
-    int         iMat;     /* newSPH material id */
-    float       accFac;   /* Acceleration factor to facilitate fixed particles*/
+    float fMass;          /* Particle mass */
+    float fSoft;          /* Current softening */
+    int iMat;             /* newSPH material id */
+    float accFac;         /* Acceleration factor to facilitate fixed particles*/
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
-    auto key() const noexcept {
-        return std::tie(fMass, fSoft, iMat, accFac, eSpecies);
-    }
-    bool operator<(const PARTCLASS& rhs) const noexcept {
-        return key() < rhs.key();
-    }
-    bool operator==(const PARTCLASS& rhs) const noexcept {
-        return key() == rhs.key();
-    }
+    auto key() const noexcept { return std::tie(fMass, fSoft, iMat, accFac, eSpecies); }
+    bool operator<(const PARTCLASS& rhs) const noexcept { return key() < rhs.key(); }
+    bool operator==(const PARTCLASS& rhs) const noexcept { return key() == rhs.key(); }
     PARTCLASS() = default;
-    PARTCLASS(FIO_SPECIES eSpecies,float fMass,float fSoft,int iMat,float accFac)
+    PARTCLASS(FIO_SPECIES eSpecies, float fMass, float fSoft, int iMat, float accFac)
         : fMass(fMass), fSoft(fSoft), iMat(iMat), accFac(accFac), eSpecies(eSpecies) {}
 };
 static_assert(std::is_trivially_copyable_v<PARTCLASS>);
@@ -96,63 +90,39 @@ namespace sph {
 namespace hana = boost::hana;
 
 struct FIELDS {
-    BOOST_HANA_DEFINE_STRUCT(
-        FIELDS,
-        (float, Omega),        // Correction factor
-        (float, divv),         // Divergence of v
-        (float, u),            // Thermodynamical variable, can be T, A(s) or u
-        (float, uDot),         // Derivative of the thermodynamical variable
-        (float, cs),           // Sound speed
-        (float, P),            // Pressure
-        (float, oldRho),       // Rho corresponding to where u is at
-        (float, expImb2),      // exp(-imbalance^2)
-        (float, T),            // Temperature
-        (blitz::TinyVector<float,3>, vpred),  // predicted velocities
-        (int, maxGroupSize)  // Maximum group size for dynamic group sizes
+    BOOST_HANA_DEFINE_STRUCT(FIELDS, (float, Omega),               // Correction factor
+                             (float, divv),                        // Divergence of v
+                             (float, u),                           // Thermodynamical variable, can be T, A(s) or u
+                             (float, uDot),                        // Derivative of the thermodynamical variable
+                             (float, cs),                          // Sound speed
+                             (float, P),                           // Pressure
+                             (float, oldRho),                      // Rho corresponding to where u is at
+                             (float, expImb2),                     // exp(-imbalance^2)
+                             (float, T),                           // Temperature
+                             (blitz::TinyVector<float, 3>, vpred), // predicted velocities
+                             (int, maxGroupSize)                   // Maximum group size for dynamic group sizes
     );
 }; // FIELDS
 
 struct STRENGTHFIELDS {
-    BOOST_HANA_DEFINE_STRUCT(
-        STRENGTHFIELDS,
-        (float, Sxx),      // Deviatoric stress tensor (tracefree, symmetric)
-        (float, Syy),
-        (float, Sxy),
-        (float, Sxz),
-        (float, Syz),
-        (float, SDotxx),   // Time derivative of deviatoric stress tensor (tracefree, symmetric)
-        (float, SDotyy),
-        (float, SDotxy),
-        (float, SDotxz),
-        (float, SDotyz),
-        (float, Spredxx),  // Predicted deviatoric stress tensor (tracefree, symmetric)
-        (float, Spredyy),
-        (float, Spredxy),
-        (float, Spredxz),
-        (float, Spredyz),
-        (float, strainJ2) //J2 tensor invariant of the strain tensor
+    BOOST_HANA_DEFINE_STRUCT(STRENGTHFIELDS, (float, Sxx), // Deviatoric stress tensor (tracefree, symmetric)
+                             (float, Syy), (float, Sxy), (float, Sxz), (float, Syz),
+                             (float, SDotxx), // Time derivative of deviatoric stress tensor (tracefree, symmetric)
+                             (float, SDotyy), (float, SDotxy), (float, SDotxz), (float, SDotyz),
+                             (float, Spredxx), // Predicted deviatoric stress tensor (tracefree, symmetric)
+                             (float, Spredyy), (float, Spredxy), (float, Spredxz), (float, Spredyz),
+                             (float, strainJ2) // J2 tensor invariant of the strain tensor
     );
 }; // STRENGTHFIELDS
 
 struct PEAKPRESSUREFIELDS {
-    BOOST_HANA_DEFINE_STRUCT(
-        PEAKPRESSUREFIELDS,
-        (float, Ppeak),
-        (float, TAtPpeak),
-        (float, rhoAtPpeak),
-        (float, tAtPpeak)
-    );
+    BOOST_HANA_DEFINE_STRUCT(PEAKPRESSUREFIELDS, (float, Ppeak), (float, TAtPpeak), (float, rhoAtPpeak), (float, tAtPpeak));
 }; // PEAKPRESSUREFIELDS
 
-} // sph
+} // namespace sph
 
 struct VELSMOOTH {
-    BOOST_HANA_DEFINE_STRUCT(
-        VELSMOOTH,
-        (blitz::TinyVector<float,3>, vmean),
-        (float, divv),
-        (float, veldisp2)
-    );
+    BOOST_HANA_DEFINE_STRUCT(VELSMOOTH, (blitz::TinyVector<float, 3>, vmean), (float, divv), (float, veldisp2));
 };
 
 //! \brief Enumerates all of the optional fields in a PARTICLE
@@ -161,21 +131,21 @@ struct VELSMOOTH {
 //! The fields listed below can be added based on the memory model.
 enum PKD_FIELD {
     oPosition,
-    oVelocity, /* Three vel_t */
-    oAcceleration, /* Three float */
-    oPotential, /* One float */
-    oGroup, /* One int32 */
-    oMass, /* One float */
-    oSoft, /* One float */
-    oDensity, /* One float */
-    oBall, /* One float */
-    oSph, /* Sph structure */
-    oMFV, /* MFV structure */
-    oNewSph, /* NewSph structure */
-    oNewSphStr, /* NewSph strength structure */
+    oVelocity,           /* Three vel_t */
+    oAcceleration,       /* Three float */
+    oPotential,          /* One float */
+    oGroup,              /* One int32 */
+    oMass,               /* One float */
+    oSoft,               /* One float */
+    oDensity,            /* One float */
+    oBall,               /* One float */
+    oSph,                /* Sph structure */
+    oMFV,                /* MFV structure */
+    oNewSph,             /* NewSph structure */
+    oNewSphStr,          /* NewSph strength structure */
     oNewSphPeakPressure, /* NewSph peak pressure fields */
-    oStar, /* Star structure */
-    oBH, /* BH structure */
+    oStar,               /* Star structure */
+    oBH,                 /* BH structure */
     oVelSmooth,
     oRungDest, /* Destination processor for each rung */
     oParticleID,
@@ -186,17 +156,16 @@ enum PKD_FIELD {
     MAX_FIELD
 };
 
-
 //! \brief Array of particles (main storage).
 //!
 //! The particleStore provides functions to access elements of the particle array,
 //! and the individual fields of which there may be a varying number.
-class particleStore : public dataStore<PARTICLE,PKD_FIELD>, protected Integerize {
-protected:
+class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integerize {
+  protected:
     friend class Particle;
     bool bIntegerPosition = false;
     bool bNoParticleOrder = false;
-    decoratorStore *decorator;
+    decoratorStore* decorator;
     std::vector<PARTCLASS> ParticleClasses;
     float fSoftFix = -1.0;
     float fSoftFac = 1.0;
@@ -204,117 +173,114 @@ protected:
     typedef uint8_t rung_type;
     rung_type uMinRungActive = 0;
     rung_type uMaxRungActive = std::numeric_limits<rung_type>::max();
-public:
-    using coord = blitz::TinyVector<double,3>;
-    using icoord= blitz::TinyVector<int32_t,3>;
+
+  public:
+    using coord = blitz::TinyVector<double, 3>;
+    using icoord = blitz::TinyVector<int32_t, 3>;
     using Integerize::set_factor;
-    void PhysicalSoft(double dSoftMax,double dFac,int bSoftMaxMul) {
+    void PhysicalSoft(double dSoftMax, double dFac, int bSoftMaxMul) {
         fSoftFac = dFac;
         fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
     }
-    void SetSoft(double dSoft) {
-        fSoftFix = dSoft;
-    }
+    void SetSoft(double dSoft) { fSoftFix = dSoft; }
     void ActiveRung(int iRungMin, int iRungMax) {
         uMinRungActive = iRungMin;
         uMaxRungActive = iRungMax;
     }
-    void ActiveRung(int iRungMin=0) {
-        ActiveRung(iRungMin,std::numeric_limits<rung_type>::max());
-    }
+    void ActiveRung(int iRungMin = 0) { ActiveRung(iRungMin, std::numeric_limits<rung_type>::max()); }
 
     // Naming convention. If a field is always part of the particle, then we can return
     // a reference and we use the name of the field (e.g. density). If the field has to
     // be converted or can come from different places then we use dont't return a reference,
     // and one needs to use the set version to set (e.g. set_position).
-    coord position( PARTICLE *p ) const {
-        if (bIntegerPosition) return convert(get<int32_t[3]>(p,PKD_FIELD::oPosition));
-        else return get<double[3]>(p,PKD_FIELD::oPosition);
+    coord position(PARTICLE* p) const {
+        if (bIntegerPosition) return convert(get<int32_t[3]>(p, PKD_FIELD::oPosition));
+        else return get<double[3]>(p, PKD_FIELD::oPosition);
     }
-    double position( const PARTICLE *p, int d ) const {
-        if (bIntegerPosition) return convert(get<int32_t[3]>(p,PKD_FIELD::oPosition)[d]);
-        else return get<double[3]>(p,PKD_FIELD::oPosition)[d];
+    double position(const PARTICLE* p, int d) const {
+        if (bIntegerPosition) return convert(get<int32_t[3]>(p, PKD_FIELD::oPosition)[d]);
+        else return get<double[3]>(p, PKD_FIELD::oPosition)[d];
     }
-    void set_position( PARTICLE *p, coord r ) const {
-        if (bIntegerPosition) get<int32_t[3]>(p,PKD_FIELD::oPosition) = convert(r);
-        else get<double[3]>(p,PKD_FIELD::oPosition) = r;
+    void set_position(PARTICLE* p, coord r) const {
+        if (bIntegerPosition) get<int32_t[3]>(p, PKD_FIELD::oPosition) = convert(r);
+        else get<double[3]>(p, PKD_FIELD::oPosition) = r;
     }
-    float mass( const PARTICLE *p ) const {
+    float mass(const PARTICLE* p) const {
         if (present(PKD_FIELD::oMass)) {
-            return get<float>(p,PKD_FIELD::oMass);
+            return get<float>(p, PKD_FIELD::oMass);
         }
         else if (bNoParticleOrder) return ParticleClasses[0].fMass;
         else return ParticleClasses[p->iClass].fMass;
     }
-    void set_mass( PARTICLE *p, float mass ) const {
+    void set_mass(PARTICLE* p, float mass) const {
         assert(present(PKD_FIELD::oMass));
-        get<float>(p,PKD_FIELD::oMass) = mass;
+        get<float>(p, PKD_FIELD::oMass) = mass;
     }
-    uint32_t group(const PARTICLE *p ) const {
-        if (bNoParticleOrder) return reinterpret_cast<const UPARTICLE *>(p)->iGroup;
-        return get<int32_t>(p,PKD_FIELD::oGroup);
+    uint32_t group(const PARTICLE* p) const {
+        if (bNoParticleOrder) return reinterpret_cast<const UPARTICLE*>(p)->iGroup;
+        return get<int32_t>(p, PKD_FIELD::oGroup);
     }
-    void set_group( PARTICLE *p, uint32_t gid ) const {
-        if (bNoParticleOrder) reinterpret_cast<UPARTICLE *>(p)->iGroup = gid;
-        else if (present(PKD_FIELD::oGroup)) get<int32_t>(p,PKD_FIELD::oGroup) = gid;
+    void set_group(PARTICLE* p, uint32_t gid) const {
+        if (bNoParticleOrder) reinterpret_cast<UPARTICLE*>(p)->iGroup = gid;
+        else if (present(PKD_FIELD::oGroup)) get<int32_t>(p, PKD_FIELD::oGroup) = gid;
     }
-    uint8_t newrung(const PARTICLE *p ) const {
-        if (!bNoParticleOrder) return reinterpret_cast<const PARTICLE *>(p)->uNewRung;
-        return get<uint8_t>(p,PKD_FIELD::oNewRung);
+    uint8_t newrung(const PARTICLE* p) const {
+        if (!bNoParticleOrder) return reinterpret_cast<const PARTICLE*>(p)->uNewRung;
+        return get<uint8_t>(p, PKD_FIELD::oNewRung);
     }
-    void set_newrung( PARTICLE *p, uint8_t rung ) const {
-        if (!bNoParticleOrder) reinterpret_cast<PARTICLE *>(p)->uNewRung = rung;
-        else if (present(PKD_FIELD::oNewRung)) get<uint8_t>(p,PKD_FIELD::oNewRung) = rung;
+    void set_newrung(PARTICLE* p, uint8_t rung) const {
+        if (!bNoParticleOrder) reinterpret_cast<PARTICLE*>(p)->uNewRung = rung;
+        else if (present(PKD_FIELD::oNewRung)) get<uint8_t>(p, PKD_FIELD::oNewRung) = rung;
     }
-    template<typename T>
-    auto &raw_position( PARTICLE *p ) const {
-        return get<T[3]>(p,PKD_FIELD::oPosition);
+    template <typename T>
+    auto& raw_position(PARTICLE* p) const {
+        return get<T[3]>(p, PKD_FIELD::oPosition);
     }
-    template<typename T>
-    auto &raw_position( PARTICLE *p, int i ) const {
-        return get<T[3]>(p,PKD_FIELD::oPosition)[i];
+    template <typename T>
+    auto& raw_position(PARTICLE* p, int i) const {
+        return get<T[3]>(p, PKD_FIELD::oPosition)[i];
     }
-    const auto &velocity(     const PARTICLE *p ) const {return get<float[3]>(p,PKD_FIELD::oVelocity);}
-    auto       &velocity(           PARTICLE *p ) const {return get<float[3]>(p,PKD_FIELD::oVelocity);}
-    const auto &acceleration( const PARTICLE *p ) const {return get<float[3]>(p,PKD_FIELD::oAcceleration);}
-    auto       &acceleration(       PARTICLE *p ) const {return get<float[3]>(p,PKD_FIELD::oAcceleration);}
-    auto       &potential(          PARTICLE *p ) const {return get<float>(p,PKD_FIELD::oPotential);}
-    const auto &potential(    const PARTICLE *p ) const {return get<float>(p,PKD_FIELD::oPotential);}
-    auto       &density(            PARTICLE *p ) const {return get<float>(p,PKD_FIELD::oDensity);}
-    const auto &density(      const PARTICLE *p ) const {return get<float>(p,PKD_FIELD::oDensity);}
-    auto       &ball(               PARTICLE *p ) const {return get<float>(p,PKD_FIELD::oBall);}
-    const auto &ball(         const PARTICLE *p ) const {return get<float>(p,PKD_FIELD::oBall);}
-    auto       &global_gid(         PARTICLE *p ) const {return get<int64_t>(p,PKD_FIELD::oGlobalGid);}
-    const auto &global_gid(   const PARTICLE *p ) const {return get<int64_t>(p,PKD_FIELD::oGlobalGid);}
-    auto       &ParticleID(         PARTICLE *p ) const {return get<uint64_t>(p,PKD_FIELD::oParticleID);}
-    const auto &ParticleID(   const PARTICLE *p ) const {return get<uint64_t>(p,PKD_FIELD::oParticleID);}
-    auto       &RungDest(           PARTICLE *p ) const {return get<uint16_t[8]>(p,PKD_FIELD::oRungDest);}
-    const auto &RungDest(     const PARTICLE *p ) const {return get<uint16_t[8]>(p,PKD_FIELD::oRungDest);}
-    auto       &VelSmooth(          PARTICLE *p ) const {return get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);}
-    const auto &VelSmooth(    const PARTICLE *p ) const {return get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);}
+    const auto& velocity(const PARTICLE* p) const { return get<float[3]>(p, PKD_FIELD::oVelocity); }
+    auto& velocity(PARTICLE* p) const { return get<float[3]>(p, PKD_FIELD::oVelocity); }
+    const auto& acceleration(const PARTICLE* p) const { return get<float[3]>(p, PKD_FIELD::oAcceleration); }
+    auto& acceleration(PARTICLE* p) const { return get<float[3]>(p, PKD_FIELD::oAcceleration); }
+    auto& potential(PARTICLE* p) const { return get<float>(p, PKD_FIELD::oPotential); }
+    const auto& potential(const PARTICLE* p) const { return get<float>(p, PKD_FIELD::oPotential); }
+    auto& density(PARTICLE* p) const { return get<float>(p, PKD_FIELD::oDensity); }
+    const auto& density(const PARTICLE* p) const { return get<float>(p, PKD_FIELD::oDensity); }
+    auto& ball(PARTICLE* p) const { return get<float>(p, PKD_FIELD::oBall); }
+    const auto& ball(const PARTICLE* p) const { return get<float>(p, PKD_FIELD::oBall); }
+    auto& global_gid(PARTICLE* p) const { return get<int64_t>(p, PKD_FIELD::oGlobalGid); }
+    const auto& global_gid(const PARTICLE* p) const { return get<int64_t>(p, PKD_FIELD::oGlobalGid); }
+    auto& ParticleID(PARTICLE* p) const { return get<uint64_t>(p, PKD_FIELD::oParticleID); }
+    const auto& ParticleID(const PARTICLE* p) const { return get<uint64_t>(p, PKD_FIELD::oParticleID); }
+    auto& RungDest(PARTICLE* p) const { return get<uint16_t[8]>(p, PKD_FIELD::oRungDest); }
+    const auto& RungDest(const PARTICLE* p) const { return get<uint16_t[8]>(p, PKD_FIELD::oRungDest); }
+    auto& VelSmooth(PARTICLE* p) const { return get<VELSMOOTH>(p, PKD_FIELD::oVelSmooth); }
+    const auto& VelSmooth(const PARTICLE* p) const { return get<VELSMOOTH>(p, PKD_FIELD::oVelSmooth); }
 
-    float soft0( const PARTICLE *p ) const {
+    float soft0(const PARTICLE* p) const {
         if (present(PKD_FIELD::oSoft)) {
-            return get<float>(p,PKD_FIELD::oSoft);
+            return get<float>(p, PKD_FIELD::oSoft);
         }
         else if (bNoParticleOrder) return ParticleClasses[0].fSoft;
         else return ParticleClasses[p->iClass].fSoft;
     }
     float fixedsoft() const { return fSoftFix; }
-    float soft( const PARTICLE *p ) const {
+    float soft(const PARTICLE* p) const {
         float fSoft = fSoftFac * (fSoftFix >= 0.0 ? fSoftFix : soft0(p));
-        if ( fSoft > fSoftMax ) fSoft = fSoftMax;
+        if (fSoft > fSoftMax) fSoft = fSoftMax;
         return fSoft;
     }
-    FIO_SPECIES species( PARTICLE *p ) const {
+    FIO_SPECIES species(PARTICLE* p) const {
         if (bNoParticleOrder) return ParticleClasses[0].eSpecies;
         else return ParticleClasses[p->iClass].eSpecies;
     }
-    int iMat( PARTICLE *p) const {
+    int iMat(PARTICLE* p) const {
         if (bNoParticleOrder) return ParticleClasses[0].iMat;
         else return ParticleClasses[p->iClass].iMat;
     }
-    float accFac( PARTICLE *p) const {
+    float accFac(PARTICLE* p) const {
         if (bNoParticleOrder) return ParticleClasses[0].accFac;
         else return ParticleClasses[p->iClass].accFac;
     }
@@ -327,244 +293,208 @@ public:
         return materials;
     }
 
-    void set_density( PARTICLE *p, float fDensity ) const {
-        if (present(PKD_FIELD::oDensity)) get<float>(p,PKD_FIELD::oDensity) = fDensity;
+    void set_density(PARTICLE* p, float fDensity) const {
+        if (present(PKD_FIELD::oDensity)) get<float>(p, PKD_FIELD::oDensity) = fDensity;
     }
-    void set_ball(PARTICLE *p, float fBall) const {
-        if (present(PKD_FIELD::oBall)) get<float>(p,PKD_FIELD::oBall) = fBall;
+    void set_ball(PARTICLE* p, float fBall) const {
+        if (present(PKD_FIELD::oBall)) get<float>(p, PKD_FIELD::oBall) = fBall;
     }
-    uint64_t decorator_index( PARTICLE *p ) const {
-        auto d = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
+    uint64_t decorator_index(PARTICLE* p) const {
+        auto d = get<decorators::FIELDS*>(p, PKD_FIELD::oDecorator);
         return decorator->DecoratorIndex(d);
     }
-    void set_decorator_index( PARTICLE *p, uint64_t index ) const {
+    void set_decorator_index(PARTICLE* p, uint64_t index) const {
         if (present(PKD_FIELD::oDecorator)) {
-            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = decorator->Element(index);
+            get<decorators::FIELDS*>(p, PKD_FIELD::oDecorator) = decorator->Element(index);
         }
     }
-    void set_decorator( PARTICLE *p, decorators::FIELDS *d ) const {
+    void set_decorator(PARTICLE* p, decorators::FIELDS* d) const {
         if (present(PKD_FIELD::oDecorator)) {
-            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = d;
+            get<decorators::FIELDS*>(p, PKD_FIELD::oDecorator) = d;
         }
     }
     /* Set the adjacent memory space at the end of the particle struct to be
      * the decorator, similar to the "old" particle information. This is useful
      * when caching together the decorator and the particles
      */
-    void set_adj_decorator( PARTICLE *p) const {
+    void set_adj_decorator(PARTICLE* p) const {
         if (present(PKD_FIELD::oDecorator)) {
-            get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator) = nullptr;
+            get<decorators::FIELDS*>(p, PKD_FIELD::oDecorator) = nullptr;
         }
     }
-    auto decorator_field( PARTICLE *p ) const {
-        auto pdec = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
-        return pdec ? pdec : reinterpret_cast<decorators::FIELDS *>(reinterpret_cast<char *>(p) + ElementSize());
+    auto decorator_field(PARTICLE* p) const {
+        auto pdec = get<decorators::FIELDS*>(p, PKD_FIELD::oDecorator);
+        return pdec ? pdec : reinterpret_cast<decorators::FIELDS*>(reinterpret_cast<char*>(p) + ElementSize());
     }
-    const auto decorator_field( PARTICLE const *p ) const {
-        auto pdec = get<decorators::FIELDS *>(p, PKD_FIELD::oDecorator);
-        return pdec ? pdec : reinterpret_cast<decorators::FIELDS *>(reinterpret_cast<char *>(const_cast<PARTICLE *>(p)) + ElementSize());
+    const auto decorator_field(PARTICLE const* p) const {
+        auto pdec = get<decorators::FIELDS*>(p, PKD_FIELD::oDecorator);
+        return pdec ? pdec : reinterpret_cast<decorators::FIELDS*>(reinterpret_cast<char*>(const_cast<PARTICLE*>(p)) + ElementSize());
     }
     /* Sph variables */
     /* TO BE RENAMED TO MFM */
-    auto &sph( PARTICLE *p ) const {
+    auto& sph(PARTICLE* p) const {
         auto d = decorator_field(p);
-        return decorator->get<decorators::MFM>(
-                   d, DECORATOR_FIELD::oMFM
-               );
+        return decorator->get<decorators::MFM>(d, DECORATOR_FIELD::oMFM);
     }
-    const auto &sph( const PARTICLE *p ) const {
+    const auto& sph(const PARTICLE* p) const {
         auto d = decorator_field(p);
-        return decorator->get<decorators::MFM>(
-                   d, DECORATOR_FIELD::oMFM
-               );
+        return decorator->get<decorators::MFM>(d, DECORATOR_FIELD::oMFM);
     }
-    auto &mfv( PARTICLE *p ) const {
+    auto& mfv(PARTICLE* p) const {
         auto d = decorator_field(p);
-        return decorator->get<decorators::MFV>(
-                   d, DECORATOR_FIELD::oMFV
-               );
+        return decorator->get<decorators::MFV>(d, DECORATOR_FIELD::oMFV);
     }
-    const auto &mfv( const PARTICLE *p ) const {
+    const auto& mfv(const PARTICLE* p) const {
         auto d = decorator_field(p);
-        return decorator->get<decorators::MFV>(
-                   d, DECORATOR_FIELD::oMFV
-               );
+        return decorator->get<decorators::MFV>(d, DECORATOR_FIELD::oMFV);
     }
     /* NewSph variables */
-    auto &newsph( PARTICLE *p ) const {
-        return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
-    }
-    const auto &newsph( const PARTICLE *p ) const {
-        return get<sph::FIELDS>(p,PKD_FIELD::oNewSph);
-    }
+    auto& newsph(PARTICLE* p) const { return get<sph::FIELDS>(p, PKD_FIELD::oNewSph); }
+    const auto& newsph(const PARTICLE* p) const { return get<sph::FIELDS>(p, PKD_FIELD::oNewSph); }
 
     /* NewSphStrength variables */
-    auto &newsphstr( PARTICLE *p ) const {
-        return get<sph::STRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
-    }
-    const auto &newsphstr( const PARTICLE *p ) const {
-        return get<sph::STRENGTHFIELDS>(p,PKD_FIELD::oNewSphStr);
-    }
+    auto& newsphstr(PARTICLE* p) const { return get<sph::STRENGTHFIELDS>(p, PKD_FIELD::oNewSphStr); }
+    const auto& newsphstr(const PARTICLE* p) const { return get<sph::STRENGTHFIELDS>(p, PKD_FIELD::oNewSphStr); }
 
     /* NewSphStrength variables */
-    auto &newsphpeakp( PARTICLE *p ) const {
-        return get<sph::PEAKPRESSUREFIELDS>(p,PKD_FIELD::oNewSphPeakPressure);
-    }
-    const auto &newsphpeakp( const PARTICLE *p ) const {
-        return get<sph::PEAKPRESSUREFIELDS>(p,PKD_FIELD::oNewSphPeakPressure);
-    }
+    auto& newsphpeakp(PARTICLE* p) const { return get<sph::PEAKPRESSUREFIELDS>(p, PKD_FIELD::oNewSphPeakPressure); }
+    const auto& newsphpeakp(const PARTICLE* p) const { return get<sph::PEAKPRESSUREFIELDS>(p, PKD_FIELD::oNewSphPeakPressure); }
 
-    auto &star( PARTICLE *p ) const {
+    auto& star(PARTICLE* p) const {
         auto d = decorator_field(p);
-        return decorator->get<decorators::STAR>(
-                   d, DECORATOR_FIELD::oStar
-               );
+        return decorator->get<decorators::STAR>(d, DECORATOR_FIELD::oStar);
     }
-    const auto &star( const PARTICLE *p ) const {
+    const auto& star(const PARTICLE* p) const {
         auto d = decorator_field(p);
-        return decorator->get<decorators::STAR>(
-                   d, DECORATOR_FIELD::oStar
-               );
+        return decorator->get<decorators::STAR>(d, DECORATOR_FIELD::oStar);
     }
-    auto &BH( PARTICLE *p ) const {
+    auto& BH(PARTICLE* p) const {
         auto d = decorator_field(p);
-        return decorator->get<decorators::BLACKHOLE>(
-                   d, DECORATOR_FIELD::oBH
-               );
+        return decorator->get<decorators::BLACKHOLE>(d, DECORATOR_FIELD::oBH);
     }
-    const auto &BH( const PARTICLE *p ) const {
+    const auto& BH(const PARTICLE* p) const {
         auto d = decorator_field(p);
-        return decorator->get<decorators::BLACKHOLE>(
-                   d, DECORATOR_FIELD::oBH
-               );
+        return decorator->get<decorators::BLACKHOLE>(d, DECORATOR_FIELD::oBH);
     }
-    auto Timer( PARTICLE *p ) const {
-        return &get<decorators::STAR>(p,PKD_FIELD::oStar).fTimer;
-    }
-    auto is_deleted(PARTICLE *p) const {
-        return (species(p) == FIO_SPECIES_UNKNOWN);
-    }
-    auto isNew(PARTICLE *p) const {
-        return (p->iOrder == IORDERMAX);
-    }
-    bool isMarked(PARTICLE *p) const {
-        return p->bMarked;
-    }
-    uint8_t rung(PARTICLE *p) const { return p->uRung; }
-    bool is_rung_range(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) const {
-        return ((p->uRung >= uRungLo)&&(p->uRung <= uRungHi));
-    }
-    bool is_active(PARTICLE *p) const {
-        return is_rung_range(p,uMinRungActive,uMaxRungActive);
-    }
-public:
+    auto Timer(PARTICLE* p) const { return &get<decorators::STAR>(p, PKD_FIELD::oStar).fTimer; }
+    auto is_deleted(PARTICLE* p) const { return (species(p) == FIO_SPECIES_UNKNOWN); }
+    auto isNew(PARTICLE* p) const { return (p->iOrder == IORDERMAX); }
+    bool isMarked(PARTICLE* p) const { return p->bMarked; }
+    uint8_t rung(PARTICLE* p) const { return p->uRung; }
+    bool is_rung_range(PARTICLE* p, uint8_t uRungLo, uint8_t uRungHi) const { return ((p->uRung >= uRungLo) && (p->uRung <= uRungHi)); }
+    bool is_active(PARTICLE* p) const { return is_rung_range(p, uMinRungActive, uMaxRungActive); }
+
+  public:
     /// @brief Proxy object for a particle
     ///
     /// A particle in pkdgrav3 has a variable size which is tracked with a series of offsets.
     /// This class keeps track of the pointer to the particle, and a reference to the particle layout
     /// which is kept in the particle store.
-    class Particle : public SingleElement<PARTICLE,particleStore> {
-    public:
+    class Particle : public SingleElement<PARTICLE, particleStore> {
+      public:
         using SingleElement::SingleElement;
-    public:
-        using coord = blitz::TinyVector<double,3>;
-        using icoord= blitz::TinyVector<int32_t,3>;
-        bool have_position()     const {return have(PKD_FIELD::oPosition);}
-        bool have_velocity()     const {return have(PKD_FIELD::oVelocity);}
-        bool have_acceleration() const {return have(PKD_FIELD::oAcceleration);}
-        bool have_potential()    const {return have(PKD_FIELD::oPotential);}
-        bool have_mfm()          const {return store().decorator->present(DECORATOR_FIELD::oMFM);}
-        bool have_mfv()          const {return store().decorator->present(DECORATOR_FIELD::oMFV);}
-        bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
-        bool have_newsphstr()    const {return have(PKD_FIELD::oNewSphStr);}
-        bool have_newsphpeakp()  const {return have(PKD_FIELD::oNewSphPeakPressure);}
-        bool have_star()         const {return store().decorator->present(DECORATOR_FIELD::oStar);}
-        bool have_ball()         const {return have(PKD_FIELD::oBall);}
-        bool have_mass()         const {return have(PKD_FIELD::oMass);}
-        bool have_group()        const {return have(PKD_FIELD::oGroup);}
-        bool have_soft()         const {return have(PKD_FIELD::oSoft);}
-        bool have_density()      const {return have(PKD_FIELD::oDensity);}
-        bool have_bh()           const {return store().decorator->present(DECORATOR_FIELD::oBH);}
-        bool have_vel_smooth()   const {return have(PKD_FIELD::oVelSmooth);}
-        bool have_rung_dest()    const {return have(PKD_FIELD::oRungDest);}
-        bool have_particle_id()  const {return have(PKD_FIELD::oParticleID);}
-        bool have_global_gid()   const {return have(PKD_FIELD::oGlobalGid);}
 
-        auto position()          const {return store().position(p); }
-        auto position(int d)     const {return store().position(p,d); }
-        auto mass()              const {return store().mass(p);}
-        auto group()             const {return store().group(p);}
-        bool marked()            const {return p->bMarked;}
-        uint8_t rung()           const {return p->uRung;}
-        uint8_t new_rung()       const {return store().newrung(p);}
-        uint8_t get_class()      const {return p->iClass;}
-        uint64_t order()         const {return p->iOrder;}
+      public:
+        using coord = blitz::TinyVector<double, 3>;
+        using icoord = blitz::TinyVector<int32_t, 3>;
+        bool have_position() const { return have(PKD_FIELD::oPosition); }
+        bool have_velocity() const { return have(PKD_FIELD::oVelocity); }
+        bool have_acceleration() const { return have(PKD_FIELD::oAcceleration); }
+        bool have_potential() const { return have(PKD_FIELD::oPotential); }
+        bool have_mfm() const { return store().decorator->present(DECORATOR_FIELD::oMFM); }
+        bool have_mfv() const { return store().decorator->present(DECORATOR_FIELD::oMFV); }
+        bool have_newsph() const { return have(PKD_FIELD::oNewSph); }
+        bool have_newsphstr() const { return have(PKD_FIELD::oNewSphStr); }
+        bool have_newsphpeakp() const { return have(PKD_FIELD::oNewSphPeakPressure); }
+        bool have_star() const { return store().decorator->present(DECORATOR_FIELD::oStar); }
+        bool have_ball() const { return have(PKD_FIELD::oBall); }
+        bool have_mass() const { return have(PKD_FIELD::oMass); }
+        bool have_group() const { return have(PKD_FIELD::oGroup); }
+        bool have_soft() const { return have(PKD_FIELD::oSoft); }
+        bool have_density() const { return have(PKD_FIELD::oDensity); }
+        bool have_bh() const { return store().decorator->present(DECORATOR_FIELD::oBH); }
+        bool have_vel_smooth() const { return have(PKD_FIELD::oVelSmooth); }
+        bool have_rung_dest() const { return have(PKD_FIELD::oRungDest); }
+        bool have_particle_id() const { return have(PKD_FIELD::oParticleID); }
+        bool have_global_gid() const { return have(PKD_FIELD::oGlobalGid); }
+
+        auto position() const { return store().position(p); }
+        auto position(int d) const { return store().position(p, d); }
+        auto mass() const { return store().mass(p); }
+        auto group() const { return store().group(p); }
+        bool marked() const { return p->bMarked; }
+        uint8_t rung() const { return p->uRung; }
+        uint8_t new_rung() const { return store().newrung(p); }
+        uint8_t get_class() const { return p->iClass; }
+        uint64_t order() const { return p->iOrder; }
 #ifdef NN_FLAG_IN_PARTICLE
-        bool NN_flag()           const {return p->bNNflag;}
-        bool set_NN_flag(bool bFlag)    const {return (p->bNNflag = bFlag);}
+        bool NN_flag() const { return p->bNNflag; }
+        bool set_NN_flag(bool bFlag) const { return (p->bNNflag = bFlag); }
 #else
-        bool NN_flag()           const {return false;}
-        void set_NN_flag(bool bFlag)    const {}
+        bool NN_flag() const { return false; }
+        void set_NN_flag(bool bFlag) const {}
 #endif
-        void set_position(coord r)      const {store().set_position(p,r);}
-        void set_mass( float mass)      const {store().set_mass(p,mass);}
-        void set_group( uint32_t gid )  const {store().set_group(p,gid); }
-        bool set_marked(bool bMarked)   const {return (p->bMarked = bMarked);}
-        auto set_rung(uint8_t uRung)    const {return (p->uRung = uRung);}
-        auto set_new_rung(uint8_t uRung)const {store().set_newrung(p, uRung);}
-        auto set_class(uint8_t uClass)  const {return (p->iClass = uClass);}
-        void set_class( float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies) {
-            store().setClass(fMass,fSoft,iMat,accFac,eSpecies,p);
+        void set_position(coord r) const { store().set_position(p, r); }
+        void set_mass(float mass) const { store().set_mass(p, mass); }
+        void set_group(uint32_t gid) const { store().set_group(p, gid); }
+        bool set_marked(bool bMarked) const { return (p->bMarked = bMarked); }
+        auto set_rung(uint8_t uRung) const { return (p->uRung = uRung); }
+        auto set_new_rung(uint8_t uRung) const { store().set_newrung(p, uRung); }
+        auto set_class(uint8_t uClass) const { return (p->iClass = uClass); }
+        void set_class(float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies) { store().setClass(fMass, fSoft, iMat, accFac, eSpecies, p); }
+        auto set_order(uint64_t uOrder) const { return (p->iOrder = uOrder); }
+
+        template <typename T>
+        auto& raw_position() const {
+            return store().raw_position<T>(p);
         }
-        auto set_order(uint64_t uOrder) const {return (p->iOrder = uOrder);}
+        template <typename T>
+        auto& raw_position(int i) const {
+            return store().raw_position<T>(p, i);
+        }
+        auto& velocity() const { return store().velocity(p); }
+        auto& acceleration() const { return store().acceleration(p); }
+        auto& potential() const { return store().potential(p); }
+        auto& density() const { return store().density(p); }
+        auto& ball() const { return store().ball(p); }
+        auto& global_gid() const { return store().global_gid(p); }
+        auto& ParticleID() const { return store().ParticleID(p); }
+        auto& RungDest() const { return store().RungDest(p); }
+        auto& VelSmooth() const { return store().VelSmooth(p); }
 
-        template<typename T>
-        auto &raw_position()        const {return store().raw_position<T>(p);}
-        template<typename T>
-        auto &raw_position(int i)   const {return store().raw_position<T>(p,i);}
-        auto &velocity()            const {return store().velocity(p);}
-        auto &acceleration()        const {return store().acceleration(p);}
-        auto &potential()           const {return store().potential(p);}
-        auto &density()             const {return store().density(p);}
-        auto &ball()                const {return store().ball(p);}
-        auto &global_gid()          const {return store().global_gid(p); }
-        auto &ParticleID()          const {return store().ParticleID(p); }
-        auto &RungDest()            const {return store().RungDest(p); }
-        auto &VelSmooth()           const {return store().VelSmooth(p); }
+        auto soft() const { return store().soft(p); }
+        auto soft0() const { return store().soft0(p); }
+        auto species() const { return store().species(p); }
+        auto imaterial() const { return store().iMat(p); }
+        auto accFac() const { return store().accFac(p); }
+        auto& sph() const { return store().sph(p); }
+        auto& mfv() const { return store().mfv(p); }
+        auto& newsph() const { return store().newsph(p); }
+        auto& newsphstr() const { return store().newsphstr(p); }
+        auto& newsphpeakp() const { return store().newsphpeakp(p); }
+        auto& star() const { return store().star(p); }
+        auto& BH() const { return store().BH(p); }
+        auto Timer() const { return store().Timer(p); }
+        auto isNew() const { return store().isNew(p); }
+        auto isMarked() const { return store().isMarked(p); }
+        auto is_deleted() const { return store().is_deleted(p); }
+        auto is_new() const { return store().isNew(p); }
+        auto is_marked() const { return store().isMarked(p); }
+        auto is_active() const { return store().is_active(p); }
+        auto is_rung_range(uint8_t uRungLo, uint8_t uRungHi) const { return store().is_rung_range(p, uRungLo, uRungHi); }
+        void set_density(float fDensity) { store().set_density(p, fDensity); }
+        void set_ball(float fBall) { store().set_ball(p, fBall); }
+        void set_decorator_index(uint64_t index) { store().set_decorator_index(p, index); }
+        void set_decorator(decorators::FIELDS* d) { store().set_decorator(p, d); }
+        void set_adj_decorator() { store().set_adj_decorator(p); }
+        auto decorator_index() const { return store().decorator_index(p); }
+        auto decorator_field() const { return store().decorator_field(p); }
 
-        auto soft()         const {return store().soft(p);}
-        auto soft0()        const {return store().soft0(p);}
-        auto species()      const {return store().species(p);}
-        auto imaterial()    const {return store().iMat(p);}
-        auto accFac()       const {return store().accFac(p);}
-        auto &sph()         const { return store().sph(p); }
-        auto &mfv()         const { return store().mfv(p); }
-        auto &newsph()      const { return store().newsph(p); }
-        auto &newsphstr()   const { return store().newsphstr(p); }
-        auto &newsphpeakp() const { return store().newsphpeakp(p); }
-        auto &star()        const { return store().star(p); }
-        auto &BH()          const { return store().BH(p); }
-        auto Timer()        const { return store().Timer(p); }
-        auto isNew()        const { return store().isNew(p); }
-        auto isMarked()     const { return store().isMarked(p); }
-        auto is_deleted()   const { return store().is_deleted(p); }
-        auto is_new()       const { return store().isNew(p); }
-        auto is_marked()    const { return store().isMarked(p); }
-        auto is_active()    const { return store().is_active(p);}
-        auto is_rung_range(uint8_t uRungLo,uint8_t uRungHi)  const { return store().is_rung_range(p,uRungLo,uRungHi); }
-        void set_density(float fDensity) {store().set_density(p,fDensity);}
-        void set_ball(float fBall) {store().set_ball(p,fBall);}
-        void set_decorator_index(uint64_t index) {store().set_decorator_index(p,index);}
-        void set_decorator(decorators::FIELDS *d) {store().set_decorator(p,d);}
-        void set_adj_decorator() {store().set_adj_decorator(p);}
-        auto decorator_index()  const { return store().decorator_index(p);}
-        auto decorator_field()  const { return store().decorator_field(p);}
-
-        auto is_dark()      const {return species() == FIO_SPECIES_DARK;}
-        auto is_gas()       const {return species() == FIO_SPECIES_SPH;}
-        auto is_star()      const {return species() == FIO_SPECIES_STAR;}
-        auto is_bh()        const {return species() == FIO_SPECIES_BH;}
-        auto have_decorator()    const {return have(PKD_FIELD::oDecorator) && !is_dark(); }
+        auto is_dark() const { return species() == FIO_SPECIES_DARK; }
+        auto is_gas() const { return species() == FIO_SPECIES_SPH; }
+        auto is_star() const { return species() == FIO_SPECIES_STAR; }
+        auto is_bh() const { return species() == FIO_SPECIES_BH; }
+        auto have_decorator() const { return have(PKD_FIELD::oDecorator) && !is_dark(); }
     };
     friend class SingleReference<Particle>;
 
@@ -581,139 +511,134 @@ public:
     /// @brief Return a pointer proxy to a particle
     /// @param i Index of the particle
     /// @return pointer proxy
-    auto operator[](int i) {
-        return ParticleReference(*this,i);
-    }
-    auto operator[](PARTICLE *p) {
-        return ParticleReference(*this,p);
-    }
-    const auto operator[](const PARTICLE *p) const {
-        return ParticleReference(*this,p);
-    }
+    auto operator[](int i) { return ParticleReference(*this, i); }
+    auto operator[](PARTICLE* p) { return ParticleReference(*this, p); }
+    const auto operator[](const PARTICLE* p) const { return ParticleReference(*this, p); }
 
     auto NewParticle() {
-        assert(size()<capacity());
+        assert(size() < capacity());
         auto i = append();
-        auto p = ParticlePointer(*this,i);
+        auto p = ParticlePointer(*this, i);
         if (!bNoParticleOrder) p->set_order(IORDERMAX);
         return p;
     }
 
-public:
-    void initialize(bool bIntegerPosition,bool bNoParticleOrder, decoratorStore *decorator) {
+  public:
+    void initialize(bool bIntegerPosition, bool bNoParticleOrder, decoratorStore* decorator) {
         this->bIntegerPosition = bIntegerPosition;
         this->bNoParticleOrder = bNoParticleOrder;
         this->decorator = decorator;
-        if (bNoParticleOrder) dataStore<PARTICLE,PKD_FIELD>::set_header<UPARTICLE>();
-        else dataStore<PARTICLE,PKD_FIELD>::set_header<PARTICLE>();
+        if (bNoParticleOrder) dataStore<PARTICLE, PKD_FIELD>::set_header<UPARTICLE>();
+        else dataStore<PARTICLE, PKD_FIELD>::set_header<PARTICLE>();
         ParticleClasses.reserve(PKD_MAX_CLASSES);
     }
-    auto integerized() const {return bIntegerPosition;}
-    auto unordered() const {return bNoParticleOrder;}
-    auto ParticleSize() const {return ElementSize(); }
+    auto integerized() const { return bIntegerPosition; }
+    auto unordered() const { return bNoParticleOrder; }
+    auto ParticleSize() const { return ElementSize(); }
 
-public:
+  public:
     typedef element_iterator<Particle> iterator;
     typedef element_iterator<Particle const> const_iterator;
 
-    auto begin()        noexcept { return iterator(*this,Base()); }
-    auto begin()  const noexcept { return const_iterator(*this,Base()); }
-    auto cbegin() const noexcept { return const_iterator(*this,Base()); }
-    auto end()          noexcept { return iterator(*this,Element(size())); }
-    auto end()    const noexcept { return const_iterator(*this,Element(size())); }
-    auto cend()   const noexcept { return const_iterator(*this,Element(size())); }
+    auto begin() noexcept { return iterator(*this, Base()); }
+    auto begin() const noexcept { return const_iterator(*this, Base()); }
+    auto cbegin() const noexcept { return const_iterator(*this, Base()); }
+    auto end() noexcept { return iterator(*this, Element(size())); }
+    auto end() const noexcept { return const_iterator(*this, Element(size())); }
+    auto cend() const noexcept { return const_iterator(*this, Element(size())); }
 
-public:
-    void setClass( float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies, PARTICLE *p ) {
-        if ( present(PKD_FIELD::oMass) ) {
-            get<float>(p,PKD_FIELD::oMass) = fMass;
+  public:
+    void setClass(float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies, PARTICLE* p) {
+        if (present(PKD_FIELD::oMass)) {
+            get<float>(p, PKD_FIELD::oMass) = fMass;
             fMass = 0.0;
         }
-        if ( present(PKD_FIELD::oSoft) ) {
-            get<float>(p,PKD_FIELD::oSoft) = fSoft;
+        if (present(PKD_FIELD::oSoft)) {
+            get<float>(p, PKD_FIELD::oSoft) = fSoft;
             fSoft = 0.0;
         }
         /* NOTE: The above can both be true, in which case a "zero" class is recorded */
         /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-        PARTCLASS newClass(eSpecies,fMass,fSoft,iMat,accFac);
+        PARTCLASS newClass(eSpecies, fMass, fSoft, iMat, accFac);
 
         /* TODO: This is a linear search which is fine for a small number of classes */
-        auto iclass = std::find(ParticleClasses.begin(),ParticleClasses.end(),newClass);
-        if (iclass==ParticleClasses.end()) {
-            assert( ParticleClasses.size() < PKD_MAX_CLASSES );
+        auto iclass = std::find(ParticleClasses.begin(), ParticleClasses.end(), newClass);
+        if (iclass == ParticleClasses.end()) {
+            assert(ParticleClasses.size() < PKD_MAX_CLASSES);
             p->iClass = ParticleClasses.size();
             ParticleClasses.emplace_back(newClass);
         }
-        else p->iClass = std::distance(ParticleClasses.begin(),iclass);
-        if (bNoParticleOrder) { assert(p->iClass==0); }
+        else p->iClass = std::distance(ParticleClasses.begin(), iclass);
+        if (bNoParticleOrder) {
+            assert(p->iClass == 0);
+        }
     }
 
-    int getClasses( int nMax, PARTCLASS *pClass ) {
-        std::copy(ParticleClasses.begin(),ParticleClasses.end(),pClass);
+    int getClasses(int nMax, PARTCLASS* pClass) {
+        std::copy(ParticleClasses.begin(), ParticleClasses.end(), pClass);
         return ParticleClasses.size();
     }
 
-    void setClasses( int n, PARTCLASS *pClass, int bUpdate ) {
+    void setClasses(int n, PARTCLASS* pClass, int bUpdate) {
         uint8_t map[PKD_MAX_CLASSES];
-        PARTICLE *p;
+        PARTICLE* p;
 
-        if ( bUpdate && ParticleClasses.size() && !bNoParticleOrder) {
+        if (bUpdate && ParticleClasses.size() && !bNoParticleOrder) {
             /* Build a map from the old class to the new class */
-            assert( n >= ParticleClasses.size() );
-            for (auto i=0; i<ParticleClasses.size(); ++i) {
-                auto jj = std::find(pClass,pClass+n,ParticleClasses[i]);
-                map[i] = std::distance(pClass,jj);
+            assert(n >= ParticleClasses.size());
+            for (auto i = 0; i < ParticleClasses.size(); ++i) {
+                auto jj = std::find(pClass, pClass + n, ParticleClasses[i]);
+                map[i] = std::distance(pClass, jj);
             }
 
             /* Now update the class with the new value */
-            for (auto i=0; i<size(); ++i) {
+            for (auto i = 0; i < size(); ++i) {
                 p = Element(i);
-                assert( p->iClass < ParticleClasses.size() );
+                assert(p->iClass < ParticleClasses.size());
                 p->iClass = map[p->iClass];
             }
         }
 
         /* Finally, set the new class table */
         ParticleClasses.clear();
-        ParticleClasses.insert(ParticleClasses.end(),pClass,pClass+n);
+        ParticleClasses.insert(ParticleClasses.end(), pClass, pClass + n);
     }
 
-    void clearClasses() {ParticleClasses.clear();}
+    void clearClasses() { ParticleClasses.clear(); }
 
     /// @brief Calculate the bound for a range of particles
     /// @tparam T Either double or int32_t depending on the position type
     /// @param b beginning particle iterator
     /// @param e ending particle iterator
     /// @return bounding box of the particles
-    template<typename T>
-    typename bound_type<T>::type raw_bound(iterator b,iterator e) {
-        blitz::TinyVector<T,3> vmin(std::numeric_limits<T>::max()),vmax(std::numeric_limits<T>::lowest());
-        std::for_each(b,e,
-        [&vmin,&vmax](auto &p) {
+    template <typename T>
+    typename bound_type<T>::type raw_bound(iterator b, iterator e) {
+        blitz::TinyVector<T, 3> vmin(std::numeric_limits<T>::max()), vmax(std::numeric_limits<T>::lowest());
+        std::for_each(b, e, [&vmin, &vmax](auto& p) {
             auto v = p.template raw_position<T>();
-            vmin = blitz::min(vmin,v);
-            vmax = blitz::max(vmax,v);
+            vmin = blitz::min(vmin, v);
+            vmax = blitz::max(vmax, v);
         });
-        return typename bound_type<T>::type(vmin,vmax);
+        return typename bound_type<T>::type(vmin, vmax);
     }
 
-    Bound bound(iterator b,iterator e);
+    Bound bound(iterator b, iterator e);
     Bound bound();
 
     int CountSelected();
-    int SelActive(int setIfTrue=true, int clearIfFalse=true);
-    int SelBlackholes(int setIfTrue=true, int clearIfFalse=true);
-    int SelSpecies(uint64_t mSpecies, int setIfTrue=true, int clearIfFalse=true);
-    int SelGroup(int iGroup, int setIfTrue=true, int clearIfFalse=true);
-    int SelMass(double dMinMass, double dMaxMass, int setIfTrue=true, int clearIfFalse=true );
-    int SelPhaseDensity(double dMinDensity, double dMaxDensity, int setIfTrue=true, int clearIfFalse=true );
-    int SelById(uint64_t idStart, uint64_t idEnd, int setIfTrue=true, int clearIfFalse=true );
-    int SelBox(blitz::TinyVector<double,3> dCenter, blitz::TinyVector<double,3> dSize, int setIfTrue=true, int clearIfFalse=true );
-    int SelSphere(blitz::TinyVector<double,3> r, double dRadius, int setIfTrue=true, int clearIfFalse=true );
-    int SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true );
+    int SelActive(int setIfTrue = true, int clearIfFalse = true);
+    int SelBlackholes(int setIfTrue = true, int clearIfFalse = true);
+    int SelSpecies(uint64_t mSpecies, int setIfTrue = true, int clearIfFalse = true);
+    int SelGroup(int iGroup, int setIfTrue = true, int clearIfFalse = true);
+    int SelMass(double dMinMass, double dMaxMass, int setIfTrue = true, int clearIfFalse = true);
+    int SelPhaseDensity(double dMinDensity, double dMaxDensity, int setIfTrue = true, int clearIfFalse = true);
+    int SelById(uint64_t idStart, uint64_t idEnd, int setIfTrue = true, int clearIfFalse = true);
+    int SelBox(blitz::TinyVector<double, 3> dCenter, blitz::TinyVector<double, 3> dSize, int setIfTrue = true, int clearIfFalse = true);
+    int SelSphere(blitz::TinyVector<double, 3> r, double dRadius, int setIfTrue = true, int clearIfFalse = true);
+    int SelCylinder(blitz::TinyVector<double, 3> dP1, blitz::TinyVector<double, 3> dP2, double dRadius, int setIfTrue = true, int clearIfFalse = true);
 };
 
-template<>
-void SingleReference<particleStore::Particle>::swap(SingleReference &rhs) noexcept;
+template <>
+void SingleReference<particleStore::Particle>::swap(SingleReference& rhs) noexcept;
 
 #endif

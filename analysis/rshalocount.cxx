@@ -22,9 +22,10 @@ namespace rs {
 #include "rockstar/io/io_internal.h"
 }
 
-uint64_t ServiceRsHaloCount::GetSize(const std::string &filename,uint64_t file_size) {
-    std::ifstream fhalo(filename,std::ios_base::in | std::ios_base::binary);
+uint64_t ServiceRsHaloCount::GetSize(const std::string& filename, uint64_t file_size) {
+    std::ifstream fhalo(filename, std::ios_base::in | std::ios_base::binary);
     rs::binary_output_header hdr;
-    fhalo.read(reinterpret_cast<std::ifstream::char_type *>(&hdr),sizeof(hdr));      assert(fhalo.good());
+    fhalo.read(reinterpret_cast<std::ifstream::char_type*>(&hdr), sizeof(hdr));
+    assert(fhalo.good());
     return hdr.num_halos;
 }

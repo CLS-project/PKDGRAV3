@@ -27,47 +27,46 @@
 #include "group/group.h"
 #include "blitz/array.h"
 
-#define NNLIST_INCREMENT    200     /* number of extra neighbor elements added to nnList */
+#define NNLIST_INCREMENT 200 /* number of extra neighbor elements added to nnList */
 
 struct hashElement {
-    void *p;
-    struct hashElement *coll;
+    void* p;
+    struct hashElement* coll;
 };
 
 typedef struct smContext {
     PKD pkd;
-    PARTICLE *pSentinel;
-    void (*fcnSmooth)(particleStore::ParticleReference &p,float,int,NN *,SMF *);
-    void (*fcnSmoothNode)(PARTICLE *, float, int, int, double *, double *, SMF *);
-    void (*fcnSmoothGetBufferInfo)(int *, int *);
-    void (*fcnSmoothFillBuffer)(double *, PARTICLE *, int, int,
-                                double, blitz::TinyVector<double,3>, SMF *);
-    void (*fcnSmoothUpdate)(double *, double *, PARTICLE *, PARTICLE *, int, int, SMF *);
+    PARTICLE* pSentinel;
+    void (*fcnSmooth)(particleStore::ParticleReference& p, float, int, NN*, SMF*);
+    void (*fcnSmoothNode)(PARTICLE*, float, int, int, double*, double*, SMF*);
+    void (*fcnSmoothGetBufferInfo)(int*, int*);
+    void (*fcnSmoothFillBuffer)(double*, PARTICLE*, int, int, double, blitz::TinyVector<double, 3>, SMF*);
+    void (*fcnSmoothUpdate)(double*, double*, PARTICLE*, PARTICLE*, int, int, SMF*);
     int nSmooth;
     int nQueue;
     int bPeriodic;
     int bOwnCache;
     int iSmoothType;
     int bSearchGasOnly;
-    blitz::TinyVector<double,3> rLast; /* For the snake */
-    PQ *pq;
+    blitz::TinyVector<double, 3> rLast; /* For the snake */
+    PQ* pq;
     /*
     ** Flags to mark local particles which are finished in the processing
     ** of the smFastGas routine. They have updated their densities.
     */
-    char *bDone;
+    char* bDone;
     /*
     ** Hash table to indicate whether a remote particle is already present in the
     ** priority queue.
     */
-    int nHash;  /* should be a prime number > nSmooth */
-    struct hashElement *pHash;
-    struct hashElement *pFreeHash;
+    int nHash; /* should be a prime number > nSmooth */
+    struct hashElement* pHash;
+    struct hashElement* pFreeHash;
     int nnListSize;
     int nnListMax;
-    NN *nnList;
-    int *S;
-    double *Smin;
+    NN* nnList;
+    int* S;
+    double* Smin;
     /*
      ** Also need the stacks for the tree search
      */
@@ -75,7 +74,7 @@ typedef struct smContext {
         int id;
         int iCell;
         double min;
-    } *ST;
+    }* ST;
     /*
     ** Context for nearest neighbor lists.
     */
@@ -85,35 +84,33 @@ typedef struct smContext {
     */
     uint32_t iHead;
     uint32_t iTail;
-    int  *Fifo;
-} *SMX;
+    int* Fifo;
+}* SMX;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
-                 int bPeriodic,int bSymmetric,int iSmoothType);
-int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
-                   int bPeriodic,int iSmoothType);
-void smFinish(SMX,SMF *);
+int smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType);
+int smInitializeRO(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int iSmoothType);
+void smFinish(SMX, SMF*);
 void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
-float smSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,int iRoot1, int iRoot2);
-void smSmooth(SMX,SMF *);
-void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,double fBall);
-uint64_t smReSmooth(SMX,SMF *, int);
+float smSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, int iRoot1, int iRoot2);
+void smSmooth(SMX, SMF*);
+void smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, double fBall);
+uint64_t smReSmooth(SMX, SMF*, int);
 #ifdef OPTIM_SMOOTH_NODE
-uint64_t smReSmoothNode(SMX,SMF *, int);
-void buildInteractionList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCnt, blitz::TinyVector<double,3> r, int ix, int iy, int iz);
+uint64_t smReSmoothNode(SMX, SMF*, int);
+void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int* nCnt, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
 #endif
 
-void smGather(SMX smx,double fBall2,blitz::TinyVector<double,3> r);
+void smGather(SMX smx, double fBall2, blitz::TinyVector<double, 3> r);
 
-inline void smSwapNN(NN *nnList, int i, int j) {
+inline void smSwapNN(NN* nnList, int i, int j) {
     NN temp;
-    memcpy((void *) &temp,      &nnList[i], sizeof(NN));
-    memcpy((void *) &nnList[i], &nnList[j], sizeof(NN));
-    memcpy((void *) &nnList[j], &temp,      sizeof(NN));
+    memcpy((void*)&temp, &nnList[i], sizeof(NN));
+    memcpy((void*)&nnList[i], &nnList[j], sizeof(NN));
+    memcpy((void*)&nnList[j], &temp, sizeof(NN));
 }
 
 #ifdef __cplusplus

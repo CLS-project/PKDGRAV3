@@ -16,13 +16,13 @@
  */
 #include "freestore.h"
 
-static_assert(std::is_void_v<ServiceFreeStore::input>  || std::is_trivial_v<ServiceFreeStore::input>);
+static_assert(std::is_void_v<ServiceFreeStore::input> || std::is_trivial_v<ServiceFreeStore::input>);
 static_assert(std::is_void_v<ServiceFreeStore::output> || std::is_trivial_v<ServiceFreeStore::output>);
-int ServiceFreeStore::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int ServiceFreeStore::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
     static_assert(std::is_void_v<input>);
-    auto out = static_cast<output *>(vout);
+    auto out = static_cast<output*>(vout);
     auto pkd = pst->plcl->pkd;
-    assert(nOut==sizeof(output));
+    assert(nOut == sizeof(output));
     *out = pkd->FreeStore();
     return sizeof(output);
 }

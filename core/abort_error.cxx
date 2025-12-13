@@ -16,7 +16,7 @@
  */
 #include "abort_error.h"
 #include "mdlbt.h"
-#include "fmt/format.h"  // This will be part of c++20
+#include "fmt/format.h" // This will be part of c++20
 #include <fmt/color.h>
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include <cstdlib>
@@ -25,48 +25,51 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include <mutex>
 
 pkdgrav_error::pkdgrav_error(int error_code)
-    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold, "error {code}\n"
+    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold,
+                                     "error {code}\n"
                                      "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n",
-                                     "code"_a=error_code)) {}
+                                     "code"_a = error_code)) {
+}
 
-
-pkdgrav_error::pkdgrav_error(int error_code, const char *func, const char *file, int line)
-    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold, "error {code}\n"
+pkdgrav_error::pkdgrav_error(int error_code, const char* func, const char* file, int line)
+    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold,
+                                     "error {code}\n"
                                      "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n"
                                      "function {func}, file {file}, line {line}\n",
-                                     "code"_a=error_code, "func"_a=func, "file"_a=file, "line"_a=line)) {};
+                                     "code"_a = error_code, "func"_a = func, "file"_a = file, "line"_a = line)) {};
 
-pkdgrav_error::pkdgrav_error(int error_code, const char *func, const char *file, int line, const std::string_view message)
-    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold, "error {code}\n"
+pkdgrav_error::pkdgrav_error(int error_code, const char* func, const char* file, int line, const std::string_view message)
+    : std::runtime_error(fmt::format(fg(fmt::color::crimson) | fmt::emphasis::bold,
+                                     "error {code}\n"
                                      "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n"
                                      "function {func}, file {file}, line {line}\n"
                                      "{message}\n",
-                                     "code"_a=error_code, "func"_a=func, "file"_a=file, "line"_a=line, "message"_a=message)) {};
+                                     "code"_a = error_code, "func"_a = func, "file"_a = file, "line"_a = line, "message"_a = message)) {};
 
 static std::mutex error_mutex;
 
-[[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line) {
+[[noreturn]] void abort_error_print(int code, const char* func, const char* file, int line) {
     error_mutex.lock();
     std::cerr << std::flush;
     fmt::print(stderr, fg(fmt::color::crimson) | fmt::emphasis::bold,
                "INTERNAL error {code}, function {func}, file {file}, line {line}\n"
                "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n",
-               "code"_a=code, "func"_a=func, "file"_a=file, "line"_a=line);
-    mdlbt::show_backtrace(63,1);
+               "code"_a = code, "func"_a = func, "file"_a = file, "line"_a = line);
+    mdlbt::show_backtrace(63, 1);
     std::cerr << std::flush;
     error_mutex.unlock();
     std::_Exit(EXIT_FAILURE);
 }
 
-[[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line, const std::string_view message) {
+[[noreturn]] void abort_error_print(int code, const char* func, const char* file, int line, const std::string_view message) {
     error_mutex.lock();
     std::cerr << std::flush;
     fmt::print(stderr, fg(fmt::color::crimson) | fmt::emphasis::bold,
                "error {code}, function {func}, file {file}, line {line}\n"
                "see: https://pkdgrav3.readthedocs.io/en/latest/error_codes.html#error-{code}\n"
-               "{message}: {error}\n"
-               ,"code"_a=code, "func"_a=func, "file"_a=file, "line"_a=line, "message"_a=message,"error"_a=strerror(errno));
-    mdlbt::show_backtrace(63,1);
+               "{message}: {error}\n",
+               "code"_a = code, "func"_a = func, "file"_a = file, "line"_a = line, "message"_a = message, "error"_a = strerror(errno));
+    mdlbt::show_backtrace(63, 1);
     std::cerr << std::flush;
     error_mutex.unlock();
     std::_Exit(EXIT_FAILURE);

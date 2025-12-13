@@ -17,7 +17,7 @@
 #include "TraversePST.h"
 
 class ServiceInitLightcone : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "InitLightcone";
     struct input {
         int bBowtie;
@@ -26,11 +26,11 @@ public:
         double dBoxSize;
         double dRedshiftLCP;
         double alphaLCP;
-        blitz::TinyVector<double,3> hLCP;
+        blitz::TinyVector<double, 3> hLCP;
     };
     typedef void output;
-    explicit ServiceInitLightcone(PST pst)
-        : TraversePST(pst,name,sizeof(input)) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceInitLightcone(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

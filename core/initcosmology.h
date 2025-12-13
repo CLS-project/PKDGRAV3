@@ -17,12 +17,12 @@
 #include "TraversePST.h"
 
 class ServiceInitCosmology : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "InitCosmology";
     typedef struct csmVariables input;
     typedef void output;
-    explicit ServiceInitCosmology(PST pst)
-        : TraversePST(pst,name) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceInitCosmology(PST pst) : TraversePST(pst, name) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

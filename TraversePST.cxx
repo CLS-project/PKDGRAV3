@@ -16,56 +16,56 @@
  */
 #include "TraversePST.h"
 
-int TraversePST::operator()(int nIn, void *pIn, void *pOut) {
-    return Traverse(node_pst,pIn,nIn,pOut,getMaxBytesOut());
+int TraversePST::operator()(int nIn, void* pIn, void* pOut) {
+    return Traverse(node_pst, pIn, nIn, pOut, getMaxBytesOut());
 }
 
-int TraversePST::Traverse(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    if (pstAmCore(pst))       return Service(pst,vin,nIn,vout,nOut);
-    else if (pstOffNode(pst)) return OffNode(pst,vin,nIn,vout,nOut);
-    else if (pstAmNode(pst))  return  AtNode(pst,vin,nIn,vout,nOut);
-    else                      return Recurse(pst,vin,nIn,vout,nOut);
+int TraversePST::Traverse(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    if (pstAmCore(pst)) return Service(pst, vin, nIn, vout, nOut);
+    else if (pstOffNode(pst)) return OffNode(pst, vin, nIn, vout, nOut);
+    else if (pstAmNode(pst)) return AtNode(pst, vin, nIn, vout, nOut);
+    else return Recurse(pst, vin, nIn, vout, nOut);
 }
 
 // This is a static version of traverse that we use when we want to traverse a subtree,
 // but for a difference service. We look it up in the MDL and call the real traverse.
 // This relies on the service being a "TraversePST" and if PST was converted to C++ then
 // there would be a more elegant way of doing this.
-int TraversePST::Traverse(unsigned sid, PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto service = dynamic_cast<TraversePST *>(mdl->GetService(sid));
+int TraversePST::Traverse(unsigned sid, PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto service = dynamic_cast<TraversePST*>(mdl->GetService(sid));
     assert(service); // It would be a serious error if this was not a TraversePST service.
-    return service->Traverse(pst,vin,nIn,vout,nOut);
+    return service->Traverse(pst, vin, nIn, vout, nOut);
 }
-int TraversePST::Traverse(std::string_view service_name, PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto service = dynamic_cast<TraversePST *>(mdl->GetService(service_name));
+int TraversePST::Traverse(std::string_view service_name, PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto service = dynamic_cast<TraversePST*>(mdl->GetService(service_name));
     assert(service); // It would be a serious error if this was not a TraversePST service.
-    return service->Traverse(pst,vin,nIn,vout,nOut);
+    return service->Traverse(pst, vin, nIn, vout, nOut);
 }
 
 // This is the default function for when we are still traversing the PST
 // (OffNode,AtNode,Recurse) and will just naively recurse. Once we reach
 // the leaf (AmCore) then Service() is called and must be provided.
-int TraversePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = reinterpret_cast<mdl::mdlClass *>(pst->mdl);
-    auto rID = mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
-    Traverse(pst->pstLower,vin,nIn,vout,nOut);
-    return mdl->GetReply(rID,nOut,vout);
+int TraversePST::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
+    auto rID = mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
+    Traverse(pst->pstLower, vin, nIn, vout, nOut);
+    return mdl->GetReply(rID, nOut, vout);
 }
 
-int TraversePST::ReqService(PST pst,void *vin,int nIn) {
-    return pst->mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
+int TraversePST::ReqService(PST pst, void* vin, int nIn) {
+    return pst->mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
 }
 
 // This class is used for services that pass the same input (or none),
 // and need to combine output results of the same size and type.
-int TraverseCombinePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = reinterpret_cast<mdl::mdlClass *>(pst->mdl);
-    auto rID = mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
-    Traverse(pst->pstLower,vin,nIn,vout,nOut);
-    void *vout2 = alloca(nOut);
-    nOut = mdl->GetReply(rID,nOut,vout2);
-    Combine(vout,vout2);
+int TraverseCombinePST::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
+    auto rID = mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
+    Traverse(pst->pstLower, vin, nIn, vout, nOut);
+    void* vout2 = alloca(nOut);
+    nOut = mdl->GetReply(rID, nOut, vout2);
+    Combine(vout, vout2);
     return nOut;
 }

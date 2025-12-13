@@ -21,19 +21,17 @@
 #include "io/service.h"
 
 class ServiceRestore : public ServiceInput {
-public:
+  public:
     static constexpr std::string_view name = "Restore";
-    explicit ServiceRestore(PST pst)
-        : ServiceInput(pst,name) {}
-    virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
+    explicit ServiceRestore(PST pst) : ServiceInput(pst, name) {}
+    virtual void Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) override;
 };
 
 class ServiceRestoreDecorator : public ServiceInput {
-public:
+  public:
     static constexpr std::string_view name = "RestoreDecorator";
-    explicit ServiceRestoreDecorator(PST pst)
-        : ServiceInput(pst,name) {}
-    virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
+    explicit ServiceRestoreDecorator(PST pst) : ServiceInput(pst, name) {}
+    virtual void Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) override;
 };
 
 #endif /* E5B60112_B4E2_46CB_AC8A_564BF342E5D3 */

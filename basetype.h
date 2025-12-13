@@ -32,19 +32,19 @@
 #include "eEOS/eEOS_struct.h"
 
 typedef double pos_t;
-typedef float  vel_t;
-typedef float  acc_t;
-typedef float  mass_t;
+typedef float vel_t;
+typedef float acc_t;
+typedef float mass_t;
 
 /*
 ** Costs: ADD/SUB/MUL/AND/CMP 1 cycle
 ** RSQRT: 7 cycles (latency)
 ** DIV: 35 cycles (latency)
 */
-#define COST_FLOP_PP 53 // +-*: 38 AND/CMP:8 rsqrt:1
-#define COST_FLOP_PC 215 // +-*: 206 AND/CMP:2 rsqrt:1
+#define COST_FLOP_PP 53     // +-*: 38 AND/CMP:8 rsqrt:1
+#define COST_FLOP_PC 215    // +-*: 206 AND/CMP:2 rsqrt:1
 #define COST_FLOP_EWALD 386 // +-*: 306 AND/CMP:3 div:2 rsqrt:1
-#define COST_FLOP_HLOOP 62 // +-*:46  AND/CMP:16 div: rsqrt:0
+#define COST_FLOP_HLOOP 62  // +-*:46  AND/CMP:16 div: rsqrt:0
 #define COST_FLOP_SOFT 15
 #define COST_FLOP_OPEN 97 // +-*:55  AND/CMP:42
 
@@ -87,22 +87,21 @@ struct CALC {
 ** This is an important base type. Alter with care, or even better, leave it alone.
 */
 struct remoteID {
-    int32_t  iPid;      /* A processor */
-    int32_t  iIndex;    /* Index of item on the processor */
+    int32_t iPid;   /* A processor */
+    int32_t iIndex; /* Index of item on the processor */
     remoteID() = default;
-    remoteID(int32_t pid, int32_t index) : iPid(pid), iIndex(index) { }
-    bool operator<(const remoteID &other) const {
-        if (iPid != other.iPid)
-            return iPid < other.iPid;
+    remoteID(int32_t pid, int32_t index) : iPid(pid), iIndex(index) {}
+    bool operator<(const remoteID& other) const {
+        if (iPid != other.iPid) return iPid < other.iPid;
         return iIndex < other.iIndex;
     }
 };
 
-#define PP_CUDA_MEMORY_LIMIT (2*1024*1024)
+#define PP_CUDA_MEMORY_LIMIT (2 * 1024 * 1024)
 
 typedef struct {
-    blitz::TinyVector<float,3> r;
-    blitz::TinyVector<float,3> a;
+    blitz::TinyVector<float, 3> r;
+    blitz::TinyVector<float, 3> a;
     float fSmooth2;
     float fDensity;
     /* SPH fields follow */
@@ -122,7 +121,7 @@ typedef struct {
 } PINFOIN;
 
 typedef struct {
-    blitz::TinyVector<float,3> a;
+    blitz::TinyVector<float, 3> a;
     float fPot;
     float dirsum, normsum;
     float rhopmax;
@@ -141,35 +140,35 @@ typedef struct {
 } PINFOOUT;
 
 #if defined(USE_SIMD)
-    typedef float ewaldFloatType;
+typedef float ewaldFloatType;
 #else
-    typedef double ewaldFloatType;
+typedef double ewaldFloatType;
 #endif
 typedef union {
-    ewaldFloatType *f;
+    ewaldFloatType* f;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
-    fvec *p;
+    fvec* p;
 #endif
 } ewaldFloat;
 
 typedef struct {
-    ewaldFloat hx,hy,hz;
-    ewaldFloat hCfac,hSfac;
+    ewaldFloat hx, hy, hz;
+    ewaldFloat hCfac, hSfac;
 } EwaldTable;
 struct EwaldVariables {
     momFloat r[3]; /* Center of mass of the box */
-    MOMC mom; /* moment of the box */
-    momFloat fEwCut2,fInner2,alpha,ialpha,alpha2,k1,ka,Lbox;
-    momFloat Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
+    MOMC mom;      /* moment of the box */
+    momFloat fEwCut2, fInner2, alpha, ialpha, alpha2, k1, ka, Lbox;
+    momFloat Q4xx, Q4xy, Q4xz, Q4yy, Q4yz, Q4zz, Q4, Q3x, Q3y, Q3z, Q2;
     int nMaxEwhLoop;
     int nEwLoopInner, nEwhLoop;
-    int nReps,nEwReps;
+    int nReps, nEwReps;
 };
 
 struct pkdTimestepParameters {
     double dTime, dDelta, dEta;
     double dAccFac, dRhoFac, dPreFacRhoLoc;
-    uint8_t uRungLo,uRungHi,uMaxRung;
+    uint8_t uRungLo, uRungHi, uMaxRung;
     uint8_t bGravStep;
     int iTimeStepCrit;
     int nPartRhoLoc;
@@ -179,20 +178,20 @@ struct pkdTimestepParameters {
 
 struct pkdKickParameters {
     int bKickClose, bKickOpen;
-    vel_t dtClose[IRUNGMAX+1];
-    vel_t dtOpen[IRUNGMAX+1];
-    vel_t dtPredDrift[IRUNGMAX+1];
-    vel_t dtPredISPHUndoOpen[IRUNGMAX+1];
-    vel_t dtPredISPHOpen[IRUNGMAX+1];
-    vel_t dtPredISPHClose[IRUNGMAX+1];
+    vel_t dtClose[IRUNGMAX + 1];
+    vel_t dtOpen[IRUNGMAX + 1];
+    vel_t dtPredDrift[IRUNGMAX + 1];
+    vel_t dtPredISPHUndoOpen[IRUNGMAX + 1];
+    vel_t dtPredISPHOpen[IRUNGMAX + 1];
+    vel_t dtPredISPHClose[IRUNGMAX + 1];
 };
 
 struct pkdLightconeParameters {
-    double dtLCDrift[IRUNGMAX+1];
-    double dtLCKick[IRUNGMAX+1];
+    double dtLCDrift[IRUNGMAX + 1];
+    double dtLCKick[IRUNGMAX + 1];
     double dLookbackFac;
     double dLookbackFacLCP;
-    blitz::TinyVector<double,3> hLCP;
+    blitz::TinyVector<double, 3> hLCP;
     double tanalpha_2;
     double dBoxSize;
     int bLightConeParticles;
@@ -211,25 +210,23 @@ struct inChemCompInit {
     double dInitialMetallicity;
 };
 
-
-
 /*
 ** Accumulates the work for a set of particles
 */
 typedef struct {
-    PARTICLE **pPart;
-    uint32_t *iPart;
-    PINFOIN *pInfoIn;
-    PINFOOUT *pInfoOut;
+    PARTICLE** pPart;
+    uint32_t* iPart;
+    PINFOIN* pInfoIn;
+    PINFOOUT* pInfoOut;
     double dFlop;
-    blitz::TinyVector<double,3> c;
+    blitz::TinyVector<double, 3> c;
     int nP;
     int nRefs;
-    void *ctx;
+    void* ctx;
 
-    struct pkdKickParameters *kick;
-    struct pkdLightconeParameters *lc;
-    struct pkdTimestepParameters *ts;
+    struct pkdKickParameters* kick;
+    struct pkdLightconeParameters* lc;
+    struct pkdTimestepParameters* ts;
     double dirLsum, normLsum;
 
     double dFlopSingleCPU;
@@ -237,13 +234,13 @@ typedef struct {
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
 
-    SPHOptions *SPHoptions;
-    ilpList *ilp;
+    SPHOptions* SPHoptions;
+    ilpList* ilp;
     int bGPU;
 } workParticle;
 
 #define EWALD_ALIGN 64
-#define EWALD_MASK (EWALD_ALIGN-1)
+#define EWALD_MASK (EWALD_ALIGN - 1)
 typedef struct {
     momFloat X[EWALD_ALIGN];
     momFloat Y[EWALD_ALIGN];

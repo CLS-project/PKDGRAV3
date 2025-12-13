@@ -22,48 +22,48 @@
 #include <cstdint>
 #include <vector>
 
-static mdl::mdlClass *master_mdl;
+static mdl::mdlClass* master_mdl;
 
 namespace {
 
 namespace worker {
 class Context {
-    mdl::mdlClass *mdl;
-    Context *pLower;
-    int     idUpper;
+    mdl::mdlClass* mdl;
+    Context* pLower;
+    int idUpper;
     int nLeaves;
-public:
-    Context(mdl::mdlClass * mdl, int idLast=-1);
 
-    MDL getMDL() const {return mdl;}
-    int getLeaves() const {return nLeaves; }
-    int nLower() const {return idUpper - mdl->Self(); }
-    int nUpper() const {return nLeaves - nLower(); }
-    Context *getLower() const {return pLower;}
-    int      getUpper() const {return idUpper;}
+  public:
+    Context(mdl::mdlClass* mdl, int idLast = -1);
 
-    Context *split(int idLast);
+    MDL getMDL() const { return mdl; }
+    int getLeaves() const { return nLeaves; }
+    int nLower() const { return idUpper - mdl->Self(); }
+    int nUpper() const { return nLeaves - nLower(); }
+    Context* getLower() const { return pLower; }
+    int getUpper() const { return idUpper; }
+
+    Context* split(int idLast);
 };
 
-Context::Context(mdl::mdlClass * mdl,int iLast)
-    : mdl(mdl), pLower(0), idUpper(iLast) {
+Context::Context(mdl::mdlClass* mdl, int iLast) : mdl(mdl), pLower(0), idUpper(iLast) {
 }
 
 // Split this node as optimally as possible
-Context *Context::split(int idLast) {
-    assert(pLower==0);
+Context* Context::split(int idLast) {
+    assert(pLower == 0);
     auto idLower = mdl->Self();
     nLeaves = idLast - idLower;
-    if (nLeaves>1) {
+    if (nLeaves > 1) {
         auto idMiddle = (idLast + idLower) / 2;
         /* Make sure that the ctx lands on core zero */
         auto iProcLower = mdl->ThreadToProc(idLower);
-        auto iProcUpper = mdl->ThreadToProc(idLast-1);
-        if (iProcLower!=iProcUpper) {
+        auto iProcUpper = mdl->ThreadToProc(idLast - 1);
+        if (iProcLower != iProcUpper) {
             idMiddle = mdl->ProcToThread(mdl->ThreadToProc(idMiddle));
         }
         idUpper = idMiddle;
-        pLower = new Context(mdl,idMiddle);
+        pLower = new Context(mdl, idMiddle);
     }
     else idUpper = 0;
     return pLower;
@@ -82,20 +82,20 @@ struct inSetAdd {
     int idUpper;
 };
 
-int serviceSetAdd(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
-    auto in = reinterpret_cast<struct inSetAdd *>(vin);
+int serviceSetAdd(worker::Context* ctx, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = static_cast<mdl::mdlClass*>(ctx->getMDL());
+    auto in = reinterpret_cast<struct inSetAdd*>(vin);
     assert(nIn == sizeof(struct inSetAdd));
     auto ctxNew = ctx->split(in->idUpper);
     if (ctxNew) {
-        auto rID = mdl->ReqService(ctx->getUpper(),worker::SET_ADD,in,nIn);
+        auto rID = mdl->ReqService(ctx->getUpper(), worker::SET_ADD, in, nIn);
         in->idUpper = ctx->getUpper();
-        serviceSetAdd(ctxNew,in,nIn,NULL,0);
+        serviceSetAdd(ctxNew, in, nIn, NULL, 0);
         mdl->GetReply(rID);
     }
     return 0;
 }
-} // namespace
+} // namespace SetAdd
 
 namespace test {
 
@@ -108,19 +108,17 @@ struct DATA {
     int iCore;
     DATA() = default;
     DATA(int iDomain, int iCore) : iDomain(iDomain), iCore(iCore) {}
-    bool operator<(const DATA &rhs) const {
-        return iDomain < rhs.iDomain || (iDomain==rhs.iDomain && iCore<rhs.iCore);
-    }
+    bool operator<(const DATA& rhs) const { return iDomain < rhs.iDomain || (iDomain == rhs.iDomain && iCore < rhs.iCore); }
 };
 
-int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = static_cast<mdl::mdlClass *>(ctx->getMDL());
-    auto pnBAD = reinterpret_cast<std::uint64_t *>(vout);
+int test(worker::Context* ctx, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = static_cast<mdl::mdlClass*>(ctx->getMDL());
+    auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
     std::uint64_t nBAD;
     if (ctx->getLeaves() > 1) {
-        int rID = mdl->ReqService(ctx->getUpper(),SERVICE,NULL,0);
-        test(ctx->getLower(),vin,nIn,vout,nOut);
-        nOut = mdl->GetReply(rID,nBAD);
+        int rID = mdl->ReqService(ctx->getUpper(), SERVICE, NULL, 0);
+        test(ctx->getLower(), vin, nIn, vout, nOut);
+        nOut = mdl->GetReply(rID, nBAD);
         *pnBAD += nBAD;
     }
     else {
@@ -130,8 +128,8 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
         int nCore = mdl->Cores();
 
         int m = 10;
-        int n = nCore * (nCore-1) / 2 * m;
-        int N = n + n/100 + 128;
+        int n = nCore * (nCore - 1) / 2 * m;
+        int N = n + n / 100 + 128;
         std::vector<DATA> data;
 
         data.reserve(N);
@@ -140,25 +138,25 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
 
         auto counts = new mdl::mdlClass::dd_offset_type[nCore];
 
-        int j=0;
-        for (auto i=0; i<nCore; ++i) {
-            auto nn = (nCore-1-iCore+i) % nCore * m;
+        int j = 0;
+        for (auto i = 0; i < nCore; ++i) {
+            auto nn = (nCore - 1 - iCore + i) % nCore * m;
             counts[i] = nn;
-            for (; nn--; ++j) data.emplace_back(i,iCore);
+            for (; nn--; ++j) data.emplace_back(i, iCore);
         }
-        assert(j==n);
-        mdl->swaplocal(data.data(),N,sizeof(DATA),counts);
-        std::sort(data.begin(),data.end());
+        assert(j == n);
+        mdl->swaplocal(data.data(), N, sizeof(DATA), counts);
+        std::sort(data.begin(), data.end());
 
-        j=0;
-        for (auto i=0; i<nCore; ++i) {
-            auto nn = (2*nCore - i + iCore - 1) % nCore * m;
+        j = 0;
+        for (auto i = 0; i < nCore; ++i) {
+            auto nn = (2 * nCore - i + iCore - 1) % nCore * m;
             for (; nn--; ++j) {
                 if (data[j].iDomain != iCore) ++nBAD;
                 if (data[j].iCore != i) ++nBAD;
             }
         }
-        assert(j==n);
+        assert(j == n);
         *pnBAD = nBAD;
     }
 
@@ -169,8 +167,8 @@ class SwapLocalTest : public ::testing::Test {};
 
 TEST_F(SwapLocalTest, SwapLocalBasic) {
     std::uint64_t nBAD;
-    master_mdl->RunService(test::swaplocal::SERVICE,&nBAD);
-    EXPECT_EQ(nBAD,0);
+    master_mdl->RunService(test::swaplocal::SERVICE, &nBAD);
+    EXPECT_EQ(nBAD, 0);
 }
 
 } // namespace swaplocal
@@ -180,11 +178,11 @@ TEST_F(SwapLocalTest, SwapLocalBasic) {
 ** This function is called at the very start by every thread.
 ** It returns the "worker context"; in this case the ctx.
 */
-void *worker_init(MDL vmdl) {
-    auto mdl = static_cast<mdl::mdlClass *>(vmdl);
+void* worker_init(MDL vmdl) {
+    auto mdl = static_cast<mdl::mdlClass*>(vmdl);
     auto ctx = new worker::Context(mdl);
-    mdl->AddService(worker::SET_ADD,ctx,(fcnService_t *)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd),0,"SetAdd");
-    mdl->AddService(test::swaplocal::SERVICE,ctx,(fcnService_t *)test::swaplocal::test, 0,sizeof(std::uint64_t),"SwapLocal");
+    mdl->AddService(worker::SET_ADD, ctx, (fcnService_t*)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd), 0, "SetAdd");
+    mdl->AddService(test::swaplocal::SERVICE, ctx, (fcnService_t*)test::swaplocal::test, 0, sizeof(std::uint64_t), "SwapLocal");
     return ctx;
 }
 
@@ -192,30 +190,30 @@ void *worker_init(MDL vmdl) {
 ** This function is called at the very end for every thread.
 ** It needs to destroy the worker context (ctx).
 */
-void worker_done(MDL vmdl, void *vctx) {
-    auto ctx = reinterpret_cast<worker::Context *>(vctx);
+void worker_done(MDL vmdl, void* vctx) {
+    auto ctx = reinterpret_cast<worker::Context*>(vctx);
 
     delete ctx;
 }
 
-}  // namespace
+} // namespace
 
 /*
 ** This is invoked for the "master" process after the worker has been setup.
 */
-int master(MDL vmdl,void *vctx) {
-    master_mdl = static_cast<mdl::mdlClass *>(vmdl);
-    auto ctx = reinterpret_cast<worker::Context *>(vctx);
+int master(MDL vmdl, void* vctx) {
+    master_mdl = static_cast<mdl::mdlClass*>(vmdl);
+    auto ctx = reinterpret_cast<worker::Context*>(vctx);
     int argc = master_mdl->GetArgc();
-    char **argv = master_mdl->GetArgv();
+    char** argv = master_mdl->GetArgv();
 
     SetAdd::inSetAdd in;
     in.idUpper = master_mdl->Threads();
-    SetAdd::serviceSetAdd(ctx,&in,sizeof(in),NULL,0);
+    SetAdd::serviceSetAdd(ctx, &in, sizeof(in), NULL, 0);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
 
-int main(int argc,char **argv) {
-    return mdl::Launch(master,worker_init,worker_done,argc,argv);
+int main(int argc, char** argv) {
+    return mdl::Launch(master, worker_init, worker_done, argc, argv);
 }

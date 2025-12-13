@@ -20,16 +20,16 @@
 #include "TraversePST.h"
 
 class ServiceCountDistance : public TraverseCount<uint64_t> {
-public:
+  public:
     static constexpr std::string_view name = "CountDistance";
     struct input {
         double dRadius2Inner;
         double dRadius2Outer;
     };
-    explicit ServiceCountDistance(PST pst)
-        : TraverseCount(pst,name,sizeof(input)) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceCountDistance(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 
 #endif

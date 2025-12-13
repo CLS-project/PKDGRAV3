@@ -15,5 +15,3 @@ void MSR::StarFormInit(double dTime) {
 
     printf("%d star particles are about to explode in this IC\n", out.nFormed);
 }
-
-

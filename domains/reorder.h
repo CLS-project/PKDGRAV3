@@ -22,7 +22,7 @@
 namespace NewDD {
 
 class ServiceReorder : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "Reorder";
     using dd_offset_type = mdl::mdlClass::dd_offset_type;
     struct input {
@@ -30,18 +30,18 @@ public:
         uint64_t nPerCore;
         uint64_t iMaxOrder;
         input() = default;
-        input(uint64_t nPerProc,uint64_t iMaxOrder) : nPerProc(nPerProc), nPerCore(0), iMaxOrder(iMaxOrder) {}
+        input(uint64_t nPerProc, uint64_t iMaxOrder) : nPerProc(nPerProc), nPerCore(0), iMaxOrder(iMaxOrder) {}
     };
     typedef void output;
-    explicit ServiceReorder(PST pst)
-        : TraversePST(pst,name,sizeof(input)) {}
-protected:
-    virtual int OffNode(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int  AtNode(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceReorder(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int OffNode(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int AtNode(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 
-} // NewDD
+} // namespace NewDD
 
 #endif // DOMAINS_REORDER_H

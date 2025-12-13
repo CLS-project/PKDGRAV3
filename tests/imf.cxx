@@ -3,22 +3,18 @@
 #include <cstdlib>
 #include "imf.h"
 
-
 class IMFTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {}
     void TearDown() override {}
 };
-
 
 TEST_F(IMFTest, BasicIMFTest) {
     const double dMinMass{0.1};
     const double dMaxMass{100.0};
 
     // Try to load an unexisting IMF
-    EXPECT_DEATH({
-        auto wrongIMF = ChooseIMF("other", dMinMass, dMaxMass);
-    }, "Undefined IMF type has been given to ChooseIMF: other");
+    EXPECT_DEATH({ auto wrongIMF = ChooseIMF("other", dMinMass, dMaxMass); }, "Undefined IMF type has been given to ChooseIMF: other");
 
     auto ChabrierIMF = ChooseIMF("chabrier", dMinMass, dMaxMass);
     auto KroupaIMF = ChooseIMF("kroupa", dMinMass, dMaxMass);

@@ -4,9 +4,9 @@
 #include "eEOS/eEOS_struct.h"
 #include "eEOS/eEOS.h"
 
-template<typename dtype, typename mtype>
+template <typename dtype, typename mtype>
 class eEOSTestBase : public ::testing::Test {
-protected:
+  protected:
     struct eEOSparam params;
     void SetUp() override {
         // These are not meant to be physical, just to check the implementation
@@ -20,12 +20,12 @@ protected:
         params.dFloorMinOD = 57.0;
     }
     void TearDown() override {}
-    dtype gamma = 5/3.;
+    dtype gamma = 5 / 3.;
     dtype ball = 1.0;
     dtype a_inv3 = 1.0;
 };
-typedef vec<double,double> dtype;
-typedef eEOSTestBase<vec<double,double>,mmask<bool>> eEOSTest;
+typedef vec<double, double> dtype;
+typedef eEOSTestBase<vec<double, double>, mmask<bool>> eEOSTest;
 
 TEST_F(eEOSTest, LowDensity) {
     // The eEOS should not activate in this case
@@ -49,5 +49,5 @@ TEST_F(eEOSTest, VeryHighDensity) {
     // The constant energy eEOS should be active
     dtype dens = 80.0;
     dtype eos = eEOSEnergyFloor(a_inv3, dens, ball, gamma, params);
-    EXPECT_EQ(eos, pow(dens/params.dPolyFloorDen, params.dPolyFloorExponent) );
+    EXPECT_EQ(eos, pow(dens / params.dPolyFloorDen, params.dPolyFloorExponent));
 }

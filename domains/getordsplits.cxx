@@ -18,12 +18,12 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceGetOrdSplits::input>  || std::is_standard_layout_v<ServiceGetOrdSplits::input>);
+static_assert(std::is_void_v<ServiceGetOrdSplits::input> || std::is_standard_layout_v<ServiceGetOrdSplits::input>);
 static_assert(std::is_void_v<ServiceGetOrdSplits::output> || std::is_standard_layout_v<ServiceGetOrdSplits::output>);
 
-int ServiceGetOrdSplits::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int ServiceGetOrdSplits::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
     assert(nOut >= sizeof(output));
-    auto out = static_cast<output *>(vout);
+    auto out = static_cast<output*>(vout);
     *out = pst->iOrdSplit;
     return sizeof(output);
 }

@@ -21,23 +21,21 @@
 #include "particle.h"
 #include "mdl.h"
 
-template<class STORE>
+template <class STORE>
 class remoteStore {
-protected:
-    mdl::mdlClass *mdl;
-    STORE *localStore;
+  protected:
+    mdl::mdlClass* mdl;
+    STORE* localStore;
     int cache_id;
-    auto &local() { return *localStore; }
-public:
-    remoteStore(mdl::mdlClass *mdl,STORE &localStore,int cache_id)
-        : mdl(mdl), localStore(&localStore), cache_id(cache_id) {}
+    auto& local() { return *localStore; }
 
-    auto operator()(int iIndex) {
-        return local()[iIndex];
-    }
-    auto operator()(int iIndex,int iID) {
-        if (iID==mdl->Self()) return (*this)(iIndex);
-        else return local()[mdl->Fetch<typename STORE::value_type>(cache_id,iIndex,iID)];
+  public:
+    remoteStore(mdl::mdlClass* mdl, STORE& localStore, int cache_id) : mdl(mdl), localStore(&localStore), cache_id(cache_id) {}
+
+    auto operator()(int iIndex) { return local()[iIndex]; }
+    auto operator()(int iIndex, int iID) {
+        if (iID == mdl->Self()) return (*this)(iIndex);
+        else return local()[mdl->Fetch<typename STORE::value_type>(cache_id, iIndex, iID)];
     }
 };
 

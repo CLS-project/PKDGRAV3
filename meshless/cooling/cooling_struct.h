@@ -23,9 +23,6 @@
 
 #define eagle_table_path_name_length 256
 
-
-
-
 /*! Number of different bins along the redhsift axis of the tables */
 #define eagle_cooling_N_redshifts 49
 
@@ -47,17 +44,14 @@
 /*! Number of different bins along the abundances axis of the tables */
 #define eagle_cooling_N_abundances 11
 
-
 /**
  * @brief Names of the elements in the order they are stored in the files
  */
-static const char *eagle_tables_element_names[eagle_cooling_N_metal] = {
-    "Carbon",  "Nitrogen", "Oxygen",  "Neon", "Magnesium",
-    "Silicon", "Sulphur",  "Calcium", "Iron"
-};
+static const char* eagle_tables_element_names[eagle_cooling_N_metal] = {"Carbon",  "Nitrogen", "Oxygen",  "Neon", "Magnesium",
+                                                                        "Silicon", "Sulphur",  "Calcium", "Iron"};
 
 /*! Number of elements in a z-slice of the H+He cooling rate tables */
-#define num_elements_cooling_rate ( eagle_cooling_N_temperature * eagle_cooling_N_density)
+#define num_elements_cooling_rate (eagle_cooling_N_temperature * eagle_cooling_N_density)
 
 /*! Number of elements in a z-slice of the metal cooling rate tables */
 #define num_elements_metal_heating (eagle_cooling_N_metal * eagle_cooling_N_temperature * eagle_cooling_N_density)
@@ -74,32 +68,25 @@ static const char *eagle_tables_element_names[eagle_cooling_N_metal] = {
 /*! Number of elements in a z-slice of the H+He electron abundance tables */
 #define num_elements_HpHe_electron_abundance (eagle_cooling_N_He_frac * eagle_cooling_N_temperature * eagle_cooling_N_density)
 
-
-
-
-
-
-
-
 /**
  * @brief struct containing cooling tables
  */
 struct cooling_tables {
 
     /* array of heating rates due to metals */
-    float *metal_heating;
+    float* metal_heating;
 
     /* array of heating rates due to hydrogen and helium */
-    float *H_plus_He_heating;
+    float* H_plus_He_heating;
 
     /* array of electron abundances due to hydrogen and helium */
-    float *H_plus_He_electron_abundance;
+    float* H_plus_He_electron_abundance;
 
     /* array of temperatures */
-    float *temperature;
+    float* temperature;
 
     /* array of electron abundances due to metals */
-    float *electron_abundance;
+    float* electron_abundance;
 };
 
 /**
@@ -112,25 +99,25 @@ struct cooling_function_data {
     struct cooling_tables table;
 
     /*! Redshift bins */
-    float *Redshifts;
+    float* Redshifts;
 
     /*! Hydrogen number density bins */
-    float *nH;
+    float* nH;
 
     /*! Temperature bins */
-    float *Temp;
+    float* Temp;
 
     /*! Helium fraction bins */
-    float *HeFrac;
+    float* HeFrac;
 
     /*! Internal energy bins */
-    float *Therm;
+    float* Therm;
 
     /*! Mass fractions of elements for solar abundances (from the tables) */
-    float *SolarAbundances;
+    float* SolarAbundances;
 
     /*! Inverse of the solar mass fractions */
-    float *SolarAbundances_inv;
+    float* SolarAbundances_inv;
 
     /*! Filepath to the directory containing the HDF5 cooling tables */
     char cooling_table_path[eagle_table_path_name_length];

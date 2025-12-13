@@ -30,13 +30,13 @@
 *   Analysis callback
 \******************************************************************************/
 
-void MSR::addAnalysis(PyObject *callback,uint64_t per_particle, uint64_t per_process) {
-    analysis_callbacks.emplace_back(callback,per_particle,per_process);
+void MSR::addAnalysis(PyObject* callback, uint64_t per_particle, uint64_t per_process) {
+    analysis_callbacks.emplace_back(callback, per_particle, per_process);
 }
 
-void MSR::runAnalysis(int iStep,double dTime) {
-    set_dynamic(iStep,dTime);
-    for ( msr_analysis_callback &i : analysis_callbacks) {
+void MSR::runAnalysis(int iStep, double dTime) {
+    set_dynamic(iStep, dTime);
+    for (msr_analysis_callback& i : analysis_callbacks) {
         auto v = parameters.call_dynamic(i.callback);
         Py_XDECREF(v);
         if (PyErr_Occurred()) PyErr_Print();
@@ -46,7 +46,6 @@ void MSR::runAnalysis(int iStep,double dTime) {
 #include <Python.h>
 #include <string.h>
 
-
 /******************************************************************************\
 *   Check if PKDGRAV is imported
 
@@ -55,7 +54,7 @@ void MSR::runAnalysis(int iStep,double dTime) {
 *   skip simulation mode.
 \******************************************************************************/
 
-bool is_PKDGRAV_imported(PyObject *keys) {
+bool is_PKDGRAV_imported(PyObject* keys) {
     // Ensure that the provided object is a dictionary.
     if (!PyDict_Check(keys)) {
         PyErr_SetString(PyExc_TypeError, "Expected a dict");
@@ -70,28 +69,28 @@ bool is_PKDGRAV_imported(PyObject *keys) {
         // Check if the value is a module.
         if (PyModule_Check(value)) {
             // Retrieve the module's name.
-            const char *mod_name = PyModule_GetName(value);
+            const char* mod_name = PyModule_GetName(value);
             if (mod_name && strcmp(mod_name, "PKDGRAV") == 0) {
-                return true;  // Found the module.
+                return true; // Found the module.
             }
         }
     }
-    return false;  // Module not found.
+    return false; // Module not found.
 }
 
 /******************************************************************************\
 *   Setup MSR using Python to parse parameters / enter analysis mode
 \******************************************************************************/
 
-extern "C" PyObject *PyInit_CSM(void);
-extern "C" PyObject *PyInit_accuracy(void);
-extern "C" PyObject *PyInit_cosmology(void);
-extern "C" PyObject *PyInit_ephemeral(void);
+extern "C" PyObject* PyInit_CSM(void);
+extern "C" PyObject* PyInit_accuracy(void);
+extern "C" PyObject* PyInit_cosmology(void);
+extern "C" PyObject* PyInit_ephemeral(void);
 
-int MSR::Python(int argc, char *argv[]) {
-    PyImport_AppendInittab("PKDGRAV",PyInit_PKDGRAV);
-    PyImport_AppendInittab("cosmology",PyInit_cosmology);
-    PyImport_AppendInittab("CSM",PyInit_CSM);
+int MSR::Python(int argc, char* argv[]) {
+    PyImport_AppendInittab("PKDGRAV", PyInit_PKDGRAV);
+    PyImport_AppendInittab("cosmology", PyInit_cosmology);
+    PyImport_AppendInittab("CSM", PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
     PyImport_AppendInittab("accuracy", PyInit_accuracy);
     PyImport_AppendInittab("ephemeral", PyInit_ephemeral);
@@ -113,16 +112,16 @@ int MSR::Python(int argc, char *argv[]) {
     if (PYENV_VIRTUAL_ENV) {
         std::string exec = PYENV_VIRTUAL_ENV;
         exec += "/bin/python";
-        status = PyConfig_SetBytesString(&config,&config.program_name,exec.c_str());
+        status = PyConfig_SetBytesString(&config, &config.program_name, exec.c_str());
     }
     status = Py_InitializeFromConfig(&config);
     PyConfig_Clear(&config);
     Initialize();
 
-    PyObject *main_module = PyImport_ImportModule("__main__");
+    PyObject* main_module = PyImport_ImportModule("__main__");
     auto globals = PyModule_GetDict(main_module);
     auto locals = globals;
-    PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
+    PyDict_SetItemString(globals, "__builtins__", PyEval_GetBuiltins());
 
     // This module is used for checkpointing and restoring the state
     pDill = PyImport_ImportModule("dill");
@@ -165,33 +164,33 @@ int MSR::Python(int argc, char *argv[]) {
     }
     // Retrieve the results
     int n = PyTuple_Size(result);
-    if (n!=2) {
-        fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n");
+    if (n != 2) {
+        fprintf(stderr, "INTERNAL ERROR: parse.parse() MUST return a tuple\n");
         abort();
     }
-    auto arguments = PyTuple_GetItem(result,0);         // Borrowed: Values of each parameter
-    auto specified = PyTuple_GetItem(result,1);         // Borrowed: If it was explicitely specified
-    parameters = pkd_parameters(arguments,specified);   // This will take ownership
+    auto arguments = PyTuple_GetItem(result, 0);       // Borrowed: Values of each parameter
+    auto specified = PyTuple_GetItem(result, 1);       // Borrowed: If it was explicitely specified
+    parameters = pkd_parameters(arguments, specified); // This will take ownership
     Py_DECREF(result);
-    parameters.set_dynamic("msr",PyImport_ImportModule("PKDGRAV"));
-    PyObject *script = PyObject_GetAttrString(arguments,"script");
+    parameters.set_dynamic("msr", PyImport_ImportModule("PKDGRAV"));
+    PyObject* script = PyObject_GetAttrString(arguments, "script");
 
     // If a script was specified then we run it.
     if (script != Py_None) {
-        char *filename;
+        char* filename;
         if (PyUnicode_Check(script)) {
-            PyObject *ascii = PyUnicode_AsASCIIString(script);
+            PyObject* ascii = PyUnicode_AsASCIIString(script);
             filename = PyBytes_AsString(ascii);
             Py_DECREF(ascii);
         }
         else {
-            fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n");
+            fprintf(stderr, "INTERNAL ERROR: script filename is invalid\n");
             abort();
         }
-        auto fp = fopen(filename,"r");
-        abort_false(1000,fp,filename);
+        auto fp = fopen(filename, "r");
+        abort_false(1000, fp, filename);
         PyDict_SetItemString(locals, "__file__", script);
-        auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
+        auto s = PyRun_FileEx(fp, filename, Py_file_input, globals, locals, 1); // fp is closed on return
         Py_XDECREF(s);
         if (PyErr_Occurred()) {
             int rc = 1;
@@ -218,12 +217,11 @@ int MSR::Python(int argc, char *argv[]) {
     if (!imported) { // We must prepare for a normal legacy execution
         if (!parameters.verify(locals)) {
             PyErr_Print();
-            fprintf(stderr,
-                    "To avoid accidentially mistyping parameter names, you must prefix any additional\n"
-                    "variables with an underscore. Verify the above listed variables/parameters.\n");
+            fprintf(stderr, "To avoid accidentially mistyping parameter names, you must prefix any additional\n"
+                            "variables with an underscore. Verify the above listed variables/parameters.\n");
             exit(1);
         }
-        update(locals,arguments,specified);
+        update(locals, arguments, specified);
         if (PyErr_Occurred()) {
             PyErr_Print();
             exit(1);

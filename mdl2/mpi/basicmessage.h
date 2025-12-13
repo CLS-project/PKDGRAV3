@@ -52,44 +52,46 @@
 namespace mdl {
 
 #ifdef __cpp_lib_hardware_interference_size
-    using std::hardware_constructive_interference_size;
-    using std::hardware_destructive_interference_size;
+using std::hardware_constructive_interference_size;
+using std::hardware_destructive_interference_size;
 #else
-    // 64 bytes on x86-64 │ L1_CACHE_BYTES │ L1_CACHE_SHIFT │ __cacheline_aligned │ ...
-    constexpr std::size_t hardware_constructive_interference_size = 128;
-    constexpr std::size_t hardware_destructive_interference_size = 128;
+// 64 bytes on x86-64 │ L1_CACHE_BYTES │ L1_CACHE_SHIFT │ __cacheline_aligned │ ...
+constexpr std::size_t hardware_constructive_interference_size = 128;
+constexpr std::size_t hardware_destructive_interference_size = 128;
 #endif
 
 class CXX_Queue_element_hdr_t {
-protected:
+  protected:
     friend class CXX_Queue_info_t;
-    std::atomic<CXX_Queue_element_hdr_t *> next = nullptr;
-public:
+    std::atomic<CXX_Queue_element_hdr_t*> next = nullptr;
+
+  public:
     CXX_Queue_element_hdr_t() = default;
     virtual ~CXX_Queue_element_hdr_t() = default;
 };
-static_assert(std::atomic<CXX_Queue_element_hdr_t *>::is_always_lock_free,"Atomics must be lock free or performance will be unacceptable");
+static_assert(std::atomic<CXX_Queue_element_hdr_t*>::is_always_lock_free, "Atomics must be lock free or performance will be unacceptable");
 
 class CXX_Queue_info_t {
-protected:
+  protected:
     // This is aligned this way so that head and tail are in the same cache line
-    struct alignas(2 * sizeof(CXX_Queue_element_hdr_t *)) normal_ {
-        std::atomic<CXX_Queue_element_hdr_t *> head = nullptr;
-        std::atomic<CXX_Queue_element_hdr_t *> tail = nullptr;
+    struct alignas(2 * sizeof(CXX_Queue_element_hdr_t*)) normal_ {
+        std::atomic<CXX_Queue_element_hdr_t*> head = nullptr;
+        std::atomic<CXX_Queue_element_hdr_t*> tail = nullptr;
     } normal;
     // The shadow head should be in a different cache line to prevent false sharing
 #if defined(__GNUC__) && (__GNUC__ >= 12)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Winterference-size"
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Winterference-size"
 #endif
     char pad[hardware_destructive_interference_size - sizeof(normal)];
 #if defined(__GNUC__) && (__GNUC__ >= 12)
-#pragma GCC diagnostic pop
+    #pragma GCC diagnostic pop
 #endif
     struct shadow_ {
-        std::atomic<CXX_Queue_element_hdr_t *> head = nullptr;
+        std::atomic<CXX_Queue_element_hdr_t*> head = nullptr;
     } shadow;
-public:
+
+  public:
     CXX_Queue_info_t() = default;
 
     // This MUST be called before dequeue below.
@@ -97,16 +99,16 @@ public:
         if (shadow.head.load(std::memory_order_relaxed) == nullptr) {
             if (normal.head.load(std::memory_order_relaxed) == nullptr) return true;
             else {
-                shadow.head.store(normal.head.load(std::memory_order_relaxed),std::memory_order_release);
-                normal.head.store(nullptr,std::memory_order_relaxed);
+                shadow.head.store(normal.head.load(std::memory_order_relaxed), std::memory_order_release);
+                normal.head.store(nullptr, std::memory_order_relaxed);
             }
         }
         return false;
     }
 
-    template<typename MESSAGE>
-    void enqueue(MESSAGE *m) {
-        m->next.store(nullptr,std::memory_order_relaxed);
+    template <typename MESSAGE>
+    void enqueue(MESSAGE* m) {
+        m->next.store(nullptr, std::memory_order_relaxed);
         // We need to make sure that the above store happens before the exchange.
         // We use memory_order_release on the exchange for this, but on POWERPC
         // the eieio instruction is sufficient (release uses lwsync normally).
@@ -115,40 +117,42 @@ public:
         // lwsync: orders load/load, store/store and load/store to memory
         // sync: orders everything
 #if defined(__GNUC__) && defined(__PPC__)
-        __asm__ __volatile__  ( "eieio"  ::: "memory" );
+        __asm__ __volatile__("eieio" ::: "memory");
 #else
         std::atomic_thread_fence(std::memory_order_release);
 #endif
-        auto prev = normal.tail.exchange(m,std::memory_order_relaxed);
-        if (prev==nullptr) normal.head.store(m,std::memory_order_relaxed);
-        else prev->next.store(m,std::memory_order_relaxed);
+        auto prev = normal.tail.exchange(m, std::memory_order_relaxed);
+        if (prev == nullptr) normal.head.store(m, std::memory_order_relaxed);
+        else prev->next.store(m, std::memory_order_relaxed);
     }
-    template<typename MESSAGE>
-    void enqueue(MESSAGE &m) { enqueue(&m); }
+    template <typename MESSAGE>
+    void enqueue(MESSAGE& m) {
+        enqueue(&m);
+    }
 
     // You must call empty() before this function
-    template<typename MESSAGE>
-    MESSAGE &dequeue() {
+    template <typename MESSAGE>
+    MESSAGE& dequeue() {
         auto e = shadow.head.load(std::memory_order_relaxed);
         auto n = e->next.load(std::memory_order_relaxed);
-        if (n != nullptr) shadow.head.store(n,std::memory_order_relaxed);
+        if (n != nullptr) shadow.head.store(n, std::memory_order_relaxed);
         else {
-            shadow.head.store(nullptr,std::memory_order_relaxed);
-            CXX_Queue_element_hdr_t *expected = e;
-            if (!normal.tail.compare_exchange_strong(expected,nullptr,std::memory_order_relaxed)) {
-                while ((n=e->next.load(std::memory_order_relaxed)) == nullptr) {
+            shadow.head.store(nullptr, std::memory_order_relaxed);
+            CXX_Queue_element_hdr_t* expected = e;
+            if (!normal.tail.compare_exchange_strong(expected, nullptr, std::memory_order_relaxed)) {
+                while ((n = e->next.load(std::memory_order_relaxed)) == nullptr) {
 #if defined(HAVE_SCHED_YIELD)
                     sched_yield();
 #elif defined(_MSC_VER)
                     SwitchToThread();
 #endif
                 }
-                shadow.head.store(n,std::memory_order_relaxed);
+                shadow.head.store(n, std::memory_order_relaxed);
             }
         }
-        e->next.store(nullptr,std::memory_order_relaxed);
+        e->next.store(nullptr, std::memory_order_relaxed);
         std::atomic_thread_fence(std::memory_order_acquire);
-        return *static_cast<MESSAGE *>(e);
+        return *static_cast<MESSAGE*>(e);
     }
 };
 
@@ -160,31 +164,33 @@ public:
 // An ewaldMessage is sent to the CUDA thread which accepts a cudaMessage.
 // When returned, it goes onto a queue that accepts an ewaldMessage.
 struct basicMessage : public CXX_Queue_element_hdr_t {
-    CXX_Queue_info_t *replyQueue;
+    CXX_Queue_info_t* replyQueue;
     basicMessage() : replyQueue(0) {}
     virtual ~basicMessage() {} // This class needs to be polymorphic (so dynamic_cast works)
-    void sendBack() {if (replyQueue) replyQueue->enqueue(this);}
+    void sendBack() {
+        if (replyQueue) replyQueue->enqueue(this);
+    }
 };
 
 struct basicQueue : public CXX_Queue_info_t {
-public:
-    basicMessage &dequeue() { return CXX_Queue_info_t::dequeue<basicMessage>(); }
+  public:
+    basicMessage& dequeue() { return CXX_Queue_info_t::dequeue<basicMessage>(); }
 
-    void enqueue(basicMessage *m) { CXX_Queue_info_t::enqueue(m); }
-    void enqueue(basicMessage &m) { CXX_Queue_info_t::enqueue(&m); }
-    void enqueue(const basicMessage &C,basicQueue &Q) {
+    void enqueue(basicMessage* m) { CXX_Queue_info_t::enqueue(m); }
+    void enqueue(basicMessage& m) { CXX_Queue_info_t::enqueue(&m); }
+    void enqueue(const basicMessage& C, basicQueue& Q) {
         // We do modify "M", but we are done before we return. Promise.
         // This allows patterns like Q.enqueueAndWait(MessageType(...))
-        basicMessage &M = const_cast<basicMessage &>(C);
+        basicMessage& M = const_cast<basicMessage&>(C);
         M.replyQueue = &Q;
         enqueue(M);
     }
 };
 
-template<class messageType>
+template <class messageType>
 struct messageQueue : public basicQueue {
 
-    messageType &wait() {
+    messageType& wait() {
         while (empty()) {
             // This is important in the case where we have oversubscribed the CPU
 #if defined(HAVE_SCHED_YIELD)
@@ -195,9 +201,9 @@ struct messageQueue : public basicQueue {
         }
         return dequeue();
     }
-    messageType &dequeue() {
-        basicMessage &M = basicQueue::dequeue();
-        return dynamic_cast<messageType &>(M);
+    messageType& dequeue() {
+        basicMessage& M = basicQueue::dequeue();
+        return dynamic_cast<messageType&>(M);
     }
 };
 } // namespace mdl

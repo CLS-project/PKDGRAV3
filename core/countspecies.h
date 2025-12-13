@@ -21,24 +21,24 @@
 #include "io/fio.h"
 
 struct CountSpeciesCounts {
-    blitz::TinyVector<std::uint_fast64_t,FIO_SPECIES_LAST> counts;
+    blitz::TinyVector<std::uint_fast64_t, FIO_SPECIES_LAST> counts;
     std::uint_fast64_t nMaxOrder;
     CountSpeciesCounts() {}
     // In this context += is used to "combine" the results -- not necessarily to add them
-    CountSpeciesCounts &operator+=(const CountSpeciesCounts &rhs) {
+    CountSpeciesCounts& operator+=(const CountSpeciesCounts& rhs) {
         counts += rhs.counts;
-        nMaxOrder = std::max(nMaxOrder,rhs.nMaxOrder);
+        nMaxOrder = std::max(nMaxOrder, rhs.nMaxOrder);
         return *this;
     }
 };
 
 class ServiceCountSpecies : public TraverseCount<CountSpeciesCounts> {
-public:
+  public:
     static constexpr std::string_view name = "CountSpecies";
     typedef void input;
-    explicit ServiceCountSpecies(PST pst, std::string_view service_name=name, int nInBytes=0)
-        : TraverseCount(pst,service_name,nInBytes) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceCountSpecies(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };
 #endif

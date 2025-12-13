@@ -17,17 +17,17 @@
 #include "TraversePST.h"
 
 class ServiceDumpTrees : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "DumpTrees";
     struct input {
         uint8_t uRungDD; /* Domain DD was done on this rung */
         bool bOnlyVA;
         input() = default;
-        input(uint8_t uRungDD,bool bOnlyVA=false) : uRungDD(uRungDD), bOnlyVA(bOnlyVA) {}
+        input(uint8_t uRungDD, bool bOnlyVA = false) : uRungDD(uRungDD), bOnlyVA(bOnlyVA) {}
     };
     typedef void output;
-    explicit ServiceDumpTrees(PST pst)
-        : TraversePST(pst,name,sizeof(input)) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceDumpTrees(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

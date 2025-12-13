@@ -17,12 +17,12 @@
 #include "rssaveids.h"
 #include "io/iochunk.h"
 
-void ServiceRsSaveIds::Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) {
-    pst->plcl->pkd->RsIdSave(iGroup,filename,iSegment,nSegment);
+void ServiceRsSaveIds::Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) {
+    pst->plcl->pkd->RsIdSave(iGroup, filename, iSegment, nSegment);
 }
 
-void pkdContext::RsIdSave(int iGroup,const std::string &filename,int iSegment,int nSegment) {
+void pkdContext::RsIdSave(int iGroup, const std::string& filename, int iSegment, int nSegment) {
     auto ids = Ephemeral<uint64_t>();
-    auto nBytes = nRsElements*sizeof(ids[0]);
-    io_chunk_write(filename.c_str(), ids, nBytes, iSegment>0);
+    auto nBytes = nRsElements * sizeof(ids[0]);
+    io_chunk_write(filename.c_str(), ids, nBytes, iSegment > 0);
 }

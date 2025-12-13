@@ -8,7 +8,7 @@
 /* MSR layer
  */
 void MSR::SetStarFormationParam() {
-    calc.dSFThresholdu = parameters.get_dSFThresholdT()*dTuFacPrimNeutral;
+    calc.dSFThresholdu = parameters.get_dSFThresholdT() * dTuFacPrimNeutral;
 
     if (csm->val.bComove) {
         // As usual, in code units the critical density is 1.0
@@ -20,12 +20,9 @@ void MSR::SetStarFormationParam() {
 
     const double dnHToRho = MHYDR / parameters.get_dInitialH() / units.dGmPerCcUnit;
     calc.dSFThresholdDen = parameters.get_dSFThresholdDen() * dnHToRho; // Code physical density now
-    const double Msolpcm2 = 1. / units.dMsolUnit *
-                            pow(units.dKpcUnit*1e3, 2);
-    calc.dSFnormalizationKS = parameters.get_dSFnormalizationKS() / units.dMsolUnit *
-                              units.dSecUnit/SECONDSPERYEAR *
-                              pow(units.dKpcUnit, 2) *
-                              pow(Msolpcm2,-parameters.get_dSFindexKS());
+    const double Msolpcm2 = 1. / units.dMsolUnit * pow(units.dKpcUnit * 1e3, 2);
+    calc.dSFnormalizationKS = parameters.get_dSFnormalizationKS() / units.dMsolUnit * units.dSecUnit / SECONDSPERYEAR * pow(units.dKpcUnit, 2) *
+                              pow(Msolpcm2, -parameters.get_dSFindexKS());
 }
 
 int MSR::ValidateStarFormationParam() {
@@ -41,9 +38,9 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
 
     TimerStart(TIMER_STARFORM);
 
-    const double a = csmTime2Exp(csm,dTime);
+    const double a = csmTime2Exp(csm, dTime);
 
-    in.dHubble = Comove() ? csmTime2Hub(csm,dTime) : 0.0;
+    in.dHubble = Comove() ? csmTime2Hub(csm, dTime) : 0.0;
     in.dScaleFactor = a;
     in.dTime = dTime;
     in.dDelta = dDelta;
@@ -51,7 +48,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dSFnormalizationKS = calc.dSFnormalizationKS;
     in.dConstGamma = parameters.get_dConstGamma();
     in.dSFGasFraction = parameters.get_dSFGasFraction();
-    in.dSFThresholdDen = calc.dSFThresholdDen * a * a * a;  // Send in comoving units
+    in.dSFThresholdDen = calc.dSFThresholdDen * a * a * a; // Send in comoving units
     in.dSFThresholdOD = calc.dSFThresholdOD;
     in.dSFThresholdu = calc.dSFThresholdu;
     in.dSFEfficiency = parameters.get_dSFEfficiency();
@@ -64,7 +61,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dSNFBMaxEff = parameters.get_dSNFBMaxEff();
     in.dSNFBEffIndex = parameters.get_dSNFBEffIndex();
     in.dSNFBEffnH0 = calc.dSNFBEffnH0;
-    in.eEOS = eEOSparam(parameters,calc);
+    in.eEOS = eEOSparam(parameters, calc);
 #ifdef STELLAR_EVOLUTION
     in.dSNIaMaxMass = parameters.get_dSNIaMaxMass();
     in.dCCSNMinMass = parameters.get_dCCSNMinMass();
@@ -73,11 +70,9 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
 
     if (parameters.get_bVDetails()) printf("Star Form (rung: %d) ... ", iRung);
 
-    ActiveRung(iRung,1);
+    ActiveRung(iRung, 1);
     mdl->RunService<ServiceStarForm>(sizeof(in), &in, &out, sizeof(out));
-    if (parameters.get_bVDetails())
-        printf("%d Stars formed with mass %g, %d gas deleted\n",
-               out.nFormed, out.dMassFormed, out.nDeleted);
+    if (parameters.get_bVDetails()) printf("%d Stars formed with mass %g, %d gas deleted\n", out.nFormed, out.dMassFormed, out.nDeleted);
     massFormed += out.dMassFormed;
     starFormed += out.nFormed;
 
@@ -86,6 +81,5 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
 
     TimerStop(TIMER_STARFORM);
     auto dsec = TimerGet(TIMER_STARFORM);
-    printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
-
+    printf("Star Formation Calculated, Wallclock: %f secs\n\n", dsec);
 }

@@ -24,20 +24,15 @@
  * @brief EAGLE cooling function
  */
 
-
 #include "cooling_struct.h"
 
+void get_cooling_redshifts(struct cooling_function_data* cooling);
 
-void get_cooling_redshifts(struct cooling_function_data *cooling);
+void read_cooling_header(const char* fname, struct cooling_function_data* cooling);
 
-void read_cooling_header(const char *fname,
-                         struct cooling_function_data *cooling);
+void allocate_cooling_tables(struct cooling_function_data* restrict cooling);
 
-void allocate_cooling_tables(struct cooling_function_data *restrict cooling);
-
-void get_redshift_invariant_table(
-    struct cooling_function_data *restrict cooling, const int photodis);
-void get_cooling_table(struct cooling_function_data *restrict cooling,
-                       const int low_z_index, const int high_z_index);
+void get_redshift_invariant_table(struct cooling_function_data* restrict cooling, const int photodis);
+void get_cooling_table(struct cooling_function_data* restrict cooling, const int low_z_index, const int high_z_index);
 
 #endif

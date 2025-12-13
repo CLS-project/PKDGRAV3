@@ -18,22 +18,22 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceCalcBound::input>  || std::is_standard_layout_v<ServiceCalcBound::input>);
+static_assert(std::is_void_v<ServiceCalcBound::input> || std::is_standard_layout_v<ServiceCalcBound::input>);
 static_assert(std::is_void_v<ServiceCalcBound::output> || std::is_standard_layout_v<ServiceCalcBound::output>);
 
-int ServiceCalcBound::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int ServiceCalcBound::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto pkd = pst->plcl->pkd;
     static_assert(std::is_void_v<input>);
-    auto &out = * static_cast<output *>(vout);
-    assert(nIn==0);
-    assert(nOut==sizeof(output));
+    auto& out = *static_cast<output*>(vout);
+    assert(nIn == 0);
+    assert(nOut == sizeof(output));
     out = pkd->bnd = pkd->particles.bound();
     return sizeof(output);
 }
 
-int ServiceCalcBound::Combine(void *vout,void *vout2) {
-    auto out  = static_cast<output *>(vout);
-    auto out2 = static_cast<output *>(vout2);
+int ServiceCalcBound::Combine(void* vout, void* vout2) {
+    auto out = static_cast<output*>(vout);
+    auto out2 = static_cast<output*>(vout2);
     *out = out->combine(*out2);
     return sizeof(output);
 }

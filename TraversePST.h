@@ -26,61 +26,66 @@
 // the Service() function is called.
 class TraversePST : public mdl::BasicService {
     PST node_pst;
-public:
-    explicit TraversePST(PST node_pst, std::string_view service_name, int nInBytes=0, int nOutBytes=0 )
+
+  public:
+    explicit TraversePST(PST node_pst, std::string_view service_name, int nInBytes = 0, int nOutBytes = 0)
         : BasicService(service_name, nInBytes, nOutBytes), node_pst(node_pst) {}
     virtual ~TraversePST() = default;
-    int ReqService(PST pst,void *vin,int nIn);
-protected:
-    virtual int operator()(int nIn, void *pIn, void *pOut) final;
-    virtual int Traverse(PST pst,void *vin,int nIn,void *vout,int nOut);
+    int ReqService(PST pst, void* vin, int nIn);
 
-    virtual int OffNode(PST pst,void *vin,int nIn,void *vout,int nOut) {return Recurse(pst,vin,nIn,vout,nOut);}
-    virtual int  AtNode(PST pst,void *vin,int nIn,void *vout,int nOut) {return Recurse(pst,vin,nIn,vout,nOut);}
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut);
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) = 0;
-protected:
-    static  int Traverse(unsigned sid, PST pst,void *vin,int nIn,void *vout,int nOut);
-    static  int Traverse(std::string_view service_name, PST pst,void *vin,int nIn,void *vout,int nOut);
-    template<typename T>
-    static  int Traverse(PST pst,void *vin,int nIn,void *vout,int nOut) {
-        return Traverse(T::name,pst,vin,nIn,vout,nOut);
+  protected:
+    virtual int operator()(int nIn, void* pIn, void* pOut) final;
+    virtual int Traverse(PST pst, void* vin, int nIn, void* vout, int nOut);
+
+    virtual int OffNode(PST pst, void* vin, int nIn, void* vout, int nOut) { return Recurse(pst, vin, nIn, vout, nOut); }
+    virtual int AtNode(PST pst, void* vin, int nIn, void* vout, int nOut) { return Recurse(pst, vin, nIn, vout, nOut); }
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut);
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) = 0;
+
+  protected:
+    static int Traverse(unsigned sid, PST pst, void* vin, int nIn, void* vout, int nOut);
+    static int Traverse(std::string_view service_name, PST pst, void* vin, int nIn, void* vout, int nOut);
+    template <typename T>
+    static int Traverse(PST pst, void* vin, int nIn, void* vout, int nOut) {
+        return Traverse(T::name, pst, vin, nIn, vout, nOut);
     }
 };
 
 // This class is for services where the input does not change as the PST is walked,
 // but where a customized Combine for a fixed size output is needed.
 class TraverseCombinePST : public TraversePST {
-public:
+  public:
     explicit TraverseCombinePST(PST node_pst, std::string_view service_name, int nInBytes, int nOutBytes)
         : TraversePST(node_pst, service_name, nInBytes, nOutBytes) {}
     virtual ~TraverseCombinePST() = default;
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final;
-    virtual int Combine(void *vout,void *vout2) = 0;
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) final;
+    virtual int Combine(void* vout, void* vout2) = 0;
 };
 
 // This class is for services where the input does not change as the PST is walked,
 // but where a field is gathered from each thread.
-template<typename OUTPUT>
+template <typename OUTPUT>
 class TraverseGatherPST : public TraversePST {
-public:
+  public:
     explicit TraverseGatherPST(PST node_pst, std::string_view service_name, int nInBytes, int nOutBytes)
         : TraversePST(node_pst, service_name, nInBytes, nOutBytes) {}
     virtual ~TraverseGatherPST() = default;
     using output = OUTPUT;
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final {
-        auto mdl = reinterpret_cast<mdl::mdlClass *>(pst->mdl);
-        auto out1 = static_cast<output *>(vout);
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) final {
+        auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
+        auto out1 = static_cast<output*>(vout);
         auto out2 = out1 + pst->nLower;
         int nBytesLower = pst->nLower * sizeof(output);
         int nBytesUpper = pst->nUpper * sizeof(output);
         assert(nBytesLower + nBytesUpper <= nOut);
         nOut = nBytesLower + nBytesUpper;
-        auto rID = mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
-        Traverse(pst->pstLower,vin,nIn,out1,nBytesLower);
-        nBytesUpper = mdl->GetReply(rID,nBytesUpper,out2);
+        auto rID = mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
+        Traverse(pst->pstLower, vin, nIn, out1, nBytesLower);
+        nBytesUpper = mdl->GetReply(rID, nBytesUpper, out2);
         assert(nBytesLower + nBytesUpper == nOut);
         return nOut;
     }
@@ -89,21 +94,21 @@ protected:
 // This function more generally handles the common case where the return
 // needs to simply add the lower and upper values. This works for any
 // type that provides a "+=" function.
-template<class TYPENAME>
+template <class TYPENAME>
 class TraverseCount : public TraverseCombinePST {
-public:
+  public:
     typedef TYPENAME output;
     static_assert(std::is_standard_layout<output>());
-    explicit TraverseCount(PST pst,std::string_view service_name, int nInBytes=0)
-        : TraverseCombinePST(pst,service_name,nInBytes,sizeof(output)) {}
-protected:
-    int Combine(void *vout,void *vout2) final {
-        auto out  = static_cast<output *>(vout);
-        auto out2 = static_cast<output *>(vout2);
+    explicit TraverseCount(PST pst, std::string_view service_name, int nInBytes = 0) : TraverseCombinePST(pst, service_name, nInBytes, sizeof(output)) {}
+
+  protected:
+    int Combine(void* vout, void* vout2) final {
+        auto out = static_cast<output*>(vout);
+        auto out2 = static_cast<output*>(vout2);
         *out += *out2;
         return sizeof(output);
     }
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override = 0;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override = 0;
 };
 
 #endif

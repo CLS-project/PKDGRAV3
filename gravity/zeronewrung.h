@@ -17,19 +17,18 @@
 #include "TraversePST.h"
 
 class ServiceZeroNewRung : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "ZeroNewRung";
     struct input {
         uint8_t uRung;
         uint8_t uRungLo;
         uint8_t uRungHi;
         input() = default;
-        input(uint8_t uRung, uint8_t uRungLo, uint8_t uRungHi)
-            : uRung(uRung), uRungLo(uRungLo), uRungHi(uRungHi) {}
+        input(uint8_t uRung, uint8_t uRungLo, uint8_t uRungHi) : uRung(uRung), uRungLo(uRungLo), uRungHi(uRungHi) {}
     };
     typedef void output;
-    explicit ServiceZeroNewRung(PST pst)
-        : TraversePST(pst,name,sizeof(input)) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceZeroNewRung(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

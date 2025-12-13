@@ -18,27 +18,27 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceHostname::input>  || std::is_trivial_v<ServiceHostname::input>);
+static_assert(std::is_void_v<ServiceHostname::input> || std::is_trivial_v<ServiceHostname::input>);
 static_assert(std::is_void_v<ServiceHostname::output> || std::is_trivial_v<ServiceHostname::output>);
 
-int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int ServiceHostname::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
     static_assert(std::is_void_v<input>);
-    auto out = static_cast<output *>(vout);
+    auto out = static_cast<output*>(vout);
     auto iUpper = pst->idUpper - pst->idSelf;
     auto outUp = out + iUpper;
-    auto rID = pst->mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
-    auto nLower = Traverse(pst->pstLower,vin,nIn,out,nOut);
-    pst->mdl->GetReply(rID,nOut-nLower,outUp);
-    return pst->nLeaves*sizeof(output);
+    auto rID = pst->mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
+    auto nLower = Traverse(pst->pstLower, vin, nIn, out, nOut);
+    pst->mdl->GetReply(rID, nOut - nLower, outUp);
+    return pst->nLeaves * sizeof(output);
 }
 
-int ServiceHostname::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int ServiceHostname::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
     static_assert(std::is_void_v<input>);
-    auto out = static_cast<output *>(vout);
+    auto out = static_cast<output*>(vout);
     out->iMpiID = pst->mdl->Self();
-    strncpy(out->szHostname,mdlName(pst->mdl),sizeof(out->szHostname));
-    out->szHostname[sizeof(out->szHostname)-1] = 0;
-    auto p = strchr(out->szHostname,'.');
+    strncpy(out->szHostname, mdlName(pst->mdl), sizeof(out->szHostname));
+    out->szHostname[sizeof(out->szHostname) - 1] = 0;
+    auto p = strchr(out->szHostname, '.');
     if (p) *p = 0;
     return sizeof(output);
 }

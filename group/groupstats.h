@@ -20,6 +20,6 @@
 #include "pkd.h"
 
 void pkdHopSendStats(PKD pkd);
-void pkdCalculateGroupStats(PKD pkd, int bPeriodic,blitz::TinyVector<double,3> dPeriod,double rEnvironment[2],uint64_t iGlobalStart);
+void pkdCalculateGroupStats(PKD pkd, int bPeriodic, blitz::TinyVector<double, 3> dPeriod, double rEnvironment[2], uint64_t iGlobalStart);
 
 #endif

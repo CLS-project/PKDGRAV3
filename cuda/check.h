@@ -17,10 +17,18 @@
 
 #ifndef CUDA_CHECK_H
 #define CUDA_CHECK_H
-inline void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line) {
-    fprintf(stderr,"%s error %d in %s(%d)\n%s\n", fname, rc, file, line, cudaGetErrorString(rc));
+inline void CUDA_Abort(cudaError_t rc, const char* fname, const char* file, int line) {
+    fprintf(stderr, "%s error %d in %s(%d)\n%s\n", fname, rc, file, line, cudaGetErrorString(rc));
     exit(1);
 }
-#define CUDA_CHECK(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) CUDA_Abort(rc,#f,__FILE__,__LINE__);}
-#define CUDA_RETURN(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) return rc;}
+#define CUDA_CHECK(f, a)                                                                                                                                       \
+    {                                                                                                                                                          \
+        cudaError_t rc = (f)a;                                                                                                                                 \
+        if (rc != cudaSuccess) CUDA_Abort(rc, #f, __FILE__, __LINE__);                                                                                         \
+    }
+#define CUDA_RETURN(f, a)                                                                                                                                      \
+    {                                                                                                                                                          \
+        cudaError_t rc = (f)a;                                                                                                                                 \
+        if (rc != cudaSuccess) return rc;                                                                                                                      \
+    }
 #endif

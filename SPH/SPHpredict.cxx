@@ -23,13 +23,13 @@
 
 #include "SPHpredict.h"
 
-float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung) {
+float getDtPredDrift(struct pkdKickParameters* kick, int bMarked, int uRungLo, int uRung) {
     if (uRung < uRungLo) {
         return kick->dtPredDrift[uRung];
     }
     else {
         if (bMarked) {
-            return - kick->dtOpen[uRung];
+            return -kick->dtOpen[uRung];
         }
         else {
             return kick->dtClose[uRung];
@@ -37,11 +37,12 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
     }
 }
 
-void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, float *T, float *Spredxx, float *Spredyy, float *Spredxy, float *Spredxz, float *Spredyz, SPHOptions *SPHoptions) {
-    auto &NewSph = p.newsph();
-    float dtPredDrift = getDtPredDrift(kick,p.marked(),uRungLo,p.rung());
-    const auto &ap = p.acceleration();
-    const auto &v = p.velocity();
+void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference& p, struct pkdKickParameters* kick, int uRungLo, float* vpred, float* P, float* cs, float* T,
+                        float* Spredxx, float* Spredyy, float* Spredxy, float* Spredxz, float* Spredyz, SPHOptions* SPHoptions) {
+    auto& NewSph = p.newsph();
+    float dtPredDrift = getDtPredDrift(kick, p.marked(), uRungLo, p.rung());
+    const auto& ap = p.acceleration();
+    const auto& v = p.velocity();
     if (SPHoptions->doConsistentPrediction) {
         vpred[0] = NewSph.vpred[0];
         vpred[1] = NewSph.vpred[1];
@@ -52,7 +53,7 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
         vpred[1] = v[1] + dtPredDrift * ap[1] * p.accFac();
         vpred[2] = v[2] + dtPredDrift * ap[2] * p.accFac();
         if ((SPHoptions->VelocityDamper > 0.0) && !p.marked()) {
-            double dampingTimestep = std::max(kick->dtOpen[p.rung()],kick->dtClose[p.rung()]);
+            double dampingTimestep = std::max(kick->dtOpen[p.rung()], kick->dtClose[p.rung()]);
             vpred[0] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
             vpred[1] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
             vpred[2] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
@@ -72,7 +73,7 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
                     // new opening kick
                     uPred += kick->dtPredISPHOpen[p.rung()] * NewSph.uDot;
                     // isentropic evolution
-                    uPred = SPHEOSIsentropic(pkd,NewSph.oldRho,uPred,p.density(),p.imaterial(),SPHoptions);
+                    uPred = SPHEOSIsentropic(pkd, NewSph.oldRho, uPred, p.density(), p.imaterial(), SPHoptions);
                     // new closing kick
                     uPred += kick->dtPredISPHClose[p.rung()] * NewSph.uDot;
                 }
@@ -80,7 +81,7 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
             else {
                 uPred = NewSph.u + dtPredDrift * NewSph.uDot;
             }
-            *P = SPHEOSPCTofRhoU(pkd,p.density(),uPred,cs,T,p.imaterial(),SPHoptions);
+            *P = SPHEOSPCTofRhoU(pkd, p.density(), uPred, cs, T, p.imaterial(), SPHoptions);
         }
         else {
             *P = NewSph.P;
@@ -88,7 +89,7 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
             if (T) *T = NewSph.T;
         }
         if (SPHoptions->doShearStrengthModel) {
-            auto &NewSphStr = p.newsphstr();
+            auto& NewSphStr = p.newsphstr();
             if (Spredxx) *Spredxx = NewSphStr.Spredxx;
             if (Spredyy) *Spredyy = NewSphStr.Spredyy;
             if (Spredxy) *Spredxy = NewSphStr.Spredxy;
@@ -115,24 +116,24 @@ void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference &p, struct pkd
     }
 }
 
-void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pkdKickParameters *kick, int uRungLo, SPHOptions *SPHoptions) {
+void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference& p, struct pkdKickParameters* kick, int uRungLo, SPHOptions* SPHoptions) {
     // CAREFUL!! When this is called, p.marked() does not mean "has been kicked", but it is a fastgas marker
-    auto &NewSph = p.newsph();
+    auto& NewSph = p.newsph();
     if (SPHoptions->doUConversion && SPHoptions->doInterfaceCorrection) {
         NewSph.T = NewSph.u;
         NewSph.P = SPHEOSPofRhoT(pkd, p.density(), NewSph.u, p.imaterial(), SPHoptions);
         return;
     }
 
-    float dtPredDrift = getDtPredDrift(kick,0,uRungLo,p.rung());
+    float dtPredDrift = getDtPredDrift(kick, 0, uRungLo, p.rung());
     if (SPHoptions->doConsistentPrediction) {
-        const auto &v = p.velocity();
-        const auto &ap = p.acceleration();
+        const auto& v = p.velocity();
+        const auto& ap = p.acceleration();
         NewSph.vpred[0] = v[0] + dtPredDrift * ap[0] * p.accFac();
         NewSph.vpred[1] = v[1] + dtPredDrift * ap[1] * p.accFac();
         NewSph.vpred[2] = v[2] + dtPredDrift * ap[2] * p.accFac();
         if (SPHoptions->VelocityDamper > 0.0) {
-            double dampingTimestep = std::max(kick->dtOpen[p.rung()],kick->dtClose[p.rung()]);
+            double dampingTimestep = std::max(kick->dtOpen[p.rung()], kick->dtClose[p.rung()]);
             NewSph.vpred[0] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
             NewSph.vpred[1] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
             NewSph.vpred[2] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
@@ -147,23 +148,24 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference &p, struct pk
             // new opening kick
             uPred += kick->dtPredISPHOpen[p.rung()] * NewSph.uDot;
             // isentropic evolution
-            uPred = SPHEOSIsentropic(pkd,NewSph.oldRho,uPred,p.density(),p.imaterial(),SPHoptions);
+            uPred = SPHEOSIsentropic(pkd, NewSph.oldRho, uPred, p.density(), p.imaterial(), SPHoptions);
             // new closing kick
             uPred += kick->dtPredISPHClose[p.rung()] * NewSph.uDot;
         }
         else {
             uPred = NewSph.u + dtPredDrift * NewSph.uDot;
         }
-        NewSph.P = SPHEOSPCTofRhoU(pkd,p.density(),uPred,&NewSph.cs,&NewSph.T,p.imaterial(),SPHoptions);
+        NewSph.P = SPHEOSPCTofRhoU(pkd, p.density(), uPred, &NewSph.cs, &NewSph.T, p.imaterial(), SPHoptions);
 
         if (SPHoptions->doShearStrengthModel) {
-            auto &NewSphStr = p.newsphstr();
+            auto& NewSphStr = p.newsphstr();
             NewSphStr.Spredxx = NewSphStr.Sxx + dtPredDrift * NewSphStr.SDotxx;
             NewSphStr.Spredyy = NewSphStr.Syy + dtPredDrift * NewSphStr.SDotyy;
             NewSphStr.Spredxy = NewSphStr.Sxy + dtPredDrift * NewSphStr.SDotxy;
             NewSphStr.Spredxz = NewSphStr.Sxz + dtPredDrift * NewSphStr.SDotxz;
             NewSphStr.Spredyz = NewSphStr.Syz + dtPredDrift * NewSphStr.SDotyz;
-            SPHEOSApplyStrengthLimiter(pkd, p.density(), uPred, p.imaterial(), &NewSphStr.Spredxx, &NewSphStr.Spredyy, &NewSphStr.Spredxy, &NewSphStr.Spredxz, &NewSphStr.Spredyz, SPHoptions);
+            SPHEOSApplyStrengthLimiter(pkd, p.density(), uPred, p.imaterial(), &NewSphStr.Spredxx, &NewSphStr.Spredyy, &NewSphStr.Spredxy, &NewSphStr.Spredxz,
+                                       &NewSphStr.Spredyz, SPHoptions);
         }
     }
 }

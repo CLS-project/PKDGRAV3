@@ -23,7 +23,7 @@
 
 #include "SPHEOS.h"
 
-float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat, SPHOptions *SPHoptions) {
+float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float* c, float* T, int iMat, SPHOptions* SPHoptions) {
     float P = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
@@ -35,7 +35,7 @@ float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat,
 #ifdef HAVE_EOSLIB_H
         double ctmp = 0.0;
         double Ttmp = 0.0;
-        P = (float)EOSPCTofRhoU(pkd->materials[iMat],rho,u,&ctmp,&Ttmp);
+        P = (float)EOSPCTofRhoU(pkd->materials[iMat], rho, u, &ctmp, &Ttmp);
         *c = (float)ctmp;
         if (T) *T = (float)Ttmp;
         if (P < 0.0f) P = 0.0f;
@@ -45,7 +45,7 @@ float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat,
     return P;
 }
 
-float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions) {
+float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions* SPHoptions) {
     float u = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         u = T * SPHoptions->TuFac;
@@ -53,13 +53,13 @@ float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
     }
     else {
 #ifdef HAVE_EOSLIB_H
-        u = (float)EOSUofRhoT(pkd->materials[iMat],rho,T);
+        u = (float)EOSUofRhoT(pkd->materials[iMat], rho, T);
 #endif
     }
     return u;
 }
 
-float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoptions) {
+float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions* SPHoptions) {
     float T = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         if (SPHoptions->useIsentropic) u = SPHEOSconvertEntropicFunctiontoInternalEnergy(rho, u, iMat, SPHoptions);
@@ -67,13 +67,13 @@ float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoption
     }
     else {
 #ifdef HAVE_EOSLIB_H
-        T = (float)EOSTofRhoU(pkd->materials[iMat],rho,u);
+        T = (float)EOSTofRhoU(pkd->materials[iMat], rho, u);
 #endif
     }
     return T;
 }
 
-float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions) {
+float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions* SPHoptions) {
     float P = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         float u = T * SPHoptions->TuFac;
@@ -81,14 +81,14 @@ float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
     }
     else {
 #ifdef HAVE_EOSLIB_H
-        P = (float)EOSPofRhoT(pkd->materials[iMat],rho,T);
+        P = (float)EOSPofRhoT(pkd->materials[iMat], rho, T);
         if (P < 0.0f) P = 0.0f;
 #endif
     }
     return P;
 }
 
-float SPHEOSRhoofPT(PKD pkd, float P, float T, int iMat, SPHOptions *SPHoptions) {
+float SPHEOSRhoofPT(PKD pkd, float P, float T, int iMat, SPHOptions* SPHoptions) {
     float rho = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         float u = T * SPHoptions->TuFac;
@@ -96,13 +96,13 @@ float SPHEOSRhoofPT(PKD pkd, float P, float T, int iMat, SPHOptions *SPHoptions)
     }
     else {
 #ifdef HAVE_EOSLIB_H
-        rho = (float)EOSRhoofPT(pkd->materials[iMat],P,T);
+        rho = (float)EOSRhoofPT(pkd->materials[iMat], P, T);
 #endif
     }
     return rho;
 }
 
-float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHOptions *SPHoptions) {
+float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHOptions* SPHoptions) {
     float u2 = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         u2 = u1;
@@ -115,7 +115,7 @@ float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHO
     return u2;
 }
 
-float SPHEOSGammaofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions) {
+float SPHEOSGammaofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions* SPHoptions) {
     float Gamma = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         // Builtin ideal gas does not have a shear modulus and will have zero yield strength.
@@ -129,7 +129,7 @@ float SPHEOSGammaofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHop
     return Gamma;
 }
 
-void SPHEOSApplyStrengthLimiter(PKD pkd, float rho, float u, int iMat, float *Sxx, float *Syy, float *Sxy, float *Sxz, float *Syz, SPHOptions *SPHoptions) {
+void SPHEOSApplyStrengthLimiter(PKD pkd, float rho, float u, int iMat, float* Sxx, float* Syy, float* Sxy, float* Sxz, float* Syz, SPHOptions* SPHoptions) {
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         *Sxx = 0.0f;
         *Syy = 0.0f;

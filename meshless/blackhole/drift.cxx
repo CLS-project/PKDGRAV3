@@ -3,16 +3,16 @@
 
 #define NOT_PINNED -1
 
-using blitz::TinyVector;
 using blitz::dot;
+using blitz::TinyVector;
 
 void MSR::BHGasPin(double dTime, double dDelta) {
-    Smooth(dTime,dDelta,SMX_BH_GASPIN,0,parameters.get_nSmooth());
+    Smooth(dTime, dDelta, SMX_BH_GASPIN, 0, parameters.get_nSmooth());
 }
 
-void SmoothHelperBHGasPin::pack(void *dst, const void *src) {
-    auto p1 = static_cast<pack_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperBHGasPin::pack(void* dst, const void* src) {
+    auto p1 = static_cast<pack_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
     p1->iClass = p2.get_class();
     if (p2.is_gas()) {
@@ -23,9 +23,9 @@ void SmoothHelperBHGasPin::pack(void *dst, const void *src) {
     }
 }
 
-void SmoothHelperBHGasPin::unpack(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const pack_type *>(src);
+void SmoothHelperBHGasPin::unpack(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const pack_type*>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -36,12 +36,12 @@ void SmoothHelperBHGasPin::unpack(void *dst, const void *src, const void *key) {
     }
 }
 
-void smBHGasPin(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smBHGasPin(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
     PKD pkd = smf->pkd;
     const auto pv = p.velocity() / smf->a;
-    const NN *nnLowPot;
+    const NN* nnLowPot;
 
-    TinyVector<vel_t,3> meanv{0.0};
+    TinyVector<vel_t, 3> meanv{0.0};
     vel_t meanv2 = 0.0;
     float minPot = HUGE_VAL;
     for (auto i = 0; i < nSmooth; ++i) {
@@ -51,15 +51,15 @@ void smBHGasPin(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *
             minPot = q.potential();
             nnLowPot = &nnList[i];
         }
-        const TinyVector<vel_t,3> v{q.velocity() - pv};
+        const TinyVector<vel_t, 3> v{q.velocity() - pv};
         meanv += v;
-        meanv2 += dot(v,v);
+        meanv2 += dot(v, v);
     }
     assert(minPot < HUGE_VAL);
 
     auto pLowPot = pkd->particles[nnLowPot->pPart];
-    auto &bh = p.BH();
-    if (p.mass() > 10.*pLowPot.mass()) {
+    auto& bh = p.BH();
+    if (p.mass() > 10. * pLowPot.mass()) {
         bh.GasPin.iPid = NOT_PINNED;
     }
     else {
@@ -70,13 +70,13 @@ void smBHGasPin(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *
             bh.bForceReposition = false;
         }
         else {
-            const double inv_nSmooth = 1./nSmooth;
+            const double inv_nSmooth = 1. / nSmooth;
             meanv *= inv_nSmooth;
             meanv2 *= inv_nSmooth;
-            const auto stdv2 = meanv2 - dot(meanv,meanv);
+            const auto stdv2 = meanv2 - dot(meanv, meanv);
 
-            const TinyVector<vel_t,3> v{pLowPot.velocity() - pv - meanv};
-            if (dot(v,v) > stdv2) bh.GasPin.iPid = NOT_PINNED;
+            const TinyVector<vel_t, 3> v{pLowPot.velocity() - pv - meanv};
+            if (dot(v, v) > stdv2) bh.GasPin.iPid = NOT_PINNED;
         }
     }
 }
@@ -86,44 +86,45 @@ void MSR::BHReposition() {
 }
 
 struct bhRepositionPack {
-    TinyVector<double,3> position;
+    TinyVector<double, 3> position;
     uint8_t iClass;
 };
 
 class SmoothHelperBHReposition : public SmoothHelperPacked<bhRepositionPack> {
-    virtual void    pack(void *dst, const void *src) override final;
-    virtual void  unpack(void *dst, const void *src, const void *key) override final;
-public:
-    SmoothHelperBHReposition(pkdContext *pkd,bool bSymmetric=false) : SmoothHelperPacked<bhRepositionPack>(pkd,bSymmetric) {}
+    virtual void pack(void* dst, const void* src) override final;
+    virtual void unpack(void* dst, const void* src, const void* key) override final;
+
+  public:
+    SmoothHelperBHReposition(pkdContext* pkd, bool bSymmetric = false) : SmoothHelperPacked<bhRepositionPack>(pkd, bSymmetric) {}
 };
 
-void SmoothHelperBHReposition::pack(void *dst, const void *src) {
-    auto p1 = static_cast<pack_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperBHReposition::pack(void* dst, const void* src) {
+    auto p1 = static_cast<pack_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
     p1->position = p2.position();
     p1->iClass = p2.get_class();
 }
 
-void SmoothHelperBHReposition::unpack(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const pack_type *>(src);
+void SmoothHelperBHReposition::unpack(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const pack_type*>(src);
 
     p1.set_position(p2->position);
     p1.set_class(p2->iClass);
 }
 
 void pkdBHReposition(PKD pkd) {
-    pkd->mdl->CacheInitialize(CID_PARTICLE,std::make_shared<SmoothHelperBHReposition>(pkd));
-    for (auto &p : pkd->particles) {
+    pkd->mdl->CacheInitialize(CID_PARTICLE, std::make_shared<SmoothHelperBHReposition>(pkd));
+    for (auto& p : pkd->particles) {
         if (p.is_bh()) {
-            auto &bh = p.BH();
-            auto &iPid = bh.GasPin.iPid;
-            auto &iIndex = bh.GasPin.iIndex;
+            auto& bh = p.BH();
+            auto& iPid = bh.GasPin.iPid;
+            auto& iIndex = bh.GasPin.iIndex;
             if (iPid != NOT_PINNED) {
                 particleStore::ParticlePointer pin(pkd->particles);
                 if (iPid != pkd->Self()) {
-                    pin = &pkd->particles[pkd->mdl->Fetch<PARTICLE>(CID_PARTICLE,iIndex,iPid)];
+                    pin = &pkd->particles[pkd->mdl->Fetch<PARTICLE>(CID_PARTICLE, iIndex, iPid)];
                 }
                 else {
                     pin = &pkd->particles[iIndex];
@@ -135,4 +136,3 @@ void pkdBHReposition(PKD pkd) {
     }
     pkd->mdl->FinishCache(CID_PARTICLE);
 }
-

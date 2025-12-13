@@ -18,10 +18,10 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceIgnoreSIGBUS::input>  || std::is_trivial_v<ServiceIgnoreSIGBUS::input>);
+static_assert(std::is_void_v<ServiceIgnoreSIGBUS::input> || std::is_trivial_v<ServiceIgnoreSIGBUS::input>);
 static_assert(std::is_void_v<ServiceIgnoreSIGBUS::output> || std::is_trivial_v<ServiceIgnoreSIGBUS::output>);
 
-int ServiceIgnoreSIGBUS::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int ServiceIgnoreSIGBUS::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
     static_assert(std::is_void_v<input>);
     static_assert(std::is_void_v<output>);
     pst->mdl->ignore_SIGBUS();

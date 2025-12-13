@@ -18,13 +18,13 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceInitCosmology::input>  || std::is_trivial_v<ServiceInitCosmology::input>);
+static_assert(std::is_void_v<ServiceInitCosmology::input> || std::is_trivial_v<ServiceInitCosmology::input>);
 static_assert(std::is_void_v<ServiceInitCosmology::output> || std::is_trivial_v<ServiceInitCosmology::output>);
 
-int ServiceInitCosmology::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input *>(vin);
+int ServiceInitCosmology::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto in = static_cast<input*>(vin);
     static_assert(std::is_void_v<output>);
-    assert(nIn==sizeof(input));
-    pkdInitCosmology(pst->plcl->pkd,in);
+    assert(nIn == sizeof(input));
+    pkdInitCosmology(pst->plcl->pkd, in);
     return 0;
 }

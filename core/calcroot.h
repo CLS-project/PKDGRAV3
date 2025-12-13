@@ -17,18 +17,18 @@
 #include "TraversePST.h"
 
 class ServiceCalcRoot : public TraverseCombinePST {
-public:
+  public:
     static constexpr std::string_view name = "CalcRoot";
     struct input {
-        blitz::TinyVector<double,3> com;
+        blitz::TinyVector<double, 3> com;
         uint32_t uRoot;
     };
     struct output {
         MOMC momc;
     };
-    explicit ServiceCalcRoot(PST pst)
-        : TraverseCombinePST(pst,name,sizeof(input),sizeof(output)) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
-    virtual int Combine(void *vout,void *vout2);
+    explicit ServiceCalcRoot(PST pst) : TraverseCombinePST(pst, name, sizeof(input), sizeof(output)) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
+    virtual int Combine(void* vout, void* vout2);
 };

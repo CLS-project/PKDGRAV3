@@ -18,39 +18,37 @@
 #include "io/iochunk.h"
 #include "io/iostaggered.h"
 
-void ServiceRestore::Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
-    pst->plcl->pkd->Restore(iElement,filename,iBeg,iEnd);
+void ServiceRestore::Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
+    pst->plcl->pkd->Restore(iElement, filename, iBeg, iEnd);
 }
-void pkdContext::Restore(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
-    void *pParticle = particles.Element(Local());
+void pkdContext::Restore(uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
+    void* pParticle = particles.Element(Local());
     auto iOffset = iBeg * particles.ParticleSize();
-    auto nParts = iEnd-iBeg;
+    auto nParts = iEnd - iBeg;
     auto nBytes = nParts * particles.ParticleSize();
     assert(iElement == Local());
-    assert(Local()+nParts < FreeStore());
+    assert(Local() + nParts < FreeStore());
     io_chunk_read(filename.c_str(), pParticle, nBytes, iOffset);
     AddLocal(nParts);
 }
 
-void ServiceRestoreDecorator::Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
-    pst->plcl->pkd->RestoreDecorator(iElement,filename,iBeg,iEnd);
+void ServiceRestoreDecorator::Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
+    pst->plcl->pkd->RestoreDecorator(iElement, filename, iBeg, iEnd);
 }
-void pkdContext::RestoreDecorator(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
-    void *pDecorator = decorators.Element(DecoratorLocal());
-    void *pParticle = particles.Element(Local());
-    auto elementSize = decorators.DecoratorSize()+particles.ParticleSize();
+void pkdContext::RestoreDecorator(uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
+    void* pDecorator = decorators.Element(DecoratorLocal());
+    void* pParticle = particles.Element(Local());
+    auto elementSize = decorators.DecoratorSize() + particles.ParticleSize();
     auto iOffset = iBeg * elementSize;
-    auto nElements = iEnd-iBeg;
-    assert(DecoratorLocal()+nElements < FreeDecoratorStore());
-    assert(Local()+nElements < FreeStore());
-    io_staggered_read(filename.c_str(), pParticle, pDecorator, nElements,
-                      particles.ParticleSize(),
-                      decorators.DecoratorSize(), iOffset);
+    auto nElements = iEnd - iBeg;
+    assert(DecoratorLocal() + nElements < FreeDecoratorStore());
+    assert(Local() + nElements < FreeStore());
+    io_staggered_read(filename.c_str(), pParticle, pDecorator, nElements, particles.ParticleSize(), decorators.DecoratorSize(), iOffset);
 
     // NB: decorators were reordered before the checkpoint
-    for (auto i=0; i<nElements; i++) {
-        assert(particles[Local()+i].have_decorator());
-        particles[Local()+i].set_decorator(decorators.Element(DecoratorLocal()+i));
+    for (auto i = 0; i < nElements; i++) {
+        assert(particles[Local() + i].have_decorator());
+        particles[Local() + i].set_decorator(decorators.Element(DecoratorLocal() + i));
     }
 
     decorators.Add(nElements);

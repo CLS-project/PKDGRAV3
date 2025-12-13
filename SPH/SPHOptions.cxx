@@ -27,9 +27,9 @@
 #include "basetype.h"
 #include "cosmo.h"
 
-SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double dTime, double dDelta) {
+SPHOptions initializeSPHOptions(pkd_parameters& parameters, void* vcsm, double dTime, double dDelta) {
     auto csm = static_cast<CSM>(vcsm);
-    UNITS units(parameters,csm->val.h);
+    UNITS units(parameters, csm->val.h);
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = parameters.get_nSmooth();
     SPHoptions.epsilon = 0.01f;
@@ -40,7 +40,7 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double d
     SPHoptions.EtaSdot = parameters.get_dEtaSdot();
     SPHoptions.timeStepSmin = parameters.get_dTimeStepSmin();
     SPHoptions.gamma = parameters.get_dConstGamma();
-    SPHoptions.TuFac = units.dGasConst/(SPHoptions.gamma - 1)/parameters.get_dMeanMolWeight();
+    SPHoptions.TuFac = units.dGasConst / (SPHoptions.gamma - 1) / parameters.get_dMeanMolWeight();
     SPHoptions.FastGasFraction = parameters.get_dFastGasFraction();
     SPHoptions.VelocityDamper = 0.0f;
     auto dVelocityDamper = parameters.get_dVelocityDamper();
@@ -49,7 +49,8 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double d
     if (dDelta > 0.0 && dVelocityDamper > 0.0) {
         if ((dVelocityDamperEnd > 0.0) && (dVelocityDamperEndTime > 0.0)) {
             if (dTime <= dVelocityDamperEndTime) {
-                SPHoptions.VelocityDamper = 2.0 / dDelta * pow(10.0, log10(dVelocityDamperEnd/dVelocityDamper)/dVelocityDamperEndTime*dTime + log10(dVelocityDamper));
+                SPHoptions.VelocityDamper =
+                    2.0 / dDelta * pow(10.0, log10(dVelocityDamperEnd / dVelocityDamper) / dVelocityDamperEndTime * dTime + log10(dVelocityDamper));
             }
         }
         else {
@@ -66,8 +67,8 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double d
     SPHoptions.nPredictRung = 0;
     SPHoptions.nRungCorrection = 2;
     if (csm->val.bComove) {
-        SPHoptions.a = csmTime2Exp(csm,dTime);
-        SPHoptions.H = csmTime2Hub(csm,dTime);
+        SPHoptions.a = csmTime2Exp(csm, dTime);
+        SPHoptions.H = csmTime2Hub(csm, dTime);
     }
     else {
         SPHoptions.a = 1.0f;
@@ -110,7 +111,7 @@ SPHOptions initializeSPHOptions(pkd_parameters &parameters, void *vcsm, double d
     return SPHoptions;
 }
 
-void copySPHOptions(SPHOptions *source, SPHOptions *target) {
+void copySPHOptions(SPHOptions* source, SPHOptions* target) {
     target->fKernelTarget = source->fKernelTarget;
     target->epsilon = source->epsilon;
     target->alpha = source->alpha;
@@ -168,7 +169,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->upperGroupSizeThreshold = source->upperGroupSizeThreshold;
 }
 
-void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {
+void copySPHOptionsGPU(SPHOptions* source, SPHOptionsGPU* target) {
     target->kernelType = source->kernelType;
     target->doInterfaceCorrection = source->doInterfaceCorrection;
     target->useIsentropic = source->useIsentropic;
@@ -182,7 +183,7 @@ void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {
     target->H = source->H;
 }
 
-float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {
+float calculateInterfaceCorrectionPrefactor(float nSmooth, int kernelType) {
     float alpha = 0.0f;
     switch (kernelType) {
     case 0: {
@@ -203,7 +204,8 @@ float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {
         alpha = 6.00324255e+03f / (nSmooth * nSmooth) + 1.71766754e+02f / nSmooth + 4.92489934e+00f;
         break;
     }
-    default: assert(0);
+    default:
+        assert(0);
     }
     return alpha;
 }

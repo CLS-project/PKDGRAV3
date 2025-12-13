@@ -19,7 +19,7 @@
 
 namespace OldDD {
 class ServiceColRejects : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "ColRejects";
     typedef void input;
     struct output {
@@ -30,52 +30,50 @@ public:
         int nDecoratorSpace;
         int nLocal;
     };
-    explicit ServiceColRejects(PST pst)
-        : TraversePST(pst,name,0,pst->mdl->Threads()*sizeof(output)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceColRejects(PST pst) : TraversePST(pst, name, 0, pst->mdl->Threads() * sizeof(output)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 
 class ServiceSwapRejects : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "SwapRejects";
     typedef int input;
     typedef ServiceColRejects::output output;
-    explicit ServiceSwapRejects(PST pst)
-        : TraversePST(pst,name,
-                      pst->mdl->Threads()*sizeof(input),
-                      pst->mdl->Threads()*sizeof(output)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceSwapRejects(PST pst) : TraversePST(pst, name, pst->mdl->Threads() * sizeof(input), pst->mdl->Threads() * sizeof(output)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 
 class ServiceColOrdRejects : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "ColOrdRejects";
     struct input {
         uint64_t iOrdSplit;
         int iSplitSide;
     };
     typedef ServiceColRejects::output output;
-    explicit ServiceColOrdRejects(PST pst)
-        : TraversePST(pst,name,0,pst->mdl->Threads()*sizeof(output)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceColOrdRejects(PST pst) : TraversePST(pst, name, 0, pst->mdl->Threads() * sizeof(output)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 
 class ServiceDomain : public TraversePST {
-public:
-    explicit ServiceDomain(PST node_pst,std::string_view service_name, int nInBytes)
-        : TraversePST(node_pst, service_name, nInBytes) {}
-protected:
-    int RejMatch(PST pst,int n1,ServiceColRejects::output *p1,int n2,ServiceColRejects::output *p2,int *pidSwap);
+  public:
+    explicit ServiceDomain(PST node_pst, std::string_view service_name, int nInBytes) : TraversePST(node_pst, service_name, nInBytes) {}
+
+  protected:
+    int RejMatch(PST pst, int n1, ServiceColRejects::output* p1, int n2, ServiceColRejects::output* p2, int* pidSwap);
 };
 
 class ServiceDomainDecomp : public ServiceDomain {
-public:
+  public:
     static constexpr std::string_view name = "DomainDecomp";
     struct input {
         Bound bnd;
@@ -86,57 +84,59 @@ public:
         uint64_t nTotal;
     };
     typedef void output;
-    explicit ServiceDomainDecomp(PST pst)
-        : ServiceDomain(pst,name,sizeof(input)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-private:
-    void RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind);
+    explicit ServiceDomainDecomp(PST pst) : ServiceDomain(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+
+  private:
+    void RootSplit(PST pst, int iSplitDim, int bDoRootFind, int bDoSplitDimFind);
 };
 
 #ifndef NEW_REORDER
 class ServiceDomainOrder : public ServiceDomain {
-public:
+  public:
     static constexpr std::string_view name = "DomainOrder";
     struct input {
         uint64_t iMinOrder;
         uint64_t iMaxOrder;
         input() = default;
-        input(uint64_t iMinOrder,uint64_t iMaxOrder) : iMinOrder(iMinOrder), iMaxOrder(iMaxOrder) {}
+        input(uint64_t iMinOrder, uint64_t iMaxOrder) : iMinOrder(iMinOrder), iMaxOrder(iMaxOrder) {}
         input(uint64_t iMaxOrder) : iMinOrder(0), iMaxOrder(iMaxOrder) {}
     };
     typedef void output;
-    explicit ServiceDomainOrder(PST pst)
-        : ServiceDomain(pst,name,sizeof(input)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-private:
-    uint64_t OrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOrder);
+    explicit ServiceDomainOrder(PST pst) : ServiceDomain(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+
+  private:
+    uint64_t OrdSplit(PST pst, uint64_t iMinOrder, uint64_t iMaxOrder);
 };
 
 class ServiceLocalOrder : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "LocalOrder";
     struct input {
         uint64_t iMinOrder;
         uint64_t iMaxOrder;
         input() = default;
-        input(uint64_t iMinOrder,uint64_t iMaxOrder) : iMinOrder(iMinOrder), iMaxOrder(iMaxOrder) {}
+        input(uint64_t iMinOrder, uint64_t iMaxOrder) : iMinOrder(iMinOrder), iMaxOrder(iMaxOrder) {}
         input(uint64_t iMaxOrder) : iMinOrder(0), iMaxOrder(iMaxOrder) {}
     };
     typedef void output;
-    explicit ServiceLocalOrder(PST pst)
-        : TraversePST(pst,name,sizeof(input)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceLocalOrder(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 #endif
 
 class ServiceWeight : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "Weight";
     struct input {
         int iSplitDim;
@@ -151,15 +151,15 @@ public:
         double fLow;
         double fHigh;
     };
-    explicit ServiceWeight(PST pst)
-        : TraversePST(pst,name,sizeof(input),sizeof(output)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceWeight(PST pst) : TraversePST(pst, name, sizeof(input), sizeof(output)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 
 class ServiceWeightWrap : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "WeightWrap";
     struct input {
         int iSplitDim;
@@ -172,15 +172,15 @@ public:
         uint64_t nLow;
         uint64_t nHigh;
     };
-    explicit ServiceWeightWrap(PST pst)
-        : TraversePST(pst,name,sizeof(input),sizeof(output)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceWeightWrap(PST pst) : TraversePST(pst, name, sizeof(input), sizeof(output)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 
 class ServiceOrdWeight : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "OrdWeight";
     struct input {
         uint64_t iOrdSplit;
@@ -191,10 +191,10 @@ public:
         uint64_t nLow;
         uint64_t nHigh;
     };
-    explicit ServiceOrdWeight(PST pst)
-        : TraversePST(pst,name,sizeof(input),sizeof(output)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceOrdWeight(PST pst) : TraversePST(pst, name, sizeof(input), sizeof(output)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
 } // namespace OldDD

@@ -24,7 +24,7 @@
 #include <vector>
 #include <string_view>
 #include <Python.h>
-#include "fmt/format.h"  // This will be part of c++20
+#include "fmt/format.h" // This will be part of c++20
 #include "fmt/ostream.h"
 #include <fmt/color.h>
 
@@ -35,8 +35,8 @@
 #include "pkd_enumerations.h"
 #include "cooling/cooling_struct.h"
 
-#define MSR_INIT_E      1
-#define MSR_STEP_E      0
+#define MSR_INIT_E 1
+#define MSR_STEP_E 0
 
 extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
@@ -68,212 +68,212 @@ enum msrTimers {
 };
 
 struct MSRINSTANCE {
-    PyObject_HEAD
-    class MSR *msr;
+    PyObject_HEAD class MSR* msr;
 };
 
 class MSR {
-protected:
+  protected:
     const PST pst;
-    mdl::mdlClass *mdl;
-    PyObject *parameter_overrides = nullptr;
-public:
-    explicit MSR(MDL mdl,PST pst);
+    mdl::mdlClass* mdl;
+    PyObject* parameter_overrides = nullptr;
+
+  public:
+    explicit MSR(MDL mdl, PST pst);
     ~MSR();
-public:
-    template<typename... Args>
-    void print(Args &&... args) const {
+
+  public:
+    template <typename... Args>
+    void print(Args&&... args) const {
         FMT_TRY {
             fmt::print(std::forward<Args>(args)...);
         }
-        FMT_CATCH(fmt::format_error &f) {
-            fmt::print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold,"ERROR in formatting string: {}\n",f.what());
-            mdl->show_backtrace_with_snippets(5,2);
+        FMT_CATCH(fmt::format_error & f) {
+            fmt::print(stderr, fg(fmt::color::crimson) | fmt::emphasis::bold, "ERROR in formatting string: {}\n", f.what());
+            mdl->show_backtrace_with_snippets(5, 2);
         }
     }
-    template<typename... Args>
-    void print_error(const char *format, Args &&... args) const {
-        print(stderr,fg(fmt::color::crimson) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
+    template <typename... Args>
+    void print_error(const char* format, Args&&... args) const {
+        print(stderr, fg(fmt::color::crimson) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
     }
-    template<typename... Args>
-    void print_warning(const char *format, Args &&... args) const {
+    template <typename... Args>
+    void print_warning(const char* format, Args&&... args) const {
         if (parameters.get_bVWarnings()) {
-            print(stderr,fg(fmt::color::yellow) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
+            print(stderr, fg(fmt::color::yellow) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
         }
     }
-    template<typename... Args>
-    void print_notice(const char *format, Args &&... args) const {
+    template <typename... Args>
+    void print_notice(const char* format, Args&&... args) const {
         print(fg(fmt::color::green) | fmt::emphasis::bold, format, std::forward<Args>(args)...);
     }
-    template<typename... Args>
-    void print_detail(const char *format, Args &&... args) const {
+    template <typename... Args>
+    void print_detail(const char* format, Args&&... args) const {
         if (parameters.get_bVDetails()) {
             print(format, std::forward<Args>(args)...);
         }
     }
-    int Python(int argc, char *argv[]);
+    int Python(int argc, char* argv[]);
     int ValidateParameters();
-    void SetDerivedParameters(bool bRestart=false);
+    void SetDerivedParameters(bool bRestart = false);
     void Hostname();
     void MemStatus();
     int GetLock();
     void IgnoreSIGBUS();
     double LoadOrGenerateIC();
-    void Simulate(double dTime,int iStartStep,bool bRestart=false);
+    void Simulate(double dTime, int iStartStep, bool bRestart = false);
     void Simulate(double dTime);
-private:
-    void persist(PyObject *file,PyObject *obj);
-    void persist(PyObject *file,int n);
-    void persist(PyObject *file,double d);
-    template<typename T>
-    T restore(PyObject *file,PyObject *replace=Py_None);
-protected:
-    void stat_files(std::vector<uint64_t> &counts,const std::string_view &filename_template, uint64_t element_size);
-    void Restore(const std::string &filename,int nSizeParticle, int nSizeDecorator);
-    void PrintStat(const STAT &ps,char const *pszPrefix,int p);
+
+  private:
+    void persist(PyObject* file, PyObject* obj);
+    void persist(PyObject* file, int n);
+    void persist(PyObject* file, double d);
+    template <typename T>
+    T restore(PyObject* file, PyObject* replace = Py_None);
+
+  protected:
+    void stat_files(std::vector<uint64_t>& counts, const std::string_view& filename_template, uint64_t element_size);
+    void Restore(const std::string& filename, int nSizeParticle, int nSizeDecorator);
+    void PrintStat(const STAT& ps, char const* pszPrefix, int p);
 #ifdef INSTRUMENT_MPI
-    void PrintStat(const WelfordStats<double> &ps,char const *pszPrefix,int p);
+    void PrintStat(const WelfordStats<double>& ps, char const* pszPrefix, int p);
 #endif
 
-public:
-    int64_t parallel_count(int64_t nParallel,bool bParallel=true);
+  public:
+    int64_t parallel_count(int64_t nParallel, bool bParallel = true);
     int64_t parallel_read_count();
     int64_t parallel_write_count();
 
-public:
+  public:
     // I/O and IC Generation
-    double GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm=nullptr);
-    void Restart(
-        const char *filename,PyObject *kwargs,
-        PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
-        PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
-    std::tuple<double,double,int64_t,int64_t,int64_t,int64_t> // dTime,dDelta,iStep,nSteps,nSizeParticle,nSizeNode
-    ReadCheckpoint(
-        const char *filename,PyObject *kwargs,
-        PyObject *species = Py_None, PyObject *classes = Py_None, PyObject *step = Py_None, PyObject *steps = Py_None,
-        PyObject *time = Py_None, PyObject *delta = Py_None, PyObject *E = Py_None, PyObject *U = Py_None, PyObject *Utime = Py_None);
+    double GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm = nullptr);
+    void Restart(const char* filename, PyObject* kwargs, PyObject* species = Py_None, PyObject* classes = Py_None, PyObject* step = Py_None,
+                 PyObject* steps = Py_None, PyObject* time = Py_None, PyObject* delta = Py_None, PyObject* E = Py_None, PyObject* U = Py_None,
+                 PyObject* Utime = Py_None);
+    std::tuple<double, double, int64_t, int64_t, int64_t, int64_t> // dTime,dDelta,iStep,nSteps,nSizeParticle,nSizeNode
+    ReadCheckpoint(const char* filename, PyObject* kwargs, PyObject* species = Py_None, PyObject* classes = Py_None, PyObject* step = Py_None,
+                   PyObject* steps = Py_None, PyObject* time = Py_None, PyObject* delta = Py_None, PyObject* E = Py_None, PyObject* U = Py_None,
+                   PyObject* Utime = Py_None);
     double Read(std::string_view achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
-    void Write(std::string_view FileName,double dTime,int bCheckpoint);
-    void OutASCII(std::string_view File,int iType,int nDims,int iFileType);
-    void OutArray(std::string_view File,int iType,int iFileType);
-    void OutArray(std::string_view File,int iType);
-    void OutVector(std::string_view File,int iType,int iFileType);
-    void OutVector(std::string_view File,int iType);
+    void Write(std::string_view FileName, double dTime, int bCheckpoint);
+    void OutASCII(std::string_view File, int iType, int nDims, int iFileType);
+    void OutArray(std::string_view File, int iType, int iFileType);
+    void OutArray(std::string_view File, int iType);
+    void OutVector(std::string_view File, int iType, int iFileType);
+    void OutVector(std::string_view File, int iType);
     void Output(int iStep, double dTime, double dDelta, int bCheckpoint);
     void OutputFineStatistics(double dStep, double dTime);
 
-    void RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,bool bMarked=false);
+    void RecvArray(void* vBuffer, PKD_FIELD field, int iUnitSize, double dTime, bool bMarked = false);
 
     // Particle order, domains, trees
     void Reorder();
-    void DomainDecomp(int iRung=0);
+    void DomainDecomp(int iRung = 0);
     void BuildTree(int bNeedEwald);
-    void BuildTreeFixed(int bNeedEwald,uint8_t uRungDD);
-    void BuildTreeActive(int bNeedEwald,uint8_t uRungDD);
-    void BuildTreeMarked(int bNeedEwald=0);
+    void BuildTreeFixed(int bNeedEwald, uint8_t uRungDD);
+    void BuildTreeActive(int bNeedEwald, uint8_t uRungDD);
+    void BuildTreeMarked(int bNeedEwald = 0);
     void ReorderDecorator();
 #ifdef OPTIM_SMOOTH_NODE
     void ReorderWithinNodes();
 #endif
 
     // Gravity
-    uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-                    double dTime,double dDelta,double dStep,double dTheta,
-                    int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit);
-    uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-                    double dTime,double dDelta,double dStep,double dTheta,
-                    int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,SPHOptions SPHoptions);
+    uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, double dTime, double dDelta, double dStep, double dTheta, int bKickClose,
+                    int bKickOpen, int bEwald, int bGravStep, int nPartRhoLoc, int iTimeStepCrit);
+    uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, double dTime, double dDelta, double dStep, double dTheta, int bKickClose,
+                    int bKickOpen, int bEwald, int bGravStep, int nPartRhoLoc, int iTimeStepCrit, SPHOptions SPHoptions);
 
     // Analysis
-    void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
-    uint64_t ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric);
+    void Smooth(double dTime, double dDelta, int iSmoothType, int bSymmetric, int nSmooth);
+    uint64_t ReSmooth(double dTime, double dDelta, int iSmoothType, int bSymmetric);
 #ifdef OPTIM_SMOOTH_NODE
-    uint64_t ReSmoothNode(double dTime, double dDelta, int iSmoothType,int bSymmetric);
+    uint64_t ReSmoothNode(double dTime, double dDelta, int iSmoothType, int bSymmetric);
 #endif
-    void NewFof(double dTau,int nMinMembers);
-    void Hop(double dTime,double dDelta);
+    void NewFof(double dTau, int nMinMembers);
+    void Hop(double dTime, double dDelta);
     void GroupStats();
-    void WriteGroupStats(const std::string_view &fname, int nParallel);
-    void WriteGroupStats(const std::string_view &fname);
-    EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
-    std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,int fold=1);
-    void AssignMass(int iAssignment=3,int iGrid=0,float fDelta=0.0f,int fold=1);
-    void DensityContrast(int nGrid,bool k=true);
-    void WindowCorrection(int iAssignment,int iGrid);
-    void Interlace(int iGridTarget,int iGridSource);
-    void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
-    std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-            GridBinK(int nBins, int iGrid);
-    void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
-    double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
+    void WriteGroupStats(const std::string_view& fname, int nParallel);
+    void WriteGroupStats(const std::string_view& fname);
+    EphemeralMemory EphemeralMemoryGrid(int nGrid, int nCount);
+    std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>, std::vector<float>> // nPk, fK, fPk, fPkAll
+    MeasurePk(int iAssignment, int bInterlace, int nGrid, double a, int nBins, int fold = 1);
+    void AssignMass(int iAssignment = 3, int iGrid = 0, float fDelta = 0.0f, int fold = 1);
+    void DensityContrast(int nGrid, bool k = true);
+    void WindowCorrection(int iAssignment, int iGrid);
+    void Interlace(int iGridTarget, int iGridSource);
+    void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed = false, float fPhase = 0);
+    std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>> // nPk, fK, fPk
+    GridBinK(int nBins, int iGrid);
+    void BispectrumSelect(int iGridTarget, int iGridSource, double kmin, double kmax);
+    double BispectrumCalculate(int iGrid1, int iGrid2, int iGrid3);
     void GridCreateFFT(int nGrid);
     void GridDeleteFFT();
 
-private:
+  private:
     typedef struct {
-        double dFrac;       /* Fraction of particles in each bin */
-        uint64_t nTotal;    /* Total number of particles in the range */
-        uint64_t nInner;    /* Number inside minimum radius */
-        uint64_t nTarget;   /* Target number of particles */
+        double dFrac;     /* Fraction of particles in each bin */
+        uint64_t nTotal;  /* Total number of particles in the range */
+        uint64_t nInner;  /* Number inside minimum radius */
+        uint64_t nTarget; /* Target number of particles */
         uint64_t nSelected;
-        MSR *msr;
+        MSR* msr;
     } SPHERECTX;
-    static double countSphere(double r,void *vctx);
-    static void profileRootFind( double *dBins, int lo, int hi, int nAccuracy, SPHERECTX *ctx );
+    static double countSphere(double r, void* vctx);
+    static void profileRootFind(double* dBins, int lo, int hi, int nAccuracy, SPHERECTX* ctx);
 
     typedef struct {
         double rMiddle;
-        total_t nTarget;   /* Target number of particles */
-        MSR *msr;
+        total_t nTarget; /* Target number of particles */
+        MSR* msr;
     } SHELLCTX;
-    static double countShell(double rInner,void *vctx);
+    static double countShell(double rInner, void* vctx);
 
-public:
+  public:
     struct msr_analysis_callback {
-        PyObject *callback;
+        PyObject* callback;
         EphemeralMemory memory;
-        explicit msr_analysis_callback(PyObject *callback,uint64_t per_particle,uint64_t per_process)
-            : callback(callback), memory(per_particle,per_process)  {
+        explicit msr_analysis_callback(PyObject* callback, uint64_t per_particle, uint64_t per_process)
+            : callback(callback), memory(per_particle, per_process) {
             Py_INCREF(callback);
         }
-        ~msr_analysis_callback() {
-            Py_DECREF(callback);
-        }
+        ~msr_analysis_callback() { Py_DECREF(callback); }
     };
-    void addAnalysis(PyObject *callback,uint64_t per_particle, uint64_t per_process);
-    void runAnalysis(int iStep,double dTime);
-protected:
+    void addAnalysis(PyObject* callback, uint64_t per_particle, uint64_t per_process);
+    void runAnalysis(int iStep, double dTime);
+
+  protected:
     std::list<msr_analysis_callback> analysis_callbacks;
 
-protected:
+  protected:
     UNITS units;
 
-public: // should be private
+  public: // should be private
     pkd_parameters parameters;
     double set_dynamic(int iStep, double dTime) {
-        parameters.set_dynamic("step",iStep);
-        parameters.set_dynamic("time",dTime);
-        if (csm->val.bComove) parameters.set_dynamic("a",csmTime2Exp(csm,dTime));
+        parameters.set_dynamic("step", iStep);
+        parameters.set_dynamic("time", dTime);
+        if (csm->val.bComove) parameters.set_dynamic("a", csmTime2Exp(csm, dTime));
         auto dTheta = parameters.get_dTheta();
-        parameters.set_dynamic("theta",dTheta);
+        parameters.set_dynamic("theta", dTheta);
         return dTheta;
     }
-private:
-    PyObject *pDill = nullptr;              // The "dill" module
-    PyObject *pDill_load = nullptr;         // The "dill.load" function
-    PyObject *pDill_dump = nullptr;         // The "dill.dump" function
-    PyObject *pDill_load_module = nullptr;  // The "dill.load_module" function
-    PyObject *pDill_dump_module = nullptr;  // The "dill.dump_module" function
-public:
+
+  private:
+    PyObject* pDill = nullptr;             // The "dill" module
+    PyObject* pDill_load = nullptr;        // The "dill.load" function
+    PyObject* pDill_dump = nullptr;        // The "dill.dump" function
+    PyObject* pDill_load_module = nullptr; // The "dill.load_module" function
+    PyObject* pDill_dump_module = nullptr; // The "dill.dump_module" function
+  public:
     struct CALC calc;
 
-public:
+  public:
     LCL lcl;
 
-    blitz::TinyVector<double,3> fCenter;
-public:
+    blitz::TinyVector<double, 3> fCenter;
+
+  public:
     /*
     ** Parameters.
     */
@@ -287,7 +287,7 @@ public:
     uint64_t nGas;
     uint64_t nStar;
     uint64_t nBH;
-    uint64_t nMaxOrder;     /* Order number of last particle */
+    uint64_t nMaxOrder; /* Order number of last particle */
     int nClasses;
     int iCurrMaxRung;
 
@@ -299,19 +299,19 @@ public:
         double acc;
     } ti[TOTAL_TIMERS];
 
-    struct cooling_function_data *cooling;
-    struct cooling_tables *cooling_table;
+    struct cooling_function_data* cooling;
+    struct cooling_tables* cooling_table;
     int starFormed;
     double massFormed;
     /*
      * File for the fine-grained output
      */
-    FILE *fpFineLog;
+    FILE* fpFineLog;
     /*
     ** Tree moments (for Ewald)
     */
-    MOMC momTreeRoot[IRUNGMAX+1];
-    double momTreeCom[IRUNGMAX+1][3];
+    MOMC momTreeRoot[IRUNGMAX + 1];
+    double momTreeCom[IRUNGMAX + 1][3];
 
     /*
     ** Comoving coordinate variables.
@@ -333,7 +333,7 @@ public:
      */
     std::vector<uint64_t> nRung;
     int iRungDD, iRungDT;
-    int iLastRungRT,iLastRungDD;
+    int iLastRungRT, iLastRungDD;
     uint64_t nActive;
     int nGroups;
     int nBins;
@@ -353,46 +353,31 @@ public:
     int iCheckpointStep;
     int nCheckpointThreads;
     char achCheckpointName[PATH_MAX];
-protected:
+
+  protected:
     static double Time();
     static void Leader();
     static void Trailer();
-    std::string MakePath(std::string_view base,std::string_view ext = {});
+    std::string MakePath(std::string_view base, std::string_view ext = {});
 
     double getTime(double dExpansion); // Return simulation time
     double getVfactor(double dTime);
-    bool getDeltaSteps(double dTime,int iStartStep);
+    bool getDeltaSteps(double dTime, int iStartStep);
 
     auto NoSteps() const {
         auto nSteps = parameters.get_nSteps();
         return nSteps.size() == 1 && nSteps[0] == 0;
     }
 
-    auto OutName() const {
-        return parameters.get_achOutName();
-    }
-    int LogInterval()     const {
-        return parameters.get_iLogInterval();
-    }
-    int OutInterval()     const {
-        return parameters.get_iOutInterval();
-    }
-    int CheckInterval()   const {
-        return parameters.get_iCheckInterval();
-    }
-    double Soft()         const {
-        return parameters.get_dSoft();
-    }
-    int DoDensity()       const {
-        return parameters.get_bDoDensity();
-    }
-    int DoGas()           const {
-        return parameters.get_hydro_model() != HYDRO_MODEL::NONE;
-    }
-    int NewSPH()          const {
-        return parameters.get_hydro_model() == HYDRO_MODEL::SPH;
-    }
-    int MeshlessFiniteMass()   const {
+    auto OutName() const { return parameters.get_achOutName(); }
+    int LogInterval() const { return parameters.get_iLogInterval(); }
+    int OutInterval() const { return parameters.get_iOutInterval(); }
+    int CheckInterval() const { return parameters.get_iCheckInterval(); }
+    double Soft() const { return parameters.get_dSoft(); }
+    int DoDensity() const { return parameters.get_bDoDensity(); }
+    int DoGas() const { return parameters.get_hydro_model() != HYDRO_MODEL::NONE; }
+    int NewSPH() const { return parameters.get_hydro_model() == HYDRO_MODEL::SPH; }
+    int MeshlessFiniteMass() const {
         auto model = parameters.get_hydro_model();
         return model == HYDRO_MODEL::MFM;
     }
@@ -400,65 +385,49 @@ protected:
         auto model = parameters.get_hydro_model();
         return model == HYDRO_MODEL::MFV;
     }
-    int MeshlessHydro()   const {
-        return MeshlessFiniteMass() || MeshlessFiniteVolume();
-    }
-    int DoStellarFeedback()   const {
-        return parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback();
-    }
-    int DoGravity()       const {
-        return parameters.get_bDoGravity();
-    }
-    double Eta()          const {
-        return parameters.get_dEta();
-    }
-    int MaxRung()         const {
-        return parameters.get_iMaxRung();
-    }
-    int Comove()          const {
-        return csm->val.bComove;
-    }
-    uint64_t MaxOrder()   const {
-        return nMaxOrder;
-    }
-    int CurrMaxRung()     const {
-        return iCurrMaxRung;
-    }
+    int MeshlessHydro() const { return MeshlessFiniteMass() || MeshlessFiniteVolume(); }
+    int DoStellarFeedback() const { return parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback(); }
+    int DoGravity() const { return parameters.get_bDoGravity(); }
+    double Eta() const { return parameters.get_dEta(); }
+    int MaxRung() const { return parameters.get_iMaxRung(); }
+    int Comove() const { return csm->val.bComove; }
+    uint64_t MaxOrder() const { return nMaxOrder; }
+    int CurrMaxRung() const { return iCurrMaxRung; }
 
-    std::string BuildName(      std::string_view path,int iStep,std::string_view type = {});
-    std::string BuildNameWithI( std::string_view path,int iStep,std::string_view type = {});
-    std::string BuildName(      int iStep,std::string_view type = {}); // With achOutPath
-    std::string BuildNameWithI( int iStep,std::string_view type = {}); // With achOutPath: ensure {i}
-    std::string BuildNameWithOI(int iStep,std::string_view type = {}); // With achOutPath: ensure {octant} and {i}
-    std::string BuildIoName(    int iStep,std::string_view type = {}); // With achIoPath
-    std::string BuildCpName(    int iStep); // With achCpPath
+    std::string BuildName(std::string_view path, int iStep, std::string_view type = {});
+    std::string BuildNameWithI(std::string_view path, int iStep, std::string_view type = {});
+    std::string BuildName(int iStep, std::string_view type = {});       // With achOutPath
+    std::string BuildNameWithI(int iStep, std::string_view type = {});  // With achOutPath: ensure {i}
+    std::string BuildNameWithOI(int iStep, std::string_view type = {}); // With achOutPath: ensure {octant} and {i}
+    std::string BuildIoName(int iStep, std::string_view type = {});     // With achIoPath
+    std::string BuildCpName(int iStep);                                 // With achCpPath
 
     int ReadOuts(double dTime);
     void Exit(int status);
     uint64_t getMemoryModel();
-    std::tuple<int,int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
-    int CheckForStop(const char *achStopFile);
-    int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
+    std::tuple<int, int, int> InitializePStore(uint64_t* nSpecies, uint64_t mMemoryModel, uint64_t nEphemeral);
+    int CheckForStop(const char* achStopFile);
+    int CheckForOutput(int iStep, int nSteps, double dTime, int* pbDoCheckpoint, int* pbDoOutput);
     void SetClasses();
     void SwapClasses(int id);
-    void OneNodeRead(struct inReadFile *in, FIO fio);
+    void OneNodeRead(struct inReadFile* in, FIO fio);
     void AllNodeWrite(std::string_view FileName, double dTime, double dvFac, int bDouble);
     uint64_t CalcWriteStart();
     void SwitchTheta(double);
     double getTheta(double dTime);
-    double SwitchDelta(double dTime,int iStep);
+    double SwitchDelta(double dTime, int iStep);
     void InitCosmology(CSM csm);
-    void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
+    void BuildTree(int bNeedEwald, uint32_t uRoot, uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
     void ActiveOrder();
-    void CalcBound(Bound &bnd);
+    void CalcBound(Bound& bnd);
     void CalcBound();
     void CountSpecies();
     void RemoveDeleted();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
-    mdl::ServiceBuffer GetParticles(std::vector<std::int64_t> &particle_ids);
-    void OutputOrbits(int iStep,double dTime);
+    mdl::ServiceBuffer GetParticles(std::vector<std::int64_t>& particle_ids);
+    void OutputOrbits(int iStep, double dTime);
     double TotalMass();
     void LightConeOpen(int iStep);
     void LightConeClose(int iStep);
@@ -476,34 +445,34 @@ protected:
     void TimerHeader();
     void TimerRestart();
     void TimerDump(int iStep);
-    void CalcEandL(int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
-    void Drift(double dTime,double dDelta,int iRoot);
+    void CalcEandL(int bFirst, double dTime, double* E, double* T, double* U, double* Eth, double* L, double* F, double* W);
+    void Drift(double dTime, double dDelta, int iRoot);
 
-    void SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth);
+    void SmoothSetSMF(SMF* smf, double dTime, double dDelta, int nSmooth);
     void ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung);
-    void KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
-    void KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+    void KickKDKOpen(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi);
+    void KickKDKClose(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi);
     void UpdateRung(uint8_t uRung);
-    void AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
+    void AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelta);
     uint8_t GetMinDt();
     void SetGlobalDt(uint8_t minDt);
-    void DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
+    void DensityStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelta);
 
-    void FastGasPhase1(double dTime,double dDelta,int iSmoothType);
-    void FastGasPhase2(double dTime,double dDelta,int iSmoothType);
+    void FastGasPhase1(double dTime, double dDelta, int iSmoothType);
+    void FastGasPhase2(double dTime, double dDelta, int iSmoothType);
     void CoolSetup(double dTime);
-    void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
+    void Cooling(double dTime, double dStep, int bUpdateState, int bUpdateTable, int bInterateDt);
     void AddDelParticles();
-    void InitSph(double dTime,double dDelta, bool bRestart);
-    uint64_t CountDistance(double dRadius2Outer,double dRadius2Inner=0.0);
+    void InitSph(double dTime, double dDelta, bool bRestart);
+    uint64_t CountDistance(double dRadius2Outer, double dRadius2Inner = 0.0);
 
     // Meshless hydrodynamics
     void MeshlessGradients(double dTime, double dDelta);
-    void MeshlessFluxes(double dTime,double dDelta);
+    void MeshlessFluxes(double dTime, double dDelta);
     void HydroStep(double dTime, double dDelta);
     void ComputeSmoothing(double dTime, double dDelta);
     void ChemCompInit();
-    void EndTimestepIntegration(double dTime,double dDelta);
+    void EndTimestepIntegration(double dTime, double dDelta);
 
     // Cooling
     void SetCoolingParam();
@@ -513,7 +482,7 @@ protected:
     void GrackleInit(int bComove, double dScaleFactor);
 #endif
     void SetStarFormationParam();
-    int  ValidateStarFormationParam();
+    int ValidateStarFormationParam();
     void StarFormInit(double dTime);
     void StarForm(double dTime, double dDelta, int iRung);
     void SetFeedbackParam();
@@ -524,7 +493,7 @@ protected:
     void SetEOSParam();
     int ValidateEOSParam();
     void SetBlackholeParam();
-    int  ValidateBlackholeParam();
+    int ValidateBlackholeParam();
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);
     void BHMerger(double dTime);
@@ -535,78 +504,68 @@ protected:
     void BHStep(double dTime, double dDelta);
 
     void Initialize();
-    void writeParameters(const std::string &baseName,int iStep,int nSteps,double dTime,double dDelta);
+    void writeParameters(const std::string& baseName, int iStep, int nSteps, double dTime, double dDelta);
     void DomainDecompOld(int iRung);
 
-    int CountRungs(uint64_t *nRungs);
+    int CountRungs(uint64_t* nRungs);
     void SetSoft(double);
     void InitBall();
 
-    std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-            MeasureLinPk(int nGridLin,double a,double dBoxSize);
-    void OutputPk(int iStep,double dTime);
+    std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>> // nPk, fK, fPk
+    MeasureLinPk(int nGridLin, double a, double dBoxSize);
+    void OutputPk(int iStep, double dTime);
     void OutputLinPk(int iStep, double dTime);
 
-    int NewTopStepKDK(
-        double &dTime,  /* MODIFIED: Current simulation time */
-        double dDelta,
-        double dTheta,
-        int nSteps,
-        int bDualTree,      /* Should be zero at rung 0! */
-        uint8_t uRung,  /* Rung level */
-        double *pdStep, /* Current step */
-        uint8_t *puRungMax,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
-    void TopStepKDK(
-        double dStep,   /* Current step */
-        double dTime,   /* Current time */
-        double dDelta,  /* Time step */
-        double dTheta,
-        int iRung,      /* Rung level */
-        int iKickRung,  /* Gravity on all rungs from iRung
-                        to iKickRung */
-        int iAdjust);       /* Do an adjust? */
+    int NewTopStepKDK(double& dTime,                                           /* MODIFIED: Current simulation time */
+                      double dDelta, double dTheta, int nSteps, int bDualTree, /* Should be zero at rung 0! */
+                      uint8_t uRung,                                           /* Rung level */
+                      double* pdStep,                                          /* Current step */
+                      uint8_t* puRungMax, int* pbDoCheckpoint, int* pbDoOutput, int* pbNeedKickOpen);
+    void TopStepKDK(double dStep,             /* Current step */
+                    double dTime,             /* Current time */
+                    double dDelta,            /* Time step */
+                    double dTheta, int iRung, /* Rung level */
+                    int iKickRung,            /* Gravity on all rungs from iRung
+                                              to iKickRung */
+                    int iAdjust);             /* Do an adjust? */
 
-    void CalcDistance(const double *dCenter, double dRadius );
-    void CalcCOM(const double *dCenter, double dRadius,
-                 double *com, double *vcm, double *L, double *M);
-    void CalcMtot(double *M, uint64_t *N);
+    void CalcDistance(const double* dCenter, double dRadius);
+    void CalcCOM(const double* dCenter, double dRadius, double* com, double* vcm, double* L, double* M);
+    void CalcMtot(double* M, uint64_t* N);
     void SetSPHoptions();
     void ResetCOM();
     void InitializeEOS();
-    void CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungLo, double dTime, double dDelta, double dStep,
-                                 int bKickClose, int bKickOpen, SPHOptions SPHoptions);
-    void UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double dStep,
-                         int bKickClose, int bKickOpen, SPHOptions SPHoptions);
-    void TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions);
+    void CalculateKickParameters(struct pkdKickParameters* kick, uint8_t uRungLo, double dTime, double dDelta, double dStep, int bKickClose, int bKickOpen,
+                                 SPHOptions SPHoptions);
+    void UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double dStep, int bKickClose, int bKickOpen, SPHOptions SPHoptions);
+    void TreeUpdateFlagBounds(int bNeedEwald, uint32_t uRoot, uint32_t utRoot, SPHOptions SPHoptions);
 
-public:
-    void Profile(
-        const PROFILEBIN **pBins, int *pnBins, double *r,
-        double dMinRadius, double dLogRadius, double dMaxRadius,
-        int nPerBin, int nBins, int nAccuracy );
-    void OutputGrid(std::string_view filename, bool k=false, int iGrid=0, int nParaWrite=0);
+  public:
+    void Profile(const PROFILEBIN** pBins, int* pnBins, double* r, double dMinRadius, double dLogRadius, double dMaxRadius, int nPerBin, int nBins,
+                 int nAccuracy);
+    void OutputGrid(std::string_view filename, bool k = false, int iGrid = 0, int nParaWrite = 0);
 
     uint64_t CountSelected();
-    uint64_t SelSpecies(uint64_t mSpecies,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelAll(int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelGas(int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelStar(int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelDark(int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelDeleted(int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelBlackholes(int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelActives(int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelGroup(int iGroup,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue=true,int ClearIfFalse=true);
-    uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelBox(blitz::TinyVector<double,3> center, blitz::TinyVector<double,3> size,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelSphere(blitz::TinyVector<double,3> r, double dRadius,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true);
+    uint64_t SelSpecies(uint64_t mSpecies, int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelAll(int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelGas(int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelStar(int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelDark(int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelDeleted(int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelBlackholes(int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelActives(int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelGroup(int iGroup, int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelMass(double dMinMass, double dMaxMass, int setIfTrue = true, int ClearIfFalse = true);
+    uint64_t SelById(uint64_t idStart, uint64_t idEnd, int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelPhaseDensity(double dMinPhaseDensity, double dMaxPhaseDensity, int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelBox(blitz::TinyVector<double, 3> center, blitz::TinyVector<double, 3> size, int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelSphere(blitz::TinyVector<double, 3> r, double dRadius, int setIfTrue = true, int clearIfFalse = true);
+    uint64_t SelCylinder(blitz::TinyVector<double, 3> dP1, blitz::TinyVector<double, 3> dP2, double dRadius, int setIfTrue = true, int clearIfFalse = true);
 
-public:
-    void RsLoadIds(std::string_view service_name,std::vector<uint64_t> &counts,const std::string_view filename,bool bAppend=false);
-    void RsLoadIds(const std::string_view filename,bool bAppend=false);
-    void RsHaloLoadIds(const std::string_view filename,bool bAppend=false);
+  public:
+    void RsLoadIds(std::string_view service_name, std::vector<uint64_t>& counts, const std::string_view filename, bool bAppend = false);
+    void RsLoadIds(const std::string_view filename, bool bAppend = false);
+    void RsHaloLoadIds(const std::string_view filename, bool bAppend = false);
     void RsSaveIds(const std::string_view filename);
     void RsReorderIds();
     void RsExtract(std::string_view filename_template);

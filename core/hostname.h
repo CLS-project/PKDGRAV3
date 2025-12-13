@@ -17,16 +17,16 @@
 #include "TraversePST.h"
 
 class ServiceHostname : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "Hostname";
     typedef void input;
     struct output {
-        int  iMpiID;
+        int iMpiID;
         char szHostname[20];
     };
-    explicit ServiceHostname(PST pst)
-        : TraversePST(pst,name,0,pst->mdl->Threads()*sizeof(output)) {}
-protected:
-    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut);
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceHostname(PST pst) : TraversePST(pst, name, 0, pst->mdl->Threads() * sizeof(output)) {}
+
+  protected:
+    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut);
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

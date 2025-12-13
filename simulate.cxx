@@ -24,7 +24,7 @@
 #include <fmt/ranges.h>
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
-using namespace fmt::literals; // Gives us ""_a and ""_format literals
+using namespace fmt::literals;        // Gives us ""_a and ""_format literals
 using namespace pyrameters::literals; // Gives us ""_key literals
 
 /******************************************************************************\
@@ -33,19 +33,15 @@ using namespace pyrameters::literals; // Gives us ""_key literals
 double MSR::LoadOrGenerateIC() {
     double dTime = -HUGE_VAL;
     if (parameters.has_nGrid()) {
-        dTime = GenerateIC(
-                    parameters.get_nGrid(),
-                    parameters.get_iSeed(),
-                    parameters.get_dRedFrom(),
-                    parameters.get_dBoxSize(),
-                    csm); /* May change nSteps/dDelta */
-        if ( parameters.get_bWriteIC() ) {
-            Write(BuildIoName(0).c_str(),dTime,0);
+        dTime = GenerateIC(parameters.get_nGrid(), parameters.get_iSeed(), parameters.get_dRedFrom(), parameters.get_dBoxSize(),
+                           csm); /* May change nSteps/dDelta */
+        if (parameters.get_bWriteIC()) {
+            Write(BuildIoName(0).c_str(), dTime, 0);
         }
     }
 
     /* Read in a binary file */
-    else if ( parameters.has_achInFile() ) {
+    else if (parameters.has_achInFile()) {
         dTime = Read(parameters.get_achInFile()); /* May change nSteps/dDelta */
     }
     else {
@@ -59,12 +55,12 @@ double MSR::LoadOrGenerateIC() {
 *   Calculate dDelta and nSteps from: iStartStep, nSteps, dRedTo, dDelta
 \******************************************************************************/
 
-bool MSR::getDeltaSteps(double dTime,int iStartStep) {
-    dDelta_list.clear();    // Step with the dDelta
-    iStep_list.clear();     // to this step number
+bool MSR::getDeltaSteps(double dTime, int iStartStep) {
+    dDelta_list.clear(); // Step with the dDelta
+    iStep_list.clear();  // to this step number
 
     auto nSteps = parameters.get_nSteps();
-    if (nSteps.size() == 1 && nSteps[0]==0) return true;
+    if (nSteps.size() == 1 && nSteps[0] == 0) return true;
 
     auto dDelta = parameters.get_dDelta();
     auto dRedTo = parameters.get_dRedTo();
@@ -117,25 +113,25 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep) {
 
             auto tFrom = dTime;
             auto sFrom = iStartStep;
-            for (auto i = 0; i<dRedTo.size(); ++i) {
+            for (auto i = 0; i < dRedTo.size(); ++i) {
                 auto z = dRedTo[i];
                 auto sTo = iStep_list[i];
-                auto tTo = csmExp2Time(csm,1.0/(z + 1.0));
-                dDelta_list.push_back((tTo-tFrom)/(sTo - sFrom));
+                auto tTo = csmExp2Time(csm, 1.0 / (z + 1.0));
+                dDelta_list.push_back((tTo - tFrom) / (sTo - sFrom));
                 tFrom = tTo;
                 sFrom = sTo;
             }
         }
     }
     assert(dDelta_list.size() == iStep_list.size());
-    while (iStep_list.size()>0 && iStartStep >= iStep_list.front()) {
+    while (iStep_list.size() > 0 && iStartStep >= iStep_list.front()) {
         dDelta_list.erase(dDelta_list.begin());
         iStep_list.erase(iStep_list.begin());
     }
-    parameters.set_dynamic("delta",dDelta_list.front());
-    print_notice (" Step From     Step To  Delta-T\n");
-    for (auto i=0, j=iStartStep; i<dDelta_list.size(); j=iStep_list[i], ++i) {
-        print_notice("{:10d}  {:10d}  {:.8g}\n",j,iStep_list[i],dDelta_list[i]);
+    parameters.set_dynamic("delta", dDelta_list.front());
+    print_notice(" Step From     Step To  Delta-T\n");
+    for (auto i = 0, j = iStartStep; i < dDelta_list.size(); j = iStep_list[i], ++i) {
+        print_notice("{:10d}  {:10d}  {:.8g}\n", j, iStep_list[i], dDelta_list[i]);
     }
     return true;
 }
@@ -144,10 +140,10 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep) {
 *   Simulation Mode: normal operation mode for pkdgrav
 \******************************************************************************/
 void MSR::Simulate(double dTime) {
-    Simulate(dTime,parameters.get_iStartStep());
+    Simulate(dTime, parameters.get_iStartStep());
 }
-void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
-    if (!getDeltaSteps(dTime,iStartStep)) return;
+void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
+    if (!getDeltaSteps(dTime, iStartStep)) return;
     std::ofstream log;
     const auto bEwald = parameters.get_bEwald();
     const auto bGravStep = parameters.get_bGravStep();
@@ -155,7 +151,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     const auto iTimeStepCrit = parameters.get_iTimeStepCrit();
 
     InitCosmology(csm);
-    auto dTheta = set_dynamic(iStartStep,dTime);
+    auto dTheta = set_dynamic(iStartStep, dTime);
 
     if (parameters.has_dSoft()) SetSoft(Soft());
 
@@ -164,10 +160,10 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     ** log file entry.
     */
     if (LogInterval()) {
-        auto filename = MakePath(OutName(),".log");
-        log.open(filename,std::ios::app);
+        auto filename = MakePath(OutName(), ".log");
+        log.open(filename, std::ios::app);
         if (!log.is_open()) {
-            print_error("Failed to open log file: {}\n",filename);
+            print_error("Failed to open log file: {}\n", filename);
             abort();
         }
         // fprintf(fpLog,"# ");
@@ -180,10 +176,9 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
 
     if (parameters.get_bLightCone() && Comove()) {
         auto dBoxSize = parameters.get_dBoxSize();
-        print("One, Two, Three replica depth is z={:.10g}, {:.10g}, {:.10g}\n",
-              1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*dBoxSize)) - 1.0,
-              1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(2*dBoxSize)) - 1.0,
-              1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*dBoxSize)) - 1.0 );
+        print("One, Two, Three replica depth is z={:.10g}, {:.10g}, {:.10g}\n", 1.0 / csmComoveLookbackTime2Exp(csm, 1.0 / dLightSpeedSim(1 * dBoxSize)) - 1.0,
+              1.0 / csmComoveLookbackTime2Exp(csm, 1.0 / dLightSpeedSim(2 * dBoxSize)) - 1.0,
+              1.0 / csmComoveLookbackTime2Exp(csm, 1.0 / dLightSpeedSim(3 * dBoxSize)) - 1.0);
     }
 
     if (MeshlessHydro()) {
@@ -192,10 +187,8 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
 
     if (parameters.get_bDoCooling()) {
         float redshift;
-        if (csm->val.bComove)
-            redshift = 1./csmTime2Exp(csm,dTime) - 1.;
-        else
-            redshift = 0.0;
+        if (csm->val.bComove) redshift = 1. / csmTime2Exp(csm, dTime) - 1.;
+        else redshift = 0.0;
 
         CoolingInit(redshift);
         CoolingUpdate(redshift);
@@ -203,7 +196,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
 
 #ifdef GRACKLE
     if ((csm->val.bComove)) {
-        GrackleInit(1, csmTime2Exp(csm,dTime));
+        GrackleInit(1, csmTime2Exp(csm, dTime));
     }
     else {
         GrackleInit(0, 1.0);
@@ -226,19 +219,19 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     /*
     ** Build tree, activating all particles first (just in case).
     */
-    ActiveRung(0,1); /* Activate all particles */
+    ActiveRung(0, 1); /* Activate all particles */
     DomainDecomp();
     UpdateSoft(dTime);
     BuildTree(bEwald);
-    runAnalysis(iStartStep,dTime); // Run any registered Python analysis tasks
-    OutputOrbits(iStartStep,dTime);
-    if (parameters.get_nGridPk()>0) OutputPk(iStartStep,dTime);
+    runAnalysis(iStartStep, dTime); // Run any registered Python analysis tasks
+    OutputOrbits(iStartStep, dTime);
+    if (parameters.get_nGridPk() > 0) OutputPk(iStartStep, dTime);
 
-    int bKickOpen, bKickClose=0;
+    int bKickOpen, bKickClose = 0;
     uint8_t uRungMax = 0;
     int iSec = time(0);
 
-    double dDelta = SwitchDelta(dTime,iStartStep);
+    double dDelta = SwitchDelta(dTime, iStartStep);
     if (parameters.get_bNewKDK()) {
         LightConeOpen(iStartStep + 1);
         bKickOpen = 1;
@@ -249,69 +242,64 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
         auto nGridLin = parameters.get_nGridLin();
         if (csm->val.classData.bClass && parameters.get_achLinSpecies().length() && nGridLin > 0) {
             GridCreateFFT(nGridLin);
-            SetLinGrid(dTime,dDelta,nGridLin,bKickClose,bKickOpen);
-            if (parameters.get_bDoLinPkOutput())
-                OutputLinPk( iStartStep, dTime);
-            LinearKick(dTime,dDelta,bKickClose,bKickOpen);
+            SetLinGrid(dTime, dDelta, nGridLin, bKickClose, bKickOpen);
+            if (parameters.get_bDoLinPkOutput()) OutputLinPk(iStartStep, dTime);
+            LinearKick(dTime, dDelta, bKickClose, bKickOpen);
             GridDeleteFFT();
         }
     }
 
     const bool bDoStartOutput = parameters.get_bWriteIC() && !parameters.has_nGrid() && !NewSPH();
-    const bool bDoStartFof =  parameters.get_bFindGroups() && ( bDoStartOutput || parameters.get_bBHPlaceSeed() );
+    const bool bDoStartFof = parameters.get_bFindGroups() && (bDoStartOutput || parameters.get_bBHPlaceSeed());
     if (bDoStartFof) {
-        NewFof(parameters.get_dTau(),parameters.get_nMinMembers());
+        NewFof(parameters.get_dTau(), parameters.get_nMinMembers());
     }
 
     if (NewSPH()) {
         // Calculate Density
-        SelAll(-1,1);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
+        SelAll(-1, 1);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDelta);
         SPHoptions.doGravity = 0;
         SPHoptions.doDensity = 1;
         SPHoptions.doSPHForces = 0;
-        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+        uRungMax = Gravity(0, MAX_RUNG, ROOT, 0, dTime, dDelta, iStartStep, dTheta, 0, bKickOpen, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
             SPHoptions.doDensityCorrection = 1;
             SPHoptions.dofBallFactor = 0;
-            TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
-            uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                               bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
-            UpdateGasValues(0,dTime,dDelta,iStartStep,0,bKickOpen,SPHoptions);
+            TreeUpdateFlagBounds(bEwald, ROOT, 0, SPHoptions);
+            uRungMax =
+                Gravity(0, MAX_RUNG, ROOT, 0, dTime, dDelta, iStartStep, dTheta, 0, bKickOpen, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
+            UpdateGasValues(0, dTime, dDelta, iStartStep, 0, bKickOpen, SPHoptions);
             SPHoptions.doDensityCorrection = 0;
         }
         // Calculate Forces
-        SelAll(-1,1);
+        SelAll(-1, 1);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         SPHoptions.doDensity = 0;
         SPHoptions.doSPHForces = 1;
         SPHoptions.dofBallFactor = 0;
-        TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
-        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+        TreeUpdateFlagBounds(bEwald, ROOT, 0, SPHoptions);
+        uRungMax = Gravity(0, MAX_RUNG, ROOT, 0, dTime, dDelta, iStartStep, dTheta, 0, bKickOpen, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
         MemStatus();
     }
     else if (DoGravity()) {
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
-        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+        uRungMax = Gravity(0, MAX_RUNG, ROOT, 0, dTime, dDelta, iStartStep, dTheta, 0, bKickOpen, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
         MemStatus();
     }
     if (DoGravity() && bGravStep) {
-        assert(parameters.get_bNewKDK() == false);    /* for now! */
+        assert(parameters.get_bNewKDK() == false); /* for now! */
         BuildTree(bEwald);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
+        SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
-        Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
-                bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+        Gravity(0, MAX_RUNG, ROOT, 0, dTime, dDelta, iStartStep, dTheta, 0, 0, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
         MemStatus();
     }
     if (MeshlessHydro()) {
-        InitSph(dTime, dDelta,bRestart);
+        InitSph(dTime, dDelta, bRestart);
         auto uRungMaxHydro = GetMinDt();
         uRungMax = std::max(uRungMax, uRungMaxHydro);
     }
@@ -330,22 +318,20 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
         }
     }
 
-    double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
-    CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
+    double E = 0, T = 0, U = 0, Eth = 0, L[3] = {0, 0, 0}, F[3] = {0, 0, 0}, W = 0;
+    CalcEandL(MSR_INIT_E, dTime, &E, &T, &U, &Eth, L, F, &W);
     iSec = time(0) - iSec;
     if (LogInterval()) {
-        fmt::print(log,"{time:.10e} {z:.10e} {E:.10e} {T:.10e} {U:.10e} {Eth:.10e} {L0:.10e} {L1:.10e} {L2:.10e} {F0:.10e} {F1:.10e} {F2:.10e} {W:.10e} {elapsed:d}\n",
-                   "time"_a=dTime,
-                   "z"_a=1.0/csmTime2Exp(csm,dTime)-1.0,
-                   "E"_a=E,"T"_a=T,"U"_a=U,"Eth"_a=Eth,
-                   "L0"_a=L[0],"L1"_a=L[1],"L2"_a=L[2],
-                   "F0"_a=F[0],"F1"_a=F[1],"F2"_a=F[2],
-                   "W"_a=W,"elapsed"_a=iSec);
+        fmt::print(
+            log,
+            "{time:.10e} {z:.10e} {E:.10e} {T:.10e} {U:.10e} {Eth:.10e} {L0:.10e} {L1:.10e} {L2:.10e} {F0:.10e} {F1:.10e} {F2:.10e} {W:.10e} {elapsed:d}\n",
+            "time"_a = dTime, "z"_a = 1.0 / csmTime2Exp(csm, dTime) - 1.0, "E"_a = E, "T"_a = T, "U"_a = U, "Eth"_a = Eth, "L0"_a = L[0], "L1"_a = L[1],
+            "L2"_a = L[2], "F0"_a = F[0], "F1"_a = F[1], "F2"_a = F[2], "W"_a = W, "elapsed"_a = iSec);
         log.rdbuf()->pubsync();
     }
 
     if (bDoStartOutput) {
-        Output(iStartStep,dTime,dDelta,0);
+        Output(iStartStep, dTime, dDelta, 0);
     }
 
     // Make sure that the tree is usable before the start of the simulation
@@ -356,54 +342,52 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
     }
 
     bKickOpen = 0;
-    int iStop=0, bDoCheckpoint=0, bDoOutput=0;
+    int iStop = 0, bDoCheckpoint = 0, bDoOutput = 0;
     auto nSteps = iStep_list.empty() ? 0 : iStep_list.back();
-    for (auto iStep=iStartStep+1; iStep<=nSteps&&!iStop; ++iStep) {
-        dTheta = set_dynamic(iStep,dTime);
-        dDelta = SwitchDelta(dTime,iStep-1);
+    for (auto iStep = iStartStep + 1; iStep <= nSteps && !iStop; ++iStep) {
+        dTheta = set_dynamic(iStep, dTime);
+        dDelta = SwitchDelta(dTime, iStep - 1);
         lPrior = time(0);
         TimerRestart();
         if (parameters.get_bNewKDK()) {
-            double diStep = (double)(iStep-1);
+            double diStep = (double)(iStep - 1);
             double ddTime = dTime;
             if (bKickOpen) {
                 BuildTree(0);
-                LightConeOpen(iStep);  /* open the lightcone */
+                LightConeOpen(iStep); /* open the lightcone */
                 if (NewSPH()) {
                     // Calculate Density
-                    SelAll(-1,1);
-                    SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
+                    SelAll(-1, 1);
+                    SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDelta);
                     SPHoptions.doGravity = 0;
                     SPHoptions.doDensity = 1;
                     SPHoptions.doSPHForces = 0;
-                    uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+                    uRungMax = Gravity(0, MAX_RUNG, ROOT, 0, ddTime, dDelta, diStep, dTheta, 0, 1, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
                     if (SPHoptions.doInterfaceCorrection) {
                         SPHoptions.doDensity = 0;
                         SPHoptions.doDensityCorrection = 1;
                         SPHoptions.dofBallFactor = 0;
-                        TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
-                        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
-                        UpdateGasValues(0,ddTime,dDelta,diStep,0,1,SPHoptions);
+                        TreeUpdateFlagBounds(bEwald, ROOT, 0, SPHoptions);
+                        uRungMax =
+                            Gravity(0, MAX_RUNG, ROOT, 0, ddTime, dDelta, diStep, dTheta, 0, 1, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
+                        UpdateGasValues(0, ddTime, dDelta, diStep, 0, 1, SPHoptions);
                         SPHoptions.doDensityCorrection = 0;
                     }
                     // Calculate Forces
-                    SelAll(-1,1);
+                    SelAll(-1, 1);
                     SPHoptions.doGravity = parameters.get_bDoGravity();
                     SPHoptions.doDensity = 0;
                     SPHoptions.doSPHForces = 1;
                     SPHoptions.dofBallFactor = 0;
-                    TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
-                    uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+                    TreeUpdateFlagBounds(bEwald, ROOT, 0, SPHoptions);
+                    uRungMax = Gravity(0, MAX_RUNG, ROOT, 0, ddTime, dDelta, diStep, dTheta, 0, 1, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
                 }
                 else {
                     if (parameters.get_bDoGravity()) {
-                        SPHOptions SPHoptions = initializeSPHOptions(parameters,csm,dTime,dDelta);
+                        SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDelta);
                         SPHoptions.doGravity = parameters.get_bDoGravity();
-                        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                           bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,SPHoptions);
+                        uRungMax =
+                            Gravity(0, MAX_RUNG, ROOT, 0, ddTime, dDelta, diStep, dTheta, 0, 1, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
                     }
                     if (MeshlessHydro()) {
                         // We need to recompute the rungs of the
@@ -413,7 +397,7 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
                         HydroStep(dTime, dDelta);
                         UpdateRung(0);
                         uint8_t iTempRung;
-                        for (iTempRung=0; iTempRung <= iCurrMaxRung; ++iTempRung) {
+                        for (iTempRung = 0; iTempRung <= iCurrMaxRung; ++iTempRung) {
                             if (nRung[iTempRung] == 0) continue;
                             uRungMax = iTempRung;
                         }
@@ -423,54 +407,51 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
                 auto nGridLin = parameters.get_nGridLin();
                 if (csm->val.classData.bClass && parameters.get_achLinSpecies().length() && nGridLin > 0) {
                     GridCreateFFT(nGridLin);
-                    SetLinGrid(dTime,dDelta,nGridLin,bKickClose,bKickOpen);
-                    if (parameters.get_bDoLinPkOutput())
-                        OutputLinPk( iStartStep, dTime);
-                    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
+                    SetLinGrid(dTime, dDelta, nGridLin, bKickClose, bKickOpen);
+                    if (parameters.get_bDoLinPkOutput()) OutputLinPk(iStartStep, dTime);
+                    LinearKick(dTime, dDelta, bKickClose, bKickOpen);
                     GridDeleteFFT();
                 }
                 bKickOpen = 0; /* clear the opening kicking flag */
             }
-            NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen);
+            NewTopStepKDK(ddTime, dDelta, dTheta, nSteps, 0, 0, &diStep, &uRungMax, &bDoCheckpoint, &bDoOutput, &bKickOpen);
         }
         else {
-            TopStepKDK(iStep-1,dTime,dDelta,dTheta,0,0,1);
-            runAnalysis(iStep,dTime); // Run any registered Python analysis tasks
+            TopStepKDK(iStep - 1, dTime, dDelta, dTheta, 0, 0, 1);
+            runAnalysis(iStep, dTime); // Run any registered Python analysis tasks
         }
         dTime += dDelta;
         auto lSec = time(0) - lPrior;
         MemStatus();
 
-        OutputOrbits(iStep,dTime);
+        OutputOrbits(iStep, dTime);
 
         /*
         ** Output a log file line if requested.
         ** Note: no extra gravity calculation required.
         */
-        if (LogInterval() && iStep%LogInterval() == 0) {
-            CalcEandL(MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
-            fmt::print(log,"{time:.10e} {z:.10e} {E:.10e} {T:.10e} {U:.10e} {Eth:.10e} {L0:.10e} {L1:.10e} {L2:.10e} {F0:.10e} {F1:.10e} {F2:.10e} {W:.10e} {elapsed:d}\n",
-                       "time"_a=dTime,
-                       "z"_a=1.0/csmTime2Exp(csm,dTime)-1.0,
-                       "E"_a=E,"T"_a=T,"U"_a=U,"Eth"_a=Eth,
-                       "L0"_a=L[0],"L1"_a=L[1],"L2"_a=L[2],
-                       "F0"_a=F[0],"F1"_a=F[1],"F2"_a=F[2],
-                       "W"_a=W,"elapsed"_a=lSec);
+        if (LogInterval() && iStep % LogInterval() == 0) {
+            CalcEandL(MSR_STEP_E, dTime, &E, &T, &U, &Eth, L, F, &W);
+            fmt::print(
+                log,
+                "{time:.10e} {z:.10e} {E:.10e} {T:.10e} {U:.10e} {Eth:.10e} {L0:.10e} {L1:.10e} {L2:.10e} {F0:.10e} {F1:.10e} {F2:.10e} {W:.10e} {elapsed:d}\n",
+                "time"_a = dTime, "z"_a = 1.0 / csmTime2Exp(csm, dTime) - 1.0, "E"_a = E, "T"_a = T, "U"_a = U, "Eth"_a = Eth, "L0"_a = L[0], "L1"_a = L[1],
+                "L2"_a = L[2], "F0"_a = F[0], "F1"_a = F[1], "F2"_a = F[2], "W"_a = W, "elapsed"_a = lSec);
             log.rdbuf()->pubsync();
         }
         if (!parameters.get_bNewKDK()) {
-            CheckForOutput(iStep,nSteps,dTime,&bDoCheckpoint,&bDoOutput);
+            CheckForOutput(iStep, nSteps, dTime, &bDoCheckpoint, &bDoOutput);
         }
-        iStop = (bDoCheckpoint&2) || (bDoOutput&2);
+        iStop = (bDoCheckpoint & 2) || (bDoOutput & 2);
         if (bDoCheckpoint) {
-            Checkpoint(iStep,nSteps,dTime,dDelta);
+            Checkpoint(iStep, nSteps, dTime, dDelta);
             bDoCheckpoint = 0;
         }
         if (bDoOutput) {
             if (NewSPH() && parameters.get_bCentrifugal()) {
                 ResetCOM();
             }
-            Output(iStep,dTime,dDelta,0);
+            Output(iStep, dTime, dDelta, 0);
             bDoOutput = 0;
             DomainDecomp();
             BuildTree(bEwald);
@@ -484,12 +465,12 @@ void MSR::Simulate(double dTime,int iStartStep,bool bRestart) {
 \******************************************************************************/
 
 #define MAX_CSM_SPECIES 20
-static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
-    if (achSpecies==NULL || achSpecies[0]==0 ) return 0;
+static int parseSpeciesNames(const char* aSpecies[], char* achSpecies) {
+    if (achSpecies == NULL || achSpecies[0] == 0) return 0;
     char *p, *stringp = achSpecies;
     int nSpecies = 0;
     while ((p = strsep(&stringp, "+")) != NULL) {
-        assert(nSpecies<MAX_CSM_SPECIES);
+        assert(nSpecies < MAX_CSM_SPECIES);
         if (p[0]) aSpecies[nSpecies++] = p;
     }
     return nSpecies;
@@ -502,18 +483,12 @@ static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
 //   {type} - replaced with the file type, including the leading dot
 // The default is:
 //   {name}.{step:05d}{type}
-template<typename... ExtraArgs>
-static void validate_path(const char *name,
-                          const std::string_view &path,
-                          ExtraArgs &&... extra) {
+template <typename... ExtraArgs>
+static void validate_path(const char* name, const std::string_view& path, ExtraArgs&&... extra) {
     if (path.empty()) return;
 
     // helper: construct store with specific values for required fields
-    auto make_store = [&](std::string_view nm,
-                          int step,
-                          std::string_view type,
-                          std::string_view kind,
-    auto &&... overrides) {
+    auto make_store = [&](std::string_view nm, int step, std::string_view type, std::string_view kind, auto&&... overrides) {
         fmt::dynamic_format_arg_store<fmt::format_context> s;
         s.push_back(fmt::arg("name", nm));
         s.push_back(fmt::arg("step", step));
@@ -530,8 +505,7 @@ static void validate_path(const char *name,
     std::string r1;
     try {
         r1 = fmt::vformat(path, make_store("name", 1, ".dat", "dat"));
-    }
-    catch (const fmt::format_error &) {
+    } catch (const fmt::format_error&) {
         throw fmt::format_error(std::string(name) + ": " + std::string(path));
     }
 
@@ -544,8 +518,8 @@ static void validate_path(const char *name,
         }
     };
 
-    check_required("name",      "XXXX", 1, ".dat", "dat");
-    check_required("step",      "name", 9, ".dat", "dat");
+    check_required("name", "XXXX", 1, ".dat", "dat");
+    check_required("step", "name", 9, ".dat", "dat");
     check_required("type/kind", "name", 1, ".XXX", "XXX");
 }
 /*
@@ -554,14 +528,13 @@ static void validate_path(const char *name,
 int MSR::ValidateParameters() {
     int success = 1;
     try {
-        validate_path("achOutPath",       parameters.get_achOutPath("type"_key=nullptr,"kind"_key=nullptr));
+        validate_path("achOutPath", parameters.get_achOutPath("type"_key = nullptr, "kind"_key = nullptr));
         // Generally it is possible to specify the file segment for output file with {i}
-        validate_path("achIoPath",        parameters.get_achIoPath("type"_key=nullptr,"kind"_key=nullptr),fmt::arg("i",0));
+        validate_path("achIoPath", parameters.get_achIoPath("type"_key = nullptr, "kind"_key = nullptr), fmt::arg("i", 0));
         // The checkpoint path is used for multiple file checkpoints, so {i} is assumed (and cannot be specified)
-        validate_path("achCheckpointPath",parameters.get_achCheckpointPath("type"_key=nullptr,"kind"_key=nullptr));
-    }
-    catch (fmt::format_error &e) {
-        print_error("ERROR: {}\n{}",e.what(),
+        validate_path("achCheckpointPath", parameters.get_achCheckpointPath("type"_key = nullptr, "kind"_key = nullptr));
+    } catch (fmt::format_error& e) {
+        print_error("ERROR: {}\n{}", e.what(),
                     "       When specified must contain {name}, {step} and {type} and no other fields\n"
                     "       Default: {name}.{step:05d}{type}\n"
                     "       Example: /path/to/output/{step:05d}/{name}.{step:05d}{type}\n");
@@ -614,9 +587,7 @@ int MSR::ValidateParameters() {
                 auto fH_reion_z = parameters.get_fH_reion_z();
                 auto dRedTo = parameters.get_dRedTo(); // Assumed sorted in decreasing order
                 if (dRedTo.front() > fH_reion_z && dRedTo.back() < fH_reion_z) {
-                    if (!std::any_of(dRedTo.begin(), dRedTo.end(), [fH_reion_z](double z) {
-                    return std::fabs(z - fH_reion_z) < 1e-10;
-                    })) {
+                    if (!std::any_of(dRedTo.begin(), dRedTo.end(), [fH_reion_z](double z) { return std::fabs(z - fH_reion_z) < 1e-10; })) {
                         print_error("ERROR: Meshless hydrodynamics with cooling requires an element of dRedTo "
                                     "to be set to the redshift of Hydrogen reionization, as set in parameter "
                                     "fH_reion_z. Include the value of fH_reion_z in dRedTo, and choose a "
@@ -681,7 +652,8 @@ int MSR::ValidateParameters() {
 
 #ifndef NN_FLAG_IN_PARTICLE
     if (NewSPH() && parameters.get_bGasInterfaceCorrection() && parameters.get_dFastGasFraction() > 0.0f) {
-        print_error("ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
+        print_error("ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt "
+                    "and recompile.\n");
         return 0;
     }
 #endif
@@ -689,7 +661,7 @@ int MSR::ValidateParameters() {
     /*
     ** CUDA likes a larger group size
     */
-    if ( (mdl->CudaActive() || mdl->isMetalActive()) && parameters.get_bGPU() && !parameters.has_nGroup() && parameters.get_nGroup()<256)
+    if ((mdl->CudaActive() || mdl->isMetalActive()) && parameters.get_bGPU() && !parameters.has_nGroup() && parameters.get_nGroup() < 256)
         parameters.set_nGroup(256);
 
 #ifndef USE_HDF5
@@ -701,51 +673,50 @@ int MSR::ValidateParameters() {
 
 #ifdef MDL_FFTW
     auto nGridPk = parameters.get_nGridPk();
-    if ( nGridPk ) {
-        parameters.set_nBinsPk(std::min(parameters.has_nBinsPk() ? parameters.get_nBinsPk() : PST_MAX_K_BINS, nGridPk/2));
+    if (nGridPk) {
+        parameters.set_nBinsPk(std::min(parameters.has_nBinsPk() ? parameters.get_nBinsPk() : PST_MAX_K_BINS, nGridPk / 2));
     }
     auto iPkOrder = parameters.get_iPkOrder();
-    if (iPkOrder<ASSIGNMENT_ORDER::NGP || iPkOrder>ASSIGNMENT_ORDER::PCS) {
+    if (iPkOrder < ASSIGNMENT_ORDER::NGP || iPkOrder > ASSIGNMENT_ORDER::PCS) {
         print_error("ERROR: iPkOrder must be 0 (NGP), 1 (CIC), 2 (TSC) or 3 (PCS)\n");
         return 0;
     }
-    if ( parameters.get_nGrid() ) {
+    if (parameters.get_nGrid()) {
         if (parameters.has_achInFile()) {
             print_error("ERROR: do not specify an input file when generating IC\n");
             return 0;
         }
-        if ( parameters.get_iSeed() == 0 ) {
-            //print_error("ERROR: Random seed for IC not specified"\n);
-            parameters.set(parameters.str_iSeed,time(NULL));
+        if (parameters.get_iSeed() == 0) {
+            // print_error("ERROR: Random seed for IC not specified"\n);
+            parameters.set(parameters.str_iSeed, time(NULL));
         }
-        if ( !parameters.has_dBoxSize() || parameters.get_dBoxSize() <= 0 ) {
+        if (!parameters.has_dBoxSize() || parameters.get_dBoxSize() <= 0) {
             print_error("ERROR: Box size for IC not specified\n");
             return 0;
         }
-        if ( !parameters.get_bClass() ) {
-            if ( ( !parameters.has_dSigma8() || parameters.get_dSigma8() <= 0 ) &&
-                    ( !parameters.has_dNormalization() || parameters.get_dNormalization() <= 0 ) ) {
+        if (!parameters.get_bClass()) {
+            if ((!parameters.has_dSigma8() || parameters.get_dSigma8() <= 0) && (!parameters.has_dNormalization() || parameters.get_dNormalization() <= 0)) {
                 print_error("ERROR: Either dSigma8 or dNormalization should be specified for generating IC\n");
                 return 0;
             }
-            if ( !parameters.has_dSpectral() || parameters.get_dSpectral() <= 0 ) {
+            if (!parameters.has_dSpectral() || parameters.get_dSpectral() <= 0) {
                 print_error("ERROR: dSpectral for IC not specified\n");
                 return 0;
             }
         }
-        if ( parameters.get_bICgas() ) {
-            if ( !parameters.has_dOmegab() || parameters.get_dOmegab() <= 0 ) {
+        if (parameters.get_bICgas()) {
+            if (!parameters.has_dOmegab() || parameters.get_dOmegab() <= 0) {
                 print_error("ERROR: Can not generate IC with gas if dOmegab is not specified\n");
                 return 0;
             }
-            if ( !DoGas() ) {
+            if (!DoGas()) {
                 print_error("ERROR: Can not generate gas if a hydrodynamic solver is not selected\n");
                 return 0;
             }
         }
     }
-    if ( parameters.get_bComove() && !parameters.get_bClass() ) {
-        if ( !parameters.has_h() ) {
+    if (parameters.get_bComove() && !parameters.get_bClass()) {
+        if (!parameters.has_h()) {
             print_warning("WARNING: Running with bComove without specifying a Hubble parameter, h\n");
         }
     }
@@ -754,24 +725,26 @@ int MSR::ValidateParameters() {
     auto dFracNoDomainDecomp = parameters.get_dFracNoDomainDecomp();
     auto dFracNoDomainDimChoice = parameters.get_dFracNoDomainDimChoice();
     auto dFracDualTree = parameters.get_dFracDualTree();
-    if (!parameters.has_dFracNoDomainRootFind() && dFracNoDomainRootFind  > dFracNoDomainDimChoice)parameters.set_dFracNoDomainRootFind(dFracNoDomainRootFind=dFracNoDomainDimChoice);
-    if (!parameters.has_dFracNoDomainDecomp()   && dFracNoDomainDecomp    > dFracNoDomainRootFind) parameters.set_dFracNoDomainDecomp(dFracNoDomainDecomp=dFracNoDomainRootFind);
-    if (!parameters.has_dFracDualTree()         && dFracDualTree          > dFracNoDomainDecomp)   parameters.set_dFracDualTree(dFracDualTree=dFracNoDomainDecomp);
-    if (!parameters.has_dFracNoDomainDecomp()   && dFracNoDomainDecomp    < dFracDualTree)         parameters.set_dFracNoDomainDecomp(dFracNoDomainDecomp=dFracDualTree);
-    if (!parameters.has_dFracNoDomainRootFind() && dFracNoDomainRootFind  < dFracNoDomainDecomp)   parameters.set_dFracNoDomainRootFind(dFracNoDomainRootFind=dFracNoDomainDecomp);
-    if (!parameters.has_dFracNoDomainDimChoice()&& dFracNoDomainDimChoice < dFracNoDomainRootFind) parameters.set_dFracNoDomainDimChoice(dFracNoDomainDimChoice=dFracNoDomainRootFind);
-    if ( dFracDualTree > dFracNoDomainDecomp
-            || dFracNoDomainDecomp > dFracNoDomainRootFind
-            || dFracNoDomainRootFind > dFracNoDomainDimChoice
-            || dFracNoDomainDecomp<0.0 || dFracNoDomainDimChoice > 1.0 ) {
+    if (!parameters.has_dFracNoDomainRootFind() && dFracNoDomainRootFind > dFracNoDomainDimChoice)
+        parameters.set_dFracNoDomainRootFind(dFracNoDomainRootFind = dFracNoDomainDimChoice);
+    if (!parameters.has_dFracNoDomainDecomp() && dFracNoDomainDecomp > dFracNoDomainRootFind)
+        parameters.set_dFracNoDomainDecomp(dFracNoDomainDecomp = dFracNoDomainRootFind);
+    if (!parameters.has_dFracDualTree() && dFracDualTree > dFracNoDomainDecomp) parameters.set_dFracDualTree(dFracDualTree = dFracNoDomainDecomp);
+    if (!parameters.has_dFracNoDomainDecomp() && dFracNoDomainDecomp < dFracDualTree) parameters.set_dFracNoDomainDecomp(dFracNoDomainDecomp = dFracDualTree);
+    if (!parameters.has_dFracNoDomainRootFind() && dFracNoDomainRootFind < dFracNoDomainDecomp)
+        parameters.set_dFracNoDomainRootFind(dFracNoDomainRootFind = dFracNoDomainDecomp);
+    if (!parameters.has_dFracNoDomainDimChoice() && dFracNoDomainDimChoice < dFracNoDomainRootFind)
+        parameters.set_dFracNoDomainDimChoice(dFracNoDomainDimChoice = dFracNoDomainRootFind);
+    if (dFracDualTree > dFracNoDomainDecomp || dFracNoDomainDecomp > dFracNoDomainRootFind || dFracNoDomainRootFind > dFracNoDomainDimChoice ||
+        dFracNoDomainDecomp < 0.0 || dFracNoDomainDimChoice > 1.0) {
         print_error("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1\n");
         return 0;
     }
 
     /* Make sure that the old behaviour is obeyed. */
-    if ( NoSteps() ) {
-        if ( !parameters.has_bDoAccOutput() ) parameters.set_bDoAccOutput(true);
-        if ( !parameters.has_bDoPotOutput() ) parameters.set_bDoPotOutput(true);
+    if (NoSteps()) {
+        if (!parameters.has_bDoAccOutput()) parameters.set_bDoAccOutput(true);
+        if (!parameters.has_bDoPotOutput()) parameters.set_bDoPotOutput(true);
     }
 
     /*
@@ -783,21 +756,21 @@ int MSR::ValidateParameters() {
         print_warning("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
         parameters.set_bPhysicalSoft(bPhysicalSoft = false);
     }
-    if (bPhysicalSoft && dMaxPhysicalSoft>0) {
+    if (bPhysicalSoft && dMaxPhysicalSoft > 0) {
         print_error("ERROR: Setting both bPhysicalSoft and dMaxPhysicalSoft "
                     "is not allowed.\n Did you mean to limit the physical softening"
                     "with bPhysicalSoft and dSoftMax? or just limit the comoving "
                     "softening with dMaxPhysicalSoft?\n");
         return 0;
     }
-    if ( dMaxPhysicalSoft>0 && parameters.get_dSoft()==0.0 && !parameters.get_bSoftMaxMul()) {
+    if (dMaxPhysicalSoft > 0 && parameters.get_dSoft() == 0.0 && !parameters.get_bSoftMaxMul()) {
         print_error("ERROR: Trying to limit individual softenings setting a "
                     "maximum physical softening rather than a factor...\nThis is "
                     "not supported.\n Did you mean to use dSoft for a global softening? "
                     "or bSoftMaxMul for setting the limit as a factor?\n");
         return 0;
     }
-    if ( bPhysicalSoft && parameters.get_dSoftMax()==0.0) {
+    if (bPhysicalSoft && parameters.get_dSoftMax() == 0.0) {
         print_error("ERROR: If setting bPhysicalSoft, dSoftMax should be "
                     "provided to avoid divergences in the early universe.\n");
         return 0;
@@ -816,7 +789,7 @@ int MSR::ValidateParameters() {
     /*
     ** At the moment, integer positions are only really safe in periodic boxes!Wr
     */
-    if (parameters.get_bMemIntegerPosition() && (!parameters.get_bPeriodic()||blitz::any(period!=1.0))) {
+    if (parameters.get_bMemIntegerPosition() && (!parameters.get_bPeriodic() || blitz::any(period != 1.0))) {
         print_warning("WARNING: Integer coordinates are enabled but the the box is not periodic\n"
                       "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
     }
@@ -894,12 +867,12 @@ int MSR::ValidateParameters() {
     csm->val.classData.bClass = parameters.get_bClass();
 
     if (csm->val.classData.bClass) {
-        const char *aLinear[MAX_CSM_SPECIES];
-        const char *aPower[MAX_CSM_SPECIES];
-        char *achLinSpecies = strdup(parameters.get_achLinSpecies().data());
-        char *achPkSpecies = strdup(parameters.get_achPkSpecies().data());
-        int nLinear = parseSpeciesNames(aLinear,achLinSpecies);
-        int nPower = parseSpeciesNames(aPower,achPkSpecies);
+        const char* aLinear[MAX_CSM_SPECIES];
+        const char* aPower[MAX_CSM_SPECIES];
+        char* achLinSpecies = strdup(parameters.get_achLinSpecies().data());
+        char* achPkSpecies = strdup(parameters.get_achPkSpecies().data());
+        int nLinear = parseSpeciesNames(aLinear, achLinSpecies);
+        int nPower = parseSpeciesNames(aPower, achPkSpecies);
         if (!parameters.has_dOmega0()) csm->val.dOmega0 = 0.0;
         auto achClassFilename = parameters.get_achClassFilename();
         csmClassRead(csm, achClassFilename.data(), parameters.get_dBoxSize(), parameters.get_h(), nLinear, aLinear, nPower, aPower);

@@ -18,20 +18,19 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceRemoveDeleted::input>  || std::is_standard_layout_v<ServiceRemoveDeleted::input>);
+static_assert(std::is_void_v<ServiceRemoveDeleted::input> || std::is_standard_layout_v<ServiceRemoveDeleted::input>);
 static_assert(std::is_void_v<ServiceRemoveDeleted::output> || std::is_standard_layout_v<ServiceRemoveDeleted::output>);
 
-int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int ServiceRemoveDeleted::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
     static_assert(std::is_void_v<input>);
     auto pkd = pst->plcl->pkd;
     // Move the deleted particles to the end of the array
-    auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return !p.is_deleted();});
+    auto i = std::partition(pkd->particles.begin(), pkd->particles.end(), [](auto& p) { return !p.is_deleted(); });
 
     // If any, put their decorators also at the end of the array
     int remove_decorator = 0;
-    for (auto p=i; p<pkd->particles.end(); p++)
-        if (p->have_decorator())
-            remove_decorator++;
+    for (auto p = i; p < pkd->particles.end(); p++)
+        if (p->have_decorator()) remove_decorator++;
 
     auto objective_decorators = pkd->decorators.size() - remove_decorator;
     if (remove_decorator) {
@@ -39,16 +38,16 @@ int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
 
         // The ephemeral storage is populated as a map between decorators and
         // their particles. This way, there is no need to do complex searches
-        for (uint32_t i=0; i<pkd->Local(); ++i) {
+        for (uint32_t i = 0; i < pkd->Local(); ++i) {
             if (pkd->particles[i].have_decorator()) {
-                ephem[ pkd->particles[i].decorator_index() ] = i;
+                ephem[pkd->particles[i].decorator_index()] = i;
             }
         }
 
-        for (auto p=i; p<pkd->particles.end(); p++) {
+        for (auto p = i; p < pkd->particles.end(); p++) {
             auto prev_decor = p->decorator_field();
             // Objective index for the decorator
-            auto iDecorator = pkd->decorators.size()-remove_decorator;
+            auto iDecorator = pkd->decorators.size() - remove_decorator;
 
             // Get the particle
             auto particle_to_swap = pkd->particles[ephem[iDecorator]];
@@ -73,13 +72,11 @@ int ServiceRemoveDeleted::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     // ... and remove them
     pkd->SetLocal(i - pkd->particles.begin());
     // Count the particles species
-    ServiceCountSpecies::Service(pst,vin,nIn,vout,nOut);
-    auto out = static_cast<output *>(vout);
-    auto nDecorator = out->counts[FIO_SPECIES_SPH] +
-                      out->counts[FIO_SPECIES_STAR] +
-                      out->counts[FIO_SPECIES_BH];
+    ServiceCountSpecies::Service(pst, vin, nIn, vout, nOut);
+    auto out = static_cast<output*>(vout);
+    auto nDecorator = out->counts[FIO_SPECIES_SPH] + out->counts[FIO_SPECIES_STAR] + out->counts[FIO_SPECIES_BH];
 
     pkd->decorators.SetLocal(nDecorator);
-    assert (nDecorator == objective_decorators);
+    assert(nDecorator == objective_decorators);
     return sizeof(output);
 }

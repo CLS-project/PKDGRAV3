@@ -19,41 +19,41 @@
 #include "core/gridinfo.hpp"
 using namespace gridinfo;
 
-static void pkdDensityContrast(PKD pkd,double dTotalMass,int iGrid,bool k=false) {
+static void pkdDensityContrast(PKD pkd, double dTotalMass, int iGrid, bool k = false) {
     auto fft = pkd->fft;
-    GridInfo G(pkd->mdl,fft);
+    GridInfo G(pkd->mdl, fft);
     int nGrid = fft->rgrid->n1;
     auto data = pkd->mdl->SetArray(pkd->Ephemeral<real_t>()) + fft->rgrid->nLocal * iGrid;
     real_array_t R;
-    G.setupArray(data,R);
+    G.setupArray(data, R);
     if (k) { // Delta(k): same as Delta(r) below, but apply normalization for the FFT (divide by nGrid^3)
         real_t diTotalMass = 1.0 / dTotalMass;
-        real_t fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
+        real_t fftNormalize = 1.0 / (1.0 * nGrid * nGrid * nGrid);
         R = R * diTotalMass - fftNormalize;
-        pkd->mdl->FFT(fft,data);
+        pkd->mdl->FFT(fft, data);
     }
     else { // Delta(r) = rho / rho_bar - 1.0
-        real_t diRhoBar = (1.0*nGrid*nGrid*nGrid) / dTotalMass;
+        real_t diRhoBar = (1.0 * nGrid * nGrid * nGrid) / dTotalMass;
         R = R * diRhoBar - 1.0;
     }
 }
 
-int pstDensityContrast(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inDensityContrast *in = reinterpret_cast<struct inDensityContrast *>(vin);
-    assert (nIn==sizeof(struct inDensityContrast) );
+int pstDensityContrast(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    LCL* plcl = pst->plcl;
+    struct inDensityContrast* in = reinterpret_cast<struct inDensityContrast*>(vin);
+    assert(nIn == sizeof(struct inDensityContrast));
     if (pstNotCore(pst)) {
         int rID = pst->mdl->ReqService(pst->idUpper, PST_DENSITY_CONTRAST, vin, nIn);
         pstDensityContrast(pst->pstLower, vin, nIn, NULL, 0);
         pst->mdl->GetReply(rID);
     }
     else {
-        pkdDensityContrast(plcl->pkd,in->dTotalMass,in->iGrid,in->k);
+        pkdDensityContrast(plcl->pkd, in->dTotalMass, in->iGrid, in->k);
     }
     return 0;
 }
 
-void MSR::DensityContrast(int iGrid,bool k) {
+void MSR::DensityContrast(int iGrid, bool k) {
     struct inDensityContrast in;
     in.dTotalMass = TotalMass();
     in.iGrid = iGrid;

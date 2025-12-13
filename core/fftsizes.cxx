@@ -17,23 +17,23 @@
 #include "fftsizes.h"
 
 // Ensure the communication structures are "standard" so that they can be moved around with "memcpy" (required by MDL)
-static_assert(std::is_void_v<ServiceFftSizes::input>  || std::is_standard_layout_v<ServiceFftSizes::input>);
+static_assert(std::is_void_v<ServiceFftSizes::input> || std::is_standard_layout_v<ServiceFftSizes::input>);
 static_assert(std::is_void_v<ServiceFftSizes::output> || std::is_standard_layout_v<ServiceFftSizes::output>);
 
-int ServiceFftSizes::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in   = static_cast<input *>(vin);
-    auto out  = static_cast<output *>(vout);
-    assert(nIn==sizeof(input));
-    assert(nOut==sizeof(output));
-    out->nMaxLocal = pst->mdl->FFTlocalCount(in->nx,in->ny,in->nz,&out->nMaxZ,0,&out->nMaxY,0);
+int ServiceFftSizes::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto in = static_cast<input*>(vin);
+    auto out = static_cast<output*>(vout);
+    assert(nIn == sizeof(input));
+    assert(nOut == sizeof(output));
+    out->nMaxLocal = pst->mdl->FFTlocalCount(in->nx, in->ny, in->nz, &out->nMaxZ, 0, &out->nMaxY, 0);
     return sizeof(output);
 }
 
-int ServiceFftSizes::Combine(void *vout,void *vout2) {
-    auto out  = static_cast<output *>(vout);
-    auto out2 = static_cast<output *>(vout2);
-    out->nMaxLocal = std::max(out->nMaxLocal,out2->nMaxLocal);
-    out->nMaxZ = std::max(out->nMaxZ,out2->nMaxZ);
-    out->nMaxY = std::max(out->nMaxY,out2->nMaxY);
+int ServiceFftSizes::Combine(void* vout, void* vout2) {
+    auto out = static_cast<output*>(vout);
+    auto out2 = static_cast<output*>(vout2);
+    out->nMaxLocal = std::max(out->nMaxLocal, out2->nMaxLocal);
+    out->nMaxZ = std::max(out->nMaxZ, out2->nMaxZ);
+    out->nMaxY = std::max(out->nMaxY, out2->nMaxY);
     return sizeof(output);
 }

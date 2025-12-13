@@ -13,44 +13,39 @@ struct inStarFormInit {
 };
 
 class ServiceStarFormInit : public TraverseCount<struct outStarForm> {
-public:
-        static constexpr std::string_view name = "StarFormInit";
-        typedef struct inStarFormInit input;
-        typedef struct outStarForm output;
-        explicit ServiceStarFormInit(PST pst, std::string_view service_name = name,
-                                     int nInBytes = 0)
-            : TraverseCount(pst, service_name, nInBytes) {}
+  public:
+    static constexpr std::string_view name = "StarFormInit";
+    typedef struct inStarFormInit input;
+    typedef struct outStarForm output;
+    explicit ServiceStarFormInit(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
 
-protected:
-        virtual int Service(PST pst, void *vin, int nIn, void *vout, int nOut) {
-            auto pkd = pst->plcl->pkd;
-            auto &out = *static_cast<output *>(vout);
-            auto &in = *static_cast<input *>(vin);
-            pkdStarFormInit(pkd, in, &(out.nFormed));
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+        auto pkd = pst->plcl->pkd;
+        auto& out = *static_cast<output*>(vout);
+        auto& in = *static_cast<input*>(vin);
+        pkdStarFormInit(pkd, in, &(out.nFormed));
 
-            return sizeof(output);
-        }
+        return sizeof(output);
+    }
 
-        void pkdStarFormInit(PKD pkd, struct inStarFormInit &in, int *nFormed) {
-            if (in.bFeedback) {
-                *nFormed = 0;
-                for (auto &p : pkd->particles) {
-                    if (p.is_star()) {
-                        auto &star = p.star();
-                        if (star.fTimer >= 0) { // fTimer < 0 can be used for stars
-                            // in the IC that are not supossed to explode
-                            if ((in.dTime - star.fTimer) < in.dCCSNFBDelay)
-                                star.bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
+    void pkdStarFormInit(PKD pkd, struct inStarFormInit& in, int* nFormed) {
+        if (in.bFeedback) {
+            *nFormed = 0;
+            for (auto& p : pkd->particles) {
+                if (p.is_star()) {
+                    auto& star = p.star();
+                    if (star.fTimer >= 0) { // fTimer < 0 can be used for stars
+                        // in the IC that are not supossed to explode
+                        if ((in.dTime - star.fTimer) < in.dCCSNFBDelay) star.bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
 
-                            if ((in.dTime - star.fTimer) < in.dSNIaFBDelay)
-                                star.bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
+                        if ((in.dTime - star.fTimer) < in.dSNIaFBDelay) star.bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
 
-                            if (!(star.bCCSNFBDone && star.bSNIaFBDone))
-                                *nFormed += 1;
-                        }
+                        if (!(star.bCCSNFBDone && star.bSNIaFBDone)) *nFormed += 1;
                     }
                 }
             }
         }
-    };
+    }
+};
 #endif

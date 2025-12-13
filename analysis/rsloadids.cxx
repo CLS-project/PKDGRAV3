@@ -17,25 +17,26 @@
 #include "rsloadids.h"
 #include "io/iochunk.h"
 
-void ServiceRsLoadIds::Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
-    pst->plcl->pkd->RsIdRead(iElement,filename,iBeg,iEnd);
+void ServiceRsLoadIds::Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
+    pst->plcl->pkd->RsIdRead(iElement, filename, iBeg, iEnd);
 }
-void ServiceRsLoadIds::start(PST pst,uint64_t nElements,void *vin,int nIn) {
-    auto in = static_cast<input *>(vin);
-    pst->plcl->pkd->RsIdStart(nElements,in->bAppend);
+void ServiceRsLoadIds::start(PST pst, uint64_t nElements, void* vin, int nIn) {
+    auto in = static_cast<input*>(vin);
+    pst->plcl->pkd->RsIdStart(nElements, in->bAppend);
 }
-void ServiceRsLoadIds::finish(PST pst,uint64_t nElements,void *vin,int nIn) {
+void ServiceRsLoadIds::finish(PST pst, uint64_t nElements, void* vin, int nIn) {
     pst->plcl->pkd->RsIdFinish(nElements);
 }
-void pkdContext::RsIdStart(uint64_t nElements,bool bAppend)  {
+void pkdContext::RsIdStart(uint64_t nElements, bool bAppend) {
     if (!bAppend) nRsElements = 0;
 }
-void pkdContext::RsIdFinish(uint64_t nElements) { }
-void pkdContext::RsIdRead(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
+void pkdContext::RsIdFinish(uint64_t nElements) {
+}
+void pkdContext::RsIdRead(uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
     auto ids = Ephemeral<uint64_t>();
     auto nRead = iEnd - iBeg;
     auto nBytes = nRead * sizeof(uint64_t);
     auto iOffset = iBeg * sizeof(uint64_t);
-    io_chunk_read(filename.c_str(), ids+nRsElements, nBytes, iOffset);
+    io_chunk_read(filename.c_str(), ids + nRsElements, nBytes, iOffset);
     nRsElements += nRead;
 }

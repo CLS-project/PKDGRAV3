@@ -24,8 +24,8 @@
 #include "blitz/array.h"
 
 struct basicParticle {
-    blitz::TinyVector<float,3> dr;
-    blitz::TinyVector<float,3> v;
+    blitz::TinyVector<float, 3> dr;
+    blitz::TinyVector<float, 3> v;
     basicParticle() = default;
 };
 
@@ -33,14 +33,14 @@ struct expandParticle {
     uint64_t ix : 21;
     uint64_t iy : 21;
     uint64_t iz : 21;
-    blitz::TinyVector<float,3> dr;
-    blitz::TinyVector<float,3> v;
+    blitz::TinyVector<float, 3> dr;
+    blitz::TinyVector<float, 3> v;
     expandParticle() = default;
 };
 
 struct integerParticle {
-    blitz::TinyVector<int32_t,3> r;
-    blitz::TinyVector<float,3> v;
+    blitz::TinyVector<int32_t, 3> r;
+    blitz::TinyVector<float, 3> v;
     integerParticle() = default;
 };
 
@@ -53,26 +53,26 @@ typedef union {
 #ifdef MDL_FFTW
 
 typedef struct {
-    FFTW3(real) x,y,z;
+    FFTW3(real) x, y, z;
 } gridpos;
 
 typedef struct {
-    FFTW3(real) x,y,z;
-    FFTW3(real) vx,vy,vz;
+    FFTW3(real) x, y, z;
+    FFTW3(real) vx, vy, vz;
 } gridpsc;
 
 struct gridInfoLPT {
     int nGrids = 0;
-    int indexPhi1 = -1;  // 1LPT potential (persistent)
-    int indexPhi2 = -1;  // 2LPT potential (persistent)
-    int indexPhi3 = -1;  // 3LPT potentials
-    int indexTmp0 = -1;  // temporary grid
-    int indexTmp1 = -1;  // temporary grid
+    int indexPhi1 = -1; // 1LPT potential (persistent)
+    int indexPhi2 = -1; // 2LPT potential (persistent)
+    int indexPhi3 = -1; // 3LPT potentials
+    int indexTmp0 = -1; // temporary grid
+    int indexTmp1 = -1; // temporary grid
 };
 
 gridInfoLPT getGridInfoLPT(int iLPT);
 
-int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid, int iLPT, double dBoxSize,
-                  double a, int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ);
+int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid, int iLPT, double dBoxSize, double a, int nTf, double* tk, double* tf,
+                  double* noiseMean, double* noiseCSQ);
 #endif
 #endif

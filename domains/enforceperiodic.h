@@ -17,12 +17,12 @@
 #include "TraversePST.h"
 
 class ServiceEnforcePeriodic : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "EnforcePeriodic";
     using input = Bound;
     using output = void;
-    explicit ServiceEnforcePeriodic(PST pst)
-        : TraversePST(pst,name,sizeof(input)) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceEnforcePeriodic(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

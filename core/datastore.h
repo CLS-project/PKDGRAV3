@@ -25,53 +25,50 @@
 //! The length of the elements is choosen at run-time before the
 //! container is created. This class provides a way to access the
 //! individual fields
-template<typename DATA,typename FIELD>
-class dataStore : public datafields::Fields<DATA,FIELD> {
-public:
-    using datafields::Fields<DATA,FIELD>::ElementSize;
-protected:
-    DATA *pStore = nullptr;         //!< Pointer to the first element
-    int nStore = 0;                 //!< Maximum number of element that can be stored
-    int nLocal = 0;                 //!< Current number of elements
-public:
+template <typename DATA, typename FIELD>
+class dataStore : public datafields::Fields<DATA, FIELD> {
+  public:
+    using datafields::Fields<DATA, FIELD>::ElementSize;
+
+  protected:
+    DATA* pStore = nullptr; //!< Pointer to the first element
+    int nStore = 0;         //!< Maximum number of element that can be stored
+    int nLocal = 0;         //!< Current number of elements
+  public:
     using value_type = DATA;
     //! Set the size and location of the storage.
     //! \param p Pointer to the block of storage
     //! \param n Maximum number of element
-    void setStore(void *p,int n) {
-        pStore = static_cast<DATA *>(p);
+    void setStore(void* p, int n) {
+        pStore = static_cast<DATA*>(p);
         nStore = n;
     }
-    void setStore(int Lo, int Hi, uint64_t nData=0, void *pData=nullptr) {
-        setStore(pData,nData);
-    }
-protected:
-    DATA *Base() const { return pStore; }
-public:
-    using datafields::Fields<DATA,FIELD>::Element;
+    void setStore(int Lo, int Hi, uint64_t nData = 0, void* pData = nullptr) { setStore(pData, nData); }
+
+  protected:
+    DATA* Base() const { return pStore; }
+
+  public:
+    using datafields::Fields<DATA, FIELD>::Element;
     size_t capacity() const { return nStore; }
     size_t size() const { return nLocal; }
-    size_t append(int n=1) {
+    size_t append(int n = 1) {
         int iNode = nLocal;
         nLocal += n;
         return iNode;
     }
-    void resize(int n) {
-        nLocal = n;
-    }
+    void resize(int n) { nLocal = n; }
     size_t align() {
-        if (nLocal&1) ++nLocal;
+        if (nLocal & 1) ++nLocal;
         return nLocal;
     }
 
-    size_t memory() const {
-        return size() * ElementSize();
-    }
+    size_t memory() const { return size() * ElementSize(); }
 
-    DATA *Element(int i) const { return this->Element(Base(),i); }
+    DATA* Element(int i) const { return this->Element(Base(), i); }
 
-    DATA *operator[](int i) {return Element(i);}
-    operator void *() {return Base();}
+    DATA* operator[](int i) { return Element(i); }
+    operator void*() { return Base(); }
 };
 
 #endif

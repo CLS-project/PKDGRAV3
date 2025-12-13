@@ -18,16 +18,16 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceSwapAll::input>  || std::is_trivial_v<ServiceSwapAll::input>);
+static_assert(std::is_void_v<ServiceSwapAll::input> || std::is_trivial_v<ServiceSwapAll::input>);
 static_assert(std::is_void_v<ServiceSwapAll::output> || std::is_trivial_v<ServiceSwapAll::output>);
 
 // Routine to swap all particles.  Note that this does not walk the pst
 // but simply works with one other processor.
-int ServiceSwapAll::operator()(int nIn, void *vin, void *vout) {
-    auto in = static_cast<input *>(vin);
+int ServiceSwapAll::operator()(int nIn, void* vin, void* vout) {
+    auto in = static_cast<input*>(vin);
     static_assert(std::is_void_v<output>);
     auto pkd = node_pst->plcl->pkd;
     assert(nIn == sizeof(input));
-    pkdSwapAll(pkd,in->idSwap);
+    pkdSwapAll(pkd, in->idSwap);
     return 0;
 }

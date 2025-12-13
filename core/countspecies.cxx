@@ -18,18 +18,18 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceCountSpecies::input>  || std::is_standard_layout_v<ServiceCountSpecies::input>);
+static_assert(std::is_void_v<ServiceCountSpecies::input> || std::is_standard_layout_v<ServiceCountSpecies::input>);
 static_assert(std::is_void_v<ServiceCountSpecies::output> || std::is_standard_layout_v<ServiceCountSpecies::output>);
 
-int ServiceCountSpecies::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int ServiceCountSpecies::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
     static_assert(std::is_void_v<input>);
-    auto &out = * static_cast<output *>(vout);
+    auto& out = *static_cast<output*>(vout);
     auto pkd = pst->plcl->pkd;
     out.counts = 0;
     out.nMaxOrder = 0;
-    for (auto &p : pkd->particles) {
+    for (auto& p : pkd->particles) {
         ++out.counts[p.species()];
-        out.nMaxOrder = std::max(out.nMaxOrder,p.order());
+        out.nMaxOrder = std::max(out.nMaxOrder, p.order());
     }
     return sizeof(output);
 }

@@ -18,7 +18,8 @@
 
 class ServiceSetAdd : public mdl::BasicService {
     PST node_pst;
-public:
+
+  public:
     static constexpr std::string_view name = "SetAdd";
     struct input {
         int idLower;
@@ -28,9 +29,9 @@ public:
         input(int idLower, int idUpper) : idLower(idLower), idUpper(idUpper) {}
     };
     typedef void output;
-    explicit ServiceSetAdd(PST node_pst)
-        : BasicService(name, sizeof(input)), node_pst(node_pst) {}
-protected:
-    virtual int operator()(int nIn, void *pIn, void *pOut) override;
-    void SetAdd(PST pst,input *in);
+    explicit ServiceSetAdd(PST node_pst) : BasicService(name, sizeof(input)), node_pst(node_pst) {}
+
+  protected:
+    virtual int operator()(int nIn, void* pIn, void* pOut) override;
+    void SetAdd(PST pst, input* in);
 };

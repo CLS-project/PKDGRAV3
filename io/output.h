@@ -27,37 +27,36 @@ typedef enum {
 } outType;
 
 struct inOutput {
-    int iProcessor;   /* Output number: 0 to nParaWrite */
-    int nProcessor;   /* Number of processors left in parallel */
-    int iPartner;     /* Who to send the data to */
-    int nPartner;     /* How many partners there are */
-    outType eOutputType;  /* What kind of output */
-    int iGrid;        /* Which grid (for grid output) */
+    int iProcessor;      /* Output number: 0 to nParaWrite */
+    int nProcessor;      /* Number of processors left in parallel */
+    int iPartner;        /* Who to send the data to */
+    int nPartner;        /* How many partners there are */
+    outType eOutputType; /* What kind of output */
+    int iGrid;           /* Which grid (for grid output) */
     char achOutFile[PATH_MAX];
 };
 
 /* PST_OUTPUT */
-int pstOutput(PST,void *,int,void *,int);
+int pstOutput(PST, void*, int, void*, int);
 struct inOutputSend {
-    int iPartner;     /* Who to send the data to */
+    int iPartner; /* Who to send the data to */
     int iGrid;
-    outType eOutputType;  /* What kind of output */
+    outType eOutputType; /* What kind of output */
 };
 
 void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner);
-void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
-               int iPartner,int nPartner, const char *fname );
+void pkdOutput(PKD pkd, outType eOutputType, int iProcessor, int nProcessor, int iPartner, int nPartner, const char* fname);
 
 class ServiceSaveGroupStats : public ServiceOutput {
-public:
+  public:
     static constexpr std::string_view name = "SaveGroupStats";
     using input = ServiceOutput::input;
     using output = void;
 
-    explicit ServiceSaveGroupStats(PST pst)
-        : ServiceOutput(pst,name,sizeof(input)) {}
-protected:
-    virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
+    explicit ServiceSaveGroupStats(PST pst) : ServiceOutput(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual void Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
 };
 
 #endif

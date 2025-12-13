@@ -4,8 +4,8 @@
 #include "potential/potential.h"
 #include "wakeup.h"
 
-using blitz::TinyVector;
 using blitz::dot;
+using blitz::TinyVector;
 
 void MSR::HydroStep(double dTime, double dDelta) {
     double dsec;
@@ -14,9 +14,9 @@ void MSR::HydroStep(double dTime, double dDelta) {
 
     TimerStart(TIMER_TIMESTEP);
 #ifdef OPTIM_SMOOTH_NODE
-#ifdef OPTIM_AVOID_IS_ACTIVE
+    #ifdef OPTIM_AVOID_IS_ACTIVE
     SelActives();
-#endif
+    #endif
     ReSmoothNode(dTime, dDelta, SMX_HYDRO_STEP, 1);
 #else
     ReSmooth(dTime, dDelta, SMX_HYDRO_STEP, 1);
@@ -38,9 +38,9 @@ void MSR::HydroStep(double dTime, double dDelta) {
     }
 }
 
-void SmoothHelperHydroStep::pack(void *dst, const void *src) {
-    auto p1 = static_cast<pack_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperHydroStep::pack(void* dst, const void* src) {
+    auto p1 = static_cast<pack_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
     p1->iClass = p2.get_class();
     if (p2.is_gas()) {
@@ -54,9 +54,9 @@ void SmoothHelperHydroStep::pack(void *dst, const void *src) {
     }
 }
 
-void SmoothHelperHydroStep::unpack(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const pack_type *>(src);
+void SmoothHelperHydroStep::unpack(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const pack_type*>(src);
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
         p1.set_adj_decorator();
@@ -71,27 +71,27 @@ void SmoothHelperHydroStep::unpack(void *dst, const void *src, const void *key) 
     }
 }
 
-void SmoothHelperHydroStep::init(void *dst) {
-    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+void SmoothHelperHydroStep::init(void* dst) {
+    auto p = pkd->particles[static_cast<PARTICLE*>(dst)];
     if (p.is_gas()) {
         p.sph().uWake = 0;
     }
 }
 
-void SmoothHelperHydroStep::flush(void *dst, const void *src) {
-    auto p1 = static_cast<flush_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperHydroStep::flush(void* dst, const void* src) {
+    auto p1 = static_cast<flush_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
     if (p2.is_gas()) {
-        const auto &sph = p2.sph();
+        const auto& sph = p2.sph();
 
         p1->uNewRung = p2.new_rung();
         p1->uWake = sph.uWake;
     }
 }
 
-void SmoothHelperHydroStep::combine(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const flush_type *>(src);
+void SmoothHelperHydroStep::combine(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const flush_type*>(src);
     if (p1.is_gas()) {
         if (p2->uNewRung > p1.new_rung()) p1.set_new_rung(p2->uNewRung);
         if (p2->uWake > p1.sph().uWake) p1.sph().uWake = p2->uWake;
@@ -103,13 +103,13 @@ void SmoothHelperHydroStep::combine(void *dst, const void *src, const void *key)
  *    - Acceleration
  *    - Timestep of the neighouring particles (in a scatter approach)
  */
-void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroStep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
     PKD pkd = smf->pkd;
     double dtEst;
 
-    const auto &pv = p.velocity();
-    auto &psph = p.sph();
-    const double ph = 0.5*p.ball();
+    const auto& pv = p.velocity();
+    auto& psph = p.sph();
+    const double ph = 0.5 * p.ball();
 
     dtEst = HUGE_VAL;
 
@@ -117,14 +117,14 @@ void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *n
     for (auto i = 0; i < nSmooth; ++i) {
         if (&p == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
-        const auto &qv = q.velocity();
-        const auto &qsph = q.sph();
+        const auto& qv = q.velocity();
+        const auto& qsph = q.sph();
 
-        const auto &dr = nnList[i].dr;
+        const auto& dr = nnList[i].dr;
 
-        const double dvDotdr = dot(dr,pv - qv);
+        const double dvDotdr = dot(dr, pv - qv);
         double vsig_pq = psph.c + qsph.c;
-        if (dvDotdr < 0.) vsig_pq -= dvDotdr/sqrt(nnList[i].fDist2);
+        if (dvDotdr < 0.) vsig_pq -= dvDotdr / sqrt(nnList[i].fDist2);
 
         const double dt2 = smf->dEtaCourant * 2 * ph * smf->a / vsig_pq;
         if (dt2 < dtEst) dtEst = dt2;
@@ -135,10 +135,10 @@ void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *n
     psph.maxEkin = 0.0;
     for (auto i = 0; i < nSmooth; ++i) {
         auto q = pkd->particles[nnList[i].pPart];
-        const auto &qv = q.velocity();
+        const auto& qv = q.velocity();
 
-        double dv2 = dot(qv - pv,qv - pv);
-        double Ekin = 0.5*p.mass()*dv2;
+        double dv2 = dot(qv - pv, qv - pv);
+        double Ekin = 0.5 * p.mass() * dv2;
 
         psph.maxEkin = (psph.maxEkin < Ekin) ? Ekin : psph.maxEkin;
     }
@@ -155,8 +155,7 @@ void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *n
 
     // Timestep criteria based on the hydro+grav accelerations
 
-    const TinyVector<double,3>
-    a {p.acceleration() - smf->a *(-p.velocity()*psph.Frho + psph.Fmom)/p.mass()};
+    const TinyVector<double, 3> a{p.acceleration() - smf->a * (-p.velocity() * psph.Frho + psph.Fmom) / p.mass()};
 
     // 1/a^3 from grav2.c:217
     // Explanation:
@@ -166,14 +165,14 @@ void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *n
     // But for the hydro, it is 1/a^2:
     // 1/a from hydro eqs (included normally in minDt)
     // 1/a from pkdVel, which is normally incorporated in the drift
-    const double aFac = 1./(smf->a * smf->a * smf->a);
-    const double acc = sqrt(dot(a,a)) * aFac;
+    const double aFac = 1. / (smf->a * smf->a * smf->a);
+    const double acc = sqrt(dot(a, a)) * aFac;
 
     const float h = smf->bDoGravity ? std::min(ph, static_cast<double>(p.soft())) : ph;
-    const double dtAcc = smf->dCFLacc * sqrt(2.*h/acc);
+    const double dtAcc = smf->dCFLacc * sqrt(2. * h / acc);
 
     if (dtAcc < dtEst) dtEst = dtAcc;
-    uint8_t uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
+    uint8_t uNewRung = pkdDtToRung(dtEst, smf->dDelta, MAX_RUNG);
     if (uNewRung > p.new_rung()) p.set_new_rung(uNewRung);
 
     /* Timestep limiter that imposes that the particle must have a dt
@@ -182,7 +181,7 @@ void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *n
      * This is implemented as a scatter approach, in which the maximum dt of the
      * neighbours is set given the dt computed from this particle
      */
-    uNewRung = std::max(p.rung(),p.new_rung());
+    uNewRung = std::max(p.rung(), p.new_rung());
     if (smf->dDelta >= 0) {
         for (auto i = 0; i < nSmooth; ++i) {
             auto q = pkd->particles[nnList[i].pPart];
@@ -197,14 +196,14 @@ void hydroStep(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *n
 }
 
 // Wake the particles whose uWake is greater than zero
-int ServiceWakeParticles::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<struct input *>(vin);
+int ServiceWakeParticles::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto in = static_cast<struct input*>(vin);
     auto pkd = pst->plcl->pkd;
     auto dTime = in->dTime;
-    for (auto &p : pkd->particles) {
+    for (auto& p : pkd->particles) {
         if (p.is_gas()) {
-            auto &sph = p.sph();
-            auto &uWake = sph.uWake;
+            auto& sph = p.sph();
+            auto& uWake = sph.uWake;
             if (uWake) {
                 p.set_rung(uWake);
                 p.set_new_rung(uWake);

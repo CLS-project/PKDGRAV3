@@ -19,26 +19,26 @@
 #define ABORT_ERROR_H
 #include <string_view>
 #include <type_traits>
-#include <utility> // For std::forward
+#include <utility>   // For std::forward
 #include <stdexcept> // for std::runtime_error
 
 class pkdgrav_error : public std::runtime_error {
-public:
+  public:
     explicit pkdgrav_error(int error_code);
-    explicit pkdgrav_error(int error_code, const char *func, const char *file, int line);
-    explicit pkdgrav_error(int error_code, const char *func, const char *file, int line, const std::string_view message);
+    explicit pkdgrav_error(int error_code, const char* func, const char* file, int line);
+    explicit pkdgrav_error(int error_code, const char* func, const char* file, int line, const std::string_view message);
 };
 
-[[noreturn]] void abort_error_print(int error_code, const char *func, const char *file, int line);
-#define abort_assert(code, condition) \
-    if (!(condition)) { \
-        abort_error_print(code, __func__, __FILE__, __LINE__); \
+[[noreturn]] void abort_error_print(int error_code, const char* func, const char* file, int line);
+#define abort_assert(code, condition)                                                                                                                          \
+    if (!(condition)) {                                                                                                                                        \
+        abort_error_print(code, __func__, __FILE__, __LINE__);                                                                                                 \
     }
 
-[[noreturn]] void abort_error_print(int code, const char *func, const char *file, int line, const std::string_view message);
-#define abort_false(code, condition, message)\
-    if (!(condition)) { \
-        abort_error_print(code, __func__, __FILE__, __LINE__,message); \
+[[noreturn]] void abort_error_print(int code, const char* func, const char* file, int line, const std::string_view message);
+#define abort_false(code, condition, message)                                                                                                                  \
+    if (!(condition)) {                                                                                                                                        \
+        abort_error_print(code, __func__, __FILE__, __LINE__, message);                                                                                        \
     }
 
 #endif

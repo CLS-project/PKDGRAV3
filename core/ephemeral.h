@@ -20,14 +20,10 @@
 #include <memory>
 
 class ephemeral_buffer_resource : public std::pmr::memory_resource {
-public:
+  public:
     ephemeral_buffer_resource() = delete;
-    explicit
-    ephemeral_buffer_resource(void* __buffer, size_t __buffer_size,
-                              memory_resource* __upstream) noexcept
-        : M_current_buf(__buffer), M_avail(__buffer_size),
-          M_orig_buf(__buffer), M_orig_size(__buffer_size) {
-    }
+    explicit ephemeral_buffer_resource(void* __buffer, size_t __buffer_size, memory_resource* __upstream) noexcept
+        : M_current_buf(__buffer), M_avail(__buffer_size), M_orig_buf(__buffer), M_orig_size(__buffer_size) {}
 
     // Reset the buffer to its original state, releasing any allocated space
     void release() noexcept {
@@ -36,7 +32,7 @@ public:
     }
 
     // Returns the available number of elements of type T (for reserve())
-    template<typename T>
+    template <typename T>
     size_t elements() {
         return M_avail / sizeof(T);
     }
@@ -44,9 +40,9 @@ public:
     // Reclaim buffer space after a raw pointer
     // Any data structures after this pointer cannot be used anymore.
     void reclaim(void* end_ptr) {
-        char *new_current = static_cast<char *>(end_ptr);
-        char *buffer_start = static_cast<char *>(M_orig_buf);
-        char *buffer_end = static_cast<char *>(M_orig_buf) + M_orig_size;
+        char* new_current = static_cast<char*>(end_ptr);
+        char* buffer_start = static_cast<char*>(M_orig_buf);
+        char* buffer_end = static_cast<char*>(M_orig_buf) + M_orig_size;
         if (new_current < buffer_start || new_current > buffer_end) {
             throw std::runtime_error("ephemeral_buffer_resource::reclaim: pointer out of bounds");
         }
@@ -58,38 +54,31 @@ public:
     }
 
     // Template helper for containers with .data() and .size()
-    template<typename Container>
+    template <typename Container>
     void reclaim(const Container& container) {
-        void *end_ptr = static_cast<void *>(
-                            const_cast<typename Container::value_type *>(container.data() + container.size()));
+        void* end_ptr = static_cast<void*>(const_cast<typename Container::value_type*>(container.data() + container.size()));
         reclaim(end_ptr);
     }
 
-protected:
-    void *
-    do_allocate(size_t bytes, size_t alignment) override {
-        if (bytes==0) bytes=1; // Ensures we don't return the same pointer twice.
-        void *p = std::align(alignment, bytes, M_current_buf, M_avail);
-        if (p==nullptr) throw std::bad_alloc();
-        M_current_buf = static_cast<char *>(M_current_buf) + bytes;
+  protected:
+    void* do_allocate(size_t bytes, size_t alignment) override {
+        if (bytes == 0) bytes = 1; // Ensures we don't return the same pointer twice.
+        void* p = std::align(alignment, bytes, M_current_buf, M_avail);
+        if (p == nullptr) throw std::bad_alloc();
+        M_current_buf = static_cast<char*>(M_current_buf) + bytes;
         M_avail -= bytes;
         return p;
     }
 
-    void
-    do_deallocate(void*, size_t, size_t) override { }
+    void do_deallocate(void*, size_t, size_t) override {}
 
-    bool
-    do_is_equal(const memory_resource& __other) const noexcept override
-    { return this == &__other; }
+    bool do_is_equal(const memory_resource& __other) const noexcept override { return this == &__other; }
 
-private:
-    void *M_current_buf;
+  private:
+    void* M_current_buf;
     size_t M_avail;
-    void *M_orig_buf;
+    void* M_orig_buf;
     size_t M_orig_size;
-
-
 };
 
 #endif

@@ -17,15 +17,15 @@
 #include "TraversePST.h"
 
 class ServiceGetOrdSplits : public TraverseGatherPST<uint64_t> {
-public:
+  public:
     static constexpr std::string_view name = "GetOrdSplits";
     using input = void;
     // struct input {
     //     uint64_t iMinOrder;
     //     uint64_t iMaxOrder;
     // };
-    explicit ServiceGetOrdSplits(PST pst)
-        : TraverseGatherPST(pst,name,0,sizeof(output)*pst->mdl->Threads()) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) final;
+    explicit ServiceGetOrdSplits(PST pst) : TraverseGatherPST(pst, name, 0, sizeof(output) * pst->mdl->Threads()) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) final;
 };

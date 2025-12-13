@@ -32,27 +32,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-void cooling_cool_part(PKD pkd, const struct cooling_function_data *cooling,
-                       particleStore::ParticleReference &p, decorators::MFM *psph,
-                       const float dt, const double time,
-                       const float delta_redshift, const double redshift);
-float cooling_get_temperature(PKD pkd, const float redshift,
-                              const struct cooling_function_data *restrict cooling,
-                              particleStore::Particle &p, decorators::MFM *psph);
+void cooling_cool_part(PKD pkd, const struct cooling_function_data* cooling, particleStore::ParticleReference& p, decorators::MFM* psph, const float dt,
+                       const double time, const float delta_redshift, const double redshift);
+float cooling_get_temperature(PKD pkd, const float redshift, const struct cooling_function_data* restrict cooling, particleStore::Particle& p,
+                              decorators::MFM* psph);
 #ifdef __cplusplus
 }
 #endif
 
-void pkd_cooling_update(PKD pkd, ServiceCoolingUpdate::input *in);
-void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data,
-                              float Redshifts[eagle_cooling_N_redshifts],
-                              float nH[eagle_cooling_N_density],
-                              float Temp[eagle_cooling_N_temperature],
-                              float HeFrac[eagle_cooling_N_He_frac],
-                              float Therm[eagle_cooling_N_temperature],
-                              float SolarAbundances[eagle_cooling_N_abundances],
+void pkd_cooling_update(PKD pkd, ServiceCoolingUpdate::input* in);
+void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data, float Redshifts[eagle_cooling_N_redshifts],
+                              float nH[eagle_cooling_N_density], float Temp[eagle_cooling_N_temperature], float HeFrac[eagle_cooling_N_He_frac],
+                              float Therm[eagle_cooling_N_temperature], float SolarAbundances[eagle_cooling_N_abundances],
                               float SolarAbundances_inv[eagle_cooling_N_abundances]);
 void cooling_Hydrogen_reionization(PKD pkd);
-void cooling_clean(struct cooling_function_data *data);
+void cooling_clean(struct cooling_function_data* data);
 
 #endif /* SWIFT_COOLING_EAGLE_H */

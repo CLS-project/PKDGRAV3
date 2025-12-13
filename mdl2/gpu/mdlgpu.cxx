@@ -5,7 +5,7 @@ namespace gpu {
 
 int Client::flushCompleted() {
     while (!done.empty()) {
-        auto &M = done.dequeue();
+        auto& M = done.dequeue();
         M.finish();
         --nGPU;
     }

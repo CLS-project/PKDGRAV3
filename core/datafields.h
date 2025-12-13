@@ -29,23 +29,23 @@ static constexpr size_t log2(size_t n) {
     return (n <= 1) ? 0 : 1 + log2(n / 2);
 }
 
-template<typename FIELD>
+template <typename FIELD>
 class fields {
-protected:
+  protected:
     using offset_type = size_t;
     static constexpr offset_type log_max_align = datafields::log2(alignof(std::max_align_t));
     static constexpr offset_type field_count = static_cast<offset_type>(FIELD::MAX_FIELD);
-    blitz::TinyVector<offset_type,field_count> field_length; // Length of the field
-    blitz::TinyVector<offset_type,field_count> field_ialign; // Alignment of the field in log2(align)
-public:
+    blitz::TinyVector<offset_type, field_count> field_length; // Length of the field
+    blitz::TinyVector<offset_type, field_count> field_ialign; // Alignment of the field in log2(align)
+  public:
     using field = FIELD;
     fields() : field_length(offset_type(0)), field_ialign(offset_type(0)) {}
 
     // This will enlarge an overlay field if necessary
     void enlarge(FIELD f, offset_type size, offset_type alignment) {
         auto ifield = static_cast<offset_type>(f);
-        field_length[ifield] = std::max(field_length[ifield],size);
-        field_ialign[ifield] = std::max(field_ialign[ifield],alignment);
+        field_length[ifield] = std::max(field_length[ifield], size);
+        field_ialign[ifield] = std::max(field_ialign[ifield], alignment);
     }
 
     void clear() {
@@ -53,8 +53,8 @@ public:
         field_ialign = 0;
     }
 
-    template<typename T>
-    void add(FIELD f,std::string_view name) {
+    template <typename T>
+    void add(FIELD f, std::string_view name) {
         static_assert(sizeof(T) > 0);               // Field should have non-zero size
         static_assert(sizeof(T) % alignof(T) == 0); // Field should be properly aligned
         auto ifield = static_cast<offset_type>(f);  // Index of the field
@@ -63,8 +63,7 @@ public:
         field_ialign[ifield] = log2(alignof(T));    // Alignment of the field in log2(align)
     }
 
-    std::tuple<offset_type,offset_type>
-    assign_offsets(blitz::TinyVector<offset_type,field_count> &field_offset, offset_type start_offset=0) {
+    std::tuple<offset_type, offset_type> assign_offsets(blitz::TinyVector<offset_type, field_count>& field_offset, offset_type start_offset = 0) {
         // Find the maximum alignment (the required alignment for the element storage)
         auto alignment = blitz::max(field_ialign);
         auto alignment_mask = (1 << alignment) - 1;
@@ -72,14 +71,14 @@ public:
         // If the current offset (the start offset) does not match the necessary alignment,
         // then keep padding with a field of the necessary alignment (or nothing) until it does.
         auto offset = start_offset;
-        for (auto i=0; i<alignment; ++i) {
+        for (auto i = 0; i < alignment; ++i) {
             auto size = 1 << i;
-            if ( (2*size-1) & offset) {
+            if ((2 * size - 1) & offset) {
                 // Look for a field with the necessary alignment, e.g., a float or 3 floats
                 // If we do not find a suitable field, just pad it with nothing
                 // If the length of the field is suitable, then the alignment is satisfied
-                int j = blitz::first((field_length&size) == size);
-                if (j>=0) {
+                int j = blitz::first((field_length & size) == size);
+                if (j >= 0) {
                     field_offset[j] = offset;
                     offset += field_length[j];
                     field_length[j] = 0; // consume the field (do not assign it below)
@@ -87,22 +86,22 @@ public:
                 else offset += size;
             }
         }
-        assert((offset & alignment_mask)==0);
+        assert((offset & alignment_mask) == 0);
 
         // Calculate how much space each alignment requires.
-        blitz::TinyVector<offset_type,log_max_align+1> align_length(offset_type(0));
-        for (auto i=0; i<field_count; ++i) {
+        blitz::TinyVector<offset_type, log_max_align + 1> align_length(offset_type(0));
+        for (auto i = 0; i < field_count; ++i) {
             align_length[field_ialign[i]] += field_length[i];
         }
         // Now calculate the offsets to each alignment block (exclusive scan in reverse order)
-        blitz::TinyVector<offset_type,log_max_align+1> align_offset;
+        blitz::TinyVector<offset_type, log_max_align + 1> align_offset;
         align_offset[log_max_align] = offset;
-        for (auto i=log_max_align; i>0; --i) {
-            align_offset[i-1] = align_offset[i] + align_length[i];
+        for (auto i = log_max_align; i > 0; --i) {
+            align_offset[i - 1] = align_offset[i] + align_length[i];
         }
         offset = align_offset[0] + align_length[0];
         // Assign the offset to the field, ignoring fields that have no data
-        for (auto i=0; i<field_count; ++i) {
+        for (auto i = 0; i < field_count; ++i) {
             if (field_length[i]) {
                 assert(field_offset[i] == 0); // Field should not already exist
                 field_offset[i] = align_offset[field_ialign[i]];
@@ -111,47 +110,44 @@ public:
         }
         // Calculate the size of the element, including padding to the required alignment
         offset = (offset + alignment_mask) & ~alignment_mask;
-        return {offset - start_offset,alignment};
+        return {offset - start_offset, alignment};
     }
 };
 
-template<typename DATA,typename FIELD>
+template <typename DATA, typename FIELD>
 class Fields;
 
-template<typename DATA,typename FIELD>
+template <typename DATA, typename FIELD>
 class Overlay : protected fields<FIELD> {
     using fields<FIELD>::field_length;
-    Fields<DATA,FIELD> &dfields;
+    Fields<DATA, FIELD>& dfields;
     unsigned int overlay_field;
 
-public:
+  public:
     using field = FIELD;
-    Overlay(Fields<DATA,FIELD> &dfields,FIELD f) : dfields(dfields), overlay_field(static_cast<unsigned int>(f)) {
-    }
-    ~Overlay() {
-        commit();
-    }
+    Overlay(Fields<DATA, FIELD>& dfields, FIELD f) : dfields(dfields), overlay_field(static_cast<unsigned int>(f)) {}
+    ~Overlay() { commit(); }
 
     void commit() {
         // This will assign offsets to the fields in the overlay starting at zero.
         // We have already recorded the overlay field so that we can later adjust the offset.
-        auto [size,alignment] = this->assign_offsets(dfields.overlay_offset);
+        auto [size, alignment] = this->assign_offsets(dfields.overlay_offset);
         // Make sure that the overlay field is large enough for the largest overlay
-        dfields.enlarge(static_cast<FIELD>(overlay_field),size,alignment);
+        dfields.enlarge(static_cast<FIELD>(overlay_field), size, alignment);
         // We set the lengths to zero so that the overlay fields are not processed again
         // We can "commit" the overlay, or it can be committed in the destructor (or both)
         this->clear();
     }
 
-    template<typename T>
-    void add(FIELD f,std::string_view name) {
+    template <typename T>
+    void add(FIELD f, std::string_view name) {
         auto ifield = static_cast<int>(f);
-        fields<FIELD>::template add<T>(f,name);
+        fields<FIELD>::template add<T>(f, name);
         dfields.overlay_field[ifield] = overlay_field;
         dfields.field_present[ifield] = true;
     }
-    template<typename T>
-    void add(FIELD f,std::string_view name, size_t offset) {
+    template <typename T>
+    void add(FIELD f, std::string_view name, size_t offset) {
         auto ifield = static_cast<int>(f);
         dfields.overlay_field[ifield] = overlay_field;
         dfields.overlay_offset[ifield] = offset;
@@ -164,33 +160,30 @@ public:
 //! The size of particles and tree nodes can vary depending on what
 //! features are enabled at run-time. This class tracks which fields
 //! are present, and their offset in the structure.
-template<typename DATA,typename FIELD>
+template <typename DATA, typename FIELD>
 class Fields : protected fields<FIELD> {
-    friend class Overlay<DATA,FIELD>;
-public:
+    friend class Overlay<DATA, FIELD>;
+
+  public:
     using offset_type = size_t;
     using overlay_type = size_t;
     static constexpr auto field_count = static_cast<int>(FIELD::MAX_FIELD);
     using field = FIELD;
     static constexpr size_t NO_OVERLAY = std::numeric_limits<overlay_type>::max();
-protected:
+
+  protected:
     using fields<FIELD>::field_length;
     size_t max_align = log2(alignof(DATA));
     size_t element_size = sizeof(DATA);
-    blitz::TinyVector<offset_type, field_count> field_offset;  // Offset to the field within the specified alignment
-    blitz::TinyVector<bool,        field_count> field_present; // Indicates that the field is present
-    blitz::TinyVector<overlay_type,field_count> overlay_field; // Overlay index or NO_OVERLAY
-    blitz::TinyVector<offset_type, field_count> overlay_offset;// Offset within the overlay
-    std::vector<char> swap_buffer; // Buffer for swapping fields
+    blitz::TinyVector<offset_type, field_count> field_offset;   // Offset to the field within the specified alignment
+    blitz::TinyVector<bool, field_count> field_present;         // Indicates that the field is present
+    blitz::TinyVector<overlay_type, field_count> overlay_field; // Overlay index or NO_OVERLAY
+    blitz::TinyVector<offset_type, field_count> overlay_offset; // Offset within the overlay
+    std::vector<char> swap_buffer;                              // Buffer for swapping fields
 
-public:
-    Fields() :
-        field_offset(offset_type(0)),
-        field_present(false),
-        overlay_field(NO_OVERLAY),
-        overlay_offset(offset_type(0))
-    {}
-    template<typename H>
+  public:
+    Fields() : field_offset(offset_type(0)), field_present(false), overlay_field(NO_OVERLAY), overlay_offset(offset_type(0)) {}
+    template <typename H>
     void set_header() {
         max_align = log2(alignof(H));
         element_size = sizeof(H);
@@ -199,16 +192,16 @@ public:
     //! Make sure that elements are properly aligned.
     //! This is called after all fields have been added. The size is adjusted to respect alignment.
     void commit(void) {
-        auto [size,alignment] = this->assign_offsets(field_offset,element_size);
+        auto [size, alignment] = this->assign_offsets(field_offset, element_size);
         element_size += size;
         // Adjust the offsets for overlay fields (but skip the "master" field)
-        for (auto i=0; i<field_count; ++i) {
+        for (auto i = 0; i < field_count; ++i) {
             if (overlay_field[i] != NO_OVERLAY && overlay_field[i] != i) {
                 field_offset[i] = field_offset[overlay_field[i]] + overlay_offset[i];
             }
         }
         // Now correct the "master" field
-        for (auto i=0; i<field_count; ++i) {
+        for (auto i = 0; i < field_count; ++i) {
             if (overlay_field[i] == i) {
                 field_offset[i] += overlay_offset[i];
             }
@@ -216,10 +209,10 @@ public:
         swap_buffer.resize(element_size);
     }
 
-    void swap(void *f1, void *f2) noexcept {
-        std::memcpy(swap_buffer.data(),f1,element_size);
-        std::memcpy(f1,f2,element_size);
-        std::memcpy(f2,swap_buffer.data(),element_size);
+    void swap(void* f1, void* f2) noexcept {
+        std::memcpy(swap_buffer.data(), f1, element_size);
+        std::memcpy(f1, f2, element_size);
+        std::memcpy(f2, swap_buffer.data(), element_size);
     }
 
     //! Add a field to the store. A field of type T is added and the offset recorded. The size of the
@@ -239,67 +232,67 @@ public:
     //!   particles.add<float[4]>(PKD_FIELD::oWhatever,"q",particles.offset(PKD_FIELD::oPosition))
     //! @endcode
     //! \param f The field id
-    template<typename T>
-    void add(FIELD f,std::string_view name) {
+    template <typename T>
+    void add(FIELD f, std::string_view name) {
         field_present[static_cast<unsigned int>(f)] = true;
-        fields<FIELD>::template add<T>(f,name);
+        fields<FIELD>::template add<T>(f, name);
     }
 
     //! Overlay a field on top of another field. This is used to create a union of fields.
     //! \param f The field id
     auto overlay(FIELD f) {
         field_present[static_cast<unsigned int>(f)] = true;
-        return Overlay<DATA,FIELD>(*this,f);
+        return Overlay<DATA, FIELD>(*this, f);
     }
 
-public:
+  public:
     //! Returns the offset (in bytes) of the specified field or zero if it not present
     //! \param f The field id
-    auto offset(FIELD f) const noexcept {return field_offset[static_cast<unsigned int>(f)];}
+    auto offset(FIELD f) const noexcept { return field_offset[static_cast<unsigned int>(f)]; }
     //! Returns true if the field is present, otherwise false.
     //! \param f The field id
-    auto present(FIELD f) const noexcept {return field_present[static_cast<unsigned int>(f)];}
+    auto present(FIELD f) const noexcept { return field_present[static_cast<unsigned int>(f)]; }
     //! Returns a pointer to the field if present or nullptr if not.
     //! \param p Pointer to an element
     //! \param f The field id
-    template<typename T,std::enable_if_t<!std::is_array_v<T>,bool> = true>
-    const auto & get(const DATA *p,FIELD f) const noexcept {
-        auto v = reinterpret_cast<const char *>(p);
-        return * reinterpret_cast<const T *>(v + field_offset[static_cast<unsigned int>(f)]);
+    template <typename T, std::enable_if_t<!std::is_array_v<T>, bool> = true>
+    const auto& get(const DATA* p, FIELD f) const noexcept {
+        auto v = reinterpret_cast<const char*>(p);
+        return *reinterpret_cast<const T*>(v + field_offset[static_cast<unsigned int>(f)]);
     }
     //! Returns a pointer to the field if present or nullptr if not.
     //! \param p Pointer to an element
     //! \param f The field id
-    template<typename T,std::enable_if_t<!std::is_array_v<T>,bool> = true>
-    auto & get(DATA *p,FIELD f) const noexcept {
-        auto v = reinterpret_cast<char *>(p);
-        return * reinterpret_cast<T *>(v + field_offset[static_cast<unsigned int>(f)]);
+    template <typename T, std::enable_if_t<!std::is_array_v<T>, bool> = true>
+    auto& get(DATA* p, FIELD f) const noexcept {
+        auto v = reinterpret_cast<char*>(p);
+        return *reinterpret_cast<T*>(v + field_offset[static_cast<unsigned int>(f)]);
     }
 
     //! Returns the field as a blitz++ TinyVector.
     //! \param p Pointer to an element
     //! \param f The field id
-    template<typename T,std::enable_if_t<std::rank_v<T> == 1,bool> = true>
-    const auto &get(const DATA *p,FIELD f) const noexcept {
-        return get<blitz::TinyVector<typename std::remove_extent<T>::type,std::extent_v<T>>>(p,f);
+    template <typename T, std::enable_if_t<std::rank_v<T> == 1, bool> = true>
+    const auto& get(const DATA* p, FIELD f) const noexcept {
+        return get<blitz::TinyVector<typename std::remove_extent<T>::type, std::extent_v<T>>>(p, f);
     }
 
     //! Returns the field as a blitz++ TinyVector.
     //! \param p Pointer to an element
     //! \param f The field id
-    template<typename T,std::enable_if_t<std::rank_v<T> == 1,bool> = true>
-    auto &get(DATA *p,FIELD f) const noexcept {
-        return get<blitz::TinyVector<typename std::remove_extent<T>::type,std::extent_v<T>>>(p,f);
+    template <typename T, std::enable_if_t<std::rank_v<T> == 1, bool> = true>
+    auto& get(DATA* p, FIELD f) const noexcept {
+        return get<blitz::TinyVector<typename std::remove_extent<T>::type, std::extent_v<T>>>(p, f);
     }
 
     //! Returns the size (in bytes) of an element (all fields).
-    auto ElementSize() const noexcept {return element_size; }
+    auto ElementSize() const noexcept { return element_size; }
     //! Returns a pointer to the i'th element at pBase.
     //! \param pBase Pointer to the first element
     //! \param i Index of the desired element
-    DATA *Element(void *pBase, int i) const noexcept {
-        auto v = static_cast<char *>(pBase);
-        return reinterpret_cast<DATA *>(v + ((uint64_t)i)*ElementSize());
+    DATA* Element(void* pBase, int i) const noexcept {
+        auto v = static_cast<char*>(pBase);
+        return reinterpret_cast<DATA*>(v + ((uint64_t)i) * ElementSize());
     }
 };
 } // namespace datafields

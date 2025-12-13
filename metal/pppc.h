@@ -19,20 +19,17 @@
 #include "mdl.h"
 #include "gpu/pppcdata.h"
 
-template<class TILE,int WIDTH=32>
-class MessagePPPC : public mdl::metal::metalMessage, public gpu::pppcData<TILE,WIDTH> {
-protected:
-    mdl::messageQueue<MessagePPPC> &freeQueue;
+template <class TILE, int WIDTH = 32>
+class MessagePPPC : public mdl::metal::metalMessage, public gpu::pppcData<TILE, WIDTH> {
+  protected:
+    mdl::messageQueue<MessagePPPC>& freeQueue;
     bool bGravStep = false;
-    virtual void launch(mdl::metal::Stream &stream,MTL::CommandBuffer *cbuf) override;
+    virtual void launch(mdl::metal::Stream& stream, MTL::CommandBuffer* cbuf) override;
     virtual void finish() override;
-public:
-    explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue)
-        : freeQueue(freeQueue) {
-    }
-    virtual ~MessagePPPC() {
-    }
 
+  public:
+    explicit MessagePPPC(mdl::messageQueue<MessagePPPC>& freeQueue) : freeQueue(freeQueue) {}
+    virtual ~MessagePPPC() {}
 };
 
 typedef MessagePPPC<ilpTile> MessagePP;

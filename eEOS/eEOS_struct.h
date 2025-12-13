@@ -8,15 +8,15 @@ struct eEOSparam {
     double dPolyFloorDen;      // Density normalization (in physical units)
     double dPolyFlooru;        // Internal energy normalization
 #ifdef EEOS_JEANS
-    double dNJeans;         // "Number" of resolution elements per Jeans length
+    double dNJeans; // "Number" of resolution elements per Jeans length
 #endif
-    double dFlooru;      // Constant energy floor
-    double dFloorDen;    // Minimum physical density at which the floor is active
-    double dFloorMinOD;  // Minimum baryon overdensity to apply the floor
+    double dFlooru;     // Constant energy floor
+    double dFloorDen;   // Minimum physical density at which the floor is active
+    double dFloorMinOD; // Minimum baryon overdensity to apply the floor
     bool bDoEOS;
 
     eEOSparam() = default;
-    eEOSparam(eEOSparam const &) = default;
-    eEOSparam(class pkd_parameters &parameters,struct CALC &calc);
+    eEOSparam(eEOSparam const&) = default;
+    eEOSparam(class pkd_parameters& parameters, struct CALC& calc);
 };
 #endif

@@ -18,7 +18,7 @@
 #include "units.h"
 
 class ServiceEndTimestepIntegration : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "EndTimestepIntegration";
     struct input {
         UNITS units;
@@ -41,9 +41,8 @@ public:
         int bChemEnrich;
 #endif
     };
-    explicit ServiceEndTimestepIntegration(PST pst)
-        : TraversePST(pst,name) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-};
+    explicit ServiceEndTimestepIntegration(PST pst) : TraversePST(pst, name) {}
 
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+};

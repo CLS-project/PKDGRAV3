@@ -18,13 +18,13 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceDistribRoot::input>  || std::is_trivial_v<ServiceDistribRoot::input>);
+static_assert(std::is_void_v<ServiceDistribRoot::input> || std::is_trivial_v<ServiceDistribRoot::input>);
 static_assert(std::is_void_v<ServiceDistribRoot::output> || std::is_trivial_v<ServiceDistribRoot::output>);
 
-int ServiceDistribRoot::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input *>(vin);
+int ServiceDistribRoot::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto in = static_cast<input*>(vin);
     static_assert(std::is_void_v<output>);
     auto pkd = pst->plcl->pkd;
-    pkdDistribRoot(pkd,in->r,&in->momc);
+    pkdDistribRoot(pkd, in->r, &in->momc);
     return 0;
 }

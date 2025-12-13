@@ -27,7 +27,7 @@ struct CacheStats {
     WelfordStats<double> msg_test;
     CacheStats() {}
     // In this context += is used to "combine" the results -- not necessarily to add them
-    CacheStats &operator+=(const CacheStats &rhs) {
+    CacheStats& operator+=(const CacheStats& rhs) {
         mpi_loop += rhs.mpi_loop;
         mpi_test += rhs.mpi_test;
         gpu_test += rhs.gpu_test;
@@ -37,16 +37,14 @@ struct CacheStats {
 };
 
 class ServiceCacheStats : public TraverseCount<CacheStats> {
-public:
+  public:
     static constexpr std::string_view name = "CacheStats";
     typedef void input;
-    explicit ServiceCacheStats(PST pst, std::string_view service_name=name, int nInBytes=0)
-        : TraverseCount(pst,service_name,nInBytes) {}
-protected:
+    explicit ServiceCacheStats(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
+
+  protected:
     // We are collecting MPI statistics at each node, so we use AtNode to do the work
-    virtual int AtNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
-        return Service(pst,vin,nIn,vout,nOut);
-    }
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    virtual int AtNode(PST pst, void* vin, int nIn, void* vout, int nOut) { return Service(pst, vin, nIn, vout, nOut); }
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };
 #endif

@@ -92,12 +92,12 @@ int bGlobalOutput = 0;
 
 #ifndef _MSC_VER
 static inline void USR1_handler(int signo) {
-    signal(SIGUSR1,USR1_handler);
+    signal(SIGUSR1, USR1_handler);
     timeGlobalSignalTime = time(0);
 }
 
 static inline void USR2_handler(int signo) {
-    signal(SIGUSR2,USR2_handler);
+    signal(SIGUSR2, USR2_handler);
     bGlobalOutput = 1;
 }
 #endif
@@ -106,13 +106,13 @@ static inline void USR2_handler(int signo) {
 ** This function is called at the very start by every thread.
 ** It returns the "worker context"; in this case the PST.
 */
-void *worker_init(MDL vmdl) {
-    auto mdl = reinterpret_cast<mdl::mdlClass *>(vmdl);
+void* worker_init(MDL vmdl) {
+    auto mdl = reinterpret_cast<mdl::mdlClass*>(vmdl);
     PST pst;
-    LCL *plcl = new LCL;
+    LCL* plcl = new LCL;
     plcl->pkd = NULL;
-    pstInitialize(&pst,mdl,plcl);
-    pstAddServices(pst,mdl);
+    pstInitialize(&pst, mdl, plcl);
+    pstAddServices(pst, mdl);
     mdl->AddService<ServiceStarFormInit>(pst);
     mdl->AddService<ServiceStarForm>(pst);
     mdl->AddService<ServiceCoolingInit>(pst);
@@ -192,9 +192,9 @@ void *worker_init(MDL vmdl) {
 ** This function is called at the very end for every thread.
 ** It needs to destroy the worker context (PST).
 */
-void worker_done(MDL mdl, void *ctx) {
+void worker_done(MDL mdl, void* ctx) {
     PST pst = reinterpret_cast<PST>(ctx);
-    LCL *plcl = pst->plcl;
+    LCL* plcl = pst->plcl;
     pstFinish(pst);
     delete plcl;
 }
@@ -202,30 +202,29 @@ void worker_done(MDL mdl, void *ctx) {
 /*
 ** This is invoked for the "master" process after the worker has been setup.
 */
-int master(MDL vmdl,void *vpst) {
-    auto mdl = reinterpret_cast<mdl::mdlClass *>(vmdl);
+int master(MDL vmdl, void* vpst) {
+    auto mdl = reinterpret_cast<mdl::mdlClass*>(vmdl);
     auto pst = reinterpret_cast<PST>(vpst);
     int argc = mdl->GetArgc();
-    char **argv = mdl->GetArgv();
+    char** argv = mdl->GetArgv();
 
     /* a USR1 signal indicates that the queue wants us to exit */
 #ifndef _MSC_VER
     timeGlobalSignalTime = 0;
-    signal(SIGUSR1,NULL);
-    signal(SIGUSR1,USR1_handler);
+    signal(SIGUSR1, NULL);
+    signal(SIGUSR1, USR1_handler);
 
     /* a USR2 signal indicates that we should write an output when convenient */
     bGlobalOutput = 0;
-    signal(SIGUSR2,NULL);
-    signal(SIGUSR2,USR2_handler);
+    signal(SIGUSR2, NULL);
+    signal(SIGUSR2, USR2_handler);
 #endif
 
-    MSR msr(mdl,pst);
-    auto rc = msr.Python(argc,argv);
+    MSR msr(mdl, pst);
+    auto rc = msr.Python(argc, argv);
     if (rc < 0) {
-        printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION );
-        if (!msr.ValidateParameters())
-            return 2;
+        printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION);
+        if (!msr.ValidateParameters()) return 2;
 
         /* Establish safety lock. */
         if (!msr.GetLock()) {
@@ -242,14 +241,14 @@ int master(MDL vmdl,void *vpst) {
     return rc;
 }
 
-int main(int argc,char **argv) {
+int main(int argc, char** argv) {
 #ifdef ENABLE_FE
-    feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
+    feenableexcept(FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
 #endif
 #ifndef CCC
     /* no stdout buffering */
-    setvbuf(stdout,NULL,_IONBF,0);
+    setvbuf(stdout, NULL, _IONBF, 0);
 #endif
 
-    return mdl::Launch(master,worker_init,worker_done,argc,argv);
+    return mdl::Launch(master, worker_init, worker_done, argc, argv);
 }

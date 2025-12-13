@@ -27,9 +27,9 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-double illinoisInitialize(ILLINOIS *ctx,double r,double fr,double s,double fs);
-double illinoisIterate(ILLINOIS *ctx,double ft);
-double illinois(double (*func)(double,void *),void *ctx,double r,double s,double xacc,double yacc,int *pnIter);
+double illinoisInitialize(ILLINOIS* ctx, double r, double fr, double s, double fs);
+double illinoisIterate(ILLINOIS* ctx, double ft);
+double illinois(double (*func)(double, void*), void* ctx, double r, double s, double xacc, double yacc, int* pnIter);
 #ifdef __cplusplus
 }
 #endif

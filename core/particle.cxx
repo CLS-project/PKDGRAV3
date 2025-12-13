@@ -16,14 +16,14 @@
  */
 #include "particle.h"
 #include "core/element.h"
-using blitz::TinyVector;
-using blitz::dot;
 using blitz::all;
+using blitz::dot;
+using blitz::TinyVector;
 #include <numeric>
 
-template<>
-void SingleReference<particleStore::Particle>::swap(SingleReference &rhs) noexcept {
-    this->store().swap(this->p,rhs.p);
+template <>
+void SingleReference<particleStore::Particle>::swap(SingleReference& rhs) noexcept {
+    this->store().swap(this->p, rhs.p);
 
     if (this->have_decorator() && rhs.have_decorator()) {
         auto a_index = rhs.decorator_index();
@@ -42,13 +42,13 @@ void SingleReference<particleStore::Particle>::swap(SingleReference &rhs) noexce
 /// @param b starting iterator
 /// @param e ending iterator
 /// @return bounding box
-Bound particleStore::bound(iterator b,iterator e) {
-    return this->integerized() ? Bound(raw_bound<int32_t>(b,e),*this) : raw_bound<double>(b,e);
+Bound particleStore::bound(iterator b, iterator e) {
+    return this->integerized() ? Bound(raw_bound<int32_t>(b, e), *this) : raw_bound<double>(b, e);
 }
 /// @brief Calculate the bounding box for all local particles
 /// @return bounding box
 Bound particleStore::bound() {
-    return bound(begin(),end());
+    return bound(begin(), end());
 }
 
 /*
@@ -62,17 +62,16 @@ Bound particleStore::bound() {
 ** A value of zero for either results in no action for the "IfTrue" or "IfFalse" flags.
 ** Conflicting options (e.g., setIfTrue and setIfFalse) result in a toggle.
 */
-static inline bool isSelected( bool predicate, int setIfTrue, int clearIfFalse, bool value ) {
-    int s = (predicate&(setIfTrue>0)) | (!predicate&(clearIfFalse<0));
-    int c = (predicate&(setIfTrue<0)) | (!predicate&(clearIfFalse>0));
-    return (~s&~c&value) | (s&~(c&value));
+static inline bool isSelected(bool predicate, int setIfTrue, int clearIfFalse, bool value) {
+    int s = (predicate & (setIfTrue > 0)) | (!predicate & (clearIfFalse < 0));
+    int c = (predicate & (setIfTrue < 0)) | (!predicate & (clearIfFalse > 0));
+    return (~s & ~c & value) | (s & ~(c & value));
 }
 
 /// @brief Count the number of marked particles
 /// @return total count of marked particles
 int particleStore::CountSelected() {
-    return std::accumulate(begin(),end(),0,
-    [](int a,auto &p) {return a + p.marked(); });
+    return std::accumulate(begin(), end(), 0, [](int a, auto& p) { return a + p.marked(); });
 }
 
 /// @brief Mark active particles
@@ -80,9 +79,8 @@ int particleStore::CountSelected() {
 /// @param clearIfFalse
 /// @return total count of marked particles
 int particleStore::SelActive(int setIfTrue, int clearIfFalse) {
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse](int a,auto &p) {
-        return a + p.set_marked(isSelected(p.is_active(),setIfTrue,clearIfFalse,p.marked()));
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse](int a, auto& p) {
+        return a + p.set_marked(isSelected(p.is_active(), setIfTrue, clearIfFalse, p.marked()));
     });
 }
 
@@ -91,9 +89,8 @@ int particleStore::SelActive(int setIfTrue, int clearIfFalse) {
 /// @param clearIfFalse
 /// @return total count of marked particles
 int particleStore::SelBlackholes(int setIfTrue, int clearIfFalse) {
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse](int a,auto &p) {
-        return a + p.set_marked(isSelected(p.is_star() && p.star().fTimer < 0,setIfTrue,clearIfFalse,p.marked()));
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse](int a, auto& p) {
+        return a + p.set_marked(isSelected(p.is_star() && p.star().fTimer < 0, setIfTrue, clearIfFalse, p.marked()));
     });
 }
 
@@ -103,10 +100,9 @@ int particleStore::SelBlackholes(int setIfTrue, int clearIfFalse) {
 /// @param clearIfFalse
 /// @return total count of marked particles
 int particleStore::SelSpecies(uint64_t mSpecies, int setIfTrue, int clearIfFalse) {
-    if (mSpecies&(1<<FIO_SPECIES_ALL)) mSpecies = 0xffffffffu;
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse,mSpecies](int a,auto &p) {
-        auto b = isSelected((1<<p.species()) & mSpecies,setIfTrue,clearIfFalse,p.marked());
+    if (mSpecies & (1 << FIO_SPECIES_ALL)) mSpecies = 0xffffffffu;
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse, mSpecies](int a, auto& p) {
+        auto b = isSelected((1 << p.species()) & mSpecies, setIfTrue, clearIfFalse, p.marked());
         p.set_NN_flag(b); /* This is a bit clunky, but we only ever use this to reset the flags. */
         return a + p.set_marked(b);
     });
@@ -118,9 +114,8 @@ int particleStore::SelSpecies(uint64_t mSpecies, int setIfTrue, int clearIfFalse
 /// @param clearIfFalse
 /// @return total count of marked particles
 int particleStore::SelGroup(int iGroup, int setIfTrue, int clearIfFalse) {
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse,iGroup](int a,auto &p) {
-        return a + p.set_marked(isSelected(p.group()==iGroup,setIfTrue,clearIfFalse,p.marked()));
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse, iGroup](int a, auto& p) {
+        return a + p.set_marked(isSelected(p.group() == iGroup, setIfTrue, clearIfFalse, p.marked()));
     });
 }
 
@@ -130,11 +125,10 @@ int particleStore::SelGroup(int iGroup, int setIfTrue, int clearIfFalse) {
 /// @param setIfTrue
 /// @param clearIfFalse
 /// @return total count of marked particles
-int particleStore::SelMass(double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse ) {
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse,dMinMass,dMaxMass](int a,auto &p) {
+int particleStore::SelMass(double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse) {
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse, dMinMass, dMaxMass](int a, auto& p) {
         auto m = p.mass();
-        return a + p.set_marked(isSelected(m >= dMinMass && m <=dMaxMass,setIfTrue,clearIfFalse,p.marked()));
+        return a + p.set_marked(isSelected(m >= dMinMass && m <= dMaxMass, setIfTrue, clearIfFalse, p.marked()));
     });
 }
 
@@ -144,12 +138,11 @@ int particleStore::SelMass(double dMinMass, double dMaxMass, int setIfTrue, int 
 /// @param setIfTrue
 /// @param clearIfFalse
 /// @return total count of marked particles
-int particleStore::SelPhaseDensity(double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse ) {
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse,dMinDensity,dMaxDensity](int a,auto &p) {
-        const auto &vel = p.VelSmooth();
-        float density = p.density() * pow(vel.veldisp2,-1.5);
-        return a + p.set_marked(isSelected(density >= dMinDensity && density <=dMaxDensity,setIfTrue,clearIfFalse,p.marked()));
+int particleStore::SelPhaseDensity(double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse) {
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse, dMinDensity, dMaxDensity](int a, auto& p) {
+        const auto& vel = p.VelSmooth();
+        float density = p.density() * pow(vel.veldisp2, -1.5);
+        return a + p.set_marked(isSelected(density >= dMinDensity && density <= dMaxDensity, setIfTrue, clearIfFalse, p.marked()));
     });
 }
 
@@ -159,11 +152,10 @@ int particleStore::SelPhaseDensity(double dMinDensity, double dMaxDensity, int s
 /// @param setIfTrue
 /// @param clearIfFalse
 /// @return total count of marked particles
-int particleStore::SelById(uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse ) {
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse,idStart,idEnd](int a,auto &p) {
+int particleStore::SelById(uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse) {
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse, idStart, idEnd](int a, auto& p) {
         auto id = p.order();
-        return a + p.set_marked(isSelected(id >= idStart && id <= idEnd,setIfTrue,clearIfFalse,p.marked()));
+        return a + p.set_marked(isSelected(id >= idStart && id <= idEnd, setIfTrue, clearIfFalse, p.marked()));
     });
 }
 
@@ -173,11 +165,10 @@ int particleStore::SelById(uint64_t idStart, uint64_t idEnd, int setIfTrue, int 
 /// @param setIfTrue
 /// @param clearIfFalse
 /// @return total count of marked particles
-int particleStore::SelBox(TinyVector<double,3> dCenter, TinyVector<double,3> dSize, int setIfTrue, int clearIfFalse ) {
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse,dCenter,dSize](int a,auto &p) {
-        TinyVector<double,3> dx = dCenter - p.position();
-        return a + p.set_marked(isSelected(all(dx < dSize) && all(dx >= -dSize),setIfTrue,clearIfFalse,p.marked()));
+int particleStore::SelBox(TinyVector<double, 3> dCenter, TinyVector<double, 3> dSize, int setIfTrue, int clearIfFalse) {
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse, dCenter, dSize](int a, auto& p) {
+        TinyVector<double, 3> dx = dCenter - p.position();
+        return a + p.set_marked(isSelected(all(dx < dSize) && all(dx >= -dSize), setIfTrue, clearIfFalse, p.marked()));
     });
 }
 
@@ -187,12 +178,11 @@ int particleStore::SelBox(TinyVector<double,3> dCenter, TinyVector<double,3> dSi
 /// @param setIfTrue
 /// @param clearIfFalse
 /// @return total count of marked particles
-int particleStore::SelSphere(TinyVector<double,3> r, double dRadius, int setIfTrue, int clearIfFalse ) {
+int particleStore::SelSphere(TinyVector<double, 3> r, double dRadius, int setIfTrue, int clearIfFalse) {
     auto dRadius2 = dRadius * dRadius;
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse,r,dRadius2](int a,auto &p) {
-        TinyVector<double,3> dx = r - p.position();
-        return a + p.set_marked(isSelected(dot(dx,dx)<=dRadius2,setIfTrue,clearIfFalse,p.marked()));
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse, r, dRadius2](int a, auto& p) {
+        TinyVector<double, 3> dx = r - p.position();
+        return a + p.set_marked(isSelected(dot(dx, dx) <= dRadius2, setIfTrue, clearIfFalse, p.marked()));
     });
 }
 
@@ -203,15 +193,14 @@ int particleStore::SelSphere(TinyVector<double,3> r, double dRadius, int setIfTr
 /// @param setIfTrue
 /// @param clearIfFalse
 /// @return total count of marked particles
-int particleStore::SelCylinder(TinyVector<double,3> dP1, TinyVector<double,3> dP2, double dRadius, int setIfTrue, int clearIfFalse ) {
-    TinyVector<double,3> dCyl = dP2 - dP1;
-    auto dLength2 = dot(dCyl,dCyl);
-    auto dRadius2 = dRadius*dRadius;
-    return std::accumulate(begin(),end(),0,
-    [setIfTrue,clearIfFalse,dRadius2,dLength2,dCyl,dP1](int a,auto &p) {
-        TinyVector<double,3> dPart = p.position() - dP1;
-        auto pdotr = dot(dPart,dCyl);
-        bool predicate = pdotr >= 0.0 && pdotr <= dLength2 && (dot(dPart,dPart) - pdotr*pdotr/dLength2 <= dRadius2);
-        return a + p.set_marked(isSelected(predicate,setIfTrue,clearIfFalse,p.marked()));
+int particleStore::SelCylinder(TinyVector<double, 3> dP1, TinyVector<double, 3> dP2, double dRadius, int setIfTrue, int clearIfFalse) {
+    TinyVector<double, 3> dCyl = dP2 - dP1;
+    auto dLength2 = dot(dCyl, dCyl);
+    auto dRadius2 = dRadius * dRadius;
+    return std::accumulate(begin(), end(), 0, [setIfTrue, clearIfFalse, dRadius2, dLength2, dCyl, dP1](int a, auto& p) {
+        TinyVector<double, 3> dPart = p.position() - dP1;
+        auto pdotr = dot(dPart, dCyl);
+        bool predicate = pdotr >= 0.0 && pdotr <= dLength2 && (dot(dPart, dPart) - pdotr * pdotr / dLength2 <= dRadius2);
+        return a + p.set_marked(isSelected(predicate, setIfTrue, clearIfFalse, p.marked()));
     });
 }

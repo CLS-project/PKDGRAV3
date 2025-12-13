@@ -20,9 +20,8 @@
 
 #include "pkd.h"
 
-void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,int nBucket);
+void pkdNewFof(PKD pkd, double dTau2, int nMinMembers, int bPeriodic, int nReplicas, int nBucket);
 int pkdFofPhases(PKD pkd);
-uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize);
+uint64_t pkdFofFinishUp(PKD pkd, int nMinGroupSize);
 
 #endif
-

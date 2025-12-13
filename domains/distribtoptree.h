@@ -17,7 +17,7 @@
 #include "TraversePST.h"
 
 class ServiceDistribTopTree : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "DistribTopTree";
     struct input {
         uint32_t uRoot; /* Which root node to use */
@@ -27,9 +27,8 @@ public:
     };
     typedef void output;
     explicit ServiceDistribTopTree(PST pst)
-        : TraversePST(pst,name,
-                      sizeof(input)
-                      + (pst->mdl->Threads()==1?1:2*pst->mdl->Threads()-1)*pkdContext::MaxNodeSize()) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+        : TraversePST(pst, name, sizeof(input) + (pst->mdl->Threads() == 1 ? 1 : 2 * pst->mdl->Threads() - 1) * pkdContext::MaxNodeSize()) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

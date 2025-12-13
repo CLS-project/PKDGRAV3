@@ -26,37 +26,36 @@
 #endif
 
 // These are the fields and their types found in the interaction list
-#define ILC_FIELDS_PARAMS_SEQ ((float,dx))((float,dy))((float,dz))((float,u))
+#define ILC_FIELDS_PARAMS_SEQ ((float, dx))((float, dy))((float, dz))((float, u))
 #ifdef USE_DIAPOLE
-    #define ILC_FIELDS_DIAPOLE_SEQ ((float,x))((float,y))((float,z))
+    #define ILC_FIELDS_DIAPOLE_SEQ ((float, x))((float, y))((float, z))
 #else
     #define ILC_FIELDS_DIAPOLE_SEQ
 #endif
-#define ILC_FIELDS_MOMENT_SEQ\
- ((float,xxxx))((float,xxxy))((float,xxxz))((float,xxyz))((float,xxyy))((float,yyyz))((float,xyyz))((float,xyyy))((float,yyyy))\
- ((float,xxx))((float,xyy))((float,xxy))((float,yyy))((float,xxz))((float,yyz))((float,xyz))\
- ((float,xx))((float,xy))((float,xz))((float,yy))((float,yz))\
- ILC_FIELDS_DIAPOLE_SEQ ((float,m))
+#define ILC_FIELDS_MOMENT_SEQ                                                                                                                                  \
+    ((float, xxxx))((float, xxxy))((float, xxxz))((float, xxyz))((float, xxyy))((float, yyyz))((float, xyyz))((float, xyyy))((float, yyyy))((float, xxx))(     \
+        (float, xyy))((float, xxy))((float, yyy))((float, xxz))((float, yyz))((float, xyz))((float, xx))((float, xy))((float, xz))((float, yy))(               \
+        (float, yz))ILC_FIELDS_DIAPOLE_SEQ((float, m))
 #define ILC_FIELDS_SEQ ILC_FIELDS_PARAMS_SEQ ILC_FIELDS_MOMENT_SEQ
 
-ILIST_DECLARE(PC,ILC_FIELDS_SEQ)
-#define ILC_FIELD_TYPES ILIST_FIELD_VALUES(ILC_FIELDS_SEQ,0)
-#define ILC_FIELD_NAMES ILIST_FIELD_VALUES(ILC_FIELDS_SEQ,1)
+ILIST_DECLARE(PC, ILC_FIELDS_SEQ)
+#define ILC_FIELD_TYPES ILIST_FIELD_VALUES(ILC_FIELDS_SEQ, 0)
+#define ILC_FIELD_NAMES ILIST_FIELD_VALUES(ILC_FIELDS_SEQ, 1)
 #define ILC_FIELD_PROTOS ILIST_FIELD_PROTOS(ILC_FIELDS_SEQ)
 
 using ilcBlock = BlockPC<ILC_PART_PER_BLK>;
-using ilcTile = TilePC<ILC_PART_PER_BLK,8>;
-class ilcList : public ListPC<ILC_PART_PER_BLK,8>, public ilist::ilCenterReference {
-public:
-    void append(float dx,float dy,float dz,const FMOMR *M,float u) {
-        BlockPC<ILC_PART_PER_BLK> *b;
+using ilcTile = TilePC<ILC_PART_PER_BLK, 8>;
+class ilcList : public ListPC<ILC_PART_PER_BLK, 8>, public ilist::ilCenterReference {
+  public:
+    void append(float dx, float dy, float dz, const FMOMR* M, float u) {
+        BlockPC<ILC_PART_PER_BLK>* b;
         int i;
-        std::tie(b,i) = ListPC<ILC_PART_PER_BLK,8>::create();
-        ILIST_ASSIGN_FIELDS(ILC_FIELDS_PARAMS_SEQ,PC,b,i,)
-        ILIST_ASSIGN_FIELDS(ILC_FIELDS_MOMENT_SEQ,PC,b,i,M->)
+        std::tie(b, i) = ListPC<ILC_PART_PER_BLK, 8>::create();
+        ILIST_ASSIGN_FIELDS(ILC_FIELDS_PARAMS_SEQ, PC, b, i, )
+        ILIST_ASSIGN_FIELDS(ILC_FIELDS_MOMENT_SEQ, PC, b, i, M->)
     }
-    void append(double x,double y,double z,const FMOMR *M,float u) {
-        append((float)(getReference(0)-x),(float)(getReference(1)-y),(float)(getReference(2)-z),M,u);
+    void append(double x, double y, double z, const FMOMR* M, float u) {
+        append((float)(getReference(0) - x), (float)(getReference(1) - y), (float)(getReference(2) - z), M, u);
     }
 };
 #endif

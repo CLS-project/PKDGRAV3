@@ -1,11 +1,11 @@
 #ifdef STELLAR_EVOLUTION
 
-#include <hdf5.h>
+    #include <hdf5.h>
 
-#include "stellarevolution.h"
-#include "master.h"
-#include "imf.h"
-#include "hydro/hydro.h"
+    #include "stellarevolution.h"
+    #include "master.h"
+    #include "imf.h"
+    #include "hydro/hydro.h"
 
 using blitz::TinyVector;
 
@@ -19,14 +19,12 @@ void MSR::SetStellarEvolutionParam() {
     }
     else if (achSNIaDTDType == "powerlaw") {
         auto dSNIaPLScale = parameters.get_dSNIaPLScale();
-        calc.dSNIaNorm = parameters.get_dSNIaNumPerMass() /
-                         (pow(parameters.get_dSNIaPLFinalTime() * dYrToTime, dSNIaPLScale + 1.0) -
-                          pow(parameters.get_dSNIaPLInitTime() * dYrToTime, dSNIaPLScale + 1.0));
+        calc.dSNIaNorm = parameters.get_dSNIaNumPerMass() / (pow(parameters.get_dSNIaPLFinalTime() * dYrToTime, dSNIaPLScale + 1.0) -
+                                                             pow(parameters.get_dSNIaPLInitTime() * dYrToTime, dSNIaPLScale + 1.0));
         calc.dSNIaScale = dSNIaPLScale;
     }
     else {
-        std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
-                  "achSNIaDTDType parameter: " << achSNIaDTDType << std::endl;
+        std::cerr << "ERROR: Undefined SNIa DTD type has been given in " << "achSNIaDTDType parameter: " << achSNIaDTDType << std::endl;
         Exit(1);
     }
 
@@ -81,43 +79,32 @@ void MSR::StellarEvolutionInit(double dTime) {
     in.StelEvolData.fDeltaLogMass = dDeltaLog;
 
     /* Convert CCSN/AGB initial mass arrays to log for interpolation */
-    for (auto i = 0; i < CCSNData->nMasses; ++i)
-        CCSNData->pfInitialMass[i] = log10(CCSNData->pfInitialMass[i]);
-    for (auto i = 0; i < AGBData->nMasses; ++i)
-        AGBData->pfInitialMass[i] = log10(AGBData->pfInitialMass[i]);
+    for (auto i = 0; i < CCSNData->nMasses; ++i) CCSNData->pfInitialMass[i] = log10(CCSNData->pfInitialMass[i]);
+    for (auto i = 0; i < AGBData->nMasses; ++i) AGBData->pfInitialMass[i] = log10(AGBData->pfInitialMass[i]);
 
     /* Interpolate yields and ejected masses to the initial mass array */
     stevInterpToIMFSampling(&in.StelEvolData, CCSNData, AGBData, parameters.get_dCCSNMinMass());
 
     for (auto i = 0; i < STEV_CCSN_N_METALLICITY; ++i) {
-        if (CCSNData->pfMetallicity[i] > 0.0f)
-            in.StelEvolData.afCCSNMetallicity[i] = log10(CCSNData->pfMetallicity[i]);
-        else
-            in.StelEvolData.afCCSNMetallicity[i] = STEV_MIN_LOG_METALLICITY;
+        if (CCSNData->pfMetallicity[i] > 0.0f) in.StelEvolData.afCCSNMetallicity[i] = log10(CCSNData->pfMetallicity[i]);
+        else in.StelEvolData.afCCSNMetallicity[i] = STEV_MIN_LOG_METALLICITY;
     }
 
     for (auto i = 0; i < STEV_AGB_N_METALLICITY; ++i) {
-        if (AGBData->pfMetallicity[i] > 0.0f)
-            in.StelEvolData.afAGBMetallicity[i] = log10(AGBData->pfMetallicity[i]);
-        else
-            in.StelEvolData.afAGBMetallicity[i] = STEV_MIN_LOG_METALLICITY;
+        if (AGBData->pfMetallicity[i] > 0.0f) in.StelEvolData.afAGBMetallicity[i] = log10(AGBData->pfMetallicity[i]);
+        else in.StelEvolData.afAGBMetallicity[i] = STEV_MIN_LOG_METALLICITY;
     }
 
-    for (auto i = 0; i < ELEMENT_COUNT; ++i)
-        in.StelEvolData.afSNIaEjectedMass[i] = SNIaData->pfEjectedMass[i];
+    for (auto i = 0; i < ELEMENT_COUNT; ++i) in.StelEvolData.afSNIaEjectedMass[i] = SNIaData->pfEjectedMass[i];
     in.StelEvolData.fSNIaEjectedMetalMass = *SNIaData->pfMetalYield;
 
     for (auto i = 0; i < STEV_LIFETIME_N_METALLICITY; ++i) {
-        if (LifetimeData->pfMetallicity[i] > 0.0f)
-            in.StelEvolData.afLifetimeMetallicity[i] = log10(LifetimeData->pfMetallicity[i]);
-        else
-            in.StelEvolData.afLifetimeMetallicity[i] = STEV_MIN_LOG_METALLICITY;
+        if (LifetimeData->pfMetallicity[i] > 0.0f) in.StelEvolData.afLifetimeMetallicity[i] = log10(LifetimeData->pfMetallicity[i]);
+        else in.StelEvolData.afLifetimeMetallicity[i] = STEV_MIN_LOG_METALLICITY;
     }
-    for (auto i = 0; i < STEV_LIFETIME_N_MASS; ++i)
-        in.StelEvolData.afLifetimeInitialMass[i] = log10(LifetimeData->pfInitialMass[i]);
+    for (auto i = 0; i < STEV_LIFETIME_N_MASS; ++i) in.StelEvolData.afLifetimeInitialMass[i] = log10(LifetimeData->pfInitialMass[i]);
     for (auto i = 0; i < STEV_LIFETIME_N_METALLICITY * STEV_LIFETIME_N_MASS; ++i) {
-        in.StelEvolData.afLifetime[i] = log10(LifetimeData->pfLifetime[i] * SECONDSPERYEAR /
-                                              units.dSecUnit);
+        in.StelEvolData.afLifetime[i] = log10(LifetimeData->pfLifetime[i] * SECONDSPERYEAR / units.dSecUnit);
     }
 
     strcpy(in.achSNIaDTDType, parameters.get_achSNIaDTDType().data());
@@ -135,7 +122,7 @@ void MSR::StellarEvolutionInit(double dTime) {
     stevFreeLifetimeTable(LifetimeData);
 }
 
-int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
+int pstStellarEvolutionInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
     mdlassert(pst->mdl, nIn == sizeof(struct inStellarEvolutionInit));
     if (pst->nLeaves > 1) {
         int rID = pst->mdl->ReqService(pst->idUpper, PST_STELLAREVOLUTIONINIT, vin, nIn);
@@ -143,15 +130,15 @@ int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
         pst->mdl->GetReply(rID);
     }
     else {
-        struct inStellarEvolutionInit *in = (struct inStellarEvolutionInit *) vin;
+        struct inStellarEvolutionInit* in = (struct inStellarEvolutionInit*)vin;
         pkdStellarEvolutionInit(pst->plcl->pkd, in);
     }
 
     return 0;
 }
 
-int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
-    pkd->StelEvolData = (STEV_DATA *) malloc(sizeof(STEV_DATA));
+int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit* in) {
+    pkd->StelEvolData = (STEV_DATA*)malloc(sizeof(STEV_DATA));
     assert(pkd->StelEvolData != NULL);
     memcpy(pkd->StelEvolData, &in->StelEvolData, sizeof(STEV_DATA));
 
@@ -162,30 +149,25 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
         pkd->StelEvolData->fcnNumSNIa = stevPowerlawNumSNIa;
     }
     else {
-        std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
-                  "achSNIaDTDType parameter: " << in->achSNIaDTDType << std::endl;
+        std::cerr << "ERROR: Undefined SNIa DTD type has been given in " << "achSNIaDTDType parameter: " << in->achSNIaDTDType << std::endl;
         exit(1);
     }
 
-    for (auto &p : pkd->particles) {
+    for (auto& p : pkd->particles) {
 
         if (p.is_star()) {
-            auto &star = p.star();
+            auto& star = p.star();
 
-            if (star.fInitialMass < 0.0f)
-                star.fInitialMass = p.mass();
+            if (star.fInitialMass < 0.0f) star.fInitialMass = p.mass();
 
-            if (star.fLastEnrichTime < 0.0f)
-                star.fLastEnrichTime = 0.0f;
+            if (star.fLastEnrichTime < 0.0f) star.fLastEnrichTime = 0.0f;
 
-            if (star.fTimer <= 0.0f)
-                star.fTimer = in->dTime;
+            if (star.fTimer <= 0.0f) star.fTimer = in->dTime;
 
-            stevStarParticleInit(pkd, star, in->dSNIaMaxMass, in->dCCSNMinMass,
-                                 in->dCCSNMaxMass);
+            stevStarParticleInit(pkd, star, in->dSNIaMaxMass, in->dCCSNMinMass, in->dCCSNMaxMass);
         }
         else if (p.is_gas()) {
-            auto &sph = p.sph();
+            auto& sph = p.sph();
             sph.ReceivedMom = 0.0f;
             sph.fReceivedMass = 0.0f;
             sph.fReceivedE = 0.0f;
@@ -195,8 +177,7 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
     return 0;
 }
 
-void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, decorators::MFM &sph,
-                         const double dConstGamma) {
+void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference& p, decorators::MFM& sph, const double dConstGamma) {
     const double dOldEkin = blitz::dot(sph.mom, sph.mom) / (2.0 * p.mass());
 
     sph.mom += sph.ReceivedMom;
@@ -208,10 +189,9 @@ void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, decorator
     const double dDeltaUint = sph.fReceivedE - (dNewEkin - dOldEkin);
     if (dDeltaUint > 0.0) {
         sph.Uint += dDeltaUint;
-#ifdef ENTROPY_SWITCH
-        sph.S += dDeltaUint * (dConstGamma - 1.0) *
-                 pow(p.density(), 1.0 - dConstGamma);
-#endif
+    #ifdef ENTROPY_SWITCH
+        sph.S += dDeltaUint * (dConstGamma - 1.0) * pow(p.density(), 1.0 - dConstGamma);
+    #endif
     }
 
     sph.ReceivedMom = 0.0f;
@@ -219,9 +199,9 @@ void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, decorator
     sph.fReceivedE = 0.0f;
 }
 
-void SmoothHelperChemEnrich::pack(void *dst, const void *src) {
-    auto p1 = static_cast<pack_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperChemEnrich::pack(void* dst, const void* src) {
+    auto p1 = static_cast<pack_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
     p1->iClass = p2.get_class();
     if (p2.is_gas()) {
@@ -230,9 +210,9 @@ void SmoothHelperChemEnrich::pack(void *dst, const void *src) {
     }
 }
 
-void SmoothHelperChemEnrich::unpack(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const pack_type *>(src);
+void SmoothHelperChemEnrich::unpack(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const pack_type*>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
@@ -242,11 +222,11 @@ void SmoothHelperChemEnrich::unpack(void *dst, const void *src, const void *key)
     }
 }
 
-void SmoothHelperChemEnrich::init(void *dst) {
-    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+void SmoothHelperChemEnrich::init(void* dst) {
+    auto p = pkd->particles[static_cast<PARTICLE*>(dst)];
 
     if (p.is_gas()) {
-        auto &sph = p.sph();
+        auto& sph = p.sph();
 
         sph.ReceivedMom = 0.0f;
         sph.fReceivedMass = 0.0f;
@@ -257,12 +237,12 @@ void SmoothHelperChemEnrich::init(void *dst) {
     }
 }
 
-void SmoothHelperChemEnrich::flush(void *dst, const void *src) {
-    auto p1 = static_cast<flush_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperChemEnrich::flush(void* dst, const void* src) {
+    auto p1 = static_cast<flush_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
     if (p2.is_gas()) {
-        const auto &sph = p2.sph();
+        const auto& sph = p2.sph();
 
         p1->ReceivedMom = sph.ReceivedMom;
         p1->fReceivedMass = sph.fReceivedMass;
@@ -273,12 +253,12 @@ void SmoothHelperChemEnrich::flush(void *dst, const void *src) {
     }
 }
 
-void SmoothHelperChemEnrich::combine(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const flush_type *>(src);
+void SmoothHelperChemEnrich::combine(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const flush_type*>(src);
 
     if (p1.is_gas()) {
-        auto &sph = p1.sph();
+        auto& sph = p1.sph();
 
         sph.ReceivedMom += p2->ReceivedMom;
         sph.fReceivedMass += p2->fReceivedMass;
@@ -303,9 +283,9 @@ void SmoothHelperChemEnrich::combine(void *dst, const void *src, const void *key
    in smf are in Msol. Conversely, star.fInitialMass and p.mass() are in code units.
    Furthermore, all times are in code units.
 */
-void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
+void smChemEnrich(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
     PKD pkd = smf->pkd;
-    auto &star = p.star();
+    auto& star = p.star();
 
     const float fInitialTime = star.fLastEnrichTime;
     const float fInitialMass = star.fLastEnrichMass;
@@ -313,8 +293,7 @@ void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth,
 
     const float fFinalTime = (float)smf->dTime - star.fTimer;
     const float fFinalMass = stevInverseLifetimeFunction(pkd, star, fFinalTime);
-    const int iFinalMass = stevGetIMFMassIndex(pkd->StelEvolData->afInitialMass,
-                           STEV_INTERP_N_MASS, fFinalMass, iInitialMass);
+    const int iFinalMass = stevGetIMFMassIndex(pkd->StelEvolData->afInitialMass, STEV_INTERP_N_MASS, fFinalMass, iInitialMass);
 
     star.fLastEnrichTime = fFinalTime;
     star.fLastEnrichMass = fFinalMass;
@@ -325,63 +304,38 @@ void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth,
        Since this multiplication must always be made, it is done once and for all in
        the function stevStarParticleInit. */
 
-    TinyVector<float,ELEMENT_COUNT> ElemMass{0.0f};
+    TinyVector<float, ELEMENT_COUNT> ElemMass{0.0f};
     float fMetalMass{0.0f};
 
     const float fTransMass = smf->dCCSNMinMass;
     if (fFinalMass > fTransMass) {
         /* CCSN only */
-        stevComputeMassToEject<STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>
-        (pkd->StelEvolData->afCCSNYield,
-         pkd->StelEvolData->afCCSNMetalYield,
-         pkd->StelEvolData->afCCSNEjectedMass,
-         pkd->StelEvolData->afInitialMass,
-         pkd->StelEvolData->afIMFLogWeight,
-         pkd->StelEvolData->fDeltaLogMass,
-         star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass,
-         fFinalMass, fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ,
-         ElemMass.data(), &fMetalMass);
+        stevComputeMassToEject<STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>(
+            pkd->StelEvolData->afCCSNYield, pkd->StelEvolData->afCCSNMetalYield, pkd->StelEvolData->afCCSNEjectedMass, pkd->StelEvolData->afInitialMass,
+            pkd->StelEvolData->afIMFLogWeight, pkd->StelEvolData->fDeltaLogMass, star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass, fFinalMass,
+            fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ, ElemMass.data(), &fMetalMass);
     }
     else if (fInitialMass < fTransMass) {
         /* AGB only */
-        stevComputeMassToEject<STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>
-        (pkd->StelEvolData->afAGBYield,
-         pkd->StelEvolData->afAGBMetalYield,
-         pkd->StelEvolData->afAGBEjectedMass,
-         pkd->StelEvolData->afInitialMass,
-         pkd->StelEvolData->afIMFLogWeight,
-         pkd->StelEvolData->fDeltaLogMass,
-         star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass,
-         fFinalMass, fInitialMass, star.AGB.oZ, star.AGB.fDeltaZ,
-         ElemMass.data(), &fMetalMass);
+        stevComputeMassToEject<STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>(
+            pkd->StelEvolData->afAGBYield, pkd->StelEvolData->afAGBMetalYield, pkd->StelEvolData->afAGBEjectedMass, pkd->StelEvolData->afInitialMass,
+            pkd->StelEvolData->afIMFLogWeight, pkd->StelEvolData->fDeltaLogMass, star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass, fFinalMass,
+            fInitialMass, star.AGB.oZ, star.AGB.fDeltaZ, ElemMass.data(), &fMetalMass);
     }
     else {
         /* Mixed CCSN and AGB */
-        int iTransMass = stevGetIMFMassIndex(pkd->StelEvolData->afInitialMass,
-                                             STEV_INTERP_N_MASS, fTransMass, iInitialMass);
+        int iTransMass = stevGetIMFMassIndex(pkd->StelEvolData->afInitialMass, STEV_INTERP_N_MASS, fTransMass, iInitialMass);
 
-        stevComputeMassToEject<STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>
-        (pkd->StelEvolData->afCCSNYield,
-         pkd->StelEvolData->afCCSNMetalYield,
-         pkd->StelEvolData->afCCSNEjectedMass,
-         pkd->StelEvolData->afInitialMass,
-         pkd->StelEvolData->afIMFLogWeight,
-         pkd->StelEvolData->fDeltaLogMass,
-         star.ElemAbun.data(), star.fMetalAbun, iTransMass, iInitialMass,
-         fTransMass, fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ,
-         ElemMass.data(), &fMetalMass);
+        stevComputeMassToEject<STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>(
+            pkd->StelEvolData->afCCSNYield, pkd->StelEvolData->afCCSNMetalYield, pkd->StelEvolData->afCCSNEjectedMass, pkd->StelEvolData->afInitialMass,
+            pkd->StelEvolData->afIMFLogWeight, pkd->StelEvolData->fDeltaLogMass, star.ElemAbun.data(), star.fMetalAbun, iTransMass, iInitialMass, fTransMass,
+            fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ, ElemMass.data(), &fMetalMass);
 
         ++iTransMass;
-        stevComputeMassToEject<STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>
-        (pkd->StelEvolData->afAGBYield,
-         pkd->StelEvolData->afAGBMetalYield,
-         pkd->StelEvolData->afAGBEjectedMass,
-         pkd->StelEvolData->afInitialMass,
-         pkd->StelEvolData->afIMFLogWeight,
-         pkd->StelEvolData->fDeltaLogMass,
-         star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iTransMass,
-         fFinalMass, fTransMass, star.AGB.oZ, star.AGB.fDeltaZ,
-         ElemMass.data(), &fMetalMass);
+        stevComputeMassToEject<STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>(
+            pkd->StelEvolData->afAGBYield, pkd->StelEvolData->afAGBMetalYield, pkd->StelEvolData->afAGBEjectedMass, pkd->StelEvolData->afInitialMass,
+            pkd->StelEvolData->afIMFLogWeight, pkd->StelEvolData->fDeltaLogMass, star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iTransMass, fFinalMass,
+            fTransMass, star.AGB.oZ, star.AGB.fDeltaZ, ElemMass.data(), &fMetalMass);
     }
 
     const float fNumSNIa = (*pkd->StelEvolData->fcnNumSNIa)(smf, star, fInitialTime, fFinalTime);
@@ -392,18 +346,16 @@ void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth,
     fMetalMass += fNumSNIa * pkd->StelEvolData->fSNIaEjectedMetalMass;
     fMetalMass *= star.fInitialMass;
 
-    const double dTotalMass = (double)ElemMass[ELEMENT_H] + ElemMass[ELEMENT_He] +
-                              fMetalMass;
-    star.fNextEnrichTime = stevComputeNextEnrichTime(smf->dTime, star.fInitialMass,
-                           dTotalMass, fFinalTime - fInitialTime);
+    const double dTotalMass = (double)ElemMass[ELEMENT_H] + ElemMass[ELEMENT_He] + fMetalMass;
+    star.fNextEnrichTime = stevComputeNextEnrichTime(smf->dTime, star.fInitialMass, dTotalMass, fFinalTime - fInitialTime);
     p.set_mass(p.mass() - dTotalMass);
     assert(p.mass() > 0.0f);
 
     const double dScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
     const double dScaleFactorInvSq = dScaleFactorInv * dScaleFactorInv;
-    const auto &StarVel = p.velocity();
+    const auto& StarVel = p.velocity();
 
-    const double dStarDeltaEkin = 0.5 * dTotalMass * blitz::dot(StarVel,StarVel);
+    const double dStarDeltaEkin = 0.5 * dTotalMass * blitz::dot(StarVel, StarVel);
     const double dWindEkin = smf->dWindSpecificEkin * dTotalMass;
     const double dStarEjEnergy = dStarDeltaEkin * dScaleFactorInvSq + dWindEkin;
 
@@ -417,7 +369,7 @@ void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth,
     for (auto i = 0; i < nSmooth; ++i) {
         auto q = pkd->particles[nnList[i].pPart];
         assert(q.is_gas());
-        auto &qsph = q.sph();
+        auto& qsph = q.sph();
 
         qsph.ReceivedMom += dDeltaMass * StarVel * dScaleFactorInv;
         qsph.fReceivedMass += dDeltaMass;
@@ -428,21 +380,21 @@ void smChemEnrich(particleStore::ParticleReference &p, float fBall, int nSmooth,
     }
 }
 
-#define H5FIELD_MASS         "Masses"
-#define H5FIELD_METALLICITY  "Metallicities"
-#define H5FIELD_SPECNAME     "Species_names"
-#define H5FIELD_TABLEZNAME   "Yield_names"
-#define H5FIELD_TABLE        "Yields"
-#define H5FIELD_YIELD        "Yield"
-#define H5FIELD_METALYIELD   "Total_Metals"
-#define H5FIELD_EJMASS       "Ejected_mass"
-#define H5FIELD_LIFETIME     "Lifetimes"
+    #define H5FIELD_MASS "Masses"
+    #define H5FIELD_METALLICITY "Metallicities"
+    #define H5FIELD_SPECNAME "Species_names"
+    #define H5FIELD_TABLEZNAME "Yield_names"
+    #define H5FIELD_TABLE "Yields"
+    #define H5FIELD_YIELD "Yield"
+    #define H5FIELD_METALYIELD "Total_Metals"
+    #define H5FIELD_EJMASS "Ejected_mass"
+    #define H5FIELD_LIFETIME "Lifetimes"
 
-STEV_RAWDATA *stevReadTable(char *pszPath) {
+STEV_RAWDATA* stevReadTable(char* pszPath) {
     hid_t fileID, datatype, dataspace;
     herr_t status;
 
-    STEV_RAWDATA *RawData = (STEV_RAWDATA *) malloc(sizeof(STEV_RAWDATA));
+    STEV_RAWDATA* RawData = (STEV_RAWDATA*)malloc(sizeof(STEV_RAWDATA));
     assert(RawData != NULL);
 
     fileID = H5Fopen(pszPath, H5F_ACC_RDONLY, H5P_DEFAULT);
@@ -474,26 +426,23 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
     status = H5Dclose(dsSpecName);
     assert(status >= 0);
 
-    RawData->pfMetallicity = (float *) malloc(RawData->nZs * sizeof(float));
+    RawData->pfMetallicity = (float*)malloc(RawData->nZs * sizeof(float));
     assert(RawData->pfMetallicity != NULL);
-    RawData->pfInitialMass = (float *) malloc(RawData->nMasses * sizeof(float));
+    RawData->pfInitialMass = (float*)malloc(RawData->nMasses * sizeof(float));
     assert(RawData->pfInitialMass != NULL);
-    RawData->pfYield = (float *) malloc(RawData->nZs * RawData->nElems * RawData->nMasses *
-                                        sizeof(float));
+    RawData->pfYield = (float*)malloc(RawData->nZs * RawData->nElems * RawData->nMasses * sizeof(float));
     assert(RawData->pfYield != NULL);
-    RawData->pfMetalYield = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
+    RawData->pfMetalYield = (float*)malloc(RawData->nZs * RawData->nMasses * sizeof(float));
     assert(RawData->pfMetalYield != NULL);
-    RawData->pfEjectedMass = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
+    RawData->pfEjectedMass = (float*)malloc(RawData->nZs * RawData->nMasses * sizeof(float));
     assert(RawData->pfEjectedMass != NULL);
 
-    status = H5Dread(dsMetal, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     RawData->pfMetallicity);
+    status = H5Dread(dsMetal, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfMetallicity);
     assert(status >= 0);
     status = H5Dclose(dsMetal);
     assert(status >= 0);
 
-    status = H5Dread(dsMass, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     RawData->pfInitialMass);
+    status = H5Dread(dsMass, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfInitialMass);
     assert(status >= 0);
     status = H5Dclose(dsMass);
     assert(status >= 0);
@@ -506,7 +455,7 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
     assert(nTableZNames == RawData->nZs);
     status = H5Sclose(dataspace);
     assert(status >= 0);
-    std::vector<char *> apchTableZNames(RawData->nZs);
+    std::vector<char*> apchTableZNames(RawData->nZs);
     datatype = H5Dget_type(dsTableZName);
     assert(datatype >= 0);
     status = H5Dread(dsTableZName, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, apchTableZNames.data());
@@ -533,8 +482,7 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
         assert(dimSize[1] == RawData->nMasses);
         status = H5Sclose(dataspace);
         assert(status >= 0);
-        status = H5Dread(dsYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                         RawData->pfYield + iOffset);
+        status = H5Dread(dsYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfYield + iOffset);
         assert(status >= 0);
         status = H5Dclose(dsYield);
         assert(status >= 0);
@@ -550,8 +498,7 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
         assert(nSize == RawData->nMasses);
         status = H5Sclose(dataspace);
         assert(status >= 0);
-        status = H5Dread(dsMetalYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                         RawData->pfMetalYield + iOffset);
+        status = H5Dread(dsMetalYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfMetalYield + iOffset);
         assert(status >= 0);
         status = H5Dclose(dsMetalYield);
         assert(status >= 0);
@@ -565,8 +512,7 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
         assert(nSize == RawData->nMasses);
         status = H5Sclose(dataspace);
         assert(status >= 0);
-        status = H5Dread(dsEjMass, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                         RawData->pfEjectedMass + iOffset);
+        status = H5Dread(dsEjMass, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfEjectedMass + iOffset);
         assert(status >= 0);
         status = H5Dclose(dsEjMass);
         assert(status >= 0);
@@ -580,11 +526,11 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
 
 /* This function assumes that the table of mass ejected from Type Ia SN is independent of
    the progenitor's initial mass and metallicity */
-STEV_RAWDATA *stevReadSNIaTable(char *pszPath) {
+STEV_RAWDATA* stevReadSNIaTable(char* pszPath) {
     hid_t fileID, dataspace;
     herr_t status;
 
-    STEV_RAWDATA *RawData = (STEV_RAWDATA *) malloc(sizeof(STEV_RAWDATA));
+    STEV_RAWDATA* RawData = (STEV_RAWDATA*)malloc(sizeof(STEV_RAWDATA));
     assert(RawData != NULL);
 
     fileID = H5Fopen(pszPath, H5F_ACC_RDONLY, H5P_DEFAULT);
@@ -607,19 +553,17 @@ STEV_RAWDATA *stevReadSNIaTable(char *pszPath) {
     status = H5Sclose(dataspace);
     assert(status >= 0);
 
-    RawData->pfEjectedMass = (float *) malloc(RawData->nElems * sizeof(float));
+    RawData->pfEjectedMass = (float*)malloc(RawData->nElems * sizeof(float));
     assert(RawData->pfEjectedMass != NULL);
-    RawData->pfMetalYield = (float *) malloc(sizeof(float));
+    RawData->pfMetalYield = (float*)malloc(sizeof(float));
     assert(RawData->pfMetalYield != NULL);
 
-    status = H5Dread(dsYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     RawData->pfEjectedMass);
+    status = H5Dread(dsYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfEjectedMass);
     assert(status >= 0);
     status = H5Dclose(dsYield);
     assert(status >= 0);
 
-    status = H5Dread(dsMetalYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     RawData->pfMetalYield);
+    status = H5Dread(dsMetalYield, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfMetalYield);
     assert(status >= 0);
     status = H5Dclose(dsMetalYield);
     assert(status >= 0);
@@ -630,11 +574,11 @@ STEV_RAWDATA *stevReadSNIaTable(char *pszPath) {
     return RawData;
 }
 
-STEV_RAWDATA *stevReadLifetimeTable(char *pszPath) {
+STEV_RAWDATA* stevReadLifetimeTable(char* pszPath) {
     hid_t fileID, dataspace;
     herr_t status;
 
-    STEV_RAWDATA *RawData = (STEV_RAWDATA *) malloc(sizeof(STEV_RAWDATA));
+    STEV_RAWDATA* RawData = (STEV_RAWDATA*)malloc(sizeof(STEV_RAWDATA));
     assert(RawData != NULL);
 
     fileID = H5Fopen(pszPath, H5F_ACC_RDONLY, H5P_DEFAULT);
@@ -656,21 +600,19 @@ STEV_RAWDATA *stevReadLifetimeTable(char *pszPath) {
     status = H5Sclose(dataspace);
     assert(status >= 0);
 
-    RawData->pfMetallicity = (float *) malloc(RawData->nZs * sizeof(float));
+    RawData->pfMetallicity = (float*)malloc(RawData->nZs * sizeof(float));
     assert(RawData->pfMetallicity != NULL);
-    RawData->pfInitialMass = (float *) malloc(RawData->nMasses * sizeof(float));
+    RawData->pfInitialMass = (float*)malloc(RawData->nMasses * sizeof(float));
     assert(RawData->pfInitialMass != NULL);
-    RawData->pfLifetime = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
+    RawData->pfLifetime = (float*)malloc(RawData->nZs * RawData->nMasses * sizeof(float));
     assert(RawData->pfLifetime != NULL);
 
-    status = H5Dread(dsMetal, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     RawData->pfMetallicity);
+    status = H5Dread(dsMetal, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfMetallicity);
     assert(status >= 0);
     status = H5Dclose(dsMetal);
     assert(status >= 0);
 
-    status = H5Dread(dsMass, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     RawData->pfInitialMass);
+    status = H5Dread(dsMass, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfInitialMass);
     assert(status >= 0);
     status = H5Dclose(dsMass);
     assert(status >= 0);
@@ -686,8 +628,7 @@ STEV_RAWDATA *stevReadLifetimeTable(char *pszPath) {
     assert(dimSize[1] == RawData->nMasses);
     status = H5Sclose(dataspace);
     assert(status >= 0);
-    status = H5Dread(dsLifetime, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     RawData->pfLifetime);
+    status = H5Dread(dsLifetime, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfLifetime);
     assert(status >= 0);
     status = H5Dclose(dsLifetime);
     assert(status >= 0);
@@ -698,7 +639,7 @@ STEV_RAWDATA *stevReadLifetimeTable(char *pszPath) {
     return RawData;
 }
 
-void stevFreeTable(STEV_RAWDATA *RawData) {
+void stevFreeTable(STEV_RAWDATA* RawData) {
     free(RawData->pfMetallicity);
     free(RawData->pfInitialMass);
     free(RawData->pfYield);
@@ -707,20 +648,20 @@ void stevFreeTable(STEV_RAWDATA *RawData) {
     free(RawData);
 }
 
-void stevFreeSNIaTable(STEV_RAWDATA *RawData) {
+void stevFreeSNIaTable(STEV_RAWDATA* RawData) {
     free(RawData->pfMetalYield);
     free(RawData->pfEjectedMass);
     free(RawData);
 }
 
-void stevFreeLifetimeTable(STEV_RAWDATA *RawData) {
+void stevFreeLifetimeTable(STEV_RAWDATA* RawData) {
     free(RawData->pfMetallicity);
     free(RawData->pfInitialMass);
     free(RawData->pfLifetime);
     free(RawData);
 }
 
-float stevExponentialNumSNIa(SMF *smf, decorators::STAR &star, float fInitialTime, float fFinalTime) {
+float stevExponentialNumSNIa(SMF* smf, decorators::STAR& star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
         return 0.0f;
     }
@@ -728,12 +669,10 @@ float stevExponentialNumSNIa(SMF *smf, decorators::STAR &star, float fInitialTim
         fInitialTime = star.fSNIaOnsetTime;
     }
 
-    return (float)smf->dSNIaNorm *
-           (expf(-(fInitialTime / (float)smf->dSNIaScale)) -
-            expf(-(fFinalTime / (float)smf->dSNIaScale)));
+    return (float)smf->dSNIaNorm * (expf(-(fInitialTime / (float)smf->dSNIaScale)) - expf(-(fFinalTime / (float)smf->dSNIaScale)));
 }
 
-float stevPowerlawNumSNIa(SMF *smf, decorators::STAR &star, float fInitialTime, float fFinalTime) {
+float stevPowerlawNumSNIa(SMF* smf, decorators::STAR& star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
         return 0.0f;
     }
@@ -741,9 +680,7 @@ float stevPowerlawNumSNIa(SMF *smf, decorators::STAR &star, float fInitialTime, 
         fInitialTime = star.fSNIaOnsetTime;
     }
 
-    return (float)smf->dSNIaNorm *
-           (powf(fFinalTime, (float)smf->dSNIaScale + 1.0f) -
-            powf(fInitialTime, (float)smf->dSNIaScale + 1.0f));
+    return (float)smf->dSNIaNorm * (powf(fFinalTime, (float)smf->dSNIaScale + 1.0f) - powf(fInitialTime, (float)smf->dSNIaScale + 1.0f));
 }
 
-#endif  /* STELLAR_EVOLUTION */
+#endif /* STELLAR_EVOLUTION */

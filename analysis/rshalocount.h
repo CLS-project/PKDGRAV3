@@ -19,11 +19,10 @@
 #include "io/service.h"
 
 class ServiceRsHaloCount : public ServiceFileSizes {
-public:
+  public:
     static constexpr std::string_view name = "RsHaloCount";
-    explicit ServiceRsHaloCount(PST pst)
-        : ServiceFileSizes(pst,name) {}
-    virtual uint64_t GetSize(const std::string &filename,uint64_t file_size) override;
+    explicit ServiceRsHaloCount(PST pst) : ServiceFileSizes(pst, name) {}
+    virtual uint64_t GetSize(const std::string& filename, uint64_t file_size) override;
 };
 
 #endif /* FD041C3A_4183_478E_A8E7_CA209613BB18 */

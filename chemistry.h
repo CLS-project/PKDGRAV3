@@ -12,8 +12,7 @@ enum chemical_elements {
     ELEMENT_Si,
     ELEMENT_Fe,
 
-    ELEMENT_COUNT   /* Should always be the last */
+    ELEMENT_COUNT /* Should always be the last */
 };
 
 #endif /* CHEMISTRY_HINCLUDED */
-

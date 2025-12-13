@@ -18,14 +18,14 @@
 #ifndef UNITS_HINCLUDED
 #define UNITS_HINCLUDED
 
-#define KBOLTZ  1.38e-16     /* Boltzman constant in cgs */
+#define KBOLTZ 1.38e-16      /* Boltzman constant in cgs */
 #define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
 #define MSOLG 1.99e33        /* solar mass in grams */
 #define GCGS 6.67e-8         /* G in cgs */
 #define KPCCM 3.085678e21    /* kiloparsec in centimeters */
 #define SIGMAT 6.6524e-25    /* Thomson cross-section (cm^2) */
 #define LIGHTSPEED 2.9979e10 /* Speed of light cm/s */
-#define SECONDSPERYEAR   31557600.
+#define SECONDSPERYEAR 31557600.
 
 class pkd_parameters;
 struct UNITS {
@@ -40,7 +40,7 @@ struct UNITS {
     double dKmPerSecUnit;
     double dGasConst;
     UNITS() = default;
-    UNITS(pkd_parameters &parameters,double h);
+    UNITS(pkd_parameters& parameters, double h);
 };
 
 #endif

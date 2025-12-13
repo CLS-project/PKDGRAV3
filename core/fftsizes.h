@@ -17,19 +17,19 @@
 #include "TraversePST.h"
 
 class ServiceFftSizes : public TraverseCombinePST {
-public:
+  public:
     static constexpr std::string_view name = "FftSizes";
     struct input {
-        int nx,ny,nz;
+        int nx, ny, nz;
     };
     struct output {
         uint64_t nMaxLocal;
         int nMaxZ;
         int nMaxY;
     };
-    explicit ServiceFftSizes(PST pst)
-        : TraverseCombinePST(pst,name,sizeof(input),sizeof(output)) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
-    virtual int Combine(void *vout,void *vout2);
+    explicit ServiceFftSizes(PST pst) : TraverseCombinePST(pst, name, sizeof(input), sizeof(output)) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
+    virtual int Combine(void* vout, void* vout2);
 };

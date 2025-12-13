@@ -17,12 +17,11 @@
 #include "TraversePST.h"
 
 class ServiceFreeStore : public TraverseCount<uint64_t> {
-public:
+  public:
     static constexpr std::string_view name = "FreeStore";
     typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,name) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-};
+    explicit ServiceFreeStore(PST pst) : TraverseCount(pst, name) {}
 
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+};

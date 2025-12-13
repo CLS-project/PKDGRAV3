@@ -23,10 +23,9 @@
  ** CSM Object instance
 \**********************************************************************/
 typedef struct {
-    PyObject_HEAD
-    CSM csm;
+    PyObject_HEAD CSM csm;
 } CSMINSTANCE;
 #ifdef __cplusplus
-    extern "C"
+extern "C"
 #endif
-PyTypeObject csmType;
+    PyTypeObject csmType;

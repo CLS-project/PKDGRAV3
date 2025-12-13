@@ -21,41 +21,46 @@ using std::ios_base;
 namespace rs {
 #include "rockstar/io/io_internal.h"
 #include "rockstar/halo.h"
-}
+} // namespace rs
 
-void ServiceRsHaloLoadIds::Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
-    pst->plcl->pkd->RsHaloIdRead(iElement,filename,iBeg,iEnd);
+void ServiceRsHaloLoadIds::Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
+    pst->plcl->pkd->RsHaloIdRead(iElement, filename, iBeg, iEnd);
 }
-void ServiceRsHaloLoadIds::start(PST pst,uint64_t nElements,void *vin,int nIn) {
-    auto in = static_cast<input *>(vin);
-    pst->plcl->pkd->RsHaloIdStart(nElements,in->bAppend);
+void ServiceRsHaloLoadIds::start(PST pst, uint64_t nElements, void* vin, int nIn) {
+    auto in = static_cast<input*>(vin);
+    pst->plcl->pkd->RsHaloIdStart(nElements, in->bAppend);
 }
-void ServiceRsHaloLoadIds::finish(PST pst,uint64_t nElements,void *vin,int nIn) {
+void ServiceRsHaloLoadIds::finish(PST pst, uint64_t nElements, void* vin, int nIn) {
     pst->plcl->pkd->RsHaloIdFinish(nElements);
 }
-void pkdContext::RsHaloIdStart(uint64_t nElements,bool bAppend)  {
+void pkdContext::RsHaloIdStart(uint64_t nElements, bool bAppend) {
     if (!bAppend) nRsElements = 0;
 }
-void pkdContext::RsHaloIdFinish(uint64_t nElements) { }
-void pkdContext::RsHaloIdRead(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
+void pkdContext::RsHaloIdFinish(uint64_t nElements) {
+}
+void pkdContext::RsHaloIdRead(uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
     auto ids = Ephemeral<uint64_t>();
-    ifstream fhalo(filename,ios_base::in | ios_base::binary);                   assert(fhalo.good());
-    ifstream fpart(filename,ios_base::in | ios_base::binary);                   assert(fpart.good());
+    ifstream fhalo(filename, ios_base::in | ios_base::binary);
+    assert(fhalo.good());
+    ifstream fpart(filename, ios_base::in | ios_base::binary);
+    assert(fpart.good());
 
     // Read the header, then skip to the first halo that we are supposed to read
     rs::binary_output_header hdr;
-    fhalo.read(reinterpret_cast<ifstream::char_type *>(&hdr),sizeof(hdr));      assert(fhalo.good());
+    fhalo.read(reinterpret_cast<ifstream::char_type*>(&hdr), sizeof(hdr));
+    assert(fhalo.good());
     assert(iEnd <= hdr.num_halos);
-    fhalo.seekg(iBeg * sizeof(rs::halo),ios_base::cur);
+    fhalo.seekg(iBeg * sizeof(rs::halo), ios_base::cur);
 
     auto base = sizeof(rs::binary_output_header) + hdr.num_halos * sizeof(rs::halo);
 
-    for (auto i=iBeg; i<iEnd; ++i) {
+    for (auto i = iBeg; i < iEnd; ++i) {
         rs::halo h;
         // Read the halo, then seek to the correct particle and read it
-        fhalo.read(reinterpret_cast<ifstream::char_type *>(&h),sizeof(h));      assert(fhalo.good());
-        fpart.seekg(base + h.p_start*sizeof(int64_t));
-        fpart.read(reinterpret_cast<ifstream::char_type *>(&ids[nRsElements]),sizeof(ids[nRsElements]));
+        fhalo.read(reinterpret_cast<ifstream::char_type*>(&h), sizeof(h));
+        assert(fhalo.good());
+        fpart.seekg(base + h.p_start * sizeof(int64_t));
+        fpart.read(reinterpret_cast<ifstream::char_type*>(&ids[nRsElements]), sizeof(ids[nRsElements]));
         ++nRsElements;
         assert(fhalo.good());
     }

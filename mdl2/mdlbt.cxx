@@ -10,15 +10,15 @@
 #include <condition_variable>
 #include <sys/wait.h>
 #if defined(USE_CPPTRACE)
-#include <cpptrace/cpptrace.hpp>
+    #include <cpptrace/cpptrace.hpp>
 #elif defined(USE_ELFUTILS)
-#include <elfutils/libdwfl.h>
-#include <boost/core/demangle.hpp>
+    #include <elfutils/libdwfl.h>
+    #include <boost/core/demangle.hpp>
 
 struct DebugInfoSession {
     Dwfl_Callbacks callbacks = {};
-    char *debuginfo_path = nullptr;
-    Dwfl *dwfl = nullptr;
+    char* debuginfo_path = nullptr;
+    Dwfl* dwfl = nullptr;
 
     DebugInfoSession() {
         callbacks.find_elf = dwfl_linux_proc_find_elf;
@@ -36,51 +36,44 @@ struct DebugInfoSession {
         static_cast<void>(r);
     }
 
-    ~DebugInfoSession() {
-        dwfl_end(dwfl);
-    }
+    ~DebugInfoSession() { dwfl_end(dwfl); }
 
-    DebugInfoSession(DebugInfoSession const &) = delete;
-    DebugInfoSession &operator=(DebugInfoSession const &) = delete;
+    DebugInfoSession(DebugInfoSession const&) = delete;
+    DebugInfoSession& operator=(DebugInfoSession const&) = delete;
 };
 
 struct DebugInfo {
-    void *ip;
+    void* ip;
     std::string function;
-    char const *file;
+    char const* file;
     int line;
 
-    DebugInfo(DebugInfoSession const &dis, void *ip)
-        : ip(ip)
-        , file()
-        , line(-1) {
+    DebugInfo(DebugInfoSession const& dis, void* ip) : ip(ip), file(), line(-1) {
         // Get function name.
         uintptr_t ip2 = reinterpret_cast<uintptr_t>(ip);
-        Dwfl_Module *module = dwfl_addrmodule(dis.dwfl, ip2);
-        char const *name = dwfl_module_addrname(module, ip2);
+        Dwfl_Module* module = dwfl_addrmodule(dis.dwfl, ip2);
+        char const* name = dwfl_module_addrname(module, ip2);
         function = name ? boost::core::demangle(name) : "<unknown>";
 
         // Get source filename and line number.
-        if (Dwfl_Line *dwfl_line = dwfl_module_getsrc(module, ip2)) {
+        if (Dwfl_Line* dwfl_line = dwfl_module_getsrc(module, ip2)) {
             Dwarf_Addr addr;
             file = dwfl_lineinfo(dwfl_line, &addr, &line, nullptr, nullptr, nullptr);
         }
         else {
             Dwarf_Addr bias = 0;
-            if (Dwarf *dwarf = dwfl_module_getdwarf(module, &bias)) {
+            if (Dwarf* dwarf = dwfl_module_getdwarf(module, &bias)) {
                 const uintptr_t adjusted = ip2 - bias;
                 size_t headerSize = 0;
                 Dwarf_Off nextOffset = 0;
-                for (Dwarf_Off offset = 0;
-                dwarf_nextcu(dwarf, offset, &nextOffset, &headerSize, nullptr, nullptr, nullptr) == 0;
-                        offset = nextOffset) {
+                for (Dwarf_Off offset = 0; dwarf_nextcu(dwarf, offset, &nextOffset, &headerSize, nullptr, nullptr, nullptr) == 0; offset = nextOffset) {
                     Dwarf_Die cudieMemory;
-                    Dwarf_Die *cudie = dwarf_offdie(dwarf, offset + headerSize, &cudieMemory);
+                    Dwarf_Die* cudie = dwarf_offdie(dwarf, offset + headerSize, &cudieMemory);
                     if (!cudie || !dwarf_haspc(cudie, adjusted)) continue;
-                    if (Dwarf_Line *lineinfo = dwarf_getsrc_die(cudie, adjusted)) {
+                    if (Dwarf_Line* lineinfo = dwarf_getsrc_die(cudie, adjusted)) {
                         file = dwarf_linesrc(lineinfo, nullptr, nullptr);
                         dwarf_lineno(lineinfo, &line);
-                        //dwarf_linecol(lineinfo, &column);
+                        // dwarf_linecol(lineinfo, &column);
                     }
                     break;
                 }
@@ -89,10 +82,9 @@ struct DebugInfo {
     }
 };
 
-std::ostream &operator<<(std::ostream &s, DebugInfo const &di) {
+std::ostream& operator<<(std::ostream& s, DebugInfo const& di) {
     s << di.ip << ' ' << di.function;
-    if (di.file)
-        s << " at " << di.file << ':' << di.line;
+    if (di.file) s << " at " << di.file << ':' << di.line;
     return s;
 }
 
@@ -111,9 +103,9 @@ static std::condition_variable backgrace_done_cv;
 // If we do not have cpptrace, we will use the backtrace_stack array.
 constexpr std::size_t backtrace_N_MAX = 100;
 #ifdef USE_CPPTRACE
-    static cpptrace::frame_ptr backtrace_frames[backtrace_N_MAX];
+static cpptrace::frame_ptr backtrace_frames[backtrace_N_MAX];
 #endif
-static void *backtrace_stack[backtrace_N_MAX]; // Used for the backtrace() call
+static void* backtrace_stack[backtrace_N_MAX]; // Used for the backtrace() call
 static std::size_t backtrace_count = 0;
 
 // Here we register the function that will generate a backtrace when an
@@ -148,7 +140,7 @@ void mdlbt::ignore_SIGBUS() {
     if (sigaction(SIGBUS, &sa, NULL) == -1) abort();
 }
 
-void *mdlbt::BacktraceThread() {
+void* mdlbt::BacktraceThread() {
     while (true) {
         std::unique_lock<std::mutex> lock(backtrace_mutex);
 
@@ -159,7 +151,7 @@ void *mdlbt::BacktraceThread() {
         // Simulate processing the backtrace-filled buffer
 #ifdef USE_CPPTRACE
         cpptrace::raw_trace trace;
-        for (auto i=0; i<backtrace_count; i++) {
+        for (auto i = 0; i < backtrace_count; i++) {
             trace.frames.push_back(backtrace_frames[i]);
         }
         trace.resolve().print_with_snippets();
@@ -190,19 +182,17 @@ void mdlbt::terminate_handler() {
     std::_Exit(EXIT_FAILURE);
 }
 
-void mdlbt::signal_sigbus(int signo, siginfo_t *si, void *unused) {
+void mdlbt::signal_sigbus(int signo, siginfo_t* si, void* unused) {
     std::unique_lock<std::mutex> lck(backtrace_mutex);
     char nodeName[200];
 
-    if (gethostname(nodeName, sizeof(nodeName)))
-        nodeName[0] = 0;
-    else
-        nodeName[sizeof(nodeName) - 1] = 0;
+    if (gethostname(nodeName, sizeof(nodeName))) nodeName[0] = 0;
+    else nodeName[sizeof(nodeName) - 1] = 0;
 
     std::cerr << "SIGNAL " << signo << "." << si->si_code << " at " << si->si_addr << " on " << nodeName << '\n';
 }
 
-void mdlbt::signal_handler(int signo, siginfo_t *si, void *context) {
+void mdlbt::signal_handler(int signo, siginfo_t* si, void* context) {
     std::unique_lock<std::mutex> lock(backtrace_mutex); // One thread at a time
     std::cerr << "SIGNAL " << signo << " at " << si->si_addr << '\n';
 #ifdef USE_CPPTRACE
@@ -214,60 +204,60 @@ void mdlbt::signal_handler(int signo, siginfo_t *si, void *context) {
         backtrace_count = ::backtrace(backtrace_stack, backtrace_N_MAX);
         if (backtrace_count > 0) {
             backtrace_count -= 1; // Don't report ourself
-            for (auto i=0; i<backtrace_count; i++) {
-                backtrace_stack[i] = backtrace_stack[i+1];
+            for (auto i = 0; i < backtrace_count; i++) {
+                backtrace_stack[i] = backtrace_stack[i + 1];
             }
         }
 #ifdef USE_CPPTRACE
-        for (auto i=0; i<backtrace_count; i++) {
+        for (auto i = 0; i < backtrace_count; i++) {
             backtrace_frames[i] = (cpptrace::frame_ptr)backtrace_stack[i] - 1;
         }
 #endif
     }
-    if (backtrace_count>0) {
+    if (backtrace_count > 0) {
         backtrace_ready_cv.notify_one();
 
         // Wait for the processing thread to finish processing
-        backgrace_done_cv.wait(lock, [] { return backtrace_count==0; });
+        backgrace_done_cv.wait(lock, [] { return backtrace_count == 0; });
     }
 
     std::_Exit(EXIT_FAILURE);
 }
 
-void mdlbt::show_backtrace_with_snippets(int max_frames,int skip_frames) {
+void mdlbt::show_backtrace_with_snippets(int max_frames, int skip_frames) {
 #if defined(USE_CPPTRACE)
-    cpptrace::generate_trace(skip_frames+1,max_frames).print_with_snippets();
+    cpptrace::generate_trace(skip_frames + 1, max_frames).print_with_snippets();
 #else
-    show_backtrace(max_frames,skip_frames);
+    show_backtrace(max_frames, skip_frames);
 #endif
 }
-void mdlbt::show_backtrace(int max_frames,int skip_frames) {
+void mdlbt::show_backtrace(int max_frames, int skip_frames) {
 #ifdef USE_BT
     ++skip_frames; // Don't report ourself
-#if defined(USE_CPPTRACE)
-    cpptrace::generate_trace(skip_frames,max_frames).print();
-#else
-    void *stack[512];
+    #if defined(USE_CPPTRACE)
+    cpptrace::generate_trace(skip_frames, max_frames).print();
+    #else
+    void* stack[512];
     int stack_size = ::backtrace(stack, sizeof stack / sizeof *stack);
     if (stack_size > max_frames) stack_size = max_frames;
-    print_backtrace(stack+skip_frames, stack_size);
+    print_backtrace(stack + skip_frames, stack_size);
 }
 
-void mdlbt::print_backtrace(void *stack[], int stack_size) {
+void mdlbt::print_backtrace(void* stack[], int stack_size) {
     std::cerr << "Stacktrace of " << stack_size << " frames:\n";
-#ifdef USE_ELFUTILS
+        #ifdef USE_ELFUTILS
     DebugInfoSession dis;
     for (int i = skip_frames; i < stack_size; ++i) {
         std::cerr << i << ": " << DebugInfo(dis, stack[i]) << '\n';
     }
-#else
+        #else
     auto functions = backtrace_symbols(stack, stack_size);
-    for (int i=0; i < stack_size; i++) {
+    for (int i = 0; i < stack_size; i++) {
         std::cerr << i << ":" << functions[i] << '\n';
     }
     free(functions);
-#endif
-#endif
+        #endif
+    #endif
 #endif
     std::cerr.flush();
 }

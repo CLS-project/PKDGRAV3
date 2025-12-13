@@ -21,13 +21,13 @@
 #include "io/fio.h"
 
 class ServiceRemoveDeleted : public ServiceCountSpecies {
-public:
+  public:
     static constexpr std::string_view name = "RemoveDeleted";
     using ServiceCountSpecies::input;
     using ServiceCountSpecies::output;
-    explicit ServiceRemoveDeleted(PST pst, std::string_view service_name=name, int nInBytes=0)
-        : ServiceCountSpecies(pst,service_name,nInBytes) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceRemoveDeleted(PST pst, std::string_view service_name = name, int nInBytes = 0) : ServiceCountSpecies(pst, service_name, nInBytes) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };
 #endif

@@ -17,15 +17,15 @@
 #include "TraversePST.h"
 
 class ServiceDistribRoot : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "DistribRoot";
     struct input {
         double r[3];
         MOMC momc;
     };
     typedef void output;
-    explicit ServiceDistribRoot(PST pst)
-        : TraversePST(pst,name,sizeof(input)) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceDistribRoot(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };

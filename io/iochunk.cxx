@@ -30,46 +30,46 @@
 #include "iochunk.h"
 #include "iomodule.h"
 
-void io_chunk_read(const char *filename, void *buffer, uint64_t nBytes, uint64_t iOffset) {
-    constexpr uint64_t chunk = 64*1024*1024; // Number of bytes to read at a time
+void io_chunk_read(const char* filename, void* buffer, uint64_t nBytes, uint64_t iOffset) {
+    constexpr uint64_t chunk = 64 * 1024 * 1024; // Number of bytes to read at a time
     asyncFileInfo info;
-    io_init(&info, 1, chunk, IO_AIO|IO_LIBAIO);
-    auto fd = io_open(&info,filename);
-    if (fd<0) {
+    io_init(&info, 1, chunk, IO_AIO | IO_LIBAIO);
+    auto fd = io_open(&info, filename);
+    if (fd < 0) {
         perror(filename);
         abort();
     }
-    io_read(&info,buffer,nBytes,iOffset);
+    io_read(&info, buffer, nBytes, iOffset);
     io_close(&info);
     io_free(&info);
 }
 
-void io_chunk_write(const char *filename, const void *buffer, uint64_t nBytes, bool bAppend) {
-    auto fd = open(filename,O_WRONLY | (bAppend?O_APPEND:O_CREAT | O_TRUNC),0666);
-    if (fd<0) {
+void io_chunk_write(const char* filename, const void* buffer, uint64_t nBytes, bool bAppend) {
+    auto fd = open(filename, O_WRONLY | (bAppend ? O_APPEND : O_CREAT | O_TRUNC), 0666);
+    if (fd < 0) {
         perror(filename);
         abort();
     }
 
     // Lock the file to ensure only this process writes to it at a time
     struct flock lock;
-    lock.l_type = F_WRLCK;  // Write lock
-    lock.l_whence = SEEK_SET; // Lock from the beginning of the file
-    lock.l_start = 0;         // Start at the beginning
-    lock.l_len = 0;           // Lock the entire file
+    lock.l_type = F_WRLCK;                  // Write lock
+    lock.l_whence = SEEK_SET;               // Lock from the beginning of the file
+    lock.l_start = 0;                       // Start at the beginning
+    lock.l_len = 0;                         // Lock the entire file
     if (fcntl(fd, F_SETLKW, &lock) == -1) { // Wait for the lock
         // perror("Error locking file");
         // close(fd);
         // abort();
     }
 
-    constexpr uint64_t chunk = 1024*1024; // Number of bytes to read at a time
-    auto p = static_cast<const char *>(buffer);
-    for (auto i=0; i<nBytes; i+=chunk) {
-        auto iSize = std::min(chunk,nBytes-i);
-        auto nWrote = write(fd,p,iSize);
+    constexpr uint64_t chunk = 1024 * 1024; // Number of bytes to read at a time
+    auto p = static_cast<const char*>(buffer);
+    for (auto i = 0; i < nBytes; i += chunk) {
+        auto iSize = std::min(chunk, nBytes - i);
+        auto nWrote = write(fd, p, iSize);
         if (nWrote != iSize) {
-            fprintf(stderr,"Short write: ");
+            fprintf(stderr, "Short write: ");
             perror(filename);
             abort();
         }
@@ -77,7 +77,7 @@ void io_chunk_write(const char *filename, const void *buffer, uint64_t nBytes, b
     }
 
     // Unlock the file
-    lock.l_type = F_UNLCK;  // Unlock the file
+    lock.l_type = F_UNLCK; // Unlock the file
     if (fcntl(fd, F_SETLK, &lock) == -1) {
         // perror("Error unlocking file");
         // close(fd);

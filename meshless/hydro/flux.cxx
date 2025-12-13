@@ -3,24 +3,24 @@
 #include "eEOS/eEOS.h"
 #include "hydro/limiters.h"
 #include "riemann.h"
-using blitz::TinyVector;
 using blitz::dot;
+using blitz::TinyVector;
 
-void MSR::MeshlessFluxes(double dTime,double dDelta) {
+void MSR::MeshlessFluxes(double dTime, double dDelta) {
     double dsec;
     printf("Computing fluxes... ");
     TimerStart(TIMER_FLUXES);
 #ifdef OPTIM_SMOOTH_NODE
-#ifdef OPTIM_AVOID_IS_ACTIVE
+    #ifdef OPTIM_AVOID_IS_ACTIVE
     SelActives();
-#endif
-#ifdef OPTIM_FLUX_VEC
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX_VEC,1);
-#else
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX,1);
-#endif
+    #endif
+    #ifdef OPTIM_FLUX_VEC
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX_VEC, 1);
+    #else
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX, 1);
+    #endif
 #else // no OPTIM_SMOOTH_NODE
-    ReSmooth(dTime, dDelta, SMX_HYDRO_FLUX,1);
+    ReSmooth(dTime, dDelta, SMX_HYDRO_FLUX, 1);
 #endif
 
     TimerStop(TIMER_FLUXES);
@@ -28,13 +28,13 @@ void MSR::MeshlessFluxes(double dTime,double dDelta) {
     printf("took %.5f seconds\n", dsec);
 }
 
-void SmoothHelperHydroFluxes::pack(void *dst, const void *src) {
-    auto p1 = static_cast<pack_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperHydroFluxes::pack(void* dst, const void* src) {
+    auto p1 = static_cast<pack_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
     p1->iClass = p2.get_class();
     if (p2.is_gas()) {
-        const auto &sph = p2.sph();
+        const auto& sph = p2.sph();
 
         p1->position = p2.position();
         p1->velocity = p2.velocity();
@@ -58,15 +58,15 @@ void SmoothHelperHydroFluxes::pack(void *dst, const void *src) {
     }
 }
 
-void SmoothHelperHydroFluxes::unpack(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const pack_type *>(src);
+void SmoothHelperHydroFluxes::unpack(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const pack_type*>(src);
 
     p1.set_class(p2->iClass);
     if (p1.is_gas()) {
         p1.set_adj_decorator();
 
-        auto &sph = p1.sph();
+        auto& sph = p1.sph();
 
         p1.set_position(p2->position);
         p1.velocity() = p2->velocity;
@@ -94,15 +94,15 @@ void SmoothHelperHydroFluxes::unpack(void *dst, const void *src, const void *key
  * during the hydro loop. They will be merged with the actual particle
  * information in combHydroFluxes
  */
-void SmoothHelperHydroFluxes::init(void *dst) {
-    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+void SmoothHelperHydroFluxes::init(void* dst) {
+    auto p = pkd->particles[static_cast<PARTICLE*>(dst)];
     // For the init*Cached and comb functions we still have to explicitly
     // check if we are handling gas particles even ifdef OPTIM_REORDER_IN_NODES
     // because these operations are done in a cache-line basis, and a line may
     // contain other particles that are not of interest!
     if (p.is_gas()) {
         // assert((int)((char*)p.decorator_field()-(char*)dst) == pkd->particles.ParticleSize());
-        auto &sph = p.sph();
+        auto& sph = p.sph();
 
         sph.Frho = 0.0;
         sph.Fmom = 0.0;
@@ -111,19 +111,19 @@ void SmoothHelperHydroFluxes::init(void *dst) {
         sph.E = 0.0;
         sph.Uint = 0.0;
         if (p.have_mfv()) {
-            auto &mfv = p.mfv();
+            auto& mfv = p.mfv();
             mfv.drDotFrho = 0.0;
             p.set_mass(0.0);
         }
     }
 }
 
-void SmoothHelperHydroFluxes::flush(void *dst, const void *src) {
-    auto p1 = static_cast<flush_type *>(dst);
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+void SmoothHelperHydroFluxes::flush(void* dst, const void* src) {
+    auto p1 = static_cast<flush_type*>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
     if (p2.is_gas()) {
-        const auto &sph = p2.sph();
+        const auto& sph = p2.sph();
         // assert((int)((char*)p2.decorator_field()-(char*)src) == pkd->particles.ParticleSize());
 
         p1->Frho = sph.Frho;
@@ -133,19 +133,19 @@ void SmoothHelperHydroFluxes::flush(void *dst, const void *src) {
         p1->E = sph.E;
         p1->Uint = sph.Uint;
         if (p2.have_mfv()) {
-            const auto &mfv = p2.mfv();
+            const auto& mfv = p2.mfv();
             p1->drDotFrho = mfv.drDotFrho;
             p1->fMass = p2.mass();
         }
     }
 }
 
-void SmoothHelperHydroFluxes::combine(void *dst, const void *src, const void *key) {
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
-    auto p2 = static_cast<const flush_type *>(src);
+void SmoothHelperHydroFluxes::combine(void* dst, const void* src, const void* key) {
+    auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
+    auto p2 = static_cast<const flush_type*>(src);
 
     if (p1.is_gas()) {
-        auto &sph = p1.sph();
+        auto& sph = p1.sph();
 
         sph.Frho += p2->Frho;
         sph.Fmom += p2->Fmom;
@@ -154,7 +154,7 @@ void SmoothHelperHydroFluxes::combine(void *dst, const void *src, const void *ke
         sph.E += p2->E;
         sph.Uint += p2->Uint;
         if (p1.have_mfv()) {
-            auto &mfv = p1.mfv();
+            auto& mfv = p1.mfv();
             mfv.drDotFrho += p2->drDotFrho;
             p1.set_mass(p1.mass() + p2->fMass);
         }
@@ -169,22 +169,44 @@ void SmoothHelperHydroFluxes::combine(void *dst, const void *src, const void *ke
  */
 enum q_data {
     q_ball,
-    q_dx, q_dy, q_dz, q_dr,
+    q_dx,
+    q_dy,
+    q_dz,
+    q_dr,
     q_rung,
     q_rho,
     q_P,
 #ifdef ENTROPY_SWITCH
     q_S,
 #endif
-    q_vx, q_vy, q_vz,
-    q_gradRhoX, q_gradRhoY, q_gradRhoZ,
-    q_gradPX, q_gradPY, q_gradPZ,
-    q_gradVxX, q_gradVxY, q_gradVxZ,
-    q_gradVyX, q_gradVyY, q_gradVyZ,
-    q_gradVzX, q_gradVzY, q_gradVzZ,
-    q_lastAccX, q_lastAccY, q_lastAccZ,
+    q_vx,
+    q_vy,
+    q_vz,
+    q_gradRhoX,
+    q_gradRhoY,
+    q_gradRhoZ,
+    q_gradPX,
+    q_gradPY,
+    q_gradPZ,
+    q_gradVxX,
+    q_gradVxY,
+    q_gradVxZ,
+    q_gradVyX,
+    q_gradVyY,
+    q_gradVyZ,
+    q_gradVzX,
+    q_gradVzY,
+    q_gradVzZ,
+    q_lastAccX,
+    q_lastAccY,
+    q_lastAccZ,
     q_lastUpdateTime,
-    q_B_XX, q_B_YY, q_B_ZZ, q_B_XY, q_B_XZ, q_B_YZ,
+    q_B_XX,
+    q_B_YY,
+    q_B_ZZ,
+    q_B_XY,
+    q_B_XZ,
+    q_B_YZ,
     q_omega,
     q_spheom,
     q_last
@@ -193,7 +215,9 @@ enum q_data {
 enum FLUX_OUT {
     out_minDt,
     out_Frho,
-    out_FmomX,out_FmomY,out_FmomZ,
+    out_FmomX,
+    out_FmomY,
+    out_FmomZ,
     out_Fene,
 #ifdef ENTROPY_SWITCH
     out_FS,
@@ -201,191 +225,153 @@ enum FLUX_OUT {
     out_last
 };
 
-template <typename dtype=dvec, typename mtype=dmask>
+template <typename dtype = dvec, typename mtype = dmask>
 class MeshlessHydroSolver {
     bool bMFV;
-public:
+
+  public:
     explicit MeshlessHydroSolver(bool bMFV) : bMFV(bMFV) {}
-private:
 
-    inline void extrapolateDensityInTime(dtype &rho, dtype rho0, dtype vx, dtype vy, dtype vz,
-                                         dtype dt, dtype gradRhoX, dtype gradRhoY, dtype gradRhoZ, dtype divv) {
-        rho -= dt*(vx*gradRhoX + vy*gradRhoY + vz*gradRhoZ + rho0*divv);
+  private:
+    inline void extrapolateDensityInTime(dtype& rho, dtype rho0, dtype vx, dtype vy, dtype vz, dtype dt, dtype gradRhoX, dtype gradRhoY, dtype gradRhoZ,
+                                         dtype divv) {
+        rho -= dt * (vx * gradRhoX + vy * gradRhoY + vz * gradRhoZ + rho0 * divv);
     }
 
-    inline void extrapolateVelocityInTime(dtype &v, dtype &vFrame, dtype divv, dtype v0, dtype dt, dtype acc,
-                                          dtype gradP, dtype rho0,
-                                          dtype a) {
+    inline void extrapolateVelocityInTime(dtype& v, dtype& vFrame, dtype divv, dtype v0, dtype dt, dtype acc, dtype gradP, dtype rho0, dtype a) {
         dtype temp;
-        temp = -(v0*divv + gradP/rho0)*dt;
-        temp += acc*dt*a;
+        temp = -(v0 * divv + gradP / rho0) * dt;
+        temp += acc * dt * a;
         v += temp;
-        vFrame += 0.5*temp;
+        vFrame += 0.5 * temp;
     }
 
-    inline void extrapolatePressureInTime(dtype &p, dtype dt, dtype gradPx, dtype gradPy, dtype gradPz,
-                                          dtype p0, dtype vx0, dtype vy0, dtype vz0, dtype divv, dtype dConstGamma) {
-        p -= dt*( vx0*gradPx + vy0*gradPy + vz0*gradPz  + dConstGamma*p0*divv);
+    inline void extrapolatePressureInTime(dtype& p, dtype dt, dtype gradPx, dtype gradPy, dtype gradPz, dtype p0, dtype vx0, dtype vy0, dtype vz0, dtype divv,
+                                          dtype dConstGamma) {
+        p -= dt * (vx0 * gradPx + vy0 * gradPy + vz0 * gradPz + dConstGamma * p0 * divv);
     }
 
-    inline void extrapolateStateInTime(
-        dtype &rho, dtype &vx, dtype &vy, dtype &vz, dtype &p,
-        dtype &vFx, dtype &vFy, dtype &vFz,
-        dtype rho0, dtype vx0, dtype vy0, dtype vz0, dtype p0,
-        dtype dt,
-        dtype gradRhoX, dtype gradRhoY, dtype gradRhoZ,
-        dtype gradPX, dtype gradPY, dtype gradPZ,
-        dtype accx, dtype accy, dtype accz, dtype divv,
-        dtype dConstGamma, dtype a) {
+    inline void extrapolateStateInTime(dtype& rho, dtype& vx, dtype& vy, dtype& vz, dtype& p, dtype& vFx, dtype& vFy, dtype& vFz, dtype rho0, dtype vx0,
+                                       dtype vy0, dtype vz0, dtype p0, dtype dt, dtype gradRhoX, dtype gradRhoY, dtype gradRhoZ, dtype gradPX, dtype gradPY,
+                                       dtype gradPZ, dtype accx, dtype accy, dtype accz, dtype divv, dtype dConstGamma, dtype a) {
 
-        extrapolateDensityInTime( rho, rho0, vx, vy, vz, dt,
-                                  gradRhoX, gradRhoY, gradRhoZ, divv);
+        extrapolateDensityInTime(rho, rho0, vx, vy, vz, dt, gradRhoX, gradRhoY, gradRhoZ, divv);
 
-        extrapolateVelocityInTime( vx, vFx, divv, vx0, dt, accx, gradPX, rho0, a);
-        extrapolateVelocityInTime( vy, vFy, divv, vy0, dt, accy, gradPY, rho0, a);
-        extrapolateVelocityInTime( vz, vFz, divv, vz0, dt, accz, gradPZ, rho0, a);
+        extrapolateVelocityInTime(vx, vFx, divv, vx0, dt, accx, gradPX, rho0, a);
+        extrapolateVelocityInTime(vy, vFy, divv, vy0, dt, accy, gradPY, rho0, a);
+        extrapolateVelocityInTime(vz, vFz, divv, vz0, dt, accz, gradPZ, rho0, a);
 
-        extrapolatePressureInTime( p, dt, gradPX, gradPY, gradPZ,
-                                   p0, vx0, vy0, vz0, divv, dConstGamma);
+        extrapolatePressureInTime(p, dt, gradPX, gradPY, gradPZ, p0, vx0, vy0, vz0, divv, dConstGamma);
     }
 
-    inline void extrapolateVariableInSpace(dtype &var, dtype dx,dtype dy, dtype dz,
-                                           dtype gradx, dtype grady, dtype gradz) {
-        var += dx*gradx + dy*grady + dz*gradz;
+    inline void extrapolateVariableInSpace(dtype& var, dtype dx, dtype dy, dtype dz, dtype gradx, dtype grady, dtype gradz) {
+        var += dx * gradx + dy * grady + dz * gradz;
     }
 
-    inline void extrapolateVelocityCosmology(dtype &v, dtype &vFrame, dtype v0, dtype dt, dtype H, dtype a) {
+    inline void extrapolateVelocityCosmology(dtype& v, dtype& vFrame, dtype v0, dtype dt, dtype H, dtype a) {
         dtype temp = H * dt * a * v;
         v -= temp;
-        vFrame -= 0.5*temp;
+        vFrame -= 0.5 * temp;
     }
 
-    inline void extrapolateCosmology(dtype &vx, dtype &vy, dtype &vz,
-                                     dtype &vFramex, dtype &vFramey, dtype &vFramez, dtype &p,
-                                     dtype dt, dtype vx0, dtype vy0, dtype vz0, dtype p0,
-                                     dtype dConstGamma, dtype H, dtype a) {
-        extrapolateVelocityCosmology( vx,  vFramex,  vx0,  dt,  H,  a);
-        extrapolateVelocityCosmology( vy,  vFramey,  vy0,  dt,  H,  a);
-        extrapolateVelocityCosmology( vz,  vFramez,  vz0,  dt,  H,  a);
+    inline void extrapolateCosmology(dtype& vx, dtype& vy, dtype& vz, dtype& vFramex, dtype& vFramey, dtype& vFramez, dtype& p, dtype dt, dtype vx0, dtype vy0,
+                                     dtype vz0, dtype p0, dtype dConstGamma, dtype H, dtype a) {
+        extrapolateVelocityCosmology(vx, vFramex, vx0, dt, H, a);
+        extrapolateVelocityCosmology(vy, vFramey, vy0, dt, H, a);
+        extrapolateVelocityCosmology(vz, vFramez, vz0, dt, H, a);
 
         p -= 3. * H * dt * a * (dConstGamma - 1.) * p0;
     }
 
-    inline void computeFace(dtype &modApq, std::array<dtype,3> &unit,
-                            dtype rpq,  dtype dx, dtype dy, dtype dz,
-                            dtype pH, dtype qH, dtype p_omega, dtype q_omega,
-                            dtype pBxx, dtype pBxy, dtype pBxz,
-                            dtype pByy, dtype pByz, dtype pBzz,
-                            dtype qBxx, dtype qBxy, dtype qBxz,
+    inline void computeFace(dtype& modApq, std::array<dtype, 3>& unit, dtype rpq, dtype dx, dtype dy, dtype dz, dtype pH, dtype qH, dtype p_omega,
+                            dtype q_omega, dtype pBxx, dtype pBxy, dtype pBxz, dtype pByy, dtype pByz, dtype pBzz, dtype qBxx, dtype qBxy, dtype qBxz,
                             dtype qByy, dtype qByz, dtype qBzz) {
         dtype psi;
         dtype psiTilde[3];
-        dtype Apq[3] = {0.,0.,0.};
+        dtype Apq[3] = {0., 0., 0.};
 
         // \tilde{\psi}_j (x_i)
-        psi  = -cubicSplineKernel(rpq, pH)/p_omega;
-        psiTilde[0] = (pBxx*dx + pBxy*dy + pBxz*dz)*psi;
-        psiTilde[1] = (pBxy*dx + pByy*dy + pByz*dz)*psi;
-        psiTilde[2] = (pBxz*dx + pByz*dy + pBzz*dz)*psi;
-        for (auto j=0; j<3; j++) {
-            Apq[j] += psiTilde[j]/p_omega;
+        psi = -cubicSplineKernel(rpq, pH) / p_omega;
+        psiTilde[0] = (pBxx * dx + pBxy * dy + pBxz * dz) * psi;
+        psiTilde[1] = (pBxy * dx + pByy * dy + pByz * dz) * psi;
+        psiTilde[2] = (pBxz * dx + pByz * dy + pBzz * dz) * psi;
+        for (auto j = 0; j < 3; j++) {
+            Apq[j] += psiTilde[j] / p_omega;
         }
 
         // \tilde{\psi}_i (x_j)
-        psi = cubicSplineKernel(rpq, qH)/q_omega;
-        psiTilde[0] = (qBxx*dx + qBxy*dy + qBxz*dz)*psi;
-        psiTilde[1] = (qBxy*dx + qByy*dy + qByz*dz)*psi;
-        psiTilde[2] = (qBxz*dx + qByz*dy + qBzz*dz)*psi;
-        for (auto j=0; j<3; j++) {
-            Apq[j] -= psiTilde[j]/q_omega;
+        psi = cubicSplineKernel(rpq, qH) / q_omega;
+        psiTilde[0] = (qBxx * dx + qBxy * dy + qBxz * dz) * psi;
+        psiTilde[1] = (qBxy * dx + qByy * dy + qByz * dz) * psi;
+        psiTilde[2] = (qBxz * dx + qByz * dy + qBzz * dz) * psi;
+        for (auto j = 0; j < 3; j++) {
+            Apq[j] -= psiTilde[j] / q_omega;
         }
 
         modApq = 0.0;
-        for (auto j=0; j<3; j++) {
-            modApq += Apq[j]*Apq[j];
+        for (auto j = 0; j < 3; j++) {
+            modApq += Apq[j] * Apq[j];
         }
         modApq = sqrt(modApq);
-        for (auto j=0; j<3; j++) {
-            unit[j] = Apq[j]/modApq;
+        for (auto j = 0; j < 3; j++) {
+            unit[j] = Apq[j] / modApq;
         }
         // Avoid NaNs when the face has zero area
         dtype zero = 0.;
-        mtype cond = modApq==zero;
+        mtype cond = modApq == zero;
         if (movemask(cond)) {
-            for (auto j=0; j<3; j++)
-                unit[j] = mask_mov(unit[j], cond, zero);
+            for (auto j = 0; j < 3; j++) unit[j] = mask_mov(unit[j], cond, zero);
         }
     }
 
-    inline void low_limit(dtype &var, dtype def, dtype min) {
-        mtype cond = var<min;
+    inline void low_limit(dtype& var, dtype def, dtype min) {
+        mtype cond = var < min;
         var = mask_mov(var, cond, def);
     }
 
-    inline void doSinglePPFlux(const mtype mask, dtype &F_rho, std::array<dtype,3> &F_v, dtype &F_p, dtype &F_S, dtype &minDt,
-                               bool bComove, dtype dTime, dtype dDelta, dtype a, dtype H, dtype dConstGamma,
-                               dtype rpq, dtype dx, dtype dy, dtype dz,
-                               dtype pBall, dtype pLastUpdateTime, dtype pDt,
-                               dtype pOmega, dtype pSPHEoM,
-                               dtype pBxx, dtype pBxy, dtype pBxz,
-                               dtype pByy, dtype pByz, dtype pBzz,
-                               dtype pDensity, dtype pVpredx, dtype pVpredy, dtype pVpredz, dtype pP, dtype pS,
-                               dtype pGradRhoX, dtype pGradRhoY, dtype pGradRhoZ,
-                               dtype pGradPX, dtype pGradPY, dtype pGradPZ,
-                               dtype pGradVxX, dtype pGradVxY, dtype pGradVxZ,
-                               dtype pGradVyX, dtype pGradVyY, dtype pGradVyZ,
-                               dtype pGradVzX, dtype pGradVzY, dtype pGradVzZ,
-                               dtype pLastAccX, dtype pLastAccY, dtype pLastAccZ,
-                               dtype qBall, dtype qLastUpdateTime, dtype qDt,
-                               dtype qOmega, dtype qSPHEoM,
-                               dtype qBxx, dtype qBxy, dtype qBxz,
-                               dtype qByy, dtype qByz, dtype qBzz,
-                               dtype qDensity, dtype qVpredx, dtype qVpredy, dtype qVpredz, dtype qP, dtype qS,
-                               dtype qGradRhoX, dtype qGradRhoY, dtype qGradRhoZ,
-                               dtype qGradPX, dtype qGradPY, dtype qGradPZ,
-                               dtype qGradVxX, dtype qGradVxY, dtype qGradVxZ,
-                               dtype qGradVyX, dtype qGradVyY, dtype qGradVyZ,
-                               dtype qGradVzX, dtype qGradVzY, dtype qGradVzZ,
-                               dtype qLastAccX, dtype qLastAccY, dtype qLastAccZ,
-                               struct eEOSparam &eEOS) {
+    inline void doSinglePPFlux(const mtype mask, dtype& F_rho, std::array<dtype, 3>& F_v, dtype& F_p, dtype& F_S, dtype& minDt, bool bComove, dtype dTime,
+                               dtype dDelta, dtype a, dtype H, dtype dConstGamma, dtype rpq, dtype dx, dtype dy, dtype dz, dtype pBall, dtype pLastUpdateTime,
+                               dtype pDt, dtype pOmega, dtype pSPHEoM, dtype pBxx, dtype pBxy, dtype pBxz, dtype pByy, dtype pByz, dtype pBzz, dtype pDensity,
+                               dtype pVpredx, dtype pVpredy, dtype pVpredz, dtype pP, dtype pS, dtype pGradRhoX, dtype pGradRhoY, dtype pGradRhoZ,
+                               dtype pGradPX, dtype pGradPY, dtype pGradPZ, dtype pGradVxX, dtype pGradVxY, dtype pGradVxZ, dtype pGradVyX, dtype pGradVyY,
+                               dtype pGradVyZ, dtype pGradVzX, dtype pGradVzY, dtype pGradVzZ, dtype pLastAccX, dtype pLastAccY, dtype pLastAccZ, dtype qBall,
+                               dtype qLastUpdateTime, dtype qDt, dtype qOmega, dtype qSPHEoM, dtype qBxx, dtype qBxy, dtype qBxz, dtype qByy, dtype qByz,
+                               dtype qBzz, dtype qDensity, dtype qVpredx, dtype qVpredy, dtype qVpredz, dtype qP, dtype qS, dtype qGradRhoX, dtype qGradRhoY,
+                               dtype qGradRhoZ, dtype qGradPX, dtype qGradPY, dtype qGradPZ, dtype qGradVxX, dtype qGradVxY, dtype qGradVxZ, dtype qGradVyX,
+                               dtype qGradVyY, dtype qGradVyZ, dtype qGradVzX, dtype qGradVzY, dtype qGradVzZ, dtype qLastAccX, dtype qLastAccY,
+                               dtype qLastAccZ, struct eEOSparam& eEOS) {
 
 #ifdef FORCE_1D
-        if (dz!=0) continue;
-        if (dy!=0) continue;
+        if (dz != 0) continue;
+        if (dy != 0) continue;
 #endif
 #ifdef FORCE_2D
-        if (dz!=0) continue;
+        if (dz != 0) continue;
 #endif
 
         /* We update the conservatives variables taking the minimum timestep
          * between the particles, as in AREPO
          */
         minDt = min(pDt, qDt);
-        minDt /=  a;
+        minDt /= a;
 
-        dtype qDeltaHalf=0.0, pDeltaHalf=0.0;
-        pDeltaHalf = (dTime - pLastUpdateTime + 0.5*pDt)/a;
-        qDeltaHalf = (dTime - qLastUpdateTime + 0.5*qDt)/a;
+        dtype qDeltaHalf = 0.0, pDeltaHalf = 0.0;
+        pDeltaHalf = (dTime - pLastUpdateTime + 0.5 * pDt) / a;
+        qDeltaHalf = (dTime - qLastUpdateTime + 0.5 * qDt) / a;
 
         // DEBUG: Avoid temporal extrapolation
-        //pDeltaHalf = 0.;
-        //qDeltaHalf = 0.;
+        // pDeltaHalf = 0.;
+        // qDeltaHalf = 0.;
 
         dtype modApq;
         std::array<dtype, 3> face_unit;
-        computeFace(modApq, face_unit,
-                    rpq,   dx,  dy,  dz,
-                    pBall,  qBall,  pOmega,  qOmega,
-                    pBxx,  pBxy,  pBxz,
-                    pByy,  pByz,  pBzz,
-                    qBxx, qBxy, qBxz,
-                    qByy, qByz, qBzz);
+        computeFace(modApq, face_unit, rpq, dx, dy, dz, pBall, qBall, pOmega, qOmega, pBxx, pBxy, pBxz, pByy, pByz, pBzz, qBxx, qBxy, qBxz, qByy, qByz, qBzz);
 
         // Velocity of the quadrature mid-point
         dtype vFrame[3];
-        vFrame[0] = 0.5*(pVpredx+qVpredx);
-        vFrame[1] = 0.5*(pVpredy+qVpredy);
-        vFrame[2] = 0.5*(pVpredz+qVpredz);
+        vFrame[0] = 0.5 * (pVpredx + qVpredx);
+        vFrame[1] = 0.5 * (pVpredy + qVpredy);
+        vFrame[2] = 0.5 * (pVpredz + qVpredz);
 
         dtype pv[3], qv[3];
         // We boost to the reference of the p-q 'face'
@@ -397,14 +383,14 @@ private:
         qv[2] = qVpredz - vFrame[2];
 
         // Mid-point rule
-        dx  = -0.5*dx;
-        dy  = -0.5*dy;
-        dz  = -0.5*dz;
+        dx = -0.5 * dx;
+        dy = -0.5 * dy;
+        dz = -0.5 * dz;
 
         // DEBUG: Avoid spatial extrapolation
-        //dx = 0.0;
-        //dy = 0.0;
-        //dz = 0.0;
+        // dx = 0.0;
+        // dy = 0.0;
+        // dz = 0.0;
 
         // Divergence of the velocity field for the forward in time prediction
         dtype pdivv = (pGradVxX + pGradVyY + pGradVzZ);
@@ -422,55 +408,27 @@ private:
         L_v[2] = pv[2];
         R_v[2] = qv[2];
 
-        extrapolateStateInTime(
-            L_rho,
-            L_v[0], L_v[1], L_v[2],
-            L_p,
-            vFrame[0],  vFrame[1], vFrame[2],
-            pDensity, pv[0], pv[1], pv[2], pP,
-            pDeltaHalf,
-            pGradRhoX, pGradRhoY, pGradRhoZ,
-            pGradPX, pGradPY, pGradPZ,
-            pLastAccX, pLastAccY, pLastAccZ, pdivv,
-            dConstGamma, a);
+        extrapolateStateInTime(L_rho, L_v[0], L_v[1], L_v[2], L_p, vFrame[0], vFrame[1], vFrame[2], pDensity, pv[0], pv[1], pv[2], pP, pDeltaHalf, pGradRhoX,
+                               pGradRhoY, pGradRhoZ, pGradPX, pGradPY, pGradPZ, pLastAccX, pLastAccY, pLastAccZ, pdivv, dConstGamma, a);
 
-        extrapolateVariableInSpace( L_rho, dx,dy, dz,
-                                    pGradRhoX, pGradRhoY, pGradRhoZ);
-        extrapolateVariableInSpace( L_p, dx,dy, dz,
-                                    pGradPX, pGradPY, pGradPZ);
-        extrapolateVariableInSpace( L_v[0], dx,dy, dz,
-                                    pGradVxX, pGradVxY, pGradVxZ);
-        extrapolateVariableInSpace( L_v[1], dx,dy, dz,
-                                    pGradVyX, pGradVyY, pGradVyZ);
-        extrapolateVariableInSpace( L_v[2], dx,dy, dz,
-                                    pGradVzX, pGradVzY, pGradVzZ);
+        extrapolateVariableInSpace(L_rho, dx, dy, dz, pGradRhoX, pGradRhoY, pGradRhoZ);
+        extrapolateVariableInSpace(L_p, dx, dy, dz, pGradPX, pGradPY, pGradPZ);
+        extrapolateVariableInSpace(L_v[0], dx, dy, dz, pGradVxX, pGradVxY, pGradVxZ);
+        extrapolateVariableInSpace(L_v[1], dx, dy, dz, pGradVyX, pGradVyY, pGradVyZ);
+        extrapolateVariableInSpace(L_v[2], dx, dy, dz, pGradVzX, pGradVzY, pGradVzZ);
 
         dx = -dx;
         dy = -dy;
         dz = -dz;
 
-        extrapolateStateInTime(
-            R_rho,
-            R_v[0], R_v[1], R_v[2],
-            R_p,
-            vFrame[0],  vFrame[1], vFrame[2],
-            qDensity, qv[0], qv[1], qv[2], qP,
-            qDeltaHalf,
-            qGradRhoX, qGradRhoY, qGradRhoZ,
-            qGradPX, qGradPY, qGradPZ,
-            qLastAccX, qLastAccY, qLastAccZ, qdivv,
-            dConstGamma, a);
+        extrapolateStateInTime(R_rho, R_v[0], R_v[1], R_v[2], R_p, vFrame[0], vFrame[1], vFrame[2], qDensity, qv[0], qv[1], qv[2], qP, qDeltaHalf, qGradRhoX,
+                               qGradRhoY, qGradRhoZ, qGradPX, qGradPY, qGradPZ, qLastAccX, qLastAccY, qLastAccZ, qdivv, dConstGamma, a);
 
-        extrapolateVariableInSpace( R_rho, dx,dy, dz,
-                                    qGradRhoX, qGradRhoY, qGradRhoZ);
-        extrapolateVariableInSpace( R_p, dx,dy, dz,
-                                    qGradPX, qGradPY, qGradPZ);
-        extrapolateVariableInSpace( R_v[0], dx,dy, dz,
-                                    qGradVxX, qGradVxY, qGradVxZ);
-        extrapolateVariableInSpace( R_v[1], dx,dy, dz,
-                                    qGradVyX, qGradVyY, qGradVyZ);
-        extrapolateVariableInSpace( R_v[2], dx,dy, dz,
-                                    qGradVzX, qGradVzY, qGradVzZ);
+        extrapolateVariableInSpace(R_rho, dx, dy, dz, qGradRhoX, qGradRhoY, qGradRhoZ);
+        extrapolateVariableInSpace(R_p, dx, dy, dz, qGradPX, qGradPY, qGradPZ);
+        extrapolateVariableInSpace(R_v[0], dx, dy, dz, qGradVxX, qGradVxY, qGradVxZ);
+        extrapolateVariableInSpace(R_v[1], dx, dy, dz, qGradVyX, qGradVyY, qGradVyZ);
+        extrapolateVariableInSpace(R_v[2], dx, dy, dz, qGradVzX, qGradVzY, qGradVzZ);
 
         genericPairwiseLimiter(pDensity, qDensity, L_rho, R_rho);
         genericPairwiseLimiter(pP, qP, L_p, R_p);
@@ -479,21 +437,9 @@ private:
         genericPairwiseLimiter(pv[2], qv[2], L_v[2], R_v[2]);
 
         if (bComove) {
-            extrapolateCosmology(
-                R_v[0], R_v[1], R_v[2],
-                vFrame[0],  vFrame[1], vFrame[2],
-                R_p,
-                qDeltaHalf,
-                qv[0], qv[1], qv[2], qP,
-                dConstGamma, H, a);
+            extrapolateCosmology(R_v[0], R_v[1], R_v[2], vFrame[0], vFrame[1], vFrame[2], R_p, qDeltaHalf, qv[0], qv[1], qv[2], qP, dConstGamma, H, a);
 
-            extrapolateCosmology(
-                L_v[0], L_v[1], L_v[2],
-                vFrame[0],  vFrame[1], vFrame[2],
-                L_p,
-                pDeltaHalf,
-                pv[0], pv[1], pv[2], pP,
-                dConstGamma, H, a);
+            extrapolateCosmology(L_v[0], L_v[1], L_v[2], vFrame[0], vFrame[1], vFrame[2], L_p, pDeltaHalf, pv[0], pv[1], pv[2], pP, dConstGamma, H, a);
         }
 
         dtype zero = 0.0;
@@ -503,11 +449,9 @@ private:
         low_limit(R_p, qP, zero);
 
         if (eEOS.bDoEOS) {
-            dtype a_inv3 = 1.0/(a*a*a);
-            const dtype pLpoly =
-                polytropicPressureFloor<dtype,mtype>(a_inv3, L_rho, dConstGamma,eEOS);
-            const dtype pRpoly =
-                polytropicPressureFloor<dtype,mtype>(a_inv3, R_rho, dConstGamma,eEOS);
+            dtype a_inv3 = 1.0 / (a * a * a);
+            const dtype pLpoly = polytropicPressureFloor<dtype, mtype>(a_inv3, L_rho, dConstGamma, eEOS);
+            const dtype pRpoly = polytropicPressureFloor<dtype, mtype>(a_inv3, R_rho, dConstGamma, eEOS);
             L_p = max(L_p, pLpoly);
             R_p = max(R_p, pRpoly);
         }
@@ -524,13 +468,8 @@ private:
 
         dtype P_M, S_M;
 
-        RiemannSolverExact<dtype,mtype> riemann(dConstGamma, mask, bMFV);
-        int niter = riemann.solve(
-                        R_rho, R_p, R_v,
-                        L_rho, L_p, L_v,
-                        P_M, S_M,
-                        &F_rho, &F_p, F_v.data(),
-                        face_unit.data());
+        RiemannSolverExact<dtype, mtype> riemann(dConstGamma, mask, bMFV);
+        int niter = riemann.solve(R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, &F_rho, &F_p, F_v.data(), face_unit.data());
 
         /*
         int nan;
@@ -565,7 +504,7 @@ private:
         if (!bMFV) {
             // As we are in a truly lagrangian configuration,
             // there is no adtypetion of entropy among particles.
-            F_S=0.;
+            F_S = 0.;
         }
         else {
             /*
@@ -582,13 +521,12 @@ private:
             */
             F_S = 0.;
         }
-#endif //ENTROPY_SWITCH
+#endif // ENTROPY_SWITCH
 
-        if (!bMFV)  { // MFM
+        if (!bMFV) { // MFM
             F_rho = 0.;
             F_p = P_M * S_M;
-            for (auto j=0; j<3; j++)
-                F_v[j] = P_M * face_unit[j];
+            for (auto j = 0; j < 3; j++) F_v[j] = P_M * face_unit[j];
         }
 
         // Force 2D
@@ -601,35 +539,35 @@ private:
 #endif
 
         // Now we de-boost the fluxes following Eq. A8 Hopkins 2015
-        for (auto j=0; j<3; j++) {
+        for (auto j = 0; j < 3; j++) {
             F_p += vFrame[j] * F_v[j];
-            F_p += (0.5*vFrame[j]*vFrame[j])*F_rho;
+            F_p += (0.5 * vFrame[j] * vFrame[j]) * F_rho;
         }
 
         // Now we just multiply by the face area
         F_p *= modApq;
         F_rho *= modApq;
-        for (auto j=0; j<3; j++) {
+        for (auto j = 0; j < 3; j++) {
             F_v[j] *= modApq;
-            F_v[j] += vFrame[j]*F_rho;
+            F_v[j] += vFrame[j] * F_rho;
         }
 
 #ifdef MFM_FLUX_CORRECTION
-        if (!bMFV)  { // MFM
-            const dtype cs_p{sqrt(dConstGamma *pP/pDensity)};
-            const dtype cs_q{sqrt(dConstGamma *qP/qDensity)};
-            mtype cond{abs(S_M/min(cs_p,cs_q)) < 0.6};
+        if (!bMFV) { // MFM
+            const dtype cs_p{sqrt(dConstGamma * pP / pDensity)};
+            const dtype cs_q{sqrt(dConstGamma * qP / qDensity)};
+            mtype cond{abs(S_M / min(cs_p, cs_q)) < 0.6};
             if (movemask(cond)) {
-                const dtype dU_mfm_p = pVpredx*F_v[0] + pVpredy*F_v[1] + pVpredz*F_v[2] - F_p;
-                const dtype dU_mfm_q = F_p - qVpredx*F_v[0] - qVpredy*F_v[1] - qVpredz*F_v[2];
+                const dtype dU_mfm_p = pVpredx * F_v[0] + pVpredy * F_v[1] + pVpredz * F_v[2] - F_p;
+                const dtype dU_mfm_q = F_p - qVpredx * F_v[0] - qVpredy * F_v[1] - qVpredz * F_v[2];
 
-                const dtype dU_sph_fac = 2. * P_M * ((qVpredx-pVpredx)*dx + (qVpredy-pVpredy)*dy + (qVpredz-pVpredz)*dz) / rpq;
+                const dtype dU_sph_fac = 2. * P_M * ((qVpredx - pVpredx) * dx + (qVpredy - pVpredy) * dy + (qVpredz - pVpredz) * dz) / rpq;
                 const dtype dU_sph_p = dU_sph_fac * pSPHEoM * cubicSplineKernelDeriv(rpq, pBall) / pOmega;
                 const dtype dU_sph_q = dU_sph_fac * qSPHEoM * cubicSplineKernelDeriv(rpq, qBall) / qOmega;
 
                 mtype pIsCooler{cs_p < cs_q};
-                mtype pDoCorr{cond &pIsCooler &(dU_mfm_p < 0.0) &(dU_sph_p > dU_mfm_p)};
-                mtype qDoCorr{cond &~pIsCooler &(dU_mfm_q < 0.0) &(dU_sph_q > dU_mfm_q)};
+                mtype pDoCorr{cond & pIsCooler & (dU_mfm_p < 0.0) & (dU_sph_p > dU_mfm_p)};
+                mtype qDoCorr{cond & ~pIsCooler & (dU_mfm_q < 0.0) & (dU_sph_q > dU_mfm_q)};
 
                 F_p = mask_mov(F_p, pDoCorr, F_p + dU_mfm_p - dU_sph_p);
                 F_p = mask_mov(F_p, qDoCorr, F_p - dU_mfm_q + dU_sph_q);
@@ -662,19 +600,17 @@ private:
 
 #ifdef OPTIM_FLUX_VEC
 
-public:
-
-// Simple macro to improve readability
-#define q(X)    input_buffer[q_##X * nBuff + i]
-#define qout(X) output_buffer[out_##X * nBuff + i]
-    void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
-                      meshless::myreal *restrict input_buffer,
-                      meshless::myreal *restrict output_buffer, SMF *smf) {
+  public:
+    // Simple macro to improve readability
+    #define q(X) input_buffer[q_##X * nBuff + i]
+    #define qout(X) output_buffer[out_##X * nBuff + i]
+    void hydroRiemann(PARTICLE* pIn, float fBall, int nSmooth, int nBuff, meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
+                      SMF* smf) {
         PKD pkd = smf->pkd;
         auto P = pkd->particles[pIn];
 
-        const auto &pv = P.velocity();
-        auto &psph = P.sph();
+        const auto& pv = P.velocity();
+        auto& psph = P.sph();
 
         bool bComove = pkd->csm->val.bComove;
         dtype dTime = smf->dTime;
@@ -684,25 +620,25 @@ public:
         dtype dConstGamma = smf->dConstGamma;
 
         dtype pomega = psph.omega;
-        dtype pspheom= psph.spheom;
-        dtype pH     = P.ball();
-        dtype plast  = psph.lastUpdateTime;
-        dtype pDt    = smf->dDelta/(1<<P.rung());
-        dtype pBXX   = psph.B[XX];
-        dtype pBXY   = psph.B[XY];
-        dtype pBXZ   = psph.B[XZ];
-        dtype pBYY   = psph.B[YY];
-        dtype pBYZ   = psph.B[YZ];
-        dtype pBZZ   = psph.B[ZZ];
-        dtype pDens  = P.density();
-        dtype pVpredx= P.velocity()[0];
-        dtype pVpredy= P.velocity()[1];
-        dtype pVpredz= P.velocity()[2];
-        dtype pPres  = psph.P;
+        dtype pspheom = psph.spheom;
+        dtype pH = P.ball();
+        dtype plast = psph.lastUpdateTime;
+        dtype pDt = smf->dDelta / (1 << P.rung());
+        dtype pBXX = psph.B[XX];
+        dtype pBXY = psph.B[XY];
+        dtype pBXZ = psph.B[XZ];
+        dtype pBYY = psph.B[YY];
+        dtype pBYZ = psph.B[YZ];
+        dtype pBZZ = psph.B[ZZ];
+        dtype pDens = P.density();
+        dtype pVpredx = P.velocity()[0];
+        dtype pVpredy = P.velocity()[1];
+        dtype pVpredz = P.velocity()[2];
+        dtype pPres = psph.P;
         dtype pS;
-#ifdef ENTROPY_SWITCH
-        pS    = psph.S;
-#endif
+    #ifdef ENTROPY_SWITCH
+        pS = psph.S;
+    #endif
         dtype pgradRhox = psph.gradRho[0];
         dtype pgradRhoy = psph.gradRho[1];
         dtype pgradRhoz = psph.gradRho[2];
@@ -763,65 +699,64 @@ public:
         dtype qlastAccz;
 
         double index[dtype::width()];
-        for (auto i=0; i<dtype::width(); i++)
-            index[i] = i;
+        for (auto i = 0; i < dtype::width(); i++) index[i] = i;
         dtype index_v;
         index_v.load(index);
 
-#pragma forceinline
-        assert(nBuff>(nSmooth+dtype::width()-1));
-        for (auto i=0; i<nSmooth; i+=dtype::width()) {
+    #pragma forceinline
+        assert(nBuff > (nSmooth + dtype::width() - 1));
+        for (auto i = 0; i < nSmooth; i += dtype::width()) {
             dtype F_rho;
-            std::array<dtype,3> F_v;
+            std::array<dtype, 3> F_v;
             dtype F_P;
             dtype F_S;
             dtype minDt;
 
-            const mtype mask = index_v<(double)nSmooth;
+            const mtype mask = index_v < (double)nSmooth;
             index_v += (double)dtype::width();
 
-            qdr.load(       &q(dr));
-            qdx.load(       &q(dx));
-            qdy.load(       &q(dy));
-            qdz.load(       &q(dz));
-            qomega.load(    &q(omega));
-            qspheom.load(   &q(spheom));
+            qdr.load(&q(dr));
+            qdx.load(&q(dx));
+            qdy.load(&q(dy));
+            qdz.load(&q(dz));
+            qomega.load(&q(omega));
+            qspheom.load(&q(spheom));
             // Change name to h, not ball
-            qh.load(        &q(ball));
-            qlast.load(     &q(lastUpdateTime));
-            qDt.load(       &q(rung));
-            qBXX.load(      &q(B_XX));
-            qBXY.load(      &q(B_XY));
-            qBXZ.load(      &q(B_XZ));
-            qBYY.load(      &q(B_YY));
-            qBYZ.load(      &q(B_YZ));
-            qBZZ.load(      &q(B_ZZ));
-            qDens.load(     &q(rho));
-            qvx.load(       &q(vx));
-            qvy.load(       &q(vy));
-            qvz.load(       &q(vz));
-            qP.load(        &q(P));
-#ifdef ENTROPY_SWITCH
-            qS.load(        &q(S));
-#endif
-            qgradRhox.load( &q(gradRhoX));
-            qgradRhoy.load( &q(gradRhoY));
-            qgradRhoz.load( &q(gradRhoZ));
-            qgradPx.load(   &q(gradPX));
-            qgradPy.load(   &q(gradPY));
-            qgradPz.load(   &q(gradPZ));
-            qgradVxx.load(  &q(gradVxX));
-            qgradVxy.load(  &q(gradVxY));
-            qgradVxz.load(  &q(gradVxZ));
-            qgradVyx.load(  &q(gradVyX));
-            qgradVyy.load(  &q(gradVyY));
-            qgradVyz.load(  &q(gradVyZ));
-            qgradVzx.load(  &q(gradVzX));
-            qgradVzy.load(  &q(gradVzY));
-            qgradVzz.load(  &q(gradVzZ));
-            qlastAccx.load( &q(lastAccX));
-            qlastAccy.load( &q(lastAccY));
-            qlastAccz.load( &q(lastAccZ));
+            qh.load(&q(ball));
+            qlast.load(&q(lastUpdateTime));
+            qDt.load(&q(rung));
+            qBXX.load(&q(B_XX));
+            qBXY.load(&q(B_XY));
+            qBXZ.load(&q(B_XZ));
+            qBYY.load(&q(B_YY));
+            qBYZ.load(&q(B_YZ));
+            qBZZ.load(&q(B_ZZ));
+            qDens.load(&q(rho));
+            qvx.load(&q(vx));
+            qvy.load(&q(vy));
+            qvz.load(&q(vz));
+            qP.load(&q(P));
+    #ifdef ENTROPY_SWITCH
+            qS.load(&q(S));
+    #endif
+            qgradRhox.load(&q(gradRhoX));
+            qgradRhoy.load(&q(gradRhoY));
+            qgradRhoz.load(&q(gradRhoZ));
+            qgradPx.load(&q(gradPX));
+            qgradPy.load(&q(gradPY));
+            qgradPz.load(&q(gradPZ));
+            qgradVxx.load(&q(gradVxX));
+            qgradVxy.load(&q(gradVxY));
+            qgradVxz.load(&q(gradVxZ));
+            qgradVyx.load(&q(gradVyX));
+            qgradVyy.load(&q(gradVyY));
+            qgradVyz.load(&q(gradVyZ));
+            qgradVzx.load(&q(gradVzX));
+            qgradVzy.load(&q(gradVzY));
+            qgradVzz.load(&q(gradVzZ));
+            qlastAccx.load(&q(lastAccX));
+            qlastAccy.load(&q(lastAccY));
+            qlastAccz.load(&q(lastAccZ));
 
             if (smf->dDelta <= 0.0) {
                 pDt = 0.;
@@ -831,32 +766,12 @@ public:
                 dTime = 0.;
             }
 
-            doSinglePPFlux( mask, F_rho, F_v, F_P, F_S, minDt,
-                            bComove, dTime, dDelta,  a,  H,  dConstGamma,
-                            qdr,  qdx,  qdy,  qdz,
-                            pH, plast, pDt,
-                            pomega, pspheom,
-                            pBXX,  pBXY,  pBXZ,
-                            pBYY,  pBYZ,  pBZZ,
-                            pDens,  pVpredx, pVpredy, pVpredz,  pPres,  pS,
-                            pgradRhox, pgradRhoy, pgradRhoz,
-                            pgradPx,   pgradPy,   pgradPz,
-                            pgradVxx,  pgradVxy,  pgradVxz,
-                            pgradVyx,  pgradVyy,  pgradVyz,
-                            pgradVzx,  pgradVzy,  pgradVzz,
-                            plastAccx, plastAccy, plastAccz,
-                            qh, qlast, qDt,
-                            qomega, qspheom,
-                            qBXX,  qBXY,  qBXZ,
-                            qBYY,  qBYZ,  qBZZ,
-                            qDens,  qvx, qvy, qvz,  qP,  qS,
-                            qgradRhox,  qgradRhoy,  qgradRhoz,
-                            qgradPx,    qgradPy,    qgradPz,
-                            qgradVxx,   qgradVxy,   qgradVxz,
-                            qgradVyx,   qgradVyy,   qgradVyz,
-                            qgradVzx,   qgradVzy,   qgradVzz,
-                            qlastAccx,  qlastAccy,  qlastAccz,
-                            smf->eEOS );
+            doSinglePPFlux(mask, F_rho, F_v, F_P, F_S, minDt, bComove, dTime, dDelta, a, H, dConstGamma, qdr, qdx, qdy, qdz, pH, plast, pDt, pomega, pspheom,
+                           pBXX, pBXY, pBXZ, pBYY, pBYZ, pBZZ, pDens, pVpredx, pVpredy, pVpredz, pPres, pS, pgradRhox, pgradRhoy, pgradRhoz, pgradPx, pgradPy,
+                           pgradPz, pgradVxx, pgradVxy, pgradVxz, pgradVyx, pgradVyy, pgradVyz, pgradVzx, pgradVzy, pgradVzz, plastAccx, plastAccy, plastAccz,
+                           qh, qlast, qDt, qomega, qspheom, qBXX, qBXY, qBXZ, qBYY, qBYZ, qBZZ, qDens, qvx, qvy, qvz, qP, qS, qgradRhox, qgradRhoy, qgradRhoz,
+                           qgradPx, qgradPy, qgradPz, qgradVxx, qgradVxy, qgradVxz, qgradVyx, qgradVyy, qgradVyz, qgradVzx, qgradVzy, qgradVzz, qlastAccx,
+                           qlastAccy, qlastAccz, smf->eEOS);
 
             // We fill the output buffer with the fluxes, which then
             // will be added to the corresponding particles
@@ -865,34 +780,32 @@ public:
             F_v[0].store(&output_buffer[out_FmomX * nBuff + i]);
             F_v[1].store(&output_buffer[out_FmomY * nBuff + i]);
             F_v[2].store(&output_buffer[out_FmomZ * nBuff + i]);
-#ifdef ENTROPY_SWITCH
+    #ifdef ENTROPY_SWITCH
             F_S.store(&output_buffer[out_FS * nBuff + i]);
-#endif
-            //dump(F_v[0]);
+    #endif
+            // dump(F_v[0]);
             minDt.store(&output_buffer[out_minDt * nBuff + i]);
-
         }
     }
 };
 
-void hydroFluxFillBuffer(meshless::myreal *input_buffer, PARTICLE *qIn, int i, int nBuff,
-                         double dr2, blitz::TinyVector<double,3> dr, SMF *smf) {
+void hydroFluxFillBuffer(meshless::myreal* input_buffer, PARTICLE* qIn, int i, int nBuff, double dr2, blitz::TinyVector<double, 3> dr, SMF* smf) {
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
     double dDelta = smf->dDelta;
-    auto &qsph = Q.sph();
+    auto& qsph = Q.sph();
     q(ball) = Q.ball();
     q(dx) = dr[0];
     q(dy) = dr[1];
     q(dz) = dr[2];
     q(dr) = sqrt(dr2);
-    q(rung) = dDelta/(1<<Q.rung());
+    q(rung) = dDelta / (1 << Q.rung());
     q(rho) = Q.density();
     q(P) = qsph.P;
-#ifdef ENTROPY_SWITCH
+    #ifdef ENTROPY_SWITCH
     q(S) = qsph.S;
-#endif
-    const auto &qv = Q.velocity();
+    #endif
+    const auto& qv = Q.velocity();
     q(vx) = qv[0];
     q(vy) = qv[1];
     q(vz) = qv[2];
@@ -931,18 +844,17 @@ void hydroFluxFillBuffer(meshless::myreal *input_buffer, PARTICLE *qIn, int i, i
     q(spheom) = qsph.spheom;
 }
 
-void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal *input_buffer,
-                               PARTICLE *pIn, PARTICLE *qIn, int i, int nBuff, SMF *smf) {
+void hydroFluxUpdateFromBuffer(meshless::myreal* output_buffer, meshless::myreal* input_buffer, PARTICLE* pIn, PARTICLE* qIn, int i, int nBuff, SMF* smf) {
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
     auto Q = pkd->particles[qIn];
-    const auto &pv = P.velocity();
-    const auto &qv = Q.velocity();
-    auto &psph = P.sph();
-    auto &qsph = Q.sph();
-    const auto &dDelta = smf->dDelta;
-    const auto &aFac = smf->a;
-    if (dDelta>0) {
+    const auto& pv = P.velocity();
+    const auto& qv = Q.velocity();
+    auto& psph = P.sph();
+    auto& qsph = Q.sph();
+    const auto& dDelta = smf->dDelta;
+    const auto& aFac = smf->a;
+    if (dDelta > 0) {
         if (P.have_mfv()) {
             P.set_mass(P.mass() - qout(minDt) * qout(Frho));
         }
@@ -953,48 +865,44 @@ void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal
 
         psph.E -= qout(minDt) * qout(Fene);
 
-        psph.Uint -= qout(minDt) * ( qout(Fene)
-                                     - qout(FmomX)*pv[0]
-                                     - qout(FmomY)*pv[1]
-                                     - qout(FmomZ)*pv[2]
-                                     + 0.5*dot(pv,pv)*qout(Frho) );
+        psph.Uint -= qout(minDt) * (qout(Fene) - qout(FmomX) * pv[0] - qout(FmomY) * pv[1] - qout(FmomZ) * pv[2] + 0.5 * dot(pv, pv) * qout(Frho));
 
-#ifdef ENTROPY_SWITCH
-        psph.S -= qout(minDt)* qout(FS);
-#endif
+    #ifdef ENTROPY_SWITCH
+        psph.S -= qout(minDt) * qout(FS);
+    #endif
 
         if (P.have_mfv()) {
-            auto &mfv = P.mfv();
+            auto& mfv = P.mfv();
             mfv.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
             mfv.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
             mfv.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
         }
-        psph.Frho +=    qout(Frho);
-        psph.Fene +=    qout(Fene);
+        psph.Frho += qout(Frho);
+        psph.Fene += qout(Fene);
         psph.Fmom[0] += qout(FmomX);
         psph.Fmom[1] += qout(FmomY);
         psph.Fmom[2] += qout(FmomZ);
     }
     else {
-        psph.Frho +=    qout(Frho);
-        psph.Fene +=    qout(Fene);
+        psph.Frho += qout(Frho);
+        psph.Fene += qout(Fene);
         psph.Fmom[0] += qout(FmomX);
         psph.Fmom[1] += qout(FmomY);
         psph.Fmom[2] += qout(FmomZ);
     }
 
-#ifndef OPTIM_NO_REDUNDANT_FLUXES
-#ifdef OPTIM_AVOID_IS_ACTIVE
+    #ifndef OPTIM_NO_REDUNDANT_FLUXES
+        #ifdef OPTIM_AVOID_IS_ACTIVE
     if (!Q.marked())
-#else
+        #else
     if (!Q.is_active())
-#endif
-#endif
+        #endif
+    #endif
     {
 
         // If this is not the case, something VERY odd must have happened
-        assert( qsph.P == q(P) );
-        if (dDelta>0) {
+        assert(qsph.P == q(P));
+        if (dDelta > 0) {
             if (Q.have_mfv()) {
                 Q.set_mass(Q.mass() + qout(minDt) * qout(Frho));
             }
@@ -1005,58 +913,50 @@ void hydroFluxUpdateFromBuffer(meshless::myreal *output_buffer, meshless::myreal
 
             qsph.E += qout(minDt) * qout(Fene);
 
-            qsph.Uint += qout(minDt) * ( qout(Fene)
-                                         - qout(FmomX)*qv[0]
-                                         - qout(FmomY)*qv[1]
-                                         - qout(FmomZ)*qv[2]
-                                         + 0.5*dot(qv,qv)*qout(Frho) );
-#ifdef ENTROPY_SWITCH
+            qsph.Uint += qout(minDt) * (qout(Fene) - qout(FmomX) * qv[0] - qout(FmomY) * qv[1] - qout(FmomZ) * qv[2] + 0.5 * dot(qv, qv) * qout(Frho));
+    #ifdef ENTROPY_SWITCH
             qsph.S += qout(minDt) * qout(FS);
-#endif
+    #endif
 
             if (Q.have_mfv()) {
-                auto &mfv = P.mfv();
+                auto& mfv = P.mfv();
                 mfv.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
                 mfv.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
                 mfv.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
             }
-            qsph.Frho -=    qout(Frho);
-            qsph.Fene -=    qout(Fene);
+            qsph.Frho -= qout(Frho);
+            qsph.Fene -= qout(Fene);
             qsph.Fmom[0] -= qout(FmomX);
             qsph.Fmom[1] -= qout(FmomY);
             qsph.Fmom[2] -= qout(FmomZ);
         }
         else {
-            qsph.Frho -=    qout(Frho);
-            qsph.Fene -=    qout(Fene);
+            qsph.Frho -= qout(Frho);
+            qsph.Fene -= qout(Fene);
             qsph.Fmom[0] -= qout(FmomX);
             qsph.Fmom[1] -= qout(FmomY);
             qsph.Fmom[2] -= qout(FmomZ);
         }
 
     } // q marked/active
-
 }
 
-void hydroFluxGetBufferInfo(int *in, int *out) {
+void hydroFluxGetBufferInfo(int* in, int* out) {
     *in = q_last;
     *out = out_last;
 }
 
 #endif // OPTIM_FLUX_VEC
 
-void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
-                          meshless::myreal *restrict input_buffer,
-                          meshless::myreal *restrict output_buffer, SMF *smf) {
+void hydroRiemann_wrapper(PARTICLE* p, float fBall, int nSmooth, int nBuff, meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
+                          SMF* smf) {
     PKD pkd = smf->pkd;
     auto P = pkd->particles[p];
 
 #if defined(USE_SIMD_FLUX)
-    MeshlessHydroSolver<dvec,dmask> solver(P.have_mfv());
+    MeshlessHydroSolver<dvec, dmask> solver(P.have_mfv());
 #else
-    MeshlessHydroSolver<vec<double,double>,mmask<bool>> solver(P.have_mfv());
+        MeshlessHydroSolver<vec<double, double>, mmask<bool>> solver(P.have_mfv());
 #endif
-    solver.hydroRiemann(p,fBall,nSmooth, nBuff,
-                        input_buffer,
-                        output_buffer, smf) ;
+    solver.hydroRiemann(p, fBall, nSmooth, nBuff, input_buffer, output_buffer, smf);
 }

@@ -19,7 +19,7 @@
 #include "countrungs.h"
 
 class ServiceUpdateRung : public ServiceCountRungs {
-public:
+  public:
     static constexpr std::string_view name = "UpdateRung";
     struct input {
         uint8_t uRungLo;  // Minimum Rung to modify
@@ -27,9 +27,9 @@ public:
         uint8_t uMinRung; // Minimum it can be set to
         uint8_t uMaxRung; // Maximum it can be set to
     };
-    explicit ServiceUpdateRung(PST pst)
-        : ServiceCountRungs(pst,name) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    explicit ServiceUpdateRung(PST pst) : ServiceCountRungs(pst, name) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
 };
 #endif

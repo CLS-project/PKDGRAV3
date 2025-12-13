@@ -34,29 +34,29 @@
 typedef struct {
 #if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     union {
-#if defined(HAVE_LIBAIO)
+    #if defined(HAVE_LIBAIO)
         struct {
             struct iocb cb[IO_MAX_ASYNC_COUNT];
             struct io_event events[IO_MAX_ASYNC_COUNT];
             io_context_t ctx;
         } libaio;
-#endif
-#if defined(HAVE_AIO_H)
+    #endif
+    #if defined(HAVE_AIO_H)
         struct {
             struct aiocb cb[IO_MAX_ASYNC_COUNT];
-            struct aiocb const *pcb[IO_MAX_ASYNC_COUNT];
+            struct aiocb const* pcb[IO_MAX_ASYNC_COUNT];
         } aio;
-#endif
+    #endif
     } io;
 #endif
-    char *pBuffer[IO_MAX_ASYNC_COUNT];
+    char* pBuffer[IO_MAX_ASYNC_COUNT];
     size_t iOffset[IO_MAX_ASYNC_COUNT];
     size_t nExpected[IO_MAX_ASYNC_COUNT];
-    off_t iFilePosition;   /* File position */
-    size_t nBufferSize;    /* Total size of the buffer */
-    size_t iByte;          /* Index into current buffer */
-    int nBuffers;          /* Total number of buffers */
-    int iBuffer;           /* Current buffer */
+    off_t iFilePosition; /* File position */
+    size_t nBufferSize;  /* Total size of the buffer */
+    size_t iByte;        /* Index into current buffer */
+    int nBuffers;        /* Total number of buffers */
+    int iBuffer;         /* Current buffer */
     int nPending;
     int nPageSize;
     int fd;
@@ -65,16 +65,16 @@ typedef struct {
 } asyncFileInfo;
 
 #define IO_REGULAR 0
-#define IO_AIO     1
-#define IO_LIBAIO  2
+#define IO_AIO 1
+#define IO_LIBAIO 2
 
-void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize,int method);
-void io_free(asyncFileInfo *info);
-int io_create(asyncFileInfo *info, const char *pathname);
-int io_open(asyncFileInfo *info, const char *pathname);
-void io_write(asyncFileInfo *info, void *buf, size_t count);
-void io_read(asyncFileInfo *info, void *buf, size_t count);
-void io_read(asyncFileInfo *info, void *buf, size_t count,size_t offset);
-void io_close(asyncFileInfo *info);
+void io_init(asyncFileInfo* info, size_t nBuffers, size_t nBufferSize, int method);
+void io_free(asyncFileInfo* info);
+int io_create(asyncFileInfo* info, const char* pathname);
+int io_open(asyncFileInfo* info, const char* pathname);
+void io_write(asyncFileInfo* info, void* buf, size_t count);
+void io_read(asyncFileInfo* info, void* buf, size_t count);
+void io_read(asyncFileInfo* info, void* buf, size_t count, size_t offset);
+void io_close(asyncFileInfo* info);
 
 #endif

@@ -21,22 +21,22 @@
     #include "pkd_config.h"
 #endif
 #ifndef xxUSE_SIMD_PC
-#define MPICH_SKIP_MPICXX
-#include "core/simd.h"
-#include "pkd.h"
-#include "pc.h"
+    #define MPICH_SKIP_MPICXX
+    #include "core/simd.h"
+    #include "pkd.h"
+    #include "pc.h"
 
-template<typename BLOCK> struct ilist::EvalBlock<ResultPC<fvec>,BLOCK> {
+template <typename BLOCK> struct ilist::EvalBlock<ResultPC<fvec>, BLOCK> {
     typedef ResultPC<fvec> result_type;
-    const fvec fx,fy,fz,pSmooth2,Pax,Pay,Paz,imaga;
+    const fvec fx, fy, fz, pSmooth2, Pax, Pay, Paz, imaga;
 
     EvalBlock() = default;
-    EvalBlock(fvec fx, fvec fy,fvec fz,fvec pSmooth2,fvec Pax,fvec Pay,fvec Paz,fvec imaga)
-        : fx(fx),fy(fy),fz(fz),pSmooth2(pSmooth2),Pax(Pax),Pay(Pay),Paz(Paz),imaga(imaga) {}
+    EvalBlock(fvec fx, fvec fy, fvec fz, fvec pSmooth2, fvec Pax, fvec Pay, fvec Paz, fvec imaga)
+        : fx(fx), fy(fy), fz(fz), pSmooth2(pSmooth2), Pax(Pax), Pay(Pay), Paz(Paz), imaga(imaga) {}
 
-    result_type operator()(int n,BLOCK &blk) {
+    result_type operator()(int n, BLOCK& blk) {
         // Sentinal values
-        while (n&fvec::mask()) {
+        while (n & fvec::mask()) {
             blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e18f;
             blk.m.s[n] = 0.0f;
             blk.u.s[n] = 0.0f;
@@ -45,28 +45,26 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultPC<fvec>,BLOCK> {
         n /= fvec::width(); // Now number of blocks
         ResultPC<fvec> result;
         result.zero();
-        for (auto i=0; i<n; ++i) {
-            result += EvalPC<fvec,fmask,true>(fx, fy, fz, pSmooth2,
-                                              blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.u.v[i],
-                                              blk.xxxx.v[i], blk.xxxy.v[i], blk.xxxz.v[i], blk.xxyz.v[i], blk.xxyy.v[i],
-                                              blk.yyyz.v[i], blk.xyyz.v[i], blk.xyyy.v[i], blk.yyyy.v[i],
-                                              blk.xxx.v[i], blk.xyy.v[i], blk.xxy.v[i], blk.yyy.v[i], blk.xxz.v[i], blk.yyz.v[i], blk.xyz.v[i],
-                                              blk.xx.v[i], blk.xy.v[i], blk.xz.v[i], blk.yy.v[i], blk.yz.v[i],
-#ifdef USE_DIAPOLE
-                                              blk.x.v[i], blk.y.v[i], blk.z.v[i],
-#endif
-                                              Pax, Pay, Paz,imaga);
+        for (auto i = 0; i < n; ++i) {
+            result += EvalPC<fvec, fmask, true>(fx, fy, fz, pSmooth2, blk.dx.v[i], blk.dy.v[i], blk.dz.v[i], blk.m.v[i], blk.u.v[i], blk.xxxx.v[i],
+                                                blk.xxxy.v[i], blk.xxxz.v[i], blk.xxyz.v[i], blk.xxyy.v[i], blk.yyyz.v[i], blk.xyyz.v[i], blk.xyyy.v[i],
+                                                blk.yyyy.v[i], blk.xxx.v[i], blk.xyy.v[i], blk.xxy.v[i], blk.yyy.v[i], blk.xxz.v[i], blk.yyz.v[i], blk.xyz.v[i],
+                                                blk.xx.v[i], blk.xy.v[i], blk.xz.v[i], blk.yy.v[i], blk.yz.v[i],
+    #ifdef USE_DIAPOLE
+                                                blk.x.v[i], blk.y.v[i], blk.z.v[i],
+    #endif
+                                                Pax, Pay, Paz, imaga);
         }
         return result;
     }
 };
 
-void pkdGravEvalPC(const PINFOIN &Part, ilcTile &tile,  PINFOOUT &Out ) {
-    float a2 = blitz::dot(Part.a,Part.a);
+void pkdGravEvalPC(const PINFOIN& Part, ilcTile& tile, PINFOOUT& Out) {
+    float a2 = blitz::dot(Part.a, Part.a);
     fvec imaga = a2 > 0.0f ? 1.0f / sqrtf(a2) : 0.0f;
-    ilist::EvalBlock<ResultPC<fvec>,ilcBlock> eval(
-        Part.r[0],Part.r[1],Part.r[2],Part.fSmooth2,Part.a[0],Part.a[1],Part.a[2],imaga);;
-    auto result = EvalTile(tile,eval);
+    ilist::EvalBlock<ResultPC<fvec>, ilcBlock> eval(Part.r[0], Part.r[1], Part.r[2], Part.fSmooth2, Part.a[0], Part.a[1], Part.a[2], imaga);
+    ;
+    auto result = EvalTile(tile, eval);
     Out.a[0] += hadd(result.ax);
     Out.a[1] += hadd(result.ay);
     Out.a[2] += hadd(result.az);
@@ -74,4 +72,4 @@ void pkdGravEvalPC(const PINFOIN &Part, ilcTile &tile,  PINFOOUT &Out ) {
     Out.dirsum += hadd(result.ir);
     Out.normsum += hadd(result.norm);
 }
-#endif/*USE_SIMD_PC*/
+#endif /*USE_SIMD_PC*/

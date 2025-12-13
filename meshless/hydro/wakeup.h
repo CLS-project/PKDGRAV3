@@ -17,15 +17,13 @@
 #include "TraversePST.h"
 
 class ServiceWakeParticles : public TraversePST {
-public:
+  public:
     static constexpr std::string_view name = "WakeParticles";
     struct input {
         double dTime;
     };
-    explicit ServiceWakeParticles(PST pst)
-        : TraversePST(pst,name) {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceWakeParticles(PST pst) : TraversePST(pst, name) {}
+
+  protected:
+    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
 };
-
-

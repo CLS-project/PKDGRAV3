@@ -23,7 +23,7 @@
 
 /* Local includes. */
 #include "cooling_tables.h"
-//#include "exp10.h"
+// #include "exp10.h"
 #include "interpolate.h"
 
 /**
@@ -48,51 +48,37 @@
  * @param cooling #cooling_function_data struct.
  * @param ratio_solar (return) Array of ratios to solar abundances.
  */
-static inline void abundance_ratio_to_solar(decorators::MFM *psph, float fMass,
-        const struct cooling_function_data *cooling,
-        float ratio_solar[eagle_cooling_N_abundances]) {
+static inline void abundance_ratio_to_solar(decorators::MFM* psph, float fMass, const struct cooling_function_data* cooling,
+                                            float ratio_solar[eagle_cooling_N_abundances]) {
 
     /* Get individual element masses from the particle */
-    const auto &elem_mass = psph->ElemMass;
-//      chemistry_get_metal_mass_fraction_for_cooling(p);
+    const auto& elem_mass = psph->ElemMass;
+    //      chemistry_get_metal_mass_fraction_for_cooling(p);
     const float inv_mass = 1.0f / fMass;
 
-    ratio_solar[0] = elem_mass[ELEMENT_H] * inv_mass *
-                     cooling->SolarAbundances_inv[0 /* H */];
+    ratio_solar[0] = elem_mass[ELEMENT_H] * inv_mass * cooling->SolarAbundances_inv[0 /* H */];
 
-    ratio_solar[1] = elem_mass[ELEMENT_He] * inv_mass *
-                     cooling->SolarAbundances_inv[1 /* He */];
+    ratio_solar[1] = elem_mass[ELEMENT_He] * inv_mass * cooling->SolarAbundances_inv[1 /* He */];
 
-    ratio_solar[2] = elem_mass[ELEMENT_C] * inv_mass *
-                     cooling->SolarAbundances_inv[2 /* C */];
+    ratio_solar[2] = elem_mass[ELEMENT_C] * inv_mass * cooling->SolarAbundances_inv[2 /* C */];
 
-    ratio_solar[3] = elem_mass[ELEMENT_N] * inv_mass *
-                     cooling->SolarAbundances_inv[3 /* N */];
+    ratio_solar[3] = elem_mass[ELEMENT_N] * inv_mass * cooling->SolarAbundances_inv[3 /* N */];
 
-    ratio_solar[4] = elem_mass[ELEMENT_O] * inv_mass *
-                     cooling->SolarAbundances_inv[4 /* O */];
+    ratio_solar[4] = elem_mass[ELEMENT_O] * inv_mass * cooling->SolarAbundances_inv[4 /* O */];
 
-    ratio_solar[5] = elem_mass[ELEMENT_Ne] * inv_mass *
-                     cooling->SolarAbundances_inv[5 /* Ne */];
+    ratio_solar[5] = elem_mass[ELEMENT_Ne] * inv_mass * cooling->SolarAbundances_inv[5 /* Ne */];
 
-    ratio_solar[6] = elem_mass[ELEMENT_Mg] * inv_mass *
-                     cooling->SolarAbundances_inv[6 /* Mg */];
+    ratio_solar[6] = elem_mass[ELEMENT_Mg] * inv_mass * cooling->SolarAbundances_inv[6 /* Mg */];
 
-    ratio_solar[7] = elem_mass[ELEMENT_Si] * inv_mass *
-                     cooling->SolarAbundances_inv[7 /* Si */];
+    ratio_solar[7] = elem_mass[ELEMENT_Si] * inv_mass * cooling->SolarAbundances_inv[7 /* Si */];
 
     /* For S, we use the same ratio as Si */
-    ratio_solar[8] = elem_mass[ELEMENT_Si] * inv_mass *
-                     cooling->SolarAbundances_inv[7 /* Si */] *
-                     cooling->S_over_Si_ratio_in_solar;
+    ratio_solar[8] = elem_mass[ELEMENT_Si] * inv_mass * cooling->SolarAbundances_inv[7 /* Si */] * cooling->S_over_Si_ratio_in_solar;
 
     /* For Ca, we use the same ratio as Si */
-    ratio_solar[9] = elem_mass[ELEMENT_Si] * inv_mass *
-                     cooling->SolarAbundances_inv[7 /* Si */] *
-                     cooling->Ca_over_Si_ratio_in_solar;
+    ratio_solar[9] = elem_mass[ELEMENT_Si] * inv_mass * cooling->SolarAbundances_inv[7 /* Si */] * cooling->Ca_over_Si_ratio_in_solar;
 
-    ratio_solar[10] = elem_mass[ELEMENT_Fe] * inv_mass *
-                      cooling->SolarAbundances_inv[10 /* Fe */];
+    ratio_solar[10] = elem_mass[ELEMENT_Fe] * inv_mass * cooling->SolarAbundances_inv[10 /* Fe */];
 }
 
 /**
@@ -108,10 +94,7 @@ static inline void abundance_ratio_to_solar(decorators::MFM *psph, float fMass,
  * @param cooling The #cooling_function_data used in the run.
  * @return Helium reionization energy in CGS units.
  */
-INLINE double
-eagle_helium_reionization_extraheat(
-    const double z, const double delta_z,
-    const struct cooling_function_data *cooling) {
+INLINE double eagle_helium_reionization_extraheat(const double z, const double delta_z, const struct cooling_function_data* cooling) {
 
 #ifdef SWIFT_DEBUG_CHECKS
     if (delta_z > 0.f) error("Invalid value for delta_z. Should be negative.");
@@ -164,16 +147,13 @@ eagle_helium_reionization_extraheat(
  *
  * @return log_10 of the temperature.
  */
-INLINE double eagle_convert_u_to_temp(
-    const double log_10_u_cgs, const float redshift, const int n_H_index,
-    const int He_index, const float d_n_H, const float d_He,
-    const struct cooling_function_data *cooling) {
+INLINE double eagle_convert_u_to_temp(const double log_10_u_cgs, const float redshift, const int n_H_index, const int He_index, const float d_n_H,
+                                      const float d_He, const struct cooling_function_data* cooling) {
 
     /* Get index of u along the internal energy axis */
     int u_index;
     float d_u;
-    get_index_1d(cooling->Therm, eagle_cooling_N_temperature, log_10_u_cgs,
-                 &u_index, &d_u);
+    get_index_1d(cooling->Therm, eagle_cooling_N_temperature, log_10_u_cgs, &u_index, &d_u);
 
     /* Interpolate temperature table to return temperature for current
      * internal energy (use 3D interpolation for high redshift table,
@@ -190,14 +170,13 @@ INLINE double eagle_convert_u_to_temp(
     }
     else {
 
-        log_10_T =
-            interpolation_4d(cooling->table.temperature,                  /* */
-                             /*z_index=*/0, n_H_index, He_index, u_index, /* */
-                             cooling->dz, d_n_H, d_He, d_u,               /* */
-                             eagle_cooling_N_loaded_redshifts,            /* */
-                             eagle_cooling_N_density,                     /* */
-                             eagle_cooling_N_He_frac,                     /* */
-                             eagle_cooling_N_temperature);                /* */
+        log_10_T = interpolation_4d(cooling->table.temperature,                  /* */
+                                    /*z_index=*/0, n_H_index, He_index, u_index, /* */
+                                    cooling->dz, d_n_H, d_He, d_u,               /* */
+                                    eagle_cooling_N_loaded_redshifts,            /* */
+                                    eagle_cooling_N_density,                     /* */
+                                    eagle_cooling_N_He_frac,                     /* */
+                                    eagle_cooling_N_temperature);                /* */
     }
 
     /* Special case for temperatures below the start of the table */
@@ -223,10 +202,8 @@ INLINE double eagle_convert_u_to_temp(
  * @param temperature The temperature.
  * @param electron_abundance The electron abundance.
  */
-INLINE double eagle_Compton_cooling_rate(
-    const struct cooling_function_data *cooling, const double redshift,
-    const double n_H_cgs, const double temperature,
-    const double electron_abundance) {
+INLINE double eagle_Compton_cooling_rate(const struct cooling_function_data* cooling, const double redshift, const double n_H_cgs, const double temperature,
+                                         const double electron_abundance) {
 
     const double zp1 = 1. + redshift;
     const double zp1p2 = zp1 * zp1;
@@ -236,8 +213,7 @@ INLINE double eagle_Compton_cooling_rate(
     const double T_CMB = cooling->T_CMB_0 * zp1;
 
     /* Compton cooling rate */
-    return cooling->compton_rate_cgs * (temperature - T_CMB) * zp1p4 *
-           electron_abundance / n_H_cgs;
+    return cooling->compton_rate_cgs * (temperature - T_CMB) * zp1p4 * electron_abundance / n_H_cgs;
 }
 
 /**
@@ -304,21 +280,17 @@ INLINE double eagle_Compton_cooling_rate(
  *
  * @return The cooling rate
  */
-static inline double eagle_metal_cooling_rate(
-    const double log10_u_cgs, const double redshift, const double n_H_cgs,
-    const float solar_ratio[eagle_cooling_N_abundances], const int n_H_index,
-    const float d_n_H, const int He_index, const float d_He,
-    const struct cooling_function_data *cooling, double *element_lambda) {
+static inline double eagle_metal_cooling_rate(const double log10_u_cgs, const double redshift, const double n_H_cgs,
+                                              const float solar_ratio[eagle_cooling_N_abundances], const int n_H_index, const float d_n_H, const int He_index,
+                                              const float d_He, const struct cooling_function_data* cooling, double* element_lambda) {
 
     /* Temperature */
-    const double log_10_T = eagle_convert_u_to_temp(
-                                log10_u_cgs, redshift, n_H_index, He_index, d_n_H, d_He, cooling);
+    const double log_10_T = eagle_convert_u_to_temp(log10_u_cgs, redshift, n_H_index, He_index, d_n_H, d_He, cooling);
 
     /* Get index along temperature dimension of the tables */
     int T_index;
     float d_T;
-    get_index_1d(cooling->Temp, eagle_cooling_N_temperature, log_10_T, &T_index,
-                 &d_T);
+    get_index_1d(cooling->Temp, eagle_cooling_N_temperature, log_10_T, &T_index, &d_T);
 
     /**********************/
     /* Metal-free cooling */
@@ -340,14 +312,13 @@ static inline double eagle_metal_cooling_rate(
     else {
 
         /* Using normal tables, have to interpolate in redshift */
-        Lambda_free =
-            interpolation_4d(cooling->table.H_plus_He_heating,            /* */
-                             /*z_index=*/0, n_H_index, He_index, T_index, /* */
-                             cooling->dz, d_n_H, d_He, d_T,               /* */
-                             eagle_cooling_N_loaded_redshifts,            /* */
-                             eagle_cooling_N_density,                     /* */
-                             eagle_cooling_N_He_frac,                     /* */
-                             eagle_cooling_N_temperature);                /* */
+        Lambda_free = interpolation_4d(cooling->table.H_plus_He_heating,            /* */
+                                       /*z_index=*/0, n_H_index, He_index, T_index, /* */
+                                       cooling->dz, d_n_H, d_He, d_T,               /* */
+                                       eagle_cooling_N_loaded_redshifts,            /* */
+                                       eagle_cooling_N_density,                     /* */
+                                       eagle_cooling_N_He_frac,                     /* */
+                                       eagle_cooling_N_temperature);                /* */
     }
 
     /* If we're testing cooling rate contributions write to array */
@@ -363,25 +334,22 @@ static inline double eagle_metal_cooling_rate(
 
     if (redshift > cooling->Redshifts[eagle_cooling_N_redshifts - 1]) {
 
-        H_plus_He_electron_abundance =
-            interpolation_3d(cooling->table.H_plus_He_electron_abundance, /* */
-                             n_H_index, He_index, T_index,                /* */
-                             d_n_H, d_He, d_T,                            /* */
-                             eagle_cooling_N_density,                     /* */
-                             eagle_cooling_N_He_frac,                     /* */
-                             eagle_cooling_N_temperature);                /* */
-
+        H_plus_He_electron_abundance = interpolation_3d(cooling->table.H_plus_He_electron_abundance, /* */
+                                                        n_H_index, He_index, T_index,                /* */
+                                                        d_n_H, d_He, d_T,                            /* */
+                                                        eagle_cooling_N_density,                     /* */
+                                                        eagle_cooling_N_He_frac,                     /* */
+                                                        eagle_cooling_N_temperature);                /* */
     }
     else {
 
-        H_plus_He_electron_abundance =
-            interpolation_4d(cooling->table.H_plus_He_electron_abundance, /* */
-                             /*z_index=*/0, n_H_index, He_index, T_index, /* */
-                             cooling->dz, d_n_H, d_He, d_T,               /* */
-                             eagle_cooling_N_loaded_redshifts,            /* */
-                             eagle_cooling_N_density,                     /* */
-                             eagle_cooling_N_He_frac,                     /* */
-                             eagle_cooling_N_temperature);                /* */
+        H_plus_He_electron_abundance = interpolation_4d(cooling->table.H_plus_He_electron_abundance, /* */
+                                                        /*z_index=*/0, n_H_index, He_index, T_index, /* */
+                                                        cooling->dz, d_n_H, d_He, d_T,               /* */
+                                                        eagle_cooling_N_loaded_redshifts,            /* */
+                                                        eagle_cooling_N_density,                     /* */
+                                                        eagle_cooling_N_He_frac,                     /* */
+                                                        eagle_cooling_N_temperature);                /* */
     }
 
     /**********************/
@@ -392,14 +360,12 @@ static inline double eagle_metal_cooling_rate(
 
     /* Do we need to add the inverse Compton cooling? */
     /* It is *not* stored in the tables before reionization */
-    if ((redshift > cooling->Redshifts[eagle_cooling_N_redshifts - 1]) ||
-            (redshift > cooling->H_reion_z)) {
+    if ((redshift > cooling->Redshifts[eagle_cooling_N_redshifts - 1]) || (redshift > cooling->H_reion_z)) {
 
         const double T = exp(log_10_T * M_LN10);
 
         /* Note the minus sign */
-        Lambda_Compton -= eagle_Compton_cooling_rate(cooling, redshift, n_H_cgs, T,
-                          H_plus_He_electron_abundance);
+        Lambda_Compton -= eagle_Compton_cooling_rate(cooling, redshift, n_H_cgs, T, H_plus_He_electron_abundance);
     }
 
     /* If we're testing cooling rate contributions write to array */
@@ -417,28 +383,24 @@ static inline double eagle_metal_cooling_rate(
 
         /* If we're using the high redshift tables then we don't interpolate
          * in redshift */
-        solar_electron_abundance =
-            interpolation_2d(cooling->table.electron_abundance, /* */
-                             n_H_index, T_index,                /* */
-                             d_n_H, d_T,                        /* */
-                             eagle_cooling_N_density,           /* */
-                             eagle_cooling_N_temperature);      /* */
-
+        solar_electron_abundance = interpolation_2d(cooling->table.electron_abundance, /* */
+                                                    n_H_index, T_index,                /* */
+                                                    d_n_H, d_T,                        /* */
+                                                    eagle_cooling_N_density,           /* */
+                                                    eagle_cooling_N_temperature);      /* */
     }
     else {
 
         /* Using normal tables, have to interpolate in redshift */
-        solar_electron_abundance =
-            interpolation_3d(cooling->table.electron_abundance, /* */
-                             /*z_index=*/0, n_H_index, T_index, /* */
-                             cooling->dz, d_n_H, d_T,           /* */
-                             eagle_cooling_N_loaded_redshifts,  /* */
-                             eagle_cooling_N_density,           /* */
-                             eagle_cooling_N_temperature);      /* */
+        solar_electron_abundance = interpolation_3d(cooling->table.electron_abundance, /* */
+                                                    /*z_index=*/0, n_H_index, T_index, /* */
+                                                    cooling->dz, d_n_H, d_T,           /* */
+                                                    eagle_cooling_N_loaded_redshifts,  /* */
+                                                    eagle_cooling_N_density,           /* */
+                                                    eagle_cooling_N_temperature);      /* */
     }
 
-    const double electron_abundance_ratio =
-        H_plus_He_electron_abundance / solar_electron_abundance;
+    const double electron_abundance_ratio = H_plus_He_electron_abundance / solar_electron_abundance;
 
     /**********************/
     /* Metal-line cooling */
@@ -459,19 +421,17 @@ static inline double eagle_metal_cooling_rate(
 
                 /* Note that we do not interpolate along the x-axis
                  * (element dimension) */
-                lambda_metal[elem] =
-                    interpolation_3d_no_x(cooling->table.metal_heating,   /* */
-                                          elem - 2, n_H_index, T_index,   /* */
-                                          /*delta_elem=*/0.f, d_n_H, d_T, /* */
-                                          eagle_cooling_N_metal,          /* */
-                                          eagle_cooling_N_density,        /* */
-                                          eagle_cooling_N_temperature);   /* */
+                lambda_metal[elem] = interpolation_3d_no_x(cooling->table.metal_heating,   /* */
+                                                           elem - 2, n_H_index, T_index,   /* */
+                                                           /*delta_elem=*/0.f, d_n_H, d_T, /* */
+                                                           eagle_cooling_N_metal,          /* */
+                                                           eagle_cooling_N_density,        /* */
+                                                           eagle_cooling_N_temperature);   /* */
 
                 lambda_metal[elem] *= electron_abundance_ratio;
                 lambda_metal[elem] *= solar_ratio[elem];
             }
         }
-
     }
     else {
 
@@ -482,14 +442,13 @@ static inline double eagle_metal_cooling_rate(
 
                 /* Note that we do not interpolate along the x-axis
                  * (element dimension) */
-                lambda_metal[elem] = interpolation_4d_no_x(
-                                         cooling->table.metal_heating,                /* */
-                                         elem - 2, /*z_index=*/0, n_H_index, T_index, /* */
-                                         /*delta_elem=*/0.f, cooling->dz, d_n_H, d_T, /* */
-                                         eagle_cooling_N_metal,                       /* */
-                                         eagle_cooling_N_loaded_redshifts,            /* */
-                                         eagle_cooling_N_density,                     /* */
-                                         eagle_cooling_N_temperature);                /* */
+                lambda_metal[elem] = interpolation_4d_no_x(cooling->table.metal_heating,                /* */
+                                                           elem - 2, /*z_index=*/0, n_H_index, T_index, /* */
+                                                           /*delta_elem=*/0.f, cooling->dz, d_n_H, d_T, /* */
+                                                           eagle_cooling_N_metal,                       /* */
+                                                           eagle_cooling_N_loaded_redshifts,            /* */
+                                                           eagle_cooling_N_density,                     /* */
+                                                           eagle_cooling_N_temperature);                /* */
 
                 lambda_metal[elem] *= electron_abundance_ratio;
                 lambda_metal[elem] *= solar_ratio[elem];
@@ -532,15 +491,11 @@ static inline double eagle_metal_cooling_rate(
  *
  * @return The cooling rate
  */
-static inline double eagle_cooling_rate(
-    const double log10_u_cgs, const double redshift, const double n_H_cgs,
-    const float abundance_ratio[eagle_cooling_N_abundances],
-    const int n_H_index, const float d_n_H, const int He_index,
-    const float d_He, const struct cooling_function_data *cooling) {
+static inline double eagle_cooling_rate(const double log10_u_cgs, const double redshift, const double n_H_cgs,
+                                        const float abundance_ratio[eagle_cooling_N_abundances], const int n_H_index, const float d_n_H, const int He_index,
+                                        const float d_He, const struct cooling_function_data* cooling) {
 
-    return eagle_metal_cooling_rate(log10_u_cgs, redshift, n_H_cgs,
-                                    abundance_ratio, n_H_index, d_n_H, He_index,
-                                    d_He, cooling, /* element_lambda=*/NULL);
+    return eagle_metal_cooling_rate(log10_u_cgs, redshift, n_H_cgs, abundance_ratio, n_H_index, d_n_H, He_index, d_He, cooling, /* element_lambda=*/NULL);
 }
 
 #endif /* SWIFT_EAGLE_COOLING_RATES_H */

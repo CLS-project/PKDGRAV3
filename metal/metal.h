@@ -19,48 +19,46 @@
 #define METAL_H
 #ifndef xxUSE_METALxx
 
-#include "mdl.h"
-#include "mdlmetal.h"
-#include "pppc.h"
+    #include "mdl.h"
+    #include "mdlmetal.h"
+    #include "pppc.h"
 
 class MetalClient {
-protected:
-    mdl::mdlClass &mdl;
+  protected:
+    mdl::mdlClass& mdl;
     mdl::messageQueue<MessagePP> freePP;
-    MessagePP *pp;
+    MessagePP* pp;
     mdl::messageQueue<MessagePC> freePC;
-    MessagePC *pc;
-protected:
-    template<class MESSAGE>
-    void flush(MESSAGE * &M) {
+    MessagePC* pc;
+
+  protected:
+    template <class MESSAGE>
+    void flush(MESSAGE*& M) {
         if (M) {
             M->prepare();
             mdl.enqueue(*M);
             M = nullptr;
         }
     }
-    template<class MESSAGE,class QUEUE,class TILE>
-    int queue(MESSAGE * &M,QUEUE &Q, workParticle *work, TILE &tile, bool bGravStep) {
-        if (M) { // If we are in the middle of building data for a kernel
-            if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
-            flush(M); // The buffer is full, so send it
+    template <class MESSAGE, class QUEUE, class TILE>
+    int queue(MESSAGE*& M, QUEUE& Q, workParticle* work, TILE& tile, bool bGravStep) {
+        if (M) {                                                  // If we are in the middle of building data for a kernel
+            if (M->queue(work, tile, bGravStep)) return work->nP; // Successfully queued
+            flush(M);                                             // The buffer is full, so send it
         }
         mdl.gpu.flushCompleted();
         if (Q.empty()) return 0; // No buffers so the CPU has to do this part
-        M = & Q.dequeue();
-        if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
-        return 0; // Not sure how this would happen, but okay.
+        M = &Q.dequeue();
+        if (M->queue(work, tile, bGravStep)) return work->nP; // Successfully queued
+        return 0;                                             // Not sure how this would happen, but okay.
     }
-public:
-    explicit MetalClient(mdl::mdlClass &mdl);
+
+  public:
+    explicit MetalClient(mdl::mdlClass& mdl);
     virtual ~MetalClient();
     void flushMETAL();
-    int queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
-        return queue(pp,freePP,work,tile,bGravStep);
-    }
-    int queuePC(workParticle *work, ilcTile &tile, bool bGravStep) {
-        return queue(pc,freePC,work,tile,bGravStep);
-    }
+    int queuePP(workParticle* work, ilpTile& tile, bool bGravStep) { return queue(pp, freePP, work, tile, bGravStep); }
+    int queuePC(workParticle* work, ilcTile& tile, bool bGravStep) { return queue(pc, freePC, work, tile, bGravStep); }
 };
 #endif
 #endif

@@ -22,7 +22,6 @@
  * @brief Functions to read EAGLE tables
  */
 
-
 #include <hdf5.h>
 #include <math.h>
 #include <stdlib.h>
@@ -38,16 +37,15 @@
  *
  * @param cooling #cooling_function_data structure
  */
-void get_cooling_redshifts(struct cooling_function_data *cooling) {
+void get_cooling_redshifts(struct cooling_function_data* cooling) {
 
     /* Read the list of table redshifts */
     char redshift_filename[eagle_table_path_name_length + 16];
     snprintf(redshift_filename, sizeof(redshift_filename), "%s/redshifts.dat", cooling->cooling_table_path);
 
-    FILE *infile = fopen(redshift_filename, "r");
+    FILE* infile = fopen(redshift_filename, "r");
     if (infile == NULL) {
-        printf("Cannot open the list of cooling table redshifts (%s) \n",
-               redshift_filename);
+        printf("Cannot open the list of cooling table redshifts (%s) \n", redshift_filename);
     }
 
     int N_Redshifts = -1;
@@ -76,19 +74,17 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
         }
 
         /* Allocate the list of redshifts */
-        if (swift_memalign("cooling", (void **)&cooling->Redshifts,
-                           SWIFT_STRUCT_ALIGNMENT,
-                           eagle_cooling_N_redshifts * sizeof(float)) != 0) {
+        if (swift_memalign("cooling", (void**)&cooling->Redshifts, SWIFT_STRUCT_ALIGNMENT, eagle_cooling_N_redshifts * sizeof(float)) != 0) {
             printf("ERROR: Failed to allocate redshift table\n");
             abort();
         }
         else {
             printf("Allocated redshift values\n");
         }
-        //if (swift_memalign("cooling", (void **)&cooling->Redshifts,
-        //                   SWIFT_STRUCT_ALIGNMENT,
-        //                   eagle_cooling_N_redshifts * sizeof(float)) != 0)
-        //  error("Failed to allocate redshift table");
+        // if (swift_memalign("cooling", (void **)&cooling->Redshifts,
+        //                    SWIFT_STRUCT_ALIGNMENT,
+        //                    eagle_cooling_N_redshifts * sizeof(float)) != 0)
+        //   error("Failed to allocate redshift table");
 
         /* Read all the redshift values */
         int count = 0;
@@ -101,10 +97,9 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
 
         /* Verify that the file was self-consistent */
         if (count != N_Redshifts) {
-            printf(
-                "Redshift file (%s) does not contain the correct number of redshifts "
-                "(%d vs. %d)\n",
-                redshift_filename, count, N_Redshifts);
+            printf("Redshift file (%s) does not contain the correct number of redshifts "
+                   "(%d vs. %d)\n",
+                   redshift_filename, count, N_Redshifts);
             abort();
         }
         else {
@@ -138,9 +133,7 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
  * @param fname Filepath for cooling table from which to read header
  * @param cooling Cooling data structure
  */
-void read_cooling_header(const char *fname,
-                         struct cooling_function_data *cooling) {
-
+void read_cooling_header(const char* fname, struct cooling_function_data* cooling) {
 
     printf("Reading hdf5 header of %s \n", fname);
     int N_Temp, N_nH, N_He, N_SolarAbundances, N_Elements;
@@ -151,21 +144,17 @@ void read_cooling_header(const char *fname,
     if (tempfile_id < 0) printf("unable to open file %s\n", fname);
 
     /* read size of each table of values */
-    hid_t dataset =
-        H5Dopen(tempfile_id, "/Header/Number_of_temperature_bins", H5P_DEFAULT);
-    herr_t status =
-        H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &N_Temp);
+    hid_t dataset = H5Dopen(tempfile_id, "/Header/Number_of_temperature_bins", H5P_DEFAULT);
+    herr_t status = H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &N_Temp);
     if (status < 0) printf("error reading number of temperature bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
 
     /* Check value */
-    if (N_Temp != eagle_cooling_N_temperature)
-        printf("Invalid temperature array length.");
+    if (N_Temp != eagle_cooling_N_temperature) printf("Invalid temperature array length.");
 
     dataset = H5Dopen(tempfile_id, "/Header/Number_of_density_bins", H5P_DEFAULT);
-    status =
-        H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &N_nH);
+    status = H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &N_nH);
     if (status < 0) printf("error reading number of density bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
@@ -173,33 +162,26 @@ void read_cooling_header(const char *fname,
     /* Check value */
     if (N_nH != eagle_cooling_N_density) printf("Invalid density array length.");
 
-    dataset =
-        H5Dopen(tempfile_id, "/Header/Number_of_helium_fractions", H5P_DEFAULT);
-    status =
-        H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &N_He);
+    dataset = H5Dopen(tempfile_id, "/Header/Number_of_helium_fractions", H5P_DEFAULT);
+    status = H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &N_He);
     if (status < 0) printf("error reading number of He fraction bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
 
     /* Check value */
-    if (N_He != eagle_cooling_N_He_frac)
-        printf("Invalid Helium fraction array length.");
+    if (N_He != eagle_cooling_N_He_frac) printf("Invalid Helium fraction array length.");
 
-    dataset = H5Dopen(tempfile_id, "/Header/Abundances/Number_of_abundances",
-                      H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     &N_SolarAbundances);
+    dataset = H5Dopen(tempfile_id, "/Header/Abundances/Number_of_abundances", H5P_DEFAULT);
+    status = H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &N_SolarAbundances);
     if (status < 0) printf("error reading number of solar abundance bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
 
     /* Check value */
-    if (N_SolarAbundances != eagle_cooling_N_abundances)
-        printf("Invalid solar abundances array length.");
+    if (N_SolarAbundances != eagle_cooling_N_abundances) printf("Invalid solar abundances array length.");
 
     dataset = H5Dopen(tempfile_id, "/Header/Number_of_metals", H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     &N_Elements);
+    status = H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &N_Elements);
     if (status < 0) printf("error reading number of metal bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
@@ -208,62 +190,43 @@ void read_cooling_header(const char *fname,
     if (N_Elements != eagle_cooling_N_metal) printf("Invalid metal array length.");
 
     /* allocate arrays of values for each of the above quantities */
-    if (swift_memalign("cooling", (void **)&cooling->Temp, SWIFT_STRUCT_ALIGNMENT,
-                       N_Temp * sizeof(float)) != 0)
-        printf("Failed to allocate temperature table");
-    if (swift_memalign("cooling", (void **)&cooling->Therm,
-                       SWIFT_STRUCT_ALIGNMENT, N_Temp * sizeof(float)) != 0)
+    if (swift_memalign("cooling", (void**)&cooling->Temp, SWIFT_STRUCT_ALIGNMENT, N_Temp * sizeof(float)) != 0) printf("Failed to allocate temperature table");
+    if (swift_memalign("cooling", (void**)&cooling->Therm, SWIFT_STRUCT_ALIGNMENT, N_Temp * sizeof(float)) != 0)
         printf("Failed to allocate internal energy table");
-    if (swift_memalign("cooling", (void **)&cooling->nH, SWIFT_STRUCT_ALIGNMENT,
-                       N_nH * sizeof(float)) != 0)
-        printf("Failed to allocate nH table");
-    if (swift_memalign("cooling", (void **)&cooling->HeFrac,
-                       SWIFT_STRUCT_ALIGNMENT, N_He * sizeof(float)) != 0)
-        printf("Failed to allocate HeFrac table");
-    if (swift_memalign("cooling", (void **)&cooling->SolarAbundances,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       N_SolarAbundances * sizeof(float)) != 0)
+    if (swift_memalign("cooling", (void**)&cooling->nH, SWIFT_STRUCT_ALIGNMENT, N_nH * sizeof(float)) != 0) printf("Failed to allocate nH table");
+    if (swift_memalign("cooling", (void**)&cooling->HeFrac, SWIFT_STRUCT_ALIGNMENT, N_He * sizeof(float)) != 0) printf("Failed to allocate HeFrac table");
+    if (swift_memalign("cooling", (void**)&cooling->SolarAbundances, SWIFT_STRUCT_ALIGNMENT, N_SolarAbundances * sizeof(float)) != 0)
         printf("Failed to allocate Solar abundances table");
-    if (swift_memalign("cooling", (void **)&cooling->SolarAbundances_inv,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       N_SolarAbundances * sizeof(float)) != 0)
+    if (swift_memalign("cooling", (void**)&cooling->SolarAbundances_inv, SWIFT_STRUCT_ALIGNMENT, N_SolarAbundances * sizeof(float)) != 0)
         printf("Failed to allocate Solar abundances inverses table");
 
     /* read in values for each of the arrays */
     dataset = H5Dopen(tempfile_id, "/Solar/Temperature_bins", H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     cooling->Temp);
+    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, cooling->Temp);
     if (status < 0) printf("error reading temperature bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
 
     dataset = H5Dopen(tempfile_id, "/Solar/Hydrogen_density_bins", H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     cooling->nH);
+    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, cooling->nH);
     if (status < 0) printf("error reading H density bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
 
-    dataset = H5Dopen(tempfile_id, "/Metal_free/Helium_mass_fraction_bins",
-                      H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     cooling->HeFrac);
+    dataset = H5Dopen(tempfile_id, "/Metal_free/Helium_mass_fraction_bins", H5P_DEFAULT);
+    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, cooling->HeFrac);
     if (status < 0) printf("error reading He fraction bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
 
-    dataset = H5Dopen(tempfile_id, "/Header/Abundances/Solar_mass_fractions",
-                      H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     cooling->SolarAbundances);
+    dataset = H5Dopen(tempfile_id, "/Header/Abundances/Solar_mass_fractions", H5P_DEFAULT);
+    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, cooling->SolarAbundances);
     if (status < 0) printf("error reading solar mass fraction bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
 
-    dataset = H5Dopen(tempfile_id, "/Metal_free/Temperature/Energy_density_bins",
-                      H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     cooling->Therm);
+    dataset = H5Dopen(tempfile_id, "/Metal_free/Temperature/Energy_density_bins", H5P_DEFAULT);
+    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, cooling->Therm);
     if (status < 0) printf("error reading internal energy bins");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
@@ -278,14 +241,13 @@ void read_cooling_header(const char *fname,
     }
 
     /* Compute inverse of solar mass fractions */
-//#if defined(__ICC)
-//#pragma novector
-//#endif
+    // #if defined(__ICC)
+    // #pragma novector
+    // #endif
     for (int i = 0; i < N_SolarAbundances; ++i) {
         cooling->SolarAbundances_inv[i] = 1.f / cooling->SolarAbundances[i];
     }
     status = H5Fclose(tempfile_id);
-
 }
 
 /**
@@ -293,86 +255,72 @@ void read_cooling_header(const char *fname,
  *
  * @param cooling #cooling_function_data structure
  */
-void allocate_cooling_tables(struct cooling_function_data *restrict cooling) {
+void allocate_cooling_tables(struct cooling_function_data* restrict cooling) {
 
     /* Allocate arrays to store cooling tables. Arrays contain two tables of
      * cooling rates with one table being for the redshift above current redshift
      * and one below. */
 
-    if (swift_memalign("cooling-tables", (void **)&cooling->table.metal_heating,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       eagle_cooling_N_loaded_redshifts *
-                       num_elements_metal_heating * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-tables", (void**)&cooling->table.metal_heating, SWIFT_STRUCT_ALIGNMENT,
+                       eagle_cooling_N_loaded_redshifts * num_elements_metal_heating * sizeof(float)) != 0) {
         printf("Failed to allocate metal_heating array \n");
         abort();
     }
-//  if (swift_memalign("cooling-tables", (void **)&cooling->table.metal_heating,
-//                     SWIFT_STRUCT_ALIGNMENT,
-//                     eagle_cooling_N_loaded_redshifts *
-//                         num_elements_metal_heating * sizeof(float)) != 0)
-//    error("Failed to allocate metal_heating array");
-//  cooling->table.metal_heating = (void **) malloc(eagle_cooling_N_loaded_redshifts * num_elements_metal_heating*sizeof(float));
+    //  if (swift_memalign("cooling-tables", (void **)&cooling->table.metal_heating,
+    //                     SWIFT_STRUCT_ALIGNMENT,
+    //                     eagle_cooling_N_loaded_redshifts *
+    //                         num_elements_metal_heating * sizeof(float)) != 0)
+    //    error("Failed to allocate metal_heating array");
+    //  cooling->table.metal_heating = (void **) malloc(eagle_cooling_N_loaded_redshifts * num_elements_metal_heating*sizeof(float));
 
-    if (swift_memalign("cooling-tables",
-                       (void **)&cooling->table.electron_abundance,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       eagle_cooling_N_loaded_redshifts *
-                       num_elements_electron_abundance * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-tables", (void**)&cooling->table.electron_abundance, SWIFT_STRUCT_ALIGNMENT,
+                       eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance * sizeof(float)) != 0) {
         printf("Failed to allocate electron_abundance array \n");
         abort();
     }
 
-//  if (swift_memalign("cooling-tables",
-//                     (void **)&cooling->table.electron_abundance,
-//                     SWIFT_STRUCT_ALIGNMENT,
-//                     eagle_cooling_N_loaded_redshifts *
-//                         num_elements_electron_abundance * sizeof(float)) != 0)
-//    error("Failed to allocate electron_abundance array");
+    //  if (swift_memalign("cooling-tables",
+    //                     (void **)&cooling->table.electron_abundance,
+    //                     SWIFT_STRUCT_ALIGNMENT,
+    //                     eagle_cooling_N_loaded_redshifts *
+    //                         num_elements_electron_abundance * sizeof(float)) != 0)
+    //    error("Failed to allocate electron_abundance array");
 
-    if (swift_memalign("cooling-tables", (void **)&cooling->table.temperature,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       eagle_cooling_N_loaded_redshifts *
-                       num_elements_temperature * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-tables", (void**)&cooling->table.temperature, SWIFT_STRUCT_ALIGNMENT,
+                       eagle_cooling_N_loaded_redshifts * num_elements_temperature * sizeof(float)) != 0) {
         printf("Failed to allocate temperature array \n");
         abort();
     }
-//  if (swift_memalign("cooling-tables", (void **)&cooling->table.temperature,
-//                     SWIFT_STRUCT_ALIGNMENT,
-//                     eagle_cooling_N_loaded_redshifts *
-//                         num_elements_temperature * sizeof(float)) != 0)
-//    error("Failed to allocate temperature array");
+    //  if (swift_memalign("cooling-tables", (void **)&cooling->table.temperature,
+    //                     SWIFT_STRUCT_ALIGNMENT,
+    //                     eagle_cooling_N_loaded_redshifts *
+    //                         num_elements_temperature * sizeof(float)) != 0)
+    //    error("Failed to allocate temperature array");
 
-    if (swift_memalign("cooling-tables",
-                       (void **)&cooling->table.H_plus_He_heating,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       eagle_cooling_N_loaded_redshifts *
-                       num_elements_HpHe_heating * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-tables", (void**)&cooling->table.H_plus_He_heating, SWIFT_STRUCT_ALIGNMENT,
+                       eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating * sizeof(float)) != 0) {
         printf("Failed to allocate HpHe_heating array \n");
         abort();
     }
-//  if (swift_memalign("cooling-tables",
-//                     (void **)&cooling->table.H_plus_He_heating,
-//                     SWIFT_STRUCT_ALIGNMENT,
-//                     eagle_cooling_N_loaded_redshifts *
-//                         num_elements_HpHe_heating * sizeof(float)) != 0)
-//    error("Failed to allocate H_plus_He_heating array");
-//
-    if (swift_memalign("cooling-tables",
-                       (void **)&cooling->table.H_plus_He_electron_abundance,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       eagle_cooling_N_loaded_redshifts *
-                       num_elements_HpHe_electron_abundance *
-                       sizeof(float)) != 0) {
+    //  if (swift_memalign("cooling-tables",
+    //                     (void **)&cooling->table.H_plus_He_heating,
+    //                     SWIFT_STRUCT_ALIGNMENT,
+    //                     eagle_cooling_N_loaded_redshifts *
+    //                         num_elements_HpHe_heating * sizeof(float)) != 0)
+    //    error("Failed to allocate H_plus_He_heating array");
+    //
+    if (swift_memalign("cooling-tables", (void**)&cooling->table.H_plus_He_electron_abundance, SWIFT_STRUCT_ALIGNMENT,
+                       eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance * sizeof(float)) != 0) {
         printf("Failed to allocate HpHe_electron_abundance array \n");
         abort();
     }
-//  if (swift_memalign("cooling-tables",
-//                     (void **)&cooling->table.H_plus_He_electron_abundance,
-//                     SWIFT_STRUCT_ALIGNMENT,
-//                     eagle_cooling_N_loaded_redshifts *
-//                         num_elements_HpHe_electron_abundance *
-//                         sizeof(float)) != 0)
-//    error("Failed to allocate H_plus_He_electron_abundance array");
+    //  if (swift_memalign("cooling-tables",
+    //                     (void **)&cooling->table.H_plus_He_electron_abundance,
+    //                     SWIFT_STRUCT_ALIGNMENT,
+    //                     eagle_cooling_N_loaded_redshifts *
+    //                         num_elements_HpHe_electron_abundance *
+    //                         sizeof(float)) != 0)
+    //    error("Failed to allocate H_plus_He_electron_abundance array");
 }
 
 /**
@@ -389,48 +337,37 @@ void allocate_cooling_tables(struct cooling_function_data *restrict cooling) {
  * @param cooling #cooling_function_data structure
  * @param photodis Are we loading the photo-dissociation table?
  */
-void get_redshift_invariant_table(
-    struct cooling_function_data *restrict cooling, const int photodis) {
+void get_redshift_invariant_table(struct cooling_function_data* restrict cooling, const int photodis) {
 #ifdef USE_HDF5
 
     /* Temporary tables */
-    float *net_cooling_rate = NULL;
-    float *electron_abundance = NULL;
-    float *temperature = NULL;
-    float *he_net_cooling_rate = NULL;
-    float *he_electron_abundance = NULL;
+    float* net_cooling_rate = NULL;
+    float* electron_abundance = NULL;
+    float* temperature = NULL;
+    float* he_net_cooling_rate = NULL;
+    float* he_electron_abundance = NULL;
 
     /* Allocate arrays for reading in cooling tables.  */
-    if (swift_memalign("cooling-temp", (void **)&net_cooling_rate,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_cooling_rate * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&net_cooling_rate, SWIFT_STRUCT_ALIGNMENT, num_elements_cooling_rate * sizeof(float)) != 0) {
         printf("Failed to allocate net_cooling_rate array \n");
         abort();
     }
-//    error("Failed to allocate net_cooling_rate array");
-    if (swift_memalign("cooling-temp", (void **)&electron_abundance,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_electron_abundance * sizeof(float)) != 0) {
+    //    error("Failed to allocate net_cooling_rate array");
+    if (swift_memalign("cooling-temp", (void**)&electron_abundance, SWIFT_STRUCT_ALIGNMENT, num_elements_electron_abundance * sizeof(float)) != 0) {
         printf("Failed to allocate electron_abundance array \n");
         abort();
     }
 
-    if (swift_memalign("cooling-temp", (void **)&temperature,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_temperature * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&temperature, SWIFT_STRUCT_ALIGNMENT, num_elements_temperature * sizeof(float)) != 0) {
         printf("Failed to allocate temperature array \n");
         abort();
     }
 
-    if (swift_memalign("cooling-temp", (void **)&he_net_cooling_rate,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_HpHe_heating * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&he_net_cooling_rate, SWIFT_STRUCT_ALIGNMENT, num_elements_HpHe_heating * sizeof(float)) != 0) {
         printf("Failed to allocate he_net_cooling_rate array \n");
         abort();
     }
-    if (swift_memalign("cooling-temp", (void **)&he_electron_abundance,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_HpHe_electron_abundance * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&he_electron_abundance, SWIFT_STRUCT_ALIGNMENT, num_elements_HpHe_electron_abundance * sizeof(float)) != 0) {
         printf("Failed to allocate he_electron_abundance array \n");
         abort();
     }
@@ -457,8 +394,7 @@ void get_redshift_invariant_table(
         /* Read in the cooling rate for this metal */
         snprintf(set_name, sizeof(set_name), "/%s/Net_Cooling", eagle_tables_element_names[specs]);
         hid_t dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-        herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL,
-                                H5P_DEFAULT, net_cooling_rate);
+        herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, net_cooling_rate);
         if (status < 0) printf("error reading metal cooling rate table");
         status = H5Dclose(dataset);
         if (status < 0) printf("error closing cooling dataset");
@@ -471,17 +407,13 @@ void get_redshift_invariant_table(
             for (int k = 0; k < eagle_cooling_N_density; k++) {
 
                 /* Index in the HDF5 table */
-                const int hdf5_index = row_major_index_2d(
-                                           j, k, eagle_cooling_N_temperature, eagle_cooling_N_density);
+                const int hdf5_index = row_major_index_2d(j, k, eagle_cooling_N_temperature, eagle_cooling_N_density);
 
                 /* Index in the internal table */
-                const int internal_index = row_major_index_3d(
-                                               specs, k, j, eagle_cooling_N_metal, eagle_cooling_N_density,
-                                               eagle_cooling_N_temperature);
+                const int internal_index = row_major_index_3d(specs, k, j, eagle_cooling_N_metal, eagle_cooling_N_density, eagle_cooling_N_temperature);
 
                 /* Change the sign and transpose */
-                cooling->table.metal_heating[internal_index] =
-                    -net_cooling_rate[hdf5_index];
+                cooling->table.metal_heating[internal_index] = -net_cooling_rate[hdf5_index];
             }
         }
     }
@@ -489,8 +421,7 @@ void get_redshift_invariant_table(
     /* read in cooling rates due to H + He */
     strcpy(set_name, "/Metal_free/Net_Cooling");
     hid_t dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-    herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL,
-                            H5P_DEFAULT, he_net_cooling_rate);
+    herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, he_net_cooling_rate);
     if (status < 0) printf("error reading metal free cooling rate table");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
@@ -498,8 +429,7 @@ void get_redshift_invariant_table(
     /* read in Temperatures */
     strcpy(set_name, "/Metal_free/Temperature/Temperature");
     dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     temperature);
+    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, temperature);
     if (status < 0) printf("error reading temperature table");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
@@ -507,8 +437,7 @@ void get_redshift_invariant_table(
     /* read in H + He electron abundances */
     strcpy(set_name, "/Metal_free/Electron_density_over_n_h");
     dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     he_electron_abundance);
+    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, he_electron_abundance);
     if (status < 0) printf("error reading electron density table");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
@@ -522,26 +451,19 @@ void get_redshift_invariant_table(
             for (int k = 0; k < eagle_cooling_N_density; k++) {
 
                 /* Index in the HDF5 table */
-                const int hdf5_index = row_major_index_3d(
-                                           i, j, k, eagle_cooling_N_He_frac, eagle_cooling_N_temperature,
-                                           eagle_cooling_N_density);
+                const int hdf5_index = row_major_index_3d(i, j, k, eagle_cooling_N_He_frac, eagle_cooling_N_temperature, eagle_cooling_N_density);
 
                 /* Index in the internal table */
-                const int internal_index = row_major_index_3d(
-                                               k, i, j, eagle_cooling_N_density, eagle_cooling_N_He_frac,
-                                               eagle_cooling_N_temperature);
+                const int internal_index = row_major_index_3d(k, i, j, eagle_cooling_N_density, eagle_cooling_N_He_frac, eagle_cooling_N_temperature);
 
                 /* Change the sign and transpose */
-                cooling->table.H_plus_He_heating[internal_index] =
-                    -he_net_cooling_rate[hdf5_index];
+                cooling->table.H_plus_He_heating[internal_index] = -he_net_cooling_rate[hdf5_index];
 
                 /* Convert to log T and transpose */
-                cooling->table.temperature[internal_index] =
-                    log10(temperature[hdf5_index]);
+                cooling->table.temperature[internal_index] = log10(temperature[hdf5_index]);
 
                 /* Just transpose */
-                cooling->table.H_plus_He_electron_abundance[internal_index] =
-                    he_electron_abundance[hdf5_index];
+                cooling->table.H_plus_He_electron_abundance[internal_index] = he_electron_abundance[hdf5_index];
             }
         }
     }
@@ -549,8 +471,7 @@ void get_redshift_invariant_table(
     /* read in electron densities due to metals */
     strcpy(set_name, "/Solar/Electron_density_over_n_h");
     dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     electron_abundance);
+    status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, electron_abundance);
     if (status < 0) printf("error reading solar electron density table");
     status = H5Dclose(dataset);
     if (status < 0) printf("error closing cooling dataset");
@@ -561,16 +482,13 @@ void get_redshift_invariant_table(
         for (int j = 0; j < eagle_cooling_N_density; j++) {
 
             /* Index in the HDF5 table */
-            const int hdf5_index = row_major_index_2d(
-                                       i, j, eagle_cooling_N_temperature, eagle_cooling_N_density);
+            const int hdf5_index = row_major_index_2d(i, j, eagle_cooling_N_temperature, eagle_cooling_N_density);
 
             /* Index in the internal table */
-            const int internal_index = row_major_index_2d(
-                                           j, i, eagle_cooling_N_density, eagle_cooling_N_temperature);
+            const int internal_index = row_major_index_2d(j, i, eagle_cooling_N_density, eagle_cooling_N_temperature);
 
             /* Just transpose */
-            cooling->table.electron_abundance[internal_index] =
-                electron_abundance[hdf5_index];
+            cooling->table.electron_abundance[internal_index] = electron_abundance[hdf5_index];
         }
     }
 
@@ -583,9 +501,9 @@ void get_redshift_invariant_table(
     free(he_net_cooling_rate);
     free(he_electron_abundance);
 
-#ifdef SWIFT_DEBUG_CHECKS
+    #ifdef SWIFT_DEBUG_CHECKS
     printf("done reading in redshift invariant table\n");
-#endif
+    #endif
 
 #else
     printf("Need HDF5 to read cooling tables");
@@ -608,46 +526,35 @@ void get_redshift_invariant_table(
  * @param low_z_index Index of the lowest redshift table to load.
  * @param high_z_index Index of the highest redshift table to load.
  */
-void get_cooling_table(struct cooling_function_data *restrict cooling,
-                       const int low_z_index, const int high_z_index) {
+void get_cooling_table(struct cooling_function_data* restrict cooling, const int low_z_index, const int high_z_index) {
 
 #ifdef USE_HDF5
 
     /* Temporary tables */
-    float *net_cooling_rate = NULL;
-    float *electron_abundance = NULL;
-    float *temperature = NULL;
-    float *he_net_cooling_rate = NULL;
-    float *he_electron_abundance = NULL;
+    float* net_cooling_rate = NULL;
+    float* electron_abundance = NULL;
+    float* temperature = NULL;
+    float* he_net_cooling_rate = NULL;
+    float* he_electron_abundance = NULL;
 
     /* Allocate arrays for reading in cooling tables.  */
-    if (swift_memalign("cooling-temp", (void **)&net_cooling_rate,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_cooling_rate * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&net_cooling_rate, SWIFT_STRUCT_ALIGNMENT, num_elements_cooling_rate * sizeof(float)) != 0) {
         printf("Failed to allocate net_cooling_rate array \n");
         abort();
     }
-    if (swift_memalign("cooling-temp", (void **)&electron_abundance,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_electron_abundance * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&electron_abundance, SWIFT_STRUCT_ALIGNMENT, num_elements_electron_abundance * sizeof(float)) != 0) {
         printf("Failed to allocate electron_abundance array \n");
         abort();
     }
-    if (swift_memalign("cooling-temp", (void **)&temperature,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_temperature * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&temperature, SWIFT_STRUCT_ALIGNMENT, num_elements_temperature * sizeof(float)) != 0) {
         printf("Failed to allocate temperature array \n");
         abort();
     }
-    if (swift_memalign("cooling-temp", (void **)&he_net_cooling_rate,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_HpHe_heating * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&he_net_cooling_rate, SWIFT_STRUCT_ALIGNMENT, num_elements_HpHe_heating * sizeof(float)) != 0) {
         printf("Failed to allocate he_net_cooling_rate array \n");
         abort();
     }
-    if (swift_memalign("cooling-temp", (void **)&he_electron_abundance,
-                       SWIFT_STRUCT_ALIGNMENT,
-                       num_elements_HpHe_electron_abundance * sizeof(float)) != 0) {
+    if (swift_memalign("cooling-temp", (void**)&he_electron_abundance, SWIFT_STRUCT_ALIGNMENT, num_elements_HpHe_electron_abundance * sizeof(float)) != 0) {
         printf("Failed to allocate he_electron_abundance array \n");
         abort();
     }
@@ -659,19 +566,17 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
         /* Index along redhsift dimension for the subset of tables we read */
         const int local_z_index = z_index - low_z_index;
 
-#ifdef SWIFT_DEBUG_CHECKS
+    #ifdef SWIFT_DEBUG_CHECKS
         if (local_z_index >= eagle_cooling_N_loaded_redshifts) {
             prinft("Reading invalid number of tables along z axis.");
             abort();
         }
-#endif
+    #endif
 
         /* Open table for this redshift index */
         char fname[eagle_table_path_name_length + 12];
-        snprintf(fname, sizeof(fname), "%s/z_%1.3f.hdf5", cooling->cooling_table_path,
-                 cooling->Redshifts[z_index]);
-        printf("Reading cooling table 'z_%1.3f.hdf5' \n",
-               cooling->Redshifts[z_index]);
+        snprintf(fname, sizeof(fname), "%s/z_%1.3f.hdf5", cooling->cooling_table_path, cooling->Redshifts[z_index]);
+        printf("Reading cooling table 'z_%1.3f.hdf5' \n", cooling->Redshifts[z_index]);
 
         hid_t file_id = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
         if (file_id < 0) printf("unable to open file %s", fname);
@@ -683,8 +588,7 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
 
             snprintf(set_name, sizeof(set_name), "/%s/Net_Cooling", eagle_tables_element_names[specs]);
             hid_t dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-            herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL,
-                                    H5P_DEFAULT, net_cooling_rate);
+            herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, net_cooling_rate);
             if (status < 0) printf("error reading metal cooling rate table");
             status = H5Dclose(dataset);
             if (status < 0) printf("error closing cooling dataset");
@@ -697,18 +601,14 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
                 for (int j = 0; j < eagle_cooling_N_temperature; j++) {
 
                     /* Index in the HDF5 table */
-                    const int hdf5_index = row_major_index_2d(
-                                               j, i, eagle_cooling_N_temperature, eagle_cooling_N_density);
+                    const int hdf5_index = row_major_index_2d(j, i, eagle_cooling_N_temperature, eagle_cooling_N_density);
 
                     /* Index in the internal table */
-                    const int internal_index = row_major_index_4d(
-                                                   specs, local_z_index, i, j, eagle_cooling_N_metal,
-                                                   eagle_cooling_N_loaded_redshifts, eagle_cooling_N_density,
-                                                   eagle_cooling_N_temperature);
+                    const int internal_index = row_major_index_4d(specs, local_z_index, i, j, eagle_cooling_N_metal, eagle_cooling_N_loaded_redshifts,
+                                                                  eagle_cooling_N_density, eagle_cooling_N_temperature);
 
                     /* Change the sign and transpose */
-                    cooling->table.metal_heating[internal_index] =
-                        -net_cooling_rate[hdf5_index];
+                    cooling->table.metal_heating[internal_index] = -net_cooling_rate[hdf5_index];
                 }
             }
         }
@@ -716,8 +616,7 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
         /* read in cooling rates due to H + He */
         strcpy(set_name, "/Metal_free/Net_Cooling");
         hid_t dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-        herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL,
-                                H5P_DEFAULT, he_net_cooling_rate);
+        herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, he_net_cooling_rate);
         if (status < 0) printf("error reading metal free cooling rate table");
         status = H5Dclose(dataset);
         if (status < 0) printf("error closing cooling dataset");
@@ -725,8 +624,7 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
         /* read in Temperature */
         strcpy(set_name, "/Metal_free/Temperature/Temperature");
         dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-        status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                         temperature);
+        status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, temperature);
         if (status < 0) printf("error reading temperature table");
         status = H5Dclose(dataset);
         if (status < 0) printf("error closing cooling dataset");
@@ -734,8 +632,7 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
         /* Read in H + He electron abundance */
         strcpy(set_name, "/Metal_free/Electron_density_over_n_h");
         dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-        status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                         he_electron_abundance);
+        status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, he_electron_abundance);
         if (status < 0) printf("error reading electron density table");
         status = H5Dclose(dataset);
         if (status < 0) printf("error closing cooling dataset");
@@ -748,27 +645,20 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
                 for (int k = 0; k < eagle_cooling_N_density; k++) {
 
                     /* Index in the HDF5 table */
-                    const int hdf5_index = row_major_index_3d(
-                                               i, j, k, eagle_cooling_N_He_frac, eagle_cooling_N_temperature,
-                                               eagle_cooling_N_density);
+                    const int hdf5_index = row_major_index_3d(i, j, k, eagle_cooling_N_He_frac, eagle_cooling_N_temperature, eagle_cooling_N_density);
 
                     /* Index in the internal table */
-                    const int internal_index = row_major_index_4d(
-                                                   local_z_index, k, i, j, eagle_cooling_N_loaded_redshifts,
-                                                   eagle_cooling_N_density, eagle_cooling_N_He_frac,
-                                                   eagle_cooling_N_temperature);
+                    const int internal_index = row_major_index_4d(local_z_index, k, i, j, eagle_cooling_N_loaded_redshifts, eagle_cooling_N_density,
+                                                                  eagle_cooling_N_He_frac, eagle_cooling_N_temperature);
 
                     /* Change the sign and transpose */
-                    cooling->table.H_plus_He_heating[internal_index] =
-                        -he_net_cooling_rate[hdf5_index];
+                    cooling->table.H_plus_He_heating[internal_index] = -he_net_cooling_rate[hdf5_index];
 
                     /* Convert to log T and transpose */
-                    cooling->table.temperature[internal_index] =
-                        log10(temperature[hdf5_index]);
+                    cooling->table.temperature[internal_index] = log10(temperature[hdf5_index]);
 
                     /* Just transpose */
-                    cooling->table.H_plus_He_electron_abundance[internal_index] =
-                        he_electron_abundance[hdf5_index];
+                    cooling->table.H_plus_He_electron_abundance[internal_index] = he_electron_abundance[hdf5_index];
                 }
             }
         }
@@ -776,8 +666,7 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
         /* read in electron densities due to metals */
         strcpy(set_name, "/Solar/Electron_density_over_n_h");
         dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
-        status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                         electron_abundance);
+        status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, electron_abundance);
         if (status < 0) printf("error reading solar electron density table");
         status = H5Dclose(dataset);
         if (status < 0) printf("error closing cooling dataset");
@@ -788,17 +677,14 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
             for (int j = 0; j < eagle_cooling_N_density; j++) {
 
                 /* Index in the HDF5 table */
-                const int hdf5_index = row_major_index_2d(
-                                           i, j, eagle_cooling_N_temperature, eagle_cooling_N_density);
+                const int hdf5_index = row_major_index_2d(i, j, eagle_cooling_N_temperature, eagle_cooling_N_density);
 
                 /* Index in the internal table */
-                const int internal_index = row_major_index_3d(
-                                               local_z_index, j, i, eagle_cooling_N_loaded_redshifts,
-                                               eagle_cooling_N_density, eagle_cooling_N_temperature);
+                const int internal_index =
+                    row_major_index_3d(local_z_index, j, i, eagle_cooling_N_loaded_redshifts, eagle_cooling_N_density, eagle_cooling_N_temperature);
 
                 /* Just transpose */
-                cooling->table.electron_abundance[internal_index] =
-                    electron_abundance[hdf5_index];
+                cooling->table.electron_abundance[internal_index] = electron_abundance[hdf5_index];
             }
         }
 
@@ -812,9 +698,9 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
     free(he_net_cooling_rate);
     free(he_electron_abundance);
 
-#ifdef SWIFT_DEBUG_CHECKS
+    #ifdef SWIFT_DEBUG_CHECKS
     message("Done reading in general cooling table");
-#endif
+    #endif
 
 #else
     printf("Need HDF5 to read cooling tables");

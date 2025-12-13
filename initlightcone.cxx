@@ -19,13 +19,13 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceInitLightcone::input>  || std::is_standard_layout_v<ServiceInitLightcone::input>);
+static_assert(std::is_void_v<ServiceInitLightcone::input> || std::is_standard_layout_v<ServiceInitLightcone::input>);
 static_assert(std::is_void_v<ServiceInitLightcone::output> || std::is_standard_layout_v<ServiceInitLightcone::output>);
 
-int ServiceInitLightcone::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input *>(vin);
+int ServiceInitLightcone::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto in = static_cast<input*>(vin);
     static_assert(std::is_void_v<output>);
-    abort_assert(1002,nIn==sizeof(input));
-    pkdInitLightcone(pst->plcl->pkd,in->bBowtie,in->bLightConeParticles,in->dBoxSize,in->dRedshiftLCP,in->alphaLCP,in->hLCP,in->mOctants);
+    abort_assert(1002, nIn == sizeof(input));
+    pkdInitLightcone(pst->plcl->pkd, in->bBowtie, in->bLightConeParticles, in->dBoxSize, in->dRedshiftLCP, in->alphaLCP, in->hLCP, in->mOctants);
     return 0;
 }

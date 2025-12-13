@@ -18,64 +18,64 @@
 
 namespace NewDD {
 
-int ServiceReorder::OffNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto in = static_cast<input *>(vin);
+int ServiceReorder::OffNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto in = static_cast<input*>(vin);
     auto thread = mdl->Self() + pst->nLower;
     auto proc = mdl->ThreadToProc(thread);
     pst->iOrdSplit = in->nPerProc * proc;
-    auto rID = ReqService(pst,in,nIn);
-    Traverse(pst->pstLower,in,nIn,NULL,0);
+    auto rID = ReqService(pst, in, nIn);
+    Traverse(pst->pstLower, in, nIn, NULL, 0);
     mdl->GetReply(rID);
     return 0;
     // return Recurse(pst,vin,nIn,vout,nOut);
 }
 
-int ServiceReorder::AtNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto in = static_cast<input *>(vin);
+int ServiceReorder::AtNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto in = static_cast<input*>(vin);
     in->nPerCore = (in->nPerProc + mdl->Cores() - 1) / mdl->Cores();
-    return Recurse(pst,vin,nIn,vout,nOut);
+    return Recurse(pst, vin, nIn, vout, nOut);
 }
 
-int ServiceReorder::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto in = static_cast<input *>(vin);
+int ServiceReorder::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto in = static_cast<input*>(vin);
     pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * (pst->nLower + mdl->Core());
-    auto rID = ReqService(pst,in,nIn);
-    Traverse(pst->pstLower,in,nIn,NULL,0);
+    auto rID = ReqService(pst, in, nIn);
+    Traverse(pst->pstLower, in, nIn, NULL, 0);
     mdl->GetReply(rID);
     return 0;
 }
 
-int ServiceReorder::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input *>(vin);
+int ServiceReorder::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    auto in = static_cast<input*>(vin);
     auto pkd = pst->plcl->pkd;
     auto mdl = pst->mdl;
 
     pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * mdl->Core();
 
-    auto reorder = [](auto &particles, auto base) {
-        auto get_bin = [base](auto &p) { return p.order() - base;};
+    auto reorder = [](auto& particles, auto base) {
+        auto get_bin = [base](auto& p) { return p.order() - base; };
         // Move particles to the correct position
-        for (auto p=particles.begin(); p!=particles.end(); ++p) {
+        for (auto p = particles.begin(); p != particles.end(); ++p) {
             auto offset = p - particles.begin();
             dd_offset_type bin;
             while ((bin = get_bin(*p)) != offset) {
                 auto q = particles[bin];
-                swap(*p,q);
+                swap(*p, q);
             }
         }
         // assert(std::is_sorted(particles.begin(),particles.end(),[](auto &p1,auto &p2) {return p1.order() < p2.order();}));
     };
 
-    auto shuffle = [](auto &counts,auto &particles, auto nPer, auto base) {
+    auto shuffle = [](auto& counts, auto& particles, auto nPer, auto base) {
         using container = typename std::remove_reference<decltype(counts)>::type;
-        auto get_bin = [base,nPer](auto &p) { return (p.order()-base) / nPer;};
+        auto get_bin = [base, nPer](auto& p) { return (p.order() - base) / nPer; };
         // Count the number of particles in each bin (process or core)
-        for (auto &p : particles) {
+        for (auto& p : particles) {
             auto bin = get_bin(p);
-            assert(bin<counts.size());
+            assert(bin < counts.size());
             ++counts[bin];
         }
         // Turn this into offsets for the swap
@@ -89,31 +89,31 @@ int ServiceReorder::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
         // Now swap particles to the correct position (so they are ordered by bin)
         container targets(offsets);
         int iBin = 0;
-        for (auto p=particles.begin(); p!=particles.end(); ++p) {
+        for (auto p = particles.begin(); p != particles.end(); ++p) {
             auto offset = p - particles.begin();
-            while (offset>=offsets[iBin+1]) ++iBin;
+            while (offset >= offsets[iBin + 1]) ++iBin;
             int bin;
             while ((bin = get_bin(*p)) != iBin) {
                 auto q = particles[targets[bin]++];
-                swap(*p,q);
+                swap(*p, q);
             }
         }
         // assert(std::is_sorted(particles.begin(),particles.end(),[get_bin](auto &p1,auto &p2) {return get_bin(p1) < get_bin(p2);}));
     };
 
     // Phase 1: exchange particles with the correct process
-    std::vector<dd_offset_type> counts(mdl->Procs(),0);
-    shuffle(counts,pkd->particles,in->nPerProc,0);
-    pkd->SetLocal(mdl->swapglobal(pkd->particles,pkd->FreeStore(),pkd->particles.ElementSize(),counts.data()));
+    std::vector<dd_offset_type> counts(mdl->Procs(), 0);
+    shuffle(counts, pkd->particles, in->nPerProc, 0);
+    pkd->SetLocal(mdl->swapglobal(pkd->particles, pkd->FreeStore(), pkd->particles.ElementSize(), counts.data()));
 
     // Phase 2: exchange particles with the correct core on each process
     counts.resize(mdl->Cores());
-    std::fill(counts.begin(),counts.end(),0);
-    shuffle(counts,pkd->particles,in->nPerCore,mdl->Proc() * in->nPerProc);
-    pkd->SetLocal(mdl->swaplocal(pkd->particles,pkd->FreeStore(),pkd->particles.ElementSize(),counts.data()));
+    std::fill(counts.begin(), counts.end(), 0);
+    shuffle(counts, pkd->particles, in->nPerCore, mdl->Proc() * in->nPerProc);
+    pkd->SetLocal(mdl->swaplocal(pkd->particles, pkd->FreeStore(), pkd->particles.ElementSize(), counts.data()));
 
     // Phase 3: reorder particles locally
-    reorder(pkd->particles,mdl->Proc() * in->nPerProc + mdl->Core() * in->nPerCore);
+    reorder(pkd->particles, mdl->Proc() * in->nPerProc + mdl->Core() * in->nPerCore);
 
     return 0;
 }
