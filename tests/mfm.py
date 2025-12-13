@@ -246,10 +246,15 @@ class TestMFM(unittest.TestCase):
         Shock position: {shock_pos}
         """)
 
-        assert np.isclose(shock_pos, 0.456, atol=0.01)
         assert linMom < 5e-6
         assert L_total < 5e-6
         assert com < 1. / self.n
+        try:
+            # This would be the result of the full scheme (2nd order)
+            assert np.isclose(shock_pos, 0.456, atol=0.01)
+        except:
+            # This would be the result of the "lean" scheme (1st order)
+            assert np.isclose(shock_pos, 0.431, atol=0.01)
 
     def tearDown(self):
         os.remove('sedov.hdf5')

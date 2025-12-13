@@ -206,14 +206,14 @@ public:
     void WriteGroupStats(const std::string_view &fname);
     EphemeralMemory EphemeralMemoryGrid(int nGrid,int nCount);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>,std::vector<float>> // nPk, fK, fPk, fPkAll
-    MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,int fold=1);
+            MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,int fold=1);
     void AssignMass(int iAssignment=3,int iGrid=0,float fDelta=0.0f,int fold=1);
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
     void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-    GridBinK(int nBins, int iGrid);
+            GridBinK(int nBins, int iGrid);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
     void GridCreateFFT(int nGrid);
@@ -508,7 +508,7 @@ protected:
 
     // Meshless hydrodynamics
     void MeshlessGradients(double dTime, double dDelta);
-    void MeshlessFluxes(double dTime,double dDelta);
+    void MeshlessFluxes(double dTime,double dDelta, uint8_t uRungLo, uint8_t uRungHi);
     void HydroStep(double dTime, double dDelta);
     void ComputeSmoothing(double dTime, double dDelta);
     void ChemCompInit();
@@ -562,7 +562,7 @@ protected:
     void InitBall();
 
     std::tuple<std::vector<uint64_t>,std::vector<float>,std::vector<float>> // nPk, fK, fPk
-    MeasureLinPk(int nGridLin,double a,double dBoxSize);
+            MeasureLinPk(int nGridLin,double a,double dBoxSize);
     void OutputPk(int iStep,double dTime);
     void OutputLinPk(int iStep, double dTime);
 

@@ -426,7 +426,7 @@ uint64_t MSR::getMemoryModel() {
     if (parameters.get_bMemNodeBnd())          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (parameters.get_bMemNodeVBnd())         mMemoryModel |= PKD_MODEL_NODE_VBND;
 
-    if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_MFM | PKD_MODEL_ACCELERATION);
+    if (MeshlessHydro())                       mMemoryModel |= (PKD_MODEL_MFM | PKD_MODEL_ACCELERATION | PKD_MODEL_NODE_BOB);
     if (MeshlessFiniteVolume())                mMemoryModel |=  PKD_MODEL_MFV;
 
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
@@ -3082,7 +3082,7 @@ int MSR::NewTopStepKDK(
     dDeltaRung = dDelta/(uintmax_t(1) << *puRungMax);
     ActiveRung(uRung,1);
     if (DoGas() && MeshlessHydro()) {
-        MeshlessFluxes(dTime, dDelta);
+        MeshlessFluxes(dTime, dDelta, uRung, MaxRung());
     }
     ZeroNewRung(uRung,MAX_RUNG,uRung);
 
@@ -3383,7 +3383,7 @@ void MSR::TopStepKDK(
     else if (CurrMaxRung() == iRung) {
         if (DoGas() && MeshlessHydro()) {
             ActiveRung(iKickRung,1);
-            MeshlessFluxes(dTime, dDeltaStep);
+            MeshlessFluxes(dTime, dDeltaStep, iKickRung, MaxRung());
         }
 
         ZeroNewRung(iKickRung,MAX_RUNG,iKickRung); /* brute force */
@@ -3584,7 +3584,7 @@ void MSR::InitSph(double dTime,double dDelta,bool bRestart) {
             InitBall();
             EndTimestepIntegration(dTime, 0.0);
             MeshlessGradients(dTime, 0.0);
-            MeshlessFluxes(dTime, 0.0);
+            MeshlessFluxes(dTime, 0.0,0,MaxRung());
             // We do this twice because we need to have uNewRung for the time
             // limiter of Durier & Dalla Vecchia
             HydroStep(dTime, dDelta);

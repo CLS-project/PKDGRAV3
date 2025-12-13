@@ -425,7 +425,7 @@ option(HYDRO "Compile with hydrodynamics support" ON)
 if (HYDRO)
    message("-- Compiling with hydrodynamics support")
    target_sources(${PROJECT_NAME} PRIVATE  meshless/hydro/hydro.cxx meshless/hydro/density.cxx
-                  meshless/hydro/gradient.cxx meshless/hydro/flux.cxx meshless/hydro/step.cxx)
+                  meshless/hydro/gradient.cxx meshless/hydro/flux.cxx meshless/hydro/step.cxx meshless/hydro/solver.cxx)
    target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/meshless)
 endif(HYDRO)
 

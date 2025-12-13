@@ -208,7 +208,13 @@ void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, decorators
 
     psph->P = psph->Uint*psph->omega*(dConstGamma -1.);
     psph->c = sqrt(psph->P*dConstGamma/p.density());
+    //printf("%e \n", p.velocity()[0]-psph->mom[0] / p.mass());
     p.velocity() = psph->mom / p.mass();
+    auto a =dot(p.velocity(), p.velocity());
+    if ( !isfinite(a) ) {
+        //printf("NN %e %e %e %e %e\n", p.position(0), p.position(1), p.position(2), psph->E, p.mass());
+    }
+    assert(a>=0);
 }
 
 void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, decorators::MFM *psph,

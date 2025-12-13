@@ -123,6 +123,32 @@ void init_shared_bh_decorator(PKD pkd, void *dst) {
 void NullSmooth(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 }
 
+void MarkActiveNeighbours(particleStore::ParticleReference &p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    for (int i=0; i<nSmooth; ++i) {
+        auto Q = pkd->particles[nnList[i].pPart];
+        Q.set_marked(true);
+    }
+}
+
+void SmoothHelperMarkActiveNeighbours::combine(void *dst, const void *src, const void *key) {
+    auto P1 = pkd->particles[reinterpret_cast<PARTICLE *>(dst)];
+    auto P2 = pkd->particles[reinterpret_cast<const PARTICLE *>(src)];
+    if (P2.is_marked()) {
+        P1.set_marked(true);
+    }
+}
+void SmoothHelperMarkActiveNeighbours::init(void *pIn) {
+    auto p = pkd->particles[static_cast<PARTICLE *>(pIn)];
+    p.set_marked(false);
+}
+void SmoothHelperMarkActiveNeighbours::initialize_local() {
+    auto pRoot = pkd->tree[ROOT];
+    for (auto &p : *pRoot) {
+        p.set_marked(p.is_active());
+    }
+}
+
 SmoothHelperBallSmooth::SmoothHelperBallSmooth(pkdContext *pkd) : SmoothHelper(pkd) {
     assert(pkd->particles.present(PKD_FIELD::oBall));
 }

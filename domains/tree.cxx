@@ -689,13 +689,7 @@ void pkdCombineCells1(PKD pkd,treeStore::NodePointer pkdn,treeStore::NodePointer
         const auto &SPHbob1 = p1->BOB();
         const auto &SPHbob2 = p2->BOB();
 
-        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
-            /* Combine ball or box of balls */
-            SPHbob = SPHbob1.combine(SPHbob2);
-        }
-        else {
-            SPHbob = SPHBOB(0.0);
-        }
+        SPHbob = SPHbob1.combine(SPHbob2);
     }
     /* Combine marked flag */
     pkdn->set_marked(p1->is_marked() || p2->is_marked());
@@ -965,7 +959,7 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
     int pj;
 
     if (!pkd->tree.present(KDN_FIELD::oNodeBOB)) return; // We aren't keeping track of the bounds
-    float fBallFactor = (SPHoptions->dofBallFactor) ? pkd->SPHoptions.fBallFactor : 1.0f;
+    float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
 
     auto c = pkd->tree[uRoot];
     auto &SPHbob = pkd->NodeBOB(c);
@@ -974,14 +968,14 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
         pj = c->lower();
         auto p = pkd->particles[pj];
         auto ft = p.position();
-        float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit,fBallFactor * p.ball());
+        float limitedBallSize = std::min(SPHoptions->ballSizeLimit,fBallFactor * p.ball());
         SPHbob = SPHBOB(ft,limitedBallSize);
         if (p.marked()) c->set_marked(true);
         if (p.NN_flag()) c->set_NN(true);
         for (++pj; pj<=c->upper(); ++pj) {
             auto p = pkd->particles[pj];
             auto ft = p.position();
-            float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit,fBallFactor * p.ball());
+            float limitedBallSize = std::min(SPHoptions->ballSizeLimit,fBallFactor * p.ball());
             SPHbob = SPHbob.combine(ft,limitedBallSize);
             if (p.marked()) c->set_marked(true);
             if (p.NN_flag()) c->set_NN(true);

@@ -534,11 +534,9 @@ protected:
     // doneWalkGrav
     void doneWalkImpl() {}
 
-    // Allow derived classes to start a cache with a different helper to allow
-    // for packing, for example
+    // Allow the interaction to define a custom particle cache
     void setupCacheImpl() {
-        pkd->mdl->CacheInitialize(CID_PARTICLE,
-                                  std::make_shared<particleCACHEhelper>(pkd));
+        this->interaction.setupCache();
     }
 
     // Initialize flop/counts statistics for latter analisis

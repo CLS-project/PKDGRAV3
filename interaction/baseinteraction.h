@@ -102,7 +102,7 @@ public:
     void addParticleIL(double x, double y, double z, float fMass, float fourh2, particleStore::ParticlePointer p) {
         derived().addParticleILImpl(x,y,z,fMass,fourh2,p);
     }
-    inline void extensiveILTest() { derived().extensiveILTestImpl(); };
+    inline void extensiveILTest(workParticle *wp) { derived().extensiveILTestImpl(wp); };
     inline void initializeInfoIn(workParticle *wp, int nP,
                                  particleStore::ParticlePointer p) {
         derived().initializeInfoInImpl(wp, nP, p);
@@ -112,6 +112,7 @@ public:
         derived().initializeInfoOutImpl(wp, nP, p);
     };
     inline void cloneIL(workParticle *wp) { derived().cloneILImpl(wp); };
+    inline void setupCache() { setupCacheImpl(); };
     inline void queueInteraction(workParticle *wp) {
         derived().queueInteractionImpl(wp);
     };
@@ -153,7 +154,7 @@ protected:
     void addParticleILImpl(double x, double y, double z, float fMass, float fourh2, particleStore::ParticlePointer p) {
         assert(0);
     }
-    inline void extensiveILTestImpl() { derived().extensiveILTestImpl(); };
+    inline void extensiveILTestImpl(workParticle *wp) { derived().extensiveILTestImpl(wp); };
     inline void initializeInfoInImpl(workParticle *wp, int nP,
                                      particleStore::ParticlePointer p) {
         derived().initializeInfoInImpl(wp, nP, p);
@@ -166,6 +167,7 @@ protected:
     inline void processWorkParticleImpl(workParticle *wp) {
         derived().processWorkParticleImpl(wp);
     };
+    inline void setupCacheImpl() { derived().setupCacheImpl(); };
     inline int queueInteractionGPUImpl(workParticle *wp, ILtile tile) {
         return derived().queueInteractionGPUImpl(wp, tile);
     };
@@ -234,7 +236,7 @@ public:
 
     // Test that the IL(s) has been populated correctly, only
     // for debugging runs
-    void extensiveILTestImpl() {}
+    void extensiveILTestImpl(workParticle *wp) {};
 
 protected:
     PKD pkd;
@@ -262,6 +264,14 @@ protected:
     // This hook allows or explicit cloning of the IL
     // if needed (it seems to be used when bDensity & bGPU)
     void cloneILImpl(workParticle *wp) { wp->il = il; }
+
+    // Allow derived classes to start a cache with a different
+    // helper to allow for packing, for example
+    void setupCacheImpl() {
+        pkd->mdl->CacheInitialize(CID_PARTICLE,
+                                  std::make_shared<particleCACHEhelper>(pkd));
+    }
+
 
     // This would wrap all the queues or any processing
     // required by a derived class.
@@ -375,15 +385,15 @@ public:
 
         /*
         ** If CUDA is used, and we are doing density on the GPU,
-        ** we need to clone the ilp,
-        ** otherwise we use the reference to the global ilp.
+        ** we need to clone the il,
+        ** otherwise we use the reference to the global il.
         */
         this->cloneIL(wp);
 
         nActive += wp->nP;
 
         if (options->doExtensiveTest) {
-            this->extensiveILTest();
+            this->extensiveILTest(wp);
         }
 
         this->processWorkParticle(wp);

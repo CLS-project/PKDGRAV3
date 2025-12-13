@@ -252,6 +252,11 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnSmooth = NullSmooth;
         helper = std::make_shared<SmoothHelperNull>(pkd);
         break;
+    case SMX_MARK_ACTIVE_NN:
+        assert(bSymmetric);
+        smx->fcnSmooth = MarkActiveNeighbours;
+        helper = std::make_shared<SmoothHelperMarkActiveNeighbours>(pkd);
+        break;
     case SMX_DENSITY:
         smx->fcnSmooth = bSymmetric?DensitySym:Density;
         helper = std::make_shared<SmoothHelperDensity>(pkd,bSymmetric);
@@ -360,7 +365,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetBufferInfo == NULL) ||
                                            (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL) ) ) {
         fprintf(stderr, "ERROR: Trying to use particle buffer in node smooth,"
-                        "but not all the required fuctions are set\n");
+                "but not all the required fuctions are set\n");
         abort();
     }
     /*

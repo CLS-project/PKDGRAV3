@@ -154,6 +154,7 @@ typedef PQ NN;
 
 enum SMOOTH_TYPE {
     SMX_NULL,
+    SMX_MARK_ACTIVE_NN,
     SMX_DENSITY,
     SMX_DENSITY_F1,
     SMX_DENSITY_M3,
@@ -218,6 +219,17 @@ class SmoothHelperNull : public SmoothHelper {
 public:
     SmoothHelperNull(pkdContext *pkd) : SmoothHelper(pkd) {}
 };
+
+
+void MarkActiveNeighbours(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);
+class SmoothHelperMarkActiveNeighbours : public SmoothHelper {
+    virtual void init(void *pIn) override final;
+    virtual void combine(void *dst, const void *src, const void *key) override final;
+    virtual void initialize_local() override final;
+public:
+    SmoothHelperMarkActiveNeighbours(pkdContext *pkd) : SmoothHelper(pkd, true) {};
+};
+
 
 //#define SMX_DENSITY             1
 void Density(particleStore::ParticleReference &p,float fBall,int,NN *,SMF *);

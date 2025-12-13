@@ -51,6 +51,9 @@
 #include "walk/gravitywalk.h"
 #include "interaction/gravity.h"
 
+#include "walk/hydrowalk.h"
+#include "interaction/mfm.h"
+
 #include "analysis/analysis.h"
 #ifdef HAVE_ROCKSTAR
     #include "analysis/rshalocount.h"
@@ -148,6 +151,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService<ServiceSaveGroupStats>(pst);
     mdl->AddService<ServiceCountDistance>(pst);
     mdl->AddService<GravityWalk<GravityInteraction>>(pst);
+    mdl->AddService<HydroWalk<HydroInteraction>>(pst);
 #ifdef HAVE_ROCKSTAR
     mdl->AddService<ServiceRsHaloCount>(pst);
     mdl->AddService<ServiceRsHaloLoadIds>(pst);

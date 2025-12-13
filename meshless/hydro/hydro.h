@@ -1,15 +1,15 @@
 #ifndef HYDRO_H
 #define HYDRO_H
+#include "core/simd.h"
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
+#include "riemann.h"
+#include "limiters.h"
+#include "solver.h"
+#include "kernels.h"
 #include <vector>
 
-#define XX 0
-#define YY 3
-#define ZZ 5
-#define XY 1
-#define XZ 2
-#define YZ 4
+
 
 namespace meshless {
 typedef double myreal;
@@ -20,82 +20,6 @@ typedef double myreal;
  * -----------------
  */
 
-// Cubic spline kernel as defined in Dehnen & Aly (2012)
-//
-// (1 − q)^3 − 4(1/2 − q)^3  for   0 < q <= 1/2
-//                (1 − q)^3  for 1/2 < q <= 1
-//                        0  for       q > 1
-//
-// where q = r/H.
-template <typename dtype=double, typename mtype=bool>
-inline dtype cubicSplineKernel(dtype r, dtype H) {
-    const dtype dNormFac = 16 * M_1_PI;
-    const dtype dHInv = 1.0 / H;
-    const dtype q = r * dHInv;
-    const dtype dNorm = dNormFac * dHInv * dHInv * dHInv;
-
-    if (q < 0.5) {
-        return dNorm * (0.5 - 3 * q * q * (1.0 - q));
-    }
-    else if (q < 1.0) {
-        return dNorm * (1.0 - q) * (1.0 - q) * (1.0 - q);
-    }
-    else {
-        return 0.0;
-    }
-}
-
-#ifdef SIMD_H
-template <>
-inline dvec cubicSplineKernel(dvec r, dvec H) {
-    const dvec dNormFac = 16 * M_1_PI;
-    const dvec dHInv = 1.0 / H;
-    const dvec q = r * dHInv;
-    const dvec dNorm = dNormFac * dHInv * dHInv * dHInv;
-    const dvec oneMq = 1.0 - q;
-    dvec out = 0.0;
-    dvec t;
-    t = dNorm * oneMq * oneMq * oneMq;
-    out = mask_mov(out, q<1.0, t);
-    t = dNorm * (0.5 - 3 * q * q * oneMq);
-    out = mask_mov(out, q<0.5, t);
-    return out;
-}
-#endif
-
-// First derivative (i.e. dW / dq) of the cubic spline kernel
-template <typename dtype=double, typename mtype=bool>
-inline dtype cubicSplineKernelDeriv(dtype r, dtype H) {
-    const dtype dHInv = 1.0 / H;
-    const dtype q = r * dHInv;
-    const dtype dNorm = 48. * M_1_PI * dHInv * dHInv * dHInv;
-
-    if (q < 0.5) {
-        return dNorm * q * (3.*q - 2.);
-    }
-    else if (q < 1.0) {
-        return - dNorm * (1.-q) * (1.-q);
-    }
-    else {
-        return 0.0;
-    }
-}
-
-#ifdef SIMD_H
-template <>
-inline dvec cubicSplineKernelDeriv(dvec r, dvec H) {
-    const dvec dHInv = 1.0 / H;
-    const dvec q = r * dHInv;
-    const dvec dNorm = 48. * M_1_PI * dHInv * dHInv * dHInv;
-    dvec out{0.}, t;
-
-    t = - dNorm * (1.-q) * (1.-q);
-    out = mask_mov(out, q<1.0, t);
-    t = dNorm * q * (3.*q - 2.);
-    out = mask_mov(out, q<0.5, t);
-    return out;
-}
-#endif
 
 /* Density loop */
 struct hydroDensityPack {
@@ -192,7 +116,7 @@ class SmoothHelperHydroFluxes : public SmoothHelperPacked<hydroFluxesPack,hydroF
     virtual void combine(void *dst, const void *src, const void *key) override final;
     virtual void  init_shared(void *dst) override final {init_shared_gas_decorator(pkd,dst);}
 public:
-    SmoothHelperHydroFluxes(pkdContext *pkd) : SmoothHelperPacked<hydroFluxesPack,hydroFluxesFlush>(pkd,true) {
+    SmoothHelperHydroFluxes(pkdContext *pkd, bool bSymmetric=true) : SmoothHelperPacked<hydroFluxesPack,hydroFluxesFlush>(pkd,bSymmetric) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
 };
@@ -256,5 +180,6 @@ double conditionNumber(double *E, double *B);
 void compute_Ustar(double rho_K, double S_K, double v_K,
                    double p_K, double h_K, double S_s,
                    double *rho_sK, double *rhov_sK, double *e_sK);
+
 
 #endif

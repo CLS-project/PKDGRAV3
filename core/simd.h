@@ -75,7 +75,7 @@ public:
     vec() = default;
     template<typename T,
              typename = std::enable_if_t<std::is_arithmetic<T>::value>>
-    vec(T const& d);
+    vec(T const &d);
     template<
         typename V = vector_t,
         typename = std::enable_if_t<!std::is_arithmetic_v<V>>>
@@ -325,6 +325,8 @@ inline mmask<__mmask16> operator|(mmask<__mmask16> const &a,mmask<__mmask16> con
 inline mmask<__mmask16> operator^(mmask<__mmask16> const &a,mmask<__mmask16> const &b) { return _mm512_kxor(a,b); }
 inline mmask<__mmask16> operator~(mmask<__mmask16> const &a) { return _mm512_knot(a); }
 inline int testz(mmask<__mmask16> const &a) { return _mm512_kortestz(a,a); }
+inline int movemask(mmask<__mmask16> const &k) { return (long int)(k); }
+
 
 /**********************************************************************\
 * AVX512 double precision
@@ -463,6 +465,7 @@ inline vec<__m256,float> mask_mov(vec<__m256,float> const &src,vec<__m256,float>
 { return _mm256_blendv_ps(src,a,p); }
 inline vec<__m256,float> mask_mov(vec<__m256,float> const &src,vec<__m256i,std::int32_t> const &p,vec<__m256,float> const &a)
 { return _mm256_blendv_ps(src,a,_mm256_castsi256_ps(p)); }
+inline int movemask(vec<__m256,float> const &r2) { return _mm256_movemask_ps(r2); }
 inline vec<__m256,float> maskz_mov(vec<__m256,float> const &p,vec<__m256,float> const &a) { return a & p; }
 inline vec<__m256,float> maskz_mov(vec<__m256i,std::int32_t> const &p,vec<__m256,float> const &a)
 { return _mm256_and_ps(a, _mm256_castsi256_ps(p)); }
