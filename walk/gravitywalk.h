@@ -21,34 +21,9 @@ public:
     // but they should be logically separated probably
     using Options = GravityInteractionTraits::Options;
 
-    struct output {
-        STAT sLocal;
-        STAT sActive;
-        STAT sPart;
-        STAT sPartNumAccess;
-        STAT sPartMissRatio;
-        STAT sCell;
-        STAT sCellNumAccess;
-        STAT sCellMissRatio;
-        STAT sFlop;
-#ifdef INSTRUMENT
-        STAT sComputing;
-        STAT sWaiting;
-        STAT sSynchronizing;
-#endif
-#ifdef __linux__
-        STAT sRSS;
-        STAT sFreeMemory;
-#endif
-        double dFlopSingleCPU;
-        double dFlopDoubleCPU;
-        double dFlopSingleGPU;
-        double dFlopDoubleGPU;
-        uint64_t nActive;
-        uint64_t nRung[IRUNGMAX + 1];
-        uint64_t nTilesTotal;
-        uint64_t nTilesCPU;
-    };
+    // For now, we simply reuse the struct for the output that is already
+    // implemented for the gravity walk.
+    using output = outGravityReduct;
 };
 
 template <typename Interaction, typename Derived>

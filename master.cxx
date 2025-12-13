@@ -2382,34 +2382,36 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.SPHoptions = SPHoptions;
 
 
-    TimerStart(TIMER_GRAVITY);
-#define NEW_WALK
-#ifdef NEW_WALK
-    GravityWalkTraits::Options input;
-    GravityWalkTraits::output outr;
-    // Temporarily manually copy everything from the inGravity
-    // struct to avoid touching that implementation
-    input.doExtensiveTest = false;
-    input.uRungLo = in.ts.uRungLo;
-    input.uRungHi = in.ts.uRungHi;
-    input.kick = in.kick;
-    input.lc = in.lc;
-    input.ts = in.ts;
-    input.dTime = in.dTime;
-    input.dEwCut = in.dEwCut;
-    input.dEwhCut = in.dEwhCut;
-    input.dTheta = in.dTheta;
-    input.nReps = in.nReps;
-    input.bPeriodic = in.bPeriodic;
-    input.bEwald = in.bEwald;
-    input.bGPU = in.bGPU;
-    input.iRoot1 = in.iRoot1;
-    input.iRoot2 = in.iRoot2;
-    mdl->RunService("GravityWalkGravityInteraction", sizeof(input), &input, &outr);
-#else
     outGravityReduct outr;
-    pstGravity(pst,&in,sizeof(in),&outr,sizeof(outr));
-#endif
+    TimerStart(TIMER_GRAVITY);
+    if (SPHoptions.doGravity &&
+            !(SPHoptions.doDensity || SPHoptions.doDensityCorrection ||
+              SPHoptions.doSPHForces || SPHoptions.doSetDensityFlags ||
+              SPHoptions.doSetNNflags)) {
+        GravityWalkTraits::Options input;
+        // Temporarily manually copy everything from the inGravity
+        // struct to avoid touching that structure for now
+        input.doExtensiveTest = false;
+        input.uRungLo = in.ts.uRungLo;
+        input.uRungHi = in.ts.uRungHi;
+        input.kick = in.kick;
+        input.lc = in.lc;
+        input.ts = in.ts;
+        input.dTime = in.dTime;
+        input.dEwCut = in.dEwCut;
+        input.dEwhCut = in.dEwhCut;
+        input.dTheta = in.dTheta;
+        input.nReps = in.nReps;
+        input.bPeriodic = in.bPeriodic;
+        input.bEwald = in.bEwald;
+        input.bGPU = in.bGPU;
+        input.iRoot1 = in.iRoot1;
+        input.iRoot2 = in.iRoot2;
+        mdl->RunService("GravityWalkGravityInteraction", sizeof(input), &input, &outr);
+    }
+    else {
+        pstGravity(pst,&in,sizeof(in),&outr,sizeof(outr));
+    }
 
     TimerStop(TIMER_GRAVITY);
     dsec = TimerGet(TIMER_GRAVITY);
