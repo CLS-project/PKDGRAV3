@@ -1051,7 +1051,7 @@ static int tipsyReadNativeSph(
     rc = fread(pfTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     *pfTemp = -(*pfTemp);
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fread(pfMetals,sizeof(float),ELEMENT_COUNT,tio->fp); if (rc!=ELEMENT_COUNT) return 0;
+    rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
 }
@@ -1085,7 +1085,7 @@ static int tipsyWriteNativeSph(
     rc = fwrite(&fDen,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fwrite(pfMetals,sizeof(float),ELEMENT_COUNT,tio->fp); if (rc!=ELEMENT_COUNT) return 0;
+    rc = fwrite(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
 }
@@ -1124,8 +1124,7 @@ static int tipsyReadStandardSph(
     if (!xdr_float(&tio->xdr,pfTemp)) return 0;
     *(pfTemp) = -(*pfTemp);
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
-    for (d=0; d<ELEMENT_COUNT; d++)
-        if (!xdr_float(&tio->xdr,pfMetals+d)) return 0;
+    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
     if (!xdr_float(&tio->xdr,pfPot)) return 0;
     return 1;
 }
@@ -1165,10 +1164,7 @@ static int tipsyWriteStandardSph(
     if (!xdr_float(&tio->xdr,&fDen)) return 0;
     if (!xdr_float(&tio->xdr,&fTemp)) return 0;
     if (!xdr_float(&tio->xdr,&fSoft)) return 0;
-    for (d=0; d<ELEMENT_COUNT; d++) {
-        fTmp = pfMetals[d];
-        if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-    }
+    if (!xdr_float(&tio->xdr,&pfMetals[0])) return 0;
     if (!xdr_float(&tio->xdr,&fPot)) return 0;
     return 1;
 }
@@ -1201,7 +1197,7 @@ static int tipsyReadNativeStar(
         rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
         for (d=0; d<3; d++) pdVel[d] = fTmp[d];
     }
-    rc = fread(pfMetals,sizeof(float),ELEMENT_COUNT,tio->fp); if (rc!=ELEMENT_COUNT) return 0;
+    rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -1234,7 +1230,7 @@ static int tipsyWriteNativeStar(
         for (d=0; d<3; d++) fTmp[d] = pdVel[d];
         rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
     }
-    rc = fwrite(pfMetals,sizeof(float),ELEMENT_COUNT,tio->fp); if (rc!=ELEMENT_COUNT) return 0;
+    rc = fwrite(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     //    rc = fwrite(&fTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -1271,8 +1267,7 @@ static int tipsyReadStandardStar(
             pdVel[d] = fTmp;
         }
     }
-    for (d=0; d<ELEMENT_COUNT; d++)
-        if (!xdr_float(&tio->xdr,pfMetals+d)) return 0;
+    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
     if (!xdr_float(&tio->xdr,pfTform)) return 0;
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
     if (!xdr_float(&tio->xdr,pfPot)) return 0;
@@ -1311,10 +1306,7 @@ static int tipsyWriteStandardStar(
             if (!xdr_float(&tio->xdr,&fTmp)) return 0;
         }
     }
-    for (d=0; d<ELEMENT_COUNT; d++) {
-        fTmp = pfMetals[d];
-        if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-    }
+    if (!xdr_float(&tio->xdr,&pfMetals[0])) return 0;
     //    if (!xdr_float(&tio->xdr,&fTform)) return 0;
     if (!xdr_float(&tio->xdr,&fSoft)) return 0;
     if (!xdr_float(&tio->xdr,&fPot)) return 0;
