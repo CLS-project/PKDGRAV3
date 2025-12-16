@@ -197,8 +197,8 @@ __global__ void cudaInteract(
 
 void pkdParticleWorkDone(workParticle *wp);
 
-template<class TILE,int N>
-void MessagePPPC<TILE,N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
+template<typename WORKPARTICLE, class TILE,int N>
+void MessagePPPC<WORKPARTICLE, TILE,N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
     typedef gpu::Blk<N,TILE> BLK;
     auto *pCudaOutput = reinterpret_cast<gpu::ppResult *>(pCudaBufOut);
 
@@ -229,8 +229,8 @@ void MessagePPPC<TILE,N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCu
     CUDA_CHECK(cudaMemcpyAsync,(this->pHostBufOut, pCudaBufOut, this->resultsBufferCount, cudaMemcpyDeviceToHost, stream) );
 }
 
-template<class TILE,int N>
-void MessagePPPC<TILE,N>::finish() {
+template<typename WORKPARTICLE, class TILE,int N>
+void MessagePPPC<WORKPARTICLE,TILE,N>::finish() {
     auto *pR = reinterpret_cast<gpu::ppResult *>(this->pHostBufOut);
 
     for ( auto &w : this->work ) {

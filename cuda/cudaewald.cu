@@ -16,6 +16,7 @@
  */
 
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+#include "interaction/gravity_traits.h"
 #define OLD_CUDA
 
 #ifdef HAVE_CONFIG_H
@@ -30,6 +31,7 @@
 #include <stdio.h>
 #include "basetype.h"
 #include "gravity/moments.h"
+#include "cudaewald.h"
 #include "cudautil.h"
 
 #define MAX_TOTAL_REPLICAS (7*7*7)
@@ -324,18 +326,34 @@ int CudaClient::queueEwald(workParticle *work) {
     return 0; // Not sure how this would happen, but okay.
 }
 
-MessageEwald::MessageEwald(class CudaClient &cuda) : cuda(cuda) {
+// IA: Why queueEwald is used rather than `queue` in CudaClient??
+int CudaClient::queueEwaldnew(GravityInteractionTraits::WORKPARTICLE *work) {
+    if (ewaldnew) {
+        if (ewaldnew->queue(work)) return work->nP; // Sucessfully queued
+        cuda.enqueue(*ewaldnew,gpu); // Full, so send it to the GPU
+        ewaldnew = nullptr;
+    }
+    gpu.flushCompleted();
+    if (freeEwald.empty()) return 0; // No buffers so the CPU has to do this part
+    ewaldnew = & freeEwaldnew.dequeue();
+    if (ewaldnew->queue(work)) return work->nP; // Sucessfully queued
+    return 0; // Not sure how this would happen, but okay.
+}
+
+template <typename WORKPARTICLE>
+MessageEwaldBase<WORKPARTICLE>::MessageEwaldBase(class CudaClient &cuda) : cuda(cuda) {
     nParticles = 0;
     nMaxParticles = std::min(resultsBufferSize / sizeof(gpuEwaldOutput),requestBufferSize / sizeof(gpuEwaldInput)) * EWALD_ALIGN;
     ppWP.reserve(CUDA_WP_MAX_BUFFERED);
 }
 
-bool MessageEwald::queue(workParticle *work) {
+template <typename WORKPARTICLE>
+bool MessageEwaldBase<WORKPARTICLE>::queue(WORKPARTICLE *work) {
     if (ppWP.size() == CUDA_WP_MAX_BUFFERED) return false; // Too many work packages
     if ( nParticles + work->nP > nMaxParticles) return false; // Not enough space
     auto toGPU = reinterpret_cast<gpuEwaldInput *>(pHostBufIn);
     for ( auto i=0; i<work->nP; i++ ) {
-        const PINFOIN *in = &work->pInfoIn[i];
+        auto *in = &work->pInfoIn[i];
         int ij = nParticles / EWALD_ALIGN;
         int ii = nParticles % EWALD_ALIGN;
         toGPU[ij].X[ii] = work->c[0] + in->r[0];
@@ -349,7 +367,8 @@ bool MessageEwald::queue(workParticle *work) {
     return true;
 }
 
-void MessageEwald::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
+template <typename WORKPARTICLE>
+void MessageEwaldBase<WORKPARTICLE>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
     int align = (nParticles+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
     int ngrid = align/EWALD_ALIGN;
     dim3 dimBlock( EWALD_ALIGN, 1 );
@@ -363,7 +382,8 @@ void MessageEwald::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOu
     CUDA_CHECK(cudaMemcpyAsync,(fromGPU, outGPU, ngrid * sizeof(gpuEwaldOutput), cudaMemcpyDeviceToHost, stream));
 }
 
-void MessageEwald::finish() {
+template <typename WORKPARTICLE>
+void MessageEwaldBase<WORKPARTICLE>::finish() {
     auto fromGPU = reinterpret_cast<gpuEwaldOutput *>(pHostBufOut);
     int iResult = 0;
     for ( auto &wp : ppWP) {
@@ -371,7 +391,7 @@ void MessageEwald::finish() {
             int ij = iResult / EWALD_ALIGN;
             int ii = iResult % EWALD_ALIGN;
             ++iResult;
-            PINFOOUT *out = &wp->pInfoOut[i];
+            auto *out = &wp->pInfoOut[i];
             out->a[0] += fromGPU[ij].X[ii];
             out->a[1] += fromGPU[ij].Y[ii];
             out->a[2] += fromGPU[ij].Z[ii];
@@ -379,10 +399,19 @@ void MessageEwald::finish() {
             wp->dFlopSingleGPU += COST_FLOP_HLOOP * cuda.nEwhLoop;
             wp->dFlopDoubleGPU += fromGPU[ij].FlopDouble[ii];
         }
-        pkdParticleWorkDone(wp);
+        if constexpr (std::is_same_v<workParticle *, WORKPARTICLE *>) {
+            pkdParticleWorkDone(wp);
+        }
+        else {
+            cuda.particleWorkDone(cuda.ctx, wp);
+        }
     }
     assert(iResult == nParticles);
     nParticles = 0;
     ppWP.clear();
     cuda.freeEwald.enqueue(*this);
 }
+
+// Explicit instantiation
+template class MessageEwaldBase<workParticle>;
+template class MessageEwaldBase<GravityInteractionTraits::WORKPARTICLE>;

@@ -21,6 +21,8 @@
 #include "workunit.h"
 #include "gravity/ilp.h"
 #include "gravity/ilc.h"
+#include "workparticle.h"
+
 
 namespace gpu {
 
@@ -28,11 +30,16 @@ template <int n,class BTILE> struct Blk;
 template <int n> struct Blk<n,ilpTile> : ppBlk<n> {};
 template <int n> struct Blk<n,ilcTile> : pcBlk<n> {};
 
-inline double getFlops(workParticle *wp,ilpTile &tile) {
-    return COST_FLOP_PP*wp->nP*tile.count();
+//#define GET_WP_ATTR(wp, attr) std::visit([](auto && x) -> decltype(auto) {return x->attr ;}, wp)
+#define GET_WP_ATTR(wp, attr) wp->attr
+
+template<typename WORKPARTICLE>
+inline double getFlops(WORKPARTICLE *wp,ilpTile &tile) {
+    return COST_FLOP_PP*GET_WP_ATTR(wp, nP)*tile.count();
 }
-inline double getFlops(workParticle *wp,ilcTile &tile) {
-    return COST_FLOP_PC*wp->nP*tile.count();
+template<typename WORKPARTICLE>
+inline double getFlops(WORKPARTICLE *wp,ilcTile &tile) {
+    return COST_FLOP_PC*GET_WP_ATTR(wp, nP)*tile.count();
 }
 
 // The interaction list blocks may contain more information than is necessary
@@ -93,16 +100,16 @@ inline int copyBLKs(pcInteract *out, ilcTile &in) {
 
 /// Extend hostData to keeps track of interaction lists and work packages.
 /// We are still GPU agnostic.
-template<class TILE,int WIDTH=32>
+template<typename WORKPARTICLE, class TILE,int WIDTH=32>
 class pppcData : public hostData {
 protected:
     bool bGravStep;
     std::size_t requestBufferCount, resultsBufferCount;
     int nTotalInteractionBlocks, nTotalParticles, nGrid;
     struct workInformation {
-        workParticle *wp;
+        WORKPARTICLE *wp;
         std::size_t nInteractions;
-        workInformation(workParticle *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
+        workInformation(WORKPARTICLE *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
     };
     static constexpr size_t wp_max_buffer = 128;
     static constexpr size_t wp_unit_mask = 7; // Pad input buffer to this mask (so multiples of 8)
@@ -118,11 +125,11 @@ public:
         requestBufferCount = resultsBufferCount = 0;
         nTotalInteractionBlocks = nTotalParticles = 0;
     }
-    bool queue(workParticle *wp, TILE &tile, bool bGravStep) {
+    bool queue(WORKPARTICLE *wp, TILE &tile, bool bGravStep) {
         typedef Blk<WIDTH,TILE> BLK;
         if (work.size() == wp_max_buffer) return false;  // Too many work packages so send the work
         this->bGravStep = bGravStep;
-        const auto nP = wp->nP;                                 // Queue this many particles
+        const auto nP = GET_WP_ATTR(wp, nP);                                 // Queue this many particles
         const auto nI = tile.count();                           // ... operating on this many interactions
 
         if (inputSize<BLK>(nP,nI) > requestBufferSize - 1024) return false;     // Refuse if this tile won't fit in this buffer
@@ -147,8 +154,8 @@ public:
         uint32_t iP = 0;
         for ( auto &w : work ) {
             int nI = w.nInteractions;
-            auto nP = w.wp->nP;
-            auto *pInfoIn = w.wp->pInfoIn;
+            auto nP = GET_WP_ATTR(w.wp, nP);
+            auto *pInfoIn = GET_WP_ATTR(w.wp, pInfoIn);
             auto nBlocks = (nI + WIDTH - 1) / WIDTH;
 
             // Generate a interaction block descriptor for each block

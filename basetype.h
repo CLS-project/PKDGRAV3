@@ -101,7 +101,7 @@ struct remoteID {
     int32_t  iIndex;    /* Index of item on the processor */
     remoteID() = default;
     remoteID(int32_t pid, int32_t index) : iPid(pid), iIndex(index) { }
-    bool operator<(const remoteID& other) const {
+    bool operator<(const remoteID &other) const {
         if (iPid != other.iPid)
             return iPid < other.iPid;
         return iIndex < other.iIndex;
@@ -313,31 +313,36 @@ struct inStarForm {
 /*
 ** Accumulates the work for a set of particles
 */
-typedef struct {
+struct workParticleCommon {
     PARTICLE **pPart;
     uint32_t *iPart;
-    PINFOIN *pInfoIn;
-    PINFOOUT *pInfoOut;
     double dFlop;
     blitz::TinyVector<double,3> c;
     int nP;
     int nRefs;
     void *ctx;
 
-    struct pkdKickParameters *kick;
-    struct pkdLightconeParameters *lc;
-    struct pkdTimestepParameters *ts;
-    double dirLsum, normLsum;
 
     double dFlopSingleCPU;
     double dFlopSingleGPU;
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
 
+    int bGPU;
+};
+
+struct workParticle : public workParticleCommon {
+    PINFOIN *pInfoIn;
+    PINFOOUT *pInfoOut;
     SPHOptions *SPHoptions;
     ilpList *ilp;
-    int bGPU;
-} workParticle;
+    double dirLsum, normLsum;
+    struct pkdKickParameters *kick;
+    struct pkdLightconeParameters *lc;
+    struct pkdTimestepParameters *ts;
+};
+
+
 
 #define EWALD_ALIGN 64
 #define EWALD_MASK (EWALD_ALIGN-1)

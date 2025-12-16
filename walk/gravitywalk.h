@@ -7,6 +7,7 @@
 #include "gravity/moments.h"
 #include "gravity/vmoments.h"
 #include "interaction/gravity.h"
+#include "interaction/gravity_traits.h"
 #include "pkd.h"
 #include "smooth/smooth.h"
 #include "walk/stats.h"

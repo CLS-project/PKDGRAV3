@@ -23,7 +23,7 @@
 // }
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
-#include "hydro/hydro.h"
+#include "meshless/hydro/hydro.h"
 #include "group/group.h"
 #include "blitz/array.h"
 

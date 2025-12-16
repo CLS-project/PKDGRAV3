@@ -1,9 +1,9 @@
 #include "eEOS/eEOS.h"
 #include "hydro/hydro.h"
 #include "hydro/limiters.h"
-#include "interaction/mfm.h"
 #include "master.h"
-#include "walk/hydrowalk.h"
+// #include "interaction/mfm.h"
+// #include "walk/hydrowalk.h"
 
 using blitz::dot;
 using blitz::TinyVector;
@@ -14,7 +14,7 @@ void MSR::MeshlessFluxes(double dTime, double dDelta, uint8_t uRungLo,
     printf("Computing fluxes... ");
     TimerStart(TIMER_FLUXES);
 
-    // /*
+    /*
     // Mark those particles that are part of an interaction, either because
     // they are active or a neighbour of an active particle
     ReSmooth(dTime, 0.0f, SMX_MARK_ACTIVE_NN, 1);
@@ -77,9 +77,9 @@ void MSR::MeshlessFluxes(double dTime, double dDelta, uint8_t uRungLo,
         (double)(output.nTilesTotal - output.nTilesCPU),
         100.0 -
         ((double)output.nTilesCPU) / ((double)output.nTilesTotal) * 100.0);
-    // */
+    */
 
-    /*
+    // /*
     #ifdef OPTIM_SMOOTH_NODE
     #ifdef OPTIM_AVOID_IS_ACTIVE
     SelActives();
@@ -92,7 +92,7 @@ void MSR::MeshlessFluxes(double dTime, double dDelta, uint8_t uRungLo,
     #else // no OPTIM_SMOOTH_NODE
     ReSmooth(dTime, dDelta, SMX_HYDRO_FLUX,1);
     #endif
-    */
+    // */
     TimerStop(TIMER_FLUXES);
     dsec = TimerGet(TIMER_FLUXES);
     printf("took %.5f seconds\n", dsec);

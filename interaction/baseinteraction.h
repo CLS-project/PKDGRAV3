@@ -1,7 +1,10 @@
 #ifndef BASE_INTERACTION_H
 #define BASE_INTERACTION_H
+#include "cudautil.h"
+#include "gpu/pppcdata.h"
 #include "pkd.h"
 #include "pkd_config.h"
+#include "basetype.h"
 #include "walk/stats.h"
 
 // Question, how to make this scheme to work on smooths
@@ -38,55 +41,7 @@ public:
     using PINFOOUT = typename Traits::PINFOOUT;
     using IL = typename Traits::IL;
     using ILtile = typename Traits::IL::tile_type;
-    struct workParticle {
-        // Use a constructor for convenience
-        workParticle(PKD pkd, treeStore::NodePointer k,
-                     IL *il) {
-            nRefs = 1; /* I am using it currently */
-            ctx = pkd;
-            dFlop = 0.0;
-            dFlopSingleCPU = dFlopSingleGPU = 0.0;
-            dFlopDoubleCPU = dFlopDoubleGPU = 0.0;
-            nTilesTotal = nTilesCPU = 0;
-            nP = 0;
-
-            auto knP = k->count();
-            pPart = new PARTICLE*[knP];
-            iPart = new uint32_t[knP];
-            pInfoIn = new PINFOIN[knP];
-            pInfoOut = new PINFOOUT[knP];
-            c[0] = il->getReference(0);
-            // assert(wp->c[0] == ilc.getReference(0));
-            c[1] = il->getReference(1);
-            // assert(wp->c[1] == ilc.getReference(1));
-            c[2] = il->getReference(2);
-            // assert(wp->c[2] == ilc.getReference(2));
-        };
-        ~workParticle() {
-            delete[] pPart;
-            delete[] iPart;
-            delete[] pInfoIn;
-            delete[] pInfoOut;
-        }
-        IL *il;
-
-        PARTICLE **pPart;
-        uint32_t *iPart;
-        PINFOIN *pInfoIn;
-        PINFOOUT *pInfoOut;
-        blitz::TinyVector<double, 3> c;
-        int nP;
-        int nRefs;
-        void *ctx;
-
-        double dFlop;
-        double dFlopSingleCPU;
-        double dFlopSingleGPU;
-        double dFlopDoubleCPU;
-        double dFlopDoubleGPU;
-        int nTilesTotal;
-        int nTilesCPU;
-    };
+    using interWorkParticle = typename Traits::WORKPARTICLE;
     inline void setup(PKD pkd, typename Traits::Options *options,
                       WalkStats *walkStats) {
         derived().setupImpl(pkd, options, walkStats);
@@ -102,27 +57,27 @@ public:
     void addParticleIL(double x, double y, double z, float fMass, float fourh2, particleStore::ParticlePointer p) {
         derived().addParticleILImpl(x,y,z,fMass,fourh2,p);
     }
-    inline void extensiveILTest(workParticle *wp) { derived().extensiveILTestImpl(wp); };
-    inline void initializeInfoIn(workParticle *wp, int nP,
+    inline void extensiveILTest(interWorkParticle *wp) { derived().extensiveILTestImpl(wp); };
+    inline void initializeInfoIn(interWorkParticle *wp, int nP,
                                  particleStore::ParticlePointer p) {
         derived().initializeInfoInImpl(wp, nP, p);
     };
-    inline void initializeInfoOut(workParticle *wp, int nP,
+    inline void initializeInfoOut(interWorkParticle *wp, int nP,
                                   particleStore::ParticlePointer p) {
         derived().initializeInfoOutImpl(wp, nP, p);
     };
-    inline void cloneIL(workParticle *wp) { derived().cloneILImpl(wp); };
+    inline void cloneIL(interWorkParticle *wp) { derived().cloneILImpl(wp); };
     inline void setupCache() { setupCacheImpl(); };
-    inline void queueInteraction(workParticle *wp) {
+    inline void queueInteraction(interWorkParticle *wp) {
         derived().queueInteractionImpl(wp);
     };
-    inline int queueInteractionGPU(workParticle *wp, ILtile tile) {
+    inline int queueInteractionGPU(interWorkParticle *wp, ILtile tile) {
         return derived().queueInteractionGPUImpl(wp, tile);
     };
-    inline void processWorkParticle(workParticle *wp) {
+    inline void processWorkParticle(interWorkParticle *wp) {
         derived().processWorkParticleImpl(wp);
     };
-    inline void particleWorkDone(workParticle *wp) {
+    inline void particleWorkDone(interWorkParticle *wp) {
         derived().particleWorkDoneImpl(wp);
     };
     inline bool particleSkipCondition(particleStore::ParticlePointer p) {
@@ -137,6 +92,13 @@ public:
                         int iRoot1, int iRoot2) {
         return derived().interactImpl(pkdn, iRoot1, iRoot2);
     };
+    static void trampoline(void *ctx, workParticleVariants wp) {
+        static_cast<Derived *>(ctx)->particleWorkDone(*std::get_if<interWorkParticle *>(&wp));
+    }
+    void registerCudaCallback(CudaClient &cuda) {
+        cuda.ctx = this;
+        cuda.particleWorkDone = &BaseInteractionInterface::trampoline;
+    }
 
 protected:
     inline void setupImpl(PKD pkd, typename Traits::Options *options,
@@ -154,24 +116,24 @@ protected:
     void addParticleILImpl(double x, double y, double z, float fMass, float fourh2, particleStore::ParticlePointer p) {
         assert(0);
     }
-    inline void extensiveILTestImpl(workParticle *wp) { derived().extensiveILTestImpl(wp); };
-    inline void initializeInfoInImpl(workParticle *wp, int nP,
+    inline void extensiveILTestImpl(interWorkParticle *wp) { derived().extensiveILTestImpl(wp); };
+    inline void initializeInfoInImpl(interWorkParticle *wp, int nP,
                                      particleStore::ParticlePointer p) {
         derived().initializeInfoInImpl(wp, nP, p);
     };
-    inline void initializeInfoOutImpl(workParticle *wp, int nP,
+    inline void initializeInfoOutImpl(interWorkParticle *wp, int nP,
                                       particleStore::ParticlePointer p) {
         derived().initializeInfoOutImpl(wp, nP, p);
     };
-    inline void cloneILImpl(workParticle *wp) { derived().cloneILImpl(wp); };
-    inline void processWorkParticleImpl(workParticle *wp) {
+    inline void cloneILImpl(interWorkParticle *wp) { derived().cloneILImpl(wp); };
+    inline void processWorkParticleImpl(interWorkParticle *wp) {
         derived().processWorkParticleImpl(wp);
     };
     inline void setupCacheImpl() { derived().setupCacheImpl(); };
-    inline int queueInteractionGPUImpl(workParticle *wp, ILtile tile) {
+    inline int queueInteractionGPUImpl(interWorkParticle *wp, ILtile tile) {
         return derived().queueInteractionGPUImpl(wp, tile);
     };
-    inline void particleWorkDoneImpl(workParticle *wp) {
+    inline void particleWorkDoneImpl(interWorkParticle *wp) {
         derived().particleWorkDoneImpl(wp);
     };
     inline bool particleSkipConditionImpl(particleStore::ParticlePointer p) {
@@ -208,7 +170,7 @@ public:
     using PINFOOUT = typename Traits::PINFOOUT;
     using name = typename Traits::name;
     using ResultInteraction = typename Traits::template ResultInteraction<fvec>;
-    using workParticle = typename impl::workParticle;
+    using interWorkParticle = typename impl::interWorkParticle;
 
     // Default constructor without argument is needed when
     // building the service. We do a delayed initialization
@@ -218,8 +180,11 @@ public:
 
     void setupImpl(PKD pkd, Options *options, WalkStats *stats) {
         this->pkd = pkd;
+        this->registerCudaCallback(*pkd->cudaClient);
         this->options = options;
         this->walkStats = stats;
+        this->nTilesTotal = 0;
+        this->nTilesCPU = 0;
     }
 
     // Generic interfaces to the interaction list(s).
@@ -236,12 +201,14 @@ public:
 
     // Test that the IL(s) has been populated correctly, only
     // for debugging runs
-    void extensiveILTestImpl(workParticle *wp) {};
+    void extensiveILTestImpl(interWorkParticle *wp) {};
 
 protected:
     PKD pkd;
     Options *options;
     WalkStats *walkStats;
+    int nTilesTotal;
+    int nTilesCPU;
 
     blitz::TinyVector<double, 3> kdn_r;
 
@@ -252,18 +219,18 @@ protected:
 
     // Allow for some flexibility when initializing this at it
     // could contain information of the interaction (e.g., IL)
-    void initializeInfoInImpl(workParticle *wp, int nP,
+    void initializeInfoInImpl(interWorkParticle *wp, int nP,
                               particleStore::ParticlePointer p) {
         wp->pInfoIn[nP].init(p);
     };
-    void initializeInfoOutImpl(workParticle *wp, int nP,
+    void initializeInfoOutImpl(interWorkParticle *wp, int nP,
                                particleStore::ParticlePointer p) {
         wp->pInfoOut[nP].init(p);
     };
 
     // This hook allows or explicit cloning of the IL
     // if needed (it seems to be used when bDensity & bGPU)
-    void cloneILImpl(workParticle *wp) { wp->il = il; }
+    void cloneILImpl(interWorkParticle *wp) { }
 
     // Allow derived classes to start a cache with a different
     // helper to allow for packing, for example
@@ -276,11 +243,11 @@ protected:
     // This would wrap all the queues or any processing
     // required by a derived class.
     // By default just queue it.
-    void processWorkParticleImpl(workParticle *wp) {
+    void processWorkParticleImpl(interWorkParticle *wp) {
         this->queueInteraction(wp);
     };
 
-    int queueInteractionGPUImpl(workParticle *wp, ILtile tile) {
+    int queueInteractionGPUImpl(interWorkParticle *wp, ILtile tile) {
         return 0;
         // if (options->bGPU) {
         // #ifdef USE_CUDA
@@ -290,27 +257,27 @@ protected:
         // }
     }
 
-    void queueInteractionImpl(workParticle *wp) {
+    void queueInteractionImpl(interWorkParticle *wp) {
         for (auto &tile : *this->il) {
-            ++wp->nTilesTotal;
+            ++this->nTilesTotal;
             if (this->queueInteractionGPU(wp, tile))
                 continue;
-            ++wp->nTilesCPU;
+            ++this->nTilesCPU;
             for (auto i = 0; i < wp->nP; ++i) {
                 this->evalInteraction(wp->pInfoIn[i], tile, wp->pInfoOut[i]);
             }
         }
     }
 
-    // Acts on own workParticle, overloaded by the
+    // Acts on own interWorkParticle, overloaded by the
     // different choices in pkdParticleWorkDone
-    void particleWorkDoneImpl(workParticle *wp) {
+    void particleWorkDoneImpl(interWorkParticle *wp) {
         this->walkStats->dFlopSingleCPU += wp->dFlopSingleCPU;
         this->walkStats->dFlopSingleGPU += wp->dFlopSingleGPU;
         this->walkStats->dFlopDoubleCPU += wp->dFlopDoubleCPU;
         this->walkStats->dFlopDoubleGPU += wp->dFlopDoubleGPU;
-        this->walkStats->nTilesTotal += wp->nTilesTotal;
-        this->walkStats->nTilesCPU += wp->nTilesCPU;
+        this->walkStats->nTilesTotal += this->nTilesTotal;
+        this->walkStats->nTilesCPU += this->nTilesCPU;
         this->walkStats->nActive += wp->nP;
         this->walkStats->dFlop += wp->dFlop;
     };
@@ -339,7 +306,7 @@ public:
         */
 
         /* Collect the bucket particle information */
-        auto wp = new workParticle(pkd, pkdn, il);
+        auto wp = new interWorkParticle(pkd, pkdn->count(), il);
         assert(wp != NULL);
 
         ++pkd->nWpPending;

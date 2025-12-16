@@ -363,7 +363,7 @@ public:
     using name = typename HydroInteractionTraits::name;
     using ResultInteraction =
         typename HydroInteractionTraits::template ResultInteraction<fvec>;
-    using workParticle = typename impl::workParticle;
+    using workParticle = typename impl::interWorkParticle;
 
     HydroInteractionImpl() : base() { this->il = new ilhydroList; };
 

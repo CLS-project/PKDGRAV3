@@ -18,6 +18,46 @@
 #ifndef CUDAEWALD_H
 #define CUDAEWALD_H
 #ifdef USE_CUDA
-    #include "cudautil.h"
+#include "mdlcuda.h"
+#include "gpu/hostdata.h"
+
+
+template <typename WORKPARTICLE>
+class MessageEwaldBase : public mdl::cudaMessage,public gpu::hostData {
+protected:
+    class CudaClient &cuda;
+    std::vector<WORKPARTICLE *> ppWP; // [CUDA_WP_MAX_BUFFERED]
+    virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
+    virtual void finish() override;
+    int nParticles, nMaxParticles;
+public:
+    explicit MessageEwaldBase(class CudaClient &cuda);
+    bool queue(WORKPARTICLE *work); // Add work to this message; return false if this is not possible
+};
+
+class MessageEwald : public MessageEwaldBase<workParticle> {
+public:
+    explicit MessageEwald(class CudaClient &cuda) : MessageEwaldBase(cuda) {};
+};
+
+class MessageEwaldnew : public MessageEwaldBase<GravityInteractionTraits::WORKPARTICLE> {
+public:
+    explicit MessageEwaldnew(class CudaClient &cuda) : MessageEwaldBase(cuda) {};
+};
+// typedef MessageEwaldBase<workParticle> MessageEwald ;
+// typedef MessageEwaldBase<GravityInteractionTraits::WORKPARTICLE> MessageEwaldnew ;
+
+
+class MessageEwaldSetup : public mdl::cudaMessage {
+protected:
+    virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
+public:
+    explicit MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt,int iDevice=-1);
+protected:
+    struct EwaldVariables *const ewIn;
+    EwaldTable *const ewt;
+    std::vector<momFloat> dLx, dLy, dLz;
+    std::vector<int> ibHole;
+};
 #endif
 #endif

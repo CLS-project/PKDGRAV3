@@ -1,14 +1,21 @@
 #ifndef INTERACTION_GRAVITY_H
 #define INTERACTION_GRAVITY_H
-#include "baseinteraction.h"
-#include "basetype.h"
 #include "core/simd.h"
 #include "core/vmath.h"
 #include "gravity/qeval.h"
 #include "pkd.h"
 #include "pkd_config.h"
+#include "basetype.h"
+#include "baseinteraction.h"
 #include "smooth/smooth.h"
+#include "walk/gravitywalk.h"
 #include "walk/stats.h"
+#include "gravity_traits.h"
+#ifdef __CUDACC__
+    #define CUDA_BOTH __host__ __device__
+#else
+    #define CUDA_BOTH
+#endif
 
 // IA: Taken from grav2.cxx, why here and not simd/vmath?
 #if 1
@@ -42,96 +49,6 @@ static inline float rsqrtf(float v) { return 1.0f / sqrtf(v); }
 /*
  * INTERACTION TRAITS
  */
-class GravityInteractionTraits {
-public:
-    struct name {
-        static constexpr std::string_view value = "GravityInteraction";
-    };
-
-    struct Options {
-        struct pkdKickParameters kick;
-        struct pkdLightconeParameters lc;
-        struct pkdTimestepParameters ts;
-        double dTime;
-        double dEwCut;
-        double dEwhCut;
-        double dTheta;
-        int nReps;
-        int bPeriodic;
-        int bEwald;
-        int bGPU;
-        int iRoot1;
-        int iRoot2;
-        // SPHOptions SPHoptions;
-        bool doExtensiveTest;
-        uint8_t uRungLo;
-        uint8_t uRungHi;
-    };
-
-    typedef struct PINFOIN {
-        blitz::TinyVector<float, 3> r;
-        blitz::TinyVector<float, 3> a;
-        float fSmooth2;
-        float fDensity;
-        void init(particleStore::ParticlePointer p) {};
-    } PINFOIN;
-
-    typedef struct PINFOOUT {
-        blitz::TinyVector<float, 3> a;
-        float fPot;
-        float dirsum, normsum;
-        float rhopmax;
-        float dtEst;
-        float maxRung;
-
-        void init(particleStore::ParticlePointer p, float dirLsum,
-                  float normLsum) {
-            a = 0.0f;
-            fPot = 0.0f;
-            dirsum = dirLsum;
-            normsum = normLsum;
-            rhopmax = 0.0f;
-            dtEst = 1e14f;
-            maxRung = 0.0f;
-        }
-    } PINFOOUT;
-
-    using IL = ilpList;
-    using ILC = ilcList;
-
-    template <class F> struct ResultInteraction {};
-
-    template <class F = float> struct ResultPC {
-        F ax, ay, az, pot;
-        F ir, norm;
-        /* PC_CUDA_BOTH */ void zero() { ax = ay = az = pot = ir = norm = 0; }
-        /* PC_CUDA_BOTH */ ResultPC<F> operator+=(const ResultPC<F> rhs) {
-            ax += rhs.ax;
-            ay += rhs.ay;
-            az += rhs.az;
-            pot += rhs.pot;
-            ir += rhs.ir;
-            norm += rhs.norm;
-            return *this;
-        }
-    };
-
-    template <class F = float> struct ResultPP {
-        typedef F type;
-        F ax, ay, az, pot;
-        F ir, norm;
-        /*PP_CUDA_BOTH*/ void zero() { ax = ay = az = pot = ir = norm = 0; }
-        /*PP_CUDA_BOTH*/ ResultPP<F> operator+=(const ResultPP<F> rhs) {
-            ax += rhs.ax;
-            ay += rhs.ay;
-            az += rhs.az;
-            pot += rhs.pot;
-            ir += rhs.ir;
-            norm += rhs.norm;
-            return *this;
-        }
-    };
-};
 
 /*
  * INTERACTION EVALUATION
@@ -239,7 +156,7 @@ inline double evalEwaldSIMD2(PKD pkd, ewaldSIMD *ews, dvec &ax, dvec &ay,
 #endif
 
 template <class F, class M>
-/*PP_CUDA_BOTH*/ typename GravityInteractionTraits::template ResultPP<F>
+CUDA_BOTH typename GravityInteractionTraits::template ResultPP<F>
 EvalPP(F Pdx, F Pdy, F Pdz, F Psmooth2,       // Particle
        F Idx, F Idy, F Idz, F fourh2, F Im) { // Interaction(s)
     GravityInteractionTraits::ResultPP<F> result;
@@ -275,7 +192,7 @@ EvalPP(F Pdx, F Pdy, F Pdz, F Psmooth2,       // Particle
 }
 // Calculate additional terms for GravStep
 template <class F, class M>
-/*PP_CUDA_BOTH*/ GravityInteractionTraits::ResultPP<F>
+CUDA_BOTH GravityInteractionTraits::ResultPP<F>
 EvalPP(F Pdx, F Pdy, F Pdz, F Psmooth2,     // Particle
        F Idx, F Idy, F Idz, F fourh2, F Im, // Interaction(s)
        F Pax, F Pay, F Paz, F imaga) {
@@ -322,7 +239,7 @@ struct ilist::EvalBlock<
 };
 
 template <class F, class M, bool bGravStep>
-/*PC_CUDA_BOTH*/ GravityInteractionTraits::ResultPC<F>
+CUDA_BOTH GravityInteractionTraits::ResultPC<F>
 EvalPC(F Pdx, F Pdy, F Pdz, F Psmooth2, // Particle
        F Idx, F Idy, F Idz, F Im, F Iu, // Interaction(s)
        F Ixxxx, F Ixxxy, F Ixxxz, F Ixxyz, F Ixxyy, F Iyyyz, F Ixyyz, F Ixyyy,
@@ -535,7 +452,7 @@ public:
     using name = typename GravityInteractionTraits::name;
     using ResultInteraction =
         typename GravityInteractionTraits::template ResultInteraction<fvec>;
-    using workParticle = typename impl::workParticle;
+    using interWorkParticle = typename base::interWorkParticle;
     // Internal state for the interaction, that should be
     // setup during the the walk and may vary between calls
     // to interact
@@ -594,7 +511,7 @@ private:
     ilcList *ilc;
     ilcList *ill;
 
-    void initializeInfoInImpl(workParticle *wp, int nP,
+    void initializeInfoInImpl(interWorkParticle *wp, int nP,
                               particleStore::ParticlePointer p) {
         auto r = p->position();
         wp->pInfoIn[nP].r = this->pkd->ilc.get_dr(r);
@@ -617,28 +534,26 @@ private:
         }
     };
 
-    void initializeInfoOutImpl(workParticle *wp, int nP,
+    void initializeInfoOutImpl(interWorkParticle *wp, int nP,
                                particleStore::ParticlePointer p) {
         wp->pInfoOut[nP].init(p, dirLsum, normLsum);
     };
 
-    void queuePC(PKD pkd, workParticle *wp, ilcList &ilc, int bGravStep,
+    void queuePC(PKD pkd, interWorkParticle *wp, ilcList &ilc, int bGravStep,
                  bool bGPU = true) {
         for (auto &tile : ilc) {
-            ++wp->nTilesTotal;
+            ++this->nTilesTotal;
             if (bGPU) {
-                // #ifdef USE_CUDA
-                //                 if (pkd->cudaClient->queuePC(wp, tile,
-                //                 bGravStep))
-                //                     continue;
-                // #endif
-                // #ifdef USE_METAL
-                //                 if (pkd->metalClient->queuePC(wp, tile,
-                //                 bGravStep))
-                //                     continue;
-                // #endif
+#ifdef USE_CUDA
+                if (pkd->cudaClient->queuePCnew(wp, tile, bGravStep))
+                    continue;
+#endif
+#ifdef USE_METAL
+                if (pkd->metalClient->queuePC(wp, tile, bGravStep))
+                    continue;
+#endif
             }
-            ++wp->nTilesCPU;
+            ++this->nTilesCPU;
             for (auto i = 0; i < wp->nP; ++i) {
                 pkdGravEvalPC(wp->pInfoIn[i], tile, wp->pInfoOut[i]);
                 wp->dFlopSingleCPU += COST_FLOP_PC * tile.size();
@@ -679,21 +594,21 @@ private:
         Out.normsum += hadd(result.norm);
     }
 
-    void queuePP(PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep,
+    void queuePP(PKD pkd, interWorkParticle *wp, ilpList &ilp, int bGravStep,
                  bool bGPU = true) {
         for (auto &tile : ilp) {
-            ++wp->nTilesTotal;
-            // if (bGPU) {
-            // #ifdef USE_CUDA
-            //     if (pkd->cudaClient->queuePP(wp, tile, bGravStep))
-            //         continue;
-            // #endif
-            // #ifdef USE_METAL
-            //     if (pkd->metalClient->queuePP(wp, tile, bGravStep))
-            //         continue;
-            //#endif
-            //}
-            ++wp->nTilesCPU;
+            ++this->nTilesTotal;
+            if (bGPU) {
+#ifdef USE_CUDA
+                if (pkd->cudaClient->queuePPnew(wp, tile, bGravStep))
+                    continue;
+#endif
+#ifdef USE_METAL
+                if (pkd->metalClient->queuePP(wp, tile, bGravStep))
+                    continue;
+#endif
+            }
+            ++this->nTilesCPU;
             for (auto i = 0; i < wp->nP; ++i) {
                 pkdGravEvalPP(wp->pInfoIn[i], tile, wp->pInfoOut[i]);
                 wp->dFlopSingleCPU += COST_FLOP_PP * tile.size();
@@ -701,13 +616,13 @@ private:
         }
     }
 
-    void queueEwald(PKD pkd, workParticle *wp, bool bGPU = true) {
+    void queueEwald(PKD pkd, interWorkParticle *wp, bool bGPU = true) {
         int i;
         int nQueued = 0;
         if (bGPU) {
-            // #ifdef USE_CUDA
-            //         nQueued = pkd->cudaClient->queueEwald(wp);
-            // #endif
+#ifdef USE_CUDA
+            nQueued = pkd->cudaClient->queueEwaldnew(wp);
+#endif
         }
         ++wp->nRefs;
         for (i = nQueued; i < wp->nP; ++i) {
@@ -1140,20 +1055,20 @@ private:
             ewt->hSfac.f[i] = 0;
             ++i;
         }
-        // if (bGPU) {
-        // #ifdef USE_CL
-        //     clEwaldInit(pkd->mdl->clCtx, ew, ewt);
-        //     mdlThreadBarrier(pkd->mdl);
-        // #endif
-        // #ifdef USE_CUDA
-        //     // Only one thread needs to transfer the tables to the GPU
-        //     if (pkd->mdl->Core() == 0)
-        //         pkd->cudaClient->setupEwald(ew, ewt);
-        //     pkd->mdl->ThreadBarrier();
-        // #endif
-        // }
+        if (bGPU) {
+#ifdef USE_CL
+            clEwaldInit(pkd->mdl->clCtx, ew, ewt);
+            mdlThreadBarrier(pkd->mdl);
+#endif
+#ifdef USE_CUDA
+            // Only one thread needs to transfer the tables to the GPU
+            if (pkd->mdl->Core() == 0)
+                pkd->cudaClient->setupEwald(ew, ewt);
+            pkd->mdl->ThreadBarrier();
+#endif
+        }
     }
-    void particleWorkDoneImpl(workParticle *wp) {
+    void particleWorkDoneImpl(interWorkParticle *wp) {
 
         if (--wp->nRefs == 0) {
 
@@ -1276,7 +1191,7 @@ private:
         }
     }
 
-    inline unsigned char computeParticleTimeStep(workParticle *wp, int i) {
+    inline unsigned char computeParticleTimeStep(interWorkParticle *wp, int i) {
         auto p = this->pkd->particles[wp->pPart[i]];
         auto ts = &this->options->ts;
         float maga, dT, dtGrav;
@@ -1357,7 +1272,7 @@ private:
         return uNewRung;
     }
 
-    void processWorkParticleImpl(workParticle *wp) {
+    void processWorkParticleImpl(interWorkParticle *wp) {
         /*
         ** Evaluate the local expansion.
         */

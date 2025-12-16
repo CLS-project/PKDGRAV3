@@ -23,11 +23,12 @@
 #include "gpu/dendata.h"
 #include "gpu/dencorrdata.h"
 #include "gpu/sphforcedata.h"
+#include "interaction/gravity_traits.h"
 #include "check.h"
 #include <queue>
 
-template<class TILE,int WIDTH=32>
-class MessagePPPC : public mdl::cudaMessage, public gpu::pppcData<TILE,WIDTH> {
+template<typename WORKPARTICLE, class TILE,int WIDTH=32>
+class MessagePPPC : public mdl::cudaMessage, public gpu::pppcData<WORKPARTICLE, TILE,WIDTH> {
 protected:
     mdl::messageQueue<MessagePPPC> &freeQueue;
     bool bGravStep = false;
@@ -47,8 +48,10 @@ public:
 
 };
 
-typedef MessagePPPC<ilpTile> MessagePP;
-typedef MessagePPPC<ilcTile> MessagePC;
+typedef MessagePPPC<workParticle, ilpTile> MessagePP;
+typedef MessagePPPC<workParticle, ilcTile> MessagePC;
+typedef MessagePPPC<GravityInteractionTraits::WORKPARTICLE, ilpTile> MessagePPnew;
+typedef MessagePPPC<GravityInteractionTraits::WORKPARTICLE, ilcTile> MessagePCnew;
 
 template<int WIDTH=32>
 class MessageDen : public mdl::cudaMessage, public gpu::denData<WIDTH> {

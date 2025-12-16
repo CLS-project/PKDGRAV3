@@ -17,6 +17,7 @@
 
 #ifndef CUDAUTIL_H
 #define CUDAUTIL_H
+#include "interaction/gravity_traits.h"
 #ifdef USE_CUDA
 #include "basetype.h"
 
@@ -33,32 +34,10 @@
 #include "gpu/dencorrdata.h"
 #include "gpu/sphforcedata.h"
 #include "cudapppc.h"
+#include "cudaewald.h"
 #include "SPH/SPHOptions.h"
 #include <queue>
 
-class MessageEwald : public mdl::cudaMessage,public gpu::hostData {
-protected:
-    class CudaClient &cuda;
-    std::vector<workParticle *> ppWP; // [CUDA_WP_MAX_BUFFERED]
-    virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
-    virtual void finish() override;
-    int nParticles, nMaxParticles;
-public:
-    explicit MessageEwald(class CudaClient &cuda);
-    bool queue(workParticle *work); // Add work to this message; return false if this is not possible
-};
-
-class MessageEwaldSetup : public mdl::cudaMessage {
-protected:
-    virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
-public:
-    explicit MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt,int iDevice=-1);
-protected:
-    struct EwaldVariables *const ewIn;
-    EwaldTable *const ewt;
-    std::vector<momFloat> dLx, dLy, dLz;
-    std::vector<int> ibHole;
-};
 
 class MessageSPHOptionsSetup : public mdl::cudaMessage {
 protected:
@@ -70,14 +49,23 @@ protected:
 };
 
 class CudaClient {
+    template <typename WORKPARTICLE>
+    friend class MessageEwaldBase;
     friend class MessageEwald;
+    friend class MessageEwaldnew;
 protected:
     mdl::messageQueue<MessageEwald> freeEwald;
+    mdl::messageQueue<MessageEwaldnew> freeEwaldnew;
     MessageEwald *ewald;
+    MessageEwaldnew *ewaldnew;
     mdl::messageQueue<MessagePP> freePP;
+    mdl::messageQueue<MessagePPnew> freePPnew;
     MessagePP *pp;
+    MessagePPnew *ppnew;
     mdl::messageQueue<MessagePC> freePC;
+    mdl::messageQueue<MessagePCnew> freePCnew;
     MessagePC *pc;
+    MessagePCnew *pcnew;
     mdl::messageQueue<MessageDen<32>> freeDen;
     MessageDen<32> *den;
     mdl::messageQueue<MessageDenCorr<32>> freeDenCorr;
@@ -90,8 +78,8 @@ protected:
     mdl::CUDA &cuda;
     mdl::gpu::Client &gpu;
 protected:
-    template<class MESSAGE,class QUEUE,class TILE>
-    int queue(MESSAGE * &M,QUEUE &Q, workParticle *work, TILE &tile, bool bGravStep) {
+    template<class MESSAGE,class QUEUE,class TILE, class WORK>
+    int queue(MESSAGE *&M,QUEUE &Q, WORK *work, TILE &tile, bool bGravStep) {
         if (M) { // If we are in the middle of building data for a kernel
             if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
             flush(M); // The buffer is full, so send it
@@ -103,7 +91,7 @@ protected:
         return 0; // Not sure how this would happen, but okay.
     }
     template<class MESSAGE>
-    void flush(MESSAGE * &M) {
+    void flush(MESSAGE *&M) {
         if (M) {
             M->prepare();
             cuda.enqueue(*M,gpu);
@@ -115,12 +103,20 @@ public:
     explicit CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu);
     virtual ~CudaClient();
     void flushCUDA();
+    void *ctx = nullptr;
+    void (*particleWorkDone)(void *, workParticleVariants) = nullptr;
     int queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
         return queue(pp,freePP,work,tile,bGravStep);
+    }
+    int queuePPnew(GravityInteractionTraits::WORKPARTICLE *work, ilpTile &tile, bool bGravStep) {
+        return queue(ppnew,freePPnew,work,tile,bGravStep);
     }
 
     int queuePC(workParticle *work, ilcTile &tile, bool bGravStep) {
         return queue(pc,freePC,work,tile,bGravStep);
+    }
+    int queuePCnew(GravityInteractionTraits::WORKPARTICLE *work, ilcTile &tile, bool bGravStep) {
+        return queue(pcnew,freePCnew,work,tile,bGravStep);
     }
 
     int queueDen(workParticle *work, ilpTile &tile) {
@@ -134,7 +130,8 @@ public:
     int queueSPHForce(workParticle *work, ilpTile &tile) {
         return queue(sphForce,freeSPHForce,work,tile, false);
     }
-    int  queueEwald(workParticle *wp);
+    int  queueEwald(workParticle *work);
+    int  queueEwaldnew(GravityInteractionTraits::WORKPARTICLE *work);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);
     void setupSPHOptions(SPHOptionsGPU *const SPHoptions);
 };
