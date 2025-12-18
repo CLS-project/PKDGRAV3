@@ -83,12 +83,8 @@ find_package(elfutils QUIET)
 find_package(Boost REQUIRED COMPONENTS thread)
 
 add_library(${PROJECT_NAME} STATIC "")
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_EXTENSIONS NO)
 
 target_link_libraries(${PROJECT_NAME} mdlcuda)
 target_sources(${PROJECT_NAME}
