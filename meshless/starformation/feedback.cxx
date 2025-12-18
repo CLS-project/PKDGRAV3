@@ -29,7 +29,8 @@ static inline void snFeedback(PKD pkd, PARTICLE* pIn, int nSmooth, NN* nnList, c
 void smSNFeedback(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
     PKD pkd = smf->pkd;
 
-    const auto fNgbTotMass = std::accumulate(nnList, nnList + nSmooth, 0.0f, [pkd](auto& a, auto& b) { return a + pkd->particles[b.pPart].mass(); }) - p.mass();
+    const auto fNgbTotMass =
+        std::accumulate(nnList, nnList + nSmooth, 0.0f, [pkd](auto a, const auto& b) { return a + pkd->particles[b.pPart].mass(); }) - p.mass();
 
     auto& star = p.star();
 
