@@ -1,0 +1,10 @@
+# Use with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Switch to clang-format for enforcement of source code formatting (part 2 reformat).
+fd3cf34d97bf9ffbd49584be5e31b66e80a1db29
+# Reformat all source files to conform to the new pkdgrav3 style.
+70fddec074a8f0648c05bd274333b630a9ce51c5
+# All files were reformatted to conform to the pkdgrav2 style.
+786d7a98fbd7c7ab6c5fc1973b62823cebe4e747
+aff45cbda65d1154124ec6996b576af6259f8f0f
+89be2a8cd2cdff4bef146923ab80d55f0ca9773c
