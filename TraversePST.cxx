@@ -16,7 +16,7 @@
  */
 #include "TraversePST.h"
 
-int TraversePST::operator()(int nIn, void* pIn, void* pOut) {
+int TraversePST::operator()(int nIn, void* pIn, void* pOut, int nOut) {
     return Traverse(node_pst, pIn, nIn, pOut, getMaxBytesOut());
 }
 

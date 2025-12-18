@@ -17,11 +17,7 @@
 
 #ifndef MDLBASE_H
 #define MDLBASE_H
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "mdl_config.h"
-#endif
+#include "mdl_config.h"
 #ifdef INSTRUMENT
     #include "cycle.h"
 
@@ -59,15 +55,15 @@ static inline uint64_t elapsed(ticks t1, ticks t0) {
 
 typedef int(fcnService_t)(void* p1, void* vin, int nIn, void* vout, int nOut);
 
-#ifdef __cplusplus
-    #include "mdlbt.h"
-    #include <vector>
-    #include <string>
-    #include <string_view>
-    #include <unordered_map>
-    #include <memory>
-    #include <initializer_list>
-    #define MAX_NODE_NAME_LENGTH 256
+#include "mdlbt.h"
+#include <cstddef>
+#include <vector>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <memory>
+#include <initializer_list>
+#define MAX_NODE_NAME_LENGTH 256
 
 namespace mdl {
 
@@ -83,7 +79,7 @@ namespace mdl {
 //    auto start = static_cast<int*>(msg.data(1));
 // The RunService() method has a overload that takes a ServiceBuffer for input.
 class ServiceBuffer {
-    std::vector<size_t> offsets{0};
+    std::vector<std::size_t> offsets{0};
     std::unique_ptr<char[]> buffer;
 
   protected:
@@ -92,7 +88,7 @@ class ServiceBuffer {
 
       public:
         BasicField(int size) : nBytes(size) {}
-        size_t size() const { return nBytes; }
+        std::size_t size() const { return nBytes; }
     };
 
   public:
@@ -161,16 +157,16 @@ class BasicService {
     int getMaxBytesOut() { return nOutBytes; }
 
   protected:
-    virtual int operator()(int nIn, void* pIn, void* pOut) = 0;
+    virtual int operator()(int nIn, void* pIn, void* pOut, int nOut) = 0;
 };
 
 class mdlBASE : protected mdlbt {
   public:
-    #ifdef USE_BT
+#ifdef USE_BT
     using mdlbt::ignore_SIGBUS;
     using mdlbt::show_backtrace;
     using mdlbt::show_backtrace_with_snippets;
-    #endif
+#endif
     struct {
         int32_t nThreads; /* Global number of threads (total) */
         int32_t idSelf;   /* Global index of this thread */
@@ -198,10 +194,10 @@ class mdlBASE : protected mdlbt {
 
     typedef enum { TIME_WAITING, TIME_COMPUTING, TIME_SYNCHRONIZING, TIME_COUNT } TICK_TIMER;
 
-    #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
   protected:
     ticks nTicks;
-    #endif
+#endif
     double dTimer[TIME_COUNT];
 
   private:
@@ -242,25 +238,34 @@ class mdlBASE : protected mdlbt {
         static_assert(std::is_base_of_v<BasicService, T>, "T must derive from BasicService");
         return AddService(std::make_unique<T>(std::forward<Args>(args)...));
     }
-    int RunService(int sid, int nIn, void* pIn, void* pOut = nullptr);
-    int RunService(int sid, ServiceBuffer& b, void* pOut = nullptr) { return RunService(sid, b.size(), b.data(), pOut); }
-    int RunService(int sid, int nIn, void* pIn, ServiceBufferOut& out) { return RunService(sid, nIn, pIn, out.data()); }
-    int RunService(int sid, ServiceBuffer& b, ServiceBufferOut& out) { return RunService(sid, b.size(), b.data(), out.data()); }
-    int RunService(int sid, ServiceBufferOut& out) { return RunService(sid, 0, nullptr, out.data()); }
-    int RunService(int sid, void* pOut = nullptr) { return RunService(sid, 0, nullptr, pOut); }
+    int RunService(int sid, int nIn, void* pIn, void* pOut, int nOut);
+    int RunService(int sid, ServiceBuffer& b) { return RunService(sid, b.size(), b.data(), nullptr, 0); }
+    int RunService(int sid, ServiceBuffer& b, void* pOut, int nOut) { return RunService(sid, b.size(), b.data(), pOut, nOut); }
+    int RunService(int sid, int nIn, void* pIn, ServiceBufferOut& out) { return RunService(sid, nIn, pIn, out.data(), out.size()); }
+    int RunService(int sid, ServiceBuffer& b, ServiceBufferOut& out) { return RunService(sid, b.size(), b.data(), out.data(), out.size()); }
+    int RunService(int sid, ServiceBufferOut& out) { return RunService(sid, 0, nullptr, out.data(), out.size()); }
+    int RunService(int sid, void* pOut, int nOut) { return RunService(sid, 0, nullptr, pOut, nOut); }
+    int RunService(int sid) { return RunService(sid, 0, nullptr, nullptr, 0); }
 
   public:
-    int RunService(std::string_view service_name, int nIn, void* pIn, void* pOut = nullptr);
-    int RunService(std::string_view service_name, ServiceBuffer& b, void* pOut = nullptr) { return RunService(service_name, b.size(), b.data(), pOut); }
-    int RunService(std::string_view service_name, int nIn, void* pIn, ServiceBufferOut& out) { return RunService(service_name, nIn, pIn, out.data()); }
-    int RunService(std::string_view service_name, ServiceBuffer& b, ServiceBufferOut& out) { return RunService(service_name, b.size(), b.data(), out.data()); }
-    int RunService(std::string_view service_name, ServiceBufferOut& out) { return RunService(service_name, 0, nullptr, out.data()); }
-    int RunService(std::string_view service_name, void* pOut = nullptr) { return RunService(service_name, 0, nullptr, pOut); }
+    int RunService(std::string_view service_name, int nIn, void* pIn, void* pOut, int nOut);
+    int RunService(std::string_view service_name, int nIn, void* pIn) { return RunService(service_name, nIn, pIn, nullptr, 0); }
+    int RunService(std::string_view service_name, ServiceBuffer& b) { return RunService(service_name, b.size(), b.data(), nullptr, 0); }
+    int RunService(std::string_view service_name, ServiceBuffer& b, void* pOut, int nOut) { return RunService(service_name, b.size(), b.data(), pOut, nOut); }
+    int RunService(std::string_view service_name, int nIn, void* pIn, ServiceBufferOut& out) {
+        return RunService(service_name, nIn, pIn, out.data(), out.size());
+    }
+    int RunService(std::string_view service_name, ServiceBuffer& b, ServiceBufferOut& out) {
+        return RunService(service_name, b.size(), b.data(), out.data(), out.size());
+    }
+    int RunService(std::string_view service_name, ServiceBufferOut& out) { return RunService(service_name, 0, nullptr, out.data(), out.size()); }
+    int RunService(std::string_view service_name, void* pOut, int nOut) { return RunService(service_name, 0, nullptr, pOut, nOut); }
+    int RunService(std::string_view service_name) { return RunService(service_name, 0, nullptr, nullptr, 0); }
 
   public:
     template <typename T>
     int RunService(int nIn, void* pIn, void* pOut, int nOut) {
-        return RunService(T::name, nIn, pIn, pOut);
+        return RunService(T::name, nIn, pIn, pOut, nOut);
     }
     template <typename T>
     int RunService(int nIn, void* pIn) {
@@ -300,12 +305,6 @@ class mdlBASE : protected mdlbt {
 int mdlBaseProcToThread(mdlBASE* base, int iProc);
 int mdlBaseThreadToProc(mdlBASE* base, int iThread);
 } // namespace mdl
-
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 const char* mdlName(void* mdl);
 
@@ -350,7 +349,4 @@ void mdlPrintTimer(void* mdl, const char* message, mdlTimer*);
     #define mdlPrintTimer
 #endif
 
-#ifdef __cplusplus
-}
-#endif
 #endif

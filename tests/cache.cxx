@@ -182,7 +182,7 @@ class HashTest : public ::testing::Test {};
 
 TEST_F(HashTest, HashTestKeys) {
     std::uint64_t nBAD;
-    master_mdl->RunService(test::hash::SERVICE, &nBAD);
+    master_mdl->RunService(test::hash::SERVICE, &nBAD, sizeof(nBAD));
     EXPECT_EQ(nBAD, 0);
 }
 
@@ -227,7 +227,7 @@ int test(worker::Context* ctx, void* vin, int nIn, void* vout, int nOut) {
 }
 TEST_F(CacheTest, CacheReadWorks) {
     std::uint64_t nBAD;
-    master_mdl->RunService(test::ro::SERVICE, &nBAD);
+    master_mdl->RunService(test::ro::SERVICE, &nBAD, sizeof(nBAD));
     EXPECT_EQ(nBAD, 0);
 }
 } // namespace ro
@@ -291,7 +291,7 @@ int test(worker::Context* ctx, void* vin, int nIn, void* vout, int nOut) {
 }
 TEST_F(CacheTest, CacheFlushWorks) {
     std::uint64_t nBAD;
-    master_mdl->RunService(test::flush::SERVICE, &nBAD);
+    master_mdl->RunService(test::flush::SERVICE, &nBAD, sizeof(nBAD));
     EXPECT_EQ(nBAD, 0);
 }
 
@@ -340,7 +340,7 @@ int test(worker::Context* ctx, void* vin, int nIn, void* vout, int nOut) {
 }
 TEST_F(CacheTest, CacheFlushAfterReadWorks) {
     std::uint64_t nBAD;
-    master_mdl->RunService(test::flush::after_read::SERVICE, &nBAD);
+    master_mdl->RunService(test::flush::after_read::SERVICE, &nBAD, sizeof(nBAD));
     EXPECT_EQ(nBAD, 0);
 }
 
@@ -424,7 +424,7 @@ int test(worker::Context* ctx, void* vin, int nIn, void* vout, int nOut) {
 
 TEST_F(AdvancedCache, ReadOnly) {
     std::uint64_t nBAD;
-    master_mdl->RunService(SERVICE, &nBAD);
+    master_mdl->RunService(SERVICE, &nBAD, sizeof(nBAD));
     EXPECT_EQ(nBAD, 0);
 }
 } // namespace ro
@@ -524,7 +524,7 @@ int test(worker::Context* ctx, void* vin, int nIn, void* vout, int nOut) {
 
 TEST_F(AdvancedCache, Flush) {
     std::uint64_t nBAD;
-    master_mdl->RunService(SERVICE, &nBAD);
+    master_mdl->RunService(SERVICE, &nBAD, sizeof(nBAD));
     EXPECT_EQ(nBAD, 0);
 }
 } // namespace flush

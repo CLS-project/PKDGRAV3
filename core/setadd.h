@@ -32,6 +32,6 @@ class ServiceSetAdd : public mdl::BasicService {
     explicit ServiceSetAdd(PST node_pst) : BasicService(name, sizeof(input)), node_pst(node_pst) {}
 
   protected:
-    virtual int operator()(int nIn, void* pIn, void* pOut) override;
+    virtual int operator()(int nIn, void* pIn, void* pOut, int nOut) override;
     void SetAdd(PST pst, input* in);
 };

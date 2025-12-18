@@ -2503,7 +2503,7 @@ void mdlClass::Handler() {
         id = phi->idFrom;
         sid = phi->sid;
 
-        nOutBytes = RunService(sid, phi->nInBytes, pszIn, &reply.Buffer.front());
+        nOutBytes = RunService(sid, phi->nInBytes, pszIn, &reply.Buffer.front(), reply.Buffer.size());
         enqueueAndWait(reply.makeReply(Self(), phi->replyTag, sid, id, nOutBytes));
     } while (sid != SRV_STOP);
 }

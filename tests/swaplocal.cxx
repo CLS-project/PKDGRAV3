@@ -167,7 +167,7 @@ class SwapLocalTest : public ::testing::Test {};
 
 TEST_F(SwapLocalTest, SwapLocalBasic) {
     std::uint64_t nBAD;
-    master_mdl->RunService(test::swaplocal::SERVICE, &nBAD);
+    master_mdl->RunService(test::swaplocal::SERVICE, &nBAD, sizeof(nBAD));
     EXPECT_EQ(nBAD, 0);
 }
 

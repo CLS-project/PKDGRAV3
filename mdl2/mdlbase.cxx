@@ -56,13 +56,13 @@ class LegacyService : public BasicService {
     virtual ~LegacyService() = default;
 
   protected:
-    virtual int operator()(int nIn, void* pIn, void* pOut) override;
+    virtual int operator()(int nIn, void* pIn, void* pOut, int nOut) override;
 };
 
-int LegacyService::operator()(int nIn, void* pIn, void* pOut) {
+int LegacyService::operator()(int nIn, void* pIn, void* pOut, int nOut) {
     assert(nIn <= getMaxBytesIn());
     assert(fcnService != NULL);
-    auto nOut = (*fcnService)(p1, pIn, nIn, pOut, getMaxBytesOut());
+    nOut = (*fcnService)(p1, pIn, nIn, pOut, nOut);
     assert(nOut <= getMaxBytesOut());
     return nOut;
 }
@@ -80,7 +80,7 @@ class NullService : public BasicService {
     virtual ~NullService() = default;
 
   protected:
-    virtual int operator()(int nIn, void* pIn, void* pOut) override { return 0; }
+    virtual int operator()(int nIn, void* pIn, void* pOut, int nOut) override { return 0; }
 };
 
 mdlBASE::mdlBASE(int argc, char** argv) {
@@ -178,14 +178,14 @@ int mdlBASE::AddService(std::unique_ptr<BasicService> service) {
     return sid;
 }
 
-int mdlBASE::RunService(int sid, int nIn, void* pIn, void* pOut) {
+int mdlBASE::RunService(int sid, int nIn, void* pIn, void* pOut, int nOut) {
     assert(sid < services.size());
     assert(services[sid] != nullptr);
-    return (*services[sid])(nIn, pIn, pOut);
+    return (*services[sid])(nIn, pIn, pOut, nOut);
 }
 
-int mdlBASE::RunService(std::string_view service_name, int nIn, void* pIn, void* pOut) {
-    return RunService(service_map.at(service_name), nIn, pIn, pOut);
+int mdlBASE::RunService(std::string_view service_name, int nIn, void* pIn, void* pOut, int nOut) {
+    return RunService(service_map.at(service_name), nIn, pIn, pOut, nOut);
 }
 
 void mdlBASE::yield() {
