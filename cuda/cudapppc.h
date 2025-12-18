@@ -30,13 +30,14 @@
 template<typename WORKPARTICLE, class TILE,int WIDTH=32>
 class MessagePPPC : public mdl::cudaMessage, public gpu::pppcData<WORKPARTICLE, TILE,WIDTH> {
 protected:
+    class CudaClient &cuda;
     mdl::messageQueue<MessagePPPC> &freeQueue;
     bool bGravStep = false;
     virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
     virtual void finish() override;
 public:
-    explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue)
-        : freeQueue(freeQueue) {
+    explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue, CudaClient &cuda)
+        : freeQueue(freeQueue), cuda(cuda) {
         // For CUDA we want to "pin" the host memory for optimal performance
         CUDA_CHECK(cudaHostRegister,(this->pHostBufIn, this->requestBufferSize, cudaHostRegisterPortable));
         CUDA_CHECK(cudaHostRegister,(this->pHostBufOut,this->resultsBufferSize, cudaHostRegisterPortable));
@@ -48,6 +49,10 @@ public:
 
 };
 
+// Explicit instantiation
+template class MessagePPPC<GravityInteractionTraits::WORKPARTICLE, ilpTile>;
+template class MessagePPPC<GravityInteractionTraits::WORKPARTICLE, ilcTile>;
+// Type definitions
 typedef MessagePPPC<workParticle, ilpTile> MessagePP;
 typedef MessagePPPC<workParticle, ilcTile> MessagePC;
 typedef MessagePPPC<GravityInteractionTraits::WORKPARTICLE, ilpTile> MessagePPnew;

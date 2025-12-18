@@ -245,7 +245,12 @@ void MessagePPPC<WORKPARTICLE,TILE,N>::finish() {
             pInfoOut[ip].normsum += pR[ip].normsum;
         }
         pR += this->align_nP(nP);
-        pkdParticleWorkDone(w.wp);
+        if constexpr (std::is_same_v<workParticle *, WORKPARTICLE *>) {
+            pkdParticleWorkDone(w.wp);
+        }
+        else {
+            cuda.particleWorkDone(cuda.ctx, w.wp);
+        }
     }
     this->clear();
     freeQueue.enqueue(*this);

@@ -1,6 +1,6 @@
 #ifndef BASE_INTERACTION_H
 #define BASE_INTERACTION_H
-#include "cudautil.h"
+#include "cuda/cudautil.h"
 #include "gpu/pppcdata.h"
 #include "pkd.h"
 #include "pkd_config.h"

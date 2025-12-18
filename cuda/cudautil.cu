@@ -52,12 +52,15 @@
 *   CudaClient interface (new!)
 \*****************************************************************************/
 
-CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gpu(gpu), ewald(nullptr), pp(nullptr), pc(nullptr), den(nullptr), denCorr(nullptr), sphForce(nullptr) {
+CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gpu(gpu), ewald(nullptr), pp(nullptr), pc(nullptr), den(nullptr), denCorr(nullptr), sphForce(nullptr), pcnew(nullptr), ppnew(nullptr), ewaldnew(nullptr) {
     if (cuda.isActive()) {
         for (int i=0 ; i < 2 ; ++i) {
             freeEwald.enqueue(new MessageEwald(*this));
-            freePP.enqueue(new MessagePP(freePP));
-            freePC.enqueue(new MessagePC(freePC));
+            freeEwaldnew.enqueue(new MessageEwaldnew(*this));
+            freePP.enqueue(new MessagePP(freePP, *this));
+            freePPnew.enqueue(new MessagePPnew(freePPnew, *this));
+            freePC.enqueue(new MessagePC(freePC, *this));
+            freePCnew.enqueue(new MessagePCnew(freePCnew, *this));
             freeDen.enqueue(new MessageDen(freeDen, &this->wps));
             freeDenCorr.enqueue(new MessageDenCorr(freeDenCorr));
             freeSPHForce.enqueue(new MessageSPHForce(freeSPHForce));
@@ -67,8 +70,11 @@ CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gp
 
 CudaClient::~CudaClient() {
     while (!freeEwald.empty())    delete &freeEwald.dequeue();
+    while (!freeEwaldnew.empty())    delete &freeEwaldnew.dequeue();
     while (!freePP.empty())       delete &freePP.dequeue();
+    while (!freePPnew.empty())    delete &freePPnew.dequeue();
     while (!freePC.empty())       delete &freePC.dequeue();
+    while (!freePCnew.empty())       delete &freePCnew.dequeue();
     while (!freeDen.empty())      delete &freeDen.dequeue();
     while (!freeDenCorr.empty())  delete &freeDenCorr.dequeue();
     while (!freeSPHForce.empty()) delete &freeSPHForce.dequeue();

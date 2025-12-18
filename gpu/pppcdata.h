@@ -30,16 +30,14 @@ template <int n,class BTILE> struct Blk;
 template <int n> struct Blk<n,ilpTile> : ppBlk<n> {};
 template <int n> struct Blk<n,ilcTile> : pcBlk<n> {};
 
-//#define GET_WP_ATTR(wp, attr) std::visit([](auto && x) -> decltype(auto) {return x->attr ;}, wp)
-#define GET_WP_ATTR(wp, attr) wp->attr
 
 template<typename WORKPARTICLE>
 inline double getFlops(WORKPARTICLE *wp,ilpTile &tile) {
-    return COST_FLOP_PP*GET_WP_ATTR(wp, nP)*tile.count();
+    return COST_FLOP_PP*wp->nP*tile.count();
 }
 template<typename WORKPARTICLE>
 inline double getFlops(WORKPARTICLE *wp,ilcTile &tile) {
-    return COST_FLOP_PC*GET_WP_ATTR(wp, nP)*tile.count();
+    return COST_FLOP_PC*wp->nP*tile.count();
 }
 
 // The interaction list blocks may contain more information than is necessary
@@ -129,7 +127,7 @@ public:
         typedef Blk<WIDTH,TILE> BLK;
         if (work.size() == wp_max_buffer) return false;  // Too many work packages so send the work
         this->bGravStep = bGravStep;
-        const auto nP = GET_WP_ATTR(wp, nP);                                 // Queue this many particles
+        const auto nP = wp->nP;                                 // Queue this many particles
         const auto nI = tile.count();                           // ... operating on this many interactions
 
         if (inputSize<BLK>(nP,nI) > requestBufferSize - 1024) return false;     // Refuse if this tile won't fit in this buffer
@@ -154,8 +152,8 @@ public:
         uint32_t iP = 0;
         for ( auto &w : work ) {
             int nI = w.nInteractions;
-            auto nP = GET_WP_ATTR(w.wp, nP);
-            auto *pInfoIn = GET_WP_ATTR(w.wp, pInfoIn);
+            auto nP = w.wp->nP;
+            auto *pInfoIn = w.wp->pInfoIn;
             auto nBlocks = (nI + WIDTH - 1) / WIDTH;
 
             // Generate a interaction block descriptor for each block
