@@ -30,5 +30,5 @@ class ServiceSwapAll : public mdl::BasicService {
     explicit ServiceSwapAll(PST node_pst) : BasicService(name, sizeof(input)), node_pst(node_pst) {}
 
   protected:
-    virtual int operator()(int nIn, void* pIn, void* pOut, int nOut) override;
+    virtual int operator()(std::span<std::byte> In, std::span<std::byte> Out) override;
 };

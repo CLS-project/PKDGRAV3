@@ -23,9 +23,9 @@ static_assert(std::is_void_v<ServiceSetAdd::output> || std::is_trivial_v<Service
 
 // This is a weird service. Normally we use TraversePST, but here
 // we are actually setting up the PST structure.
-int ServiceSetAdd::operator()(int nIn, void* pIn, void* pOut, int nOut) {
-    assert(nIn == sizeof(input));
-    SetAdd(node_pst, static_cast<input*>(pIn));
+int ServiceSetAdd::operator()(std::span<std::byte> In, std::span<std::byte> Out) {
+    assert(In.size() == sizeof(input));
+    SetAdd(node_pst, reinterpret_cast<input*>(In.data()));
     return 0;
 }
 

@@ -23,11 +23,11 @@ static_assert(std::is_void_v<ServiceSwapAll::output> || std::is_trivial_v<Servic
 
 // Routine to swap all particles.  Note that this does not walk the pst
 // but simply works with one other processor.
-int ServiceSwapAll::operator()(int nIn, void* vin, void* vout, int nOut) {
-    auto in = static_cast<input*>(vin);
+int ServiceSwapAll::operator()(std::span<std::byte> In, std::span<std::byte> Out) {
+    auto in = reinterpret_cast<input*>(In.data());
     static_assert(std::is_void_v<output>);
     auto pkd = node_pst->plcl->pkd;
-    assert(nIn == sizeof(input));
+    assert(In.size() == sizeof(input));
     pkdSwapAll(pkd, in->idSwap);
     return 0;
 }

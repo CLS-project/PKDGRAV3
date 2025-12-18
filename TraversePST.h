@@ -34,7 +34,7 @@ class TraversePST : public mdl::BasicService {
     int ReqService(PST pst, void* vin, int nIn);
 
   protected:
-    virtual int operator()(int nIn, void* pIn, void* pOut, int nOut) final;
+    virtual int operator()(std::span<std::byte> In, std::span<std::byte> Out) final;
     virtual int Traverse(PST pst, void* vin, int nIn, void* vout, int nOut);
 
     virtual int OffNode(PST pst, void* vin, int nIn, void* vout, int nOut) { return Recurse(pst, vin, nIn, vout, nOut); }

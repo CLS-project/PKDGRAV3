@@ -56,6 +56,7 @@ static inline uint64_t elapsed(ticks t1, ticks t0) {
 typedef int(fcnService_t)(void* p1, void* vin, int nIn, void* vout, int nOut);
 
 #include "mdlbt.h"
+#include <span>
 #include <cstddef>
 #include <vector>
 #include <string>
@@ -124,6 +125,8 @@ class ServiceBuffer {
     void* data(int i = 0) { return static_cast<void*>(buffer.get() + offsets[i]); }
     auto size() { return offsets.back(); }
     auto size(int i) { return offsets[i + 1] - offsets[i]; }
+    auto span() { return std::span<char>(buffer.get(), size()); }
+    auto span(int i) { return std::span<char>(buffer.get() + offsets[i], size(i)); }
 };
 
 class ServiceBufferOut : public ServiceBuffer {
@@ -157,7 +160,7 @@ class BasicService {
     int getMaxBytesOut() { return nOutBytes; }
 
   protected:
-    virtual int operator()(int nIn, void* pIn, void* pOut, int nOut) = 0;
+    virtual int operator()(std::span<std::byte> In, std::span<std::byte> Out) = 0;
 };
 
 class mdlBASE : protected mdlbt {
@@ -238,6 +241,87 @@ class mdlBASE : protected mdlbt {
         static_assert(std::is_base_of_v<BasicService, T>, "T must derive from BasicService");
         return AddService(std::make_unique<T>(std::forward<Args>(args)...));
     }
+
+  private:
+    template <typename T>
+    std::span<std::byte> as_byte_span(T& v) {
+        return {reinterpret_cast<std::byte*>(&v), sizeof(T)};
+    }
+
+  public:
+    int RunService(int sid, std::span<std::byte> in, std::span<std::byte> out) {
+        if (sid < 0 || sid >= services.size()) {
+            throw std::out_of_range("Service ID out of range: " + std::to_string(sid));
+        }
+        if (services[sid] == nullptr) {
+            throw std::runtime_error("Service ID not found: " + std::to_string(sid));
+        }
+        return (*services[sid])(in, out);
+    }
+    int RunService(int sid) { return RunService(sid, std::span<std::byte>{}, std::span<std::byte>{}); }
+    template <typename In>
+    int RunService(int side, In& in) {
+        if constexpr (std::is_same_v<std::decay_t<In>, std::span<const std::byte>>) {
+            return RunService(in, {});
+        }
+        else {
+            return RunService(as_byte_span(in), {});
+        }
+    }
+    template <typename In, typename Out>
+    int RunService(int sid, In& in, Out& out) {
+        std::span<const std::byte> in_span;
+        std::span<std::byte> out_span;
+
+        if constexpr (std::is_same_v<std::decay_t<In>, std::span<const std::byte>>) {
+            in_span = in;
+        }
+        else {
+            in_span = as_byte_span(in);
+        }
+
+        if constexpr (std::is_same_v<std::decay_t<Out>, std::span<std::byte>>) {
+            out_span = out;
+        }
+        else {
+            out_span = as_byte_span(out);
+        }
+
+        return RunService(sid, in_span, out_span);
+    }
+
+    int RunService(std::string_view service_name, std::span<std::byte> in, std::span<std::byte> out) {
+        return RunService(service_map.at(service_name), in, out);
+    }
+    int RunService(std::string_view service_name) { return RunService(service_name, std::span<std::byte>{}, std::span<std::byte>{}); }
+    template <typename In>
+    int RunService(std::string_view service_name, In& in) {
+        if constexpr (std::is_same_v<std::decay_t<In>, std::span<const std::byte>>) {
+            return RunService(service_name, in, {});
+        }
+        else {
+            return RunService(service_name, as_byte_span(in), {});
+        }
+    }
+    template <typename In, typename Out>
+    int RunService(std::string_view service_name, In& in, Out& out) {
+        std::span<const std::byte> in_span;
+        std::span<std::byte> out_span;
+        if constexpr (std::is_same_v<std::decay_t<In>, std::span<const std::byte>>) {
+            in_span = in;
+        }
+        else {
+            in_span = as_byte_span(in);
+        }
+        if constexpr (std::is_same_v<std::decay_t<Out>, std::span<std::byte>>) {
+            out_span = out;
+        }
+        else {
+            out_span = as_byte_span(out);
+        }
+        return RunService(service_name, in_span, out_span);
+    }
+
     int RunService(int sid, int nIn, void* pIn, void* pOut, int nOut);
     int RunService(int sid, ServiceBuffer& b) { return RunService(sid, b.size(), b.data(), nullptr, 0); }
     int RunService(int sid, ServiceBuffer& b, void* pOut, int nOut) { return RunService(sid, b.size(), b.data(), pOut, nOut); }
@@ -245,7 +329,7 @@ class mdlBASE : protected mdlbt {
     int RunService(int sid, ServiceBuffer& b, ServiceBufferOut& out) { return RunService(sid, b.size(), b.data(), out.data(), out.size()); }
     int RunService(int sid, ServiceBufferOut& out) { return RunService(sid, 0, nullptr, out.data(), out.size()); }
     int RunService(int sid, void* pOut, int nOut) { return RunService(sid, 0, nullptr, pOut, nOut); }
-    int RunService(int sid) { return RunService(sid, 0, nullptr, nullptr, 0); }
+    // int RunService(int sid) { return RunService(sid, 0, nullptr, nullptr, 0); }
 
   public:
     int RunService(std::string_view service_name, int nIn, void* pIn, void* pOut, int nOut);
@@ -260,7 +344,7 @@ class mdlBASE : protected mdlbt {
     }
     int RunService(std::string_view service_name, ServiceBufferOut& out) { return RunService(service_name, 0, nullptr, out.data(), out.size()); }
     int RunService(std::string_view service_name, void* pOut, int nOut) { return RunService(service_name, 0, nullptr, pOut, nOut); }
-    int RunService(std::string_view service_name) { return RunService(service_name, 0, nullptr, nullptr, 0); }
+    // int RunService(std::string_view service_name) { return RunService(service_name, 0, nullptr, nullptr, 0); }
 
   public:
     template <typename T>
