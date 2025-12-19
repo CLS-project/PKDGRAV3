@@ -823,7 +823,7 @@ int pstHopUnbind(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto out = static_cast<struct outHopUnbind*>(vout);
     struct outHopUnbind outUpper, outLower;
     mdlassert(pst->mdl, nIn == sizeof(struct inHopUnbind));
-    mdlassert(pst->mdl, nOut == sizeof(struct outHopUnbind));
+    mdlassert(pst->mdl, nOut >= sizeof(struct outHopUnbind));
     if (pst->nLeaves > 1) {
         int rID = pst->mdl->ReqService(pst->idUpper, PST_HOP_UNBIND, vin, nIn);
         pstHopUnbind(pst->pstLower, vin, nIn, &outLower, sizeof(outLower));
@@ -983,7 +983,7 @@ int pstReSmoothNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
     if (pst->nLeaves > 1) {
         int rID = pst->mdl->ReqService(pst->idUpper, PST_RESMOOTHNODE, in, nIn);
         pstReSmoothNode(pst->pstLower, vin, nIn, vout, nOut);
-        pst->mdl->GetReply(rID, outUpper);
+        nOut = pst->mdl->GetReply(rID, outUpper);
         assert(nOut == sizeof(struct outSmooth));
         out->nSmoothed += outUpper.nSmoothed;
     #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
@@ -1952,7 +1952,7 @@ int pstGetMinDt(PST pst, void* vin, int nIn, void* vout, int nOut) {
     if (pst->nLeaves > 1) {
         int rID = pst->mdl->ReqService(pst->idUpper, PST_GETMINDT, vin, nIn);
         pstGetMinDt(pst->pstLower, vin, nIn, vout, nOut);
-        pst->mdl->GetReply(rID, outUpper);
+        nOut = pst->mdl->GetReply(rID, outUpper);
         assert(nOut == sizeof(struct outGetMinDt));
         if (out->uMinDt < outUpper.uMinDt) out->uMinDt = outUpper.uMinDt;
     }
