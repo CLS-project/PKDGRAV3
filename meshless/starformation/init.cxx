@@ -11,7 +11,7 @@ void MSR::StarFormInit(double dTime) {
     in.dCCSNFBDelay = calc.dCCSNFBDelay;
     in.dSNIaFBDelay = calc.dSNIaFBDelay;
 
-    mdl->RunService<ServiceStarFormInit>(sizeof(in), &in, &out, sizeof(out));
+    mdl->RunService<ServiceStarFormInit>(in, out);
 
     printf("%d star particles are about to explode in this IC\n", out.nFormed);
 }

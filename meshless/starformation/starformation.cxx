@@ -71,7 +71,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     if (parameters.get_bVDetails()) printf("Star Form (rung: %d) ... ", iRung);
 
     ActiveRung(iRung, 1);
-    mdl->RunService<ServiceStarForm>(sizeof(in), &in, &out, sizeof(out));
+    mdl->RunService<ServiceStarForm>(in, out);
     if (parameters.get_bVDetails()) printf("%d Stars formed with mass %g, %d gas deleted\n", out.nFormed, out.dMassFormed, out.nDeleted);
     massFormed += out.dMassFormed;
     starFormed += out.nFormed;

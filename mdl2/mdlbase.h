@@ -57,6 +57,7 @@ typedef int(fcnService_t)(void* p1, void* vin, int nIn, void* vout, int nOut);
 
 #include "mdlbt.h"
 #include <span>
+#include <concepts>
 #include <cstddef>
 #include <vector>
 #include <string>
@@ -67,6 +68,16 @@ typedef int(fcnService_t)(void* p1, void* vin, int nIn, void* vout, int nOut);
 #define MAX_NODE_NAME_LENGTH 256
 
 namespace mdl {
+
+template <typename C>
+concept ByteBufferLike = requires(C& c) {
+    { c.data() } -> std::convertible_to<const void*>;
+    { c.size() } -> std::convertible_to<std::size_t>;
+} && std::is_pointer_v<decltype(std::declval<C&>().data())>;
+// && std::is_trivially_copyable_v<std::remove_cv_t<std::remove_pointer_t<decltype(std::declval<C&>().data())>>>;
+
+template <class C>
+concept WritableByteBufferLike = ByteBufferLike<C> && !std::is_const_v<std::remove_pointer_t<decltype(std::declval<C&>().data())>>;
 
 // This struct is use to keep track of a variable length buffer for service requests.
 // List all data types and the number of times they are repeated in the constructor.
@@ -81,7 +92,7 @@ namespace mdl {
 // The RunService() method has a overload that takes a ServiceBuffer for input.
 class ServiceBuffer {
     std::vector<std::size_t> offsets{0};
-    std::unique_ptr<char[]> buffer;
+    std::unique_ptr<std::byte[]> buffer;
 
   protected:
     class BasicField {
@@ -120,13 +131,16 @@ class ServiceBuffer {
 
     ServiceBuffer(std::initializer_list<BasicField> t) {
         for (auto& i : t) offsets.push_back(offsets.back() + i.size());
-        buffer = std::make_unique<char[]>(offsets.back());
+        buffer = std::make_unique<std::byte[]>(offsets.back());
     }
-    void* data(int i = 0) { return static_cast<void*>(buffer.get() + offsets[i]); }
-    auto size() { return offsets.back(); }
+    std::byte* data() { return buffer.get(); }
+    const std::byte* data() const { return buffer.get(); }
+    auto size() const { return offsets.back(); }
+    operator std::span<std::byte>() { return {data(), size()}; }
+    operator std::span<const std::byte>() const { return {data(), size()}; }
+
+    void* data(int i) { return static_cast<void*>(buffer.get() + offsets[i]); }
     auto size(int i) { return offsets[i + 1] - offsets[i]; }
-    auto span() { return std::span<char>(buffer.get(), size()); }
-    auto span(int i) { return std::span<char>(buffer.get() + offsets[i], size(i)); }
 };
 
 class ServiceBufferOut : public ServiceBuffer {
@@ -243,13 +257,38 @@ class mdlBASE : protected mdlbt {
     }
 
   private:
-    template <typename T>
-    std::span<std::byte> as_byte_span(T& v) {
-        return {reinterpret_cast<std::byte*>(&v), sizeof(T)};
+    // Helper functions to convert various types to byte spans
+    static std::span<std::byte> as_writable_bytes(std::span<std::byte> s) noexcept { return s; }
+    static std::span<const std::byte> as_bytes(std::span<const std::byte> s) noexcept { return s; }
+    template <WritableByteBufferLike C>
+    static std::span<std::byte> as_writable_bytes(C& c) {
+        using T = std::remove_pointer_t<decltype(c.data())>;
+        return std::as_writable_bytes(std::span<T>{c.data(), c.size()});
+    }
+    template <ByteBufferLike C>
+    static std::span<const std::byte> as_bytes(const C& c) {
+        using T = std::remove_pointer_t<decltype(c.data())>;
+        return std::as_bytes(std::span<const T>{c.data(), c.size()});
+    }
+    template <class T>
+        requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
+    static std::span<std::byte> as_writable_bytes(T& obj) noexcept {
+        return {reinterpret_cast<std::byte*>(std::addressof(obj)), sizeof(T)};
+    }
+    template <class T>
+        requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
+    static std::span<const std::byte> as_bytes(const T& obj) noexcept {
+        return {reinterpret_cast<const std::byte*>(std::addressof(obj)), sizeof(T)};
     }
 
   public:
-    int RunService(int sid, std::span<std::byte> in, std::span<std::byte> out) {
+    // Look up the service by ID and run it (base version) -- soon private
+    /// @brief Run a service by ID with input and output as byte spans
+    /// @param sid Service ID
+    /// @param in Input data as a span of bytes
+    /// @param out Output data as a span of bytes
+    /// @return Number of bytes written to output
+    int RunService(int sid, std::span<std::byte> in = {}, std::span<std::byte> out = {}) {
         if (sid < 0 || sid >= services.size()) {
             throw std::out_of_range("Service ID out of range: " + std::to_string(sid));
         }
@@ -258,70 +297,105 @@ class mdlBASE : protected mdlbt {
         }
         return (*services[sid])(in, out);
     }
-    int RunService(int sid) { return RunService(sid, std::span<std::byte>{}, std::span<std::byte>{}); }
-    template <typename In>
-    int RunService(int side, In& in) {
-        if constexpr (std::is_same_v<std::decay_t<In>, std::span<const std::byte>>) {
-            return RunService(in, {});
-        }
-        else {
-            return RunService(as_byte_span(in), {});
-        }
-    }
-    template <typename In, typename Out>
-    int RunService(int sid, In& in, Out& out) {
-        std::span<const std::byte> in_span;
-        std::span<std::byte> out_span;
 
-        if constexpr (std::is_same_v<std::decay_t<In>, std::span<const std::byte>>) {
-            in_span = in;
-        }
-        else {
-            in_span = as_byte_span(in);
-        }
-
-        if constexpr (std::is_same_v<std::decay_t<Out>, std::span<std::byte>>) {
-            out_span = out;
-        }
-        else {
-            out_span = as_byte_span(out);
-        }
-
-        return RunService(sid, in_span, out_span);
+    // Convert service name to ID and run it
+    /// @brief Run a service by name with byte spans for input and output
+    /// @tparam I Input container type
+    /// @tparam O Output container type
+    /// @param service_name Name of the service to run
+    /// @param in Input data as a span (converted to a span of bytes)
+    /// @param out Output data as a span of bytes (converted if necessary)
+    /// @return Number of bytes written to output
+    template <typename I = std::byte, typename O = std::byte>
+    int RunService(std::string_view service_name, std::span<I> in = {}, std::span<O> out = {}) {
+        return RunService(service_map.at(service_name), as_writable_bytes(in), as_writable_bytes(out));
     }
 
-    int RunService(std::string_view service_name, std::span<std::byte> in, std::span<std::byte> out) {
-        return RunService(service_map.at(service_name), in, out);
-    }
-    int RunService(std::string_view service_name) { return RunService(service_name, std::span<std::byte>{}, std::span<std::byte>{}); }
-    template <typename In>
-    int RunService(std::string_view service_name, In& in) {
-        if constexpr (std::is_same_v<std::decay_t<In>, std::span<const std::byte>>) {
-            return RunService(service_name, in, {});
-        }
-        else {
-            return RunService(service_name, as_byte_span(in), {});
-        }
-    }
-    template <typename In, typename Out>
-    int RunService(std::string_view service_name, In& in, Out& out) {
-        std::span<const std::byte> in_span;
-        std::span<std::byte> out_span;
-        if constexpr (std::is_same_v<std::decay_t<In>, std::span<const std::byte>>) {
-            in_span = in;
-        }
-        else {
-            in_span = as_byte_span(in);
-        }
-        if constexpr (std::is_same_v<std::decay_t<Out>, std::span<std::byte>>) {
-            out_span = out;
-        }
-        else {
-            out_span = as_byte_span(out);
-        }
-        return RunService(service_name, in_span, out_span);
+    /// @brief Run a service by name with input and output data/containers by reference
+    /// @tparam I Input type
+    /// @tparam O Output type
+    /// @param service_name Name of the service to run
+    /// @param in Input data/container
+    /// @param out Output data/container
+    /// @return Number of bytes written to output
+    template <typename I, typename O>
+    int RunService(std::string_view service_name, I& in, O& out) {
+        return RunService(service_name, as_writable_bytes(in), as_writable_bytes(out));
     }
 
+    /// @brief Run a service by name with input data/container by reference and output as a byte span
+    /// @tparam I Input type
+    /// @tparam O Output container type
+    /// @param service_name Name of the service to run
+    /// @param in Input data/container
+    /// @param out Output data as a span of bytes (converted if necessary)
+    /// @return Number of bytes written to output
+    template <typename I, typename O = std::byte>
+    int RunService(std::string_view service_name, I& in, std::span<O> out = {}) {
+        return RunService(service_name, as_writable_bytes(in), out);
+    }
+
+    /// @brief Run a service by name with input as a byte span and output data/container by reference
+    /// @tparam I Input container type
+    /// @tparam O Output type
+    /// @param service_name Name of the service to run
+    /// @param in Input data as a span (converted to a span of bytes)
+    /// @param out Output data/container
+    /// @return Number of bytes written to output
+    template <typename I = std::byte, typename O>
+    int RunService(std::string_view service_name, std::span<I> in, O& out) {
+        return RunService(service_name, in, as_writable_bytes(out));
+    }
+
+    /// @brief Run a service by type with input and output as byte spans
+    /// @tparam T Service type with a static name member
+    /// @tparam I Input container type
+    /// @tparam O Output container type
+    /// @param in Input data as a span of bytes
+    /// @param out Output data as a span of bytes
+    /// @return Number of bytes written to output
+    template <typename T, typename I = std::byte, typename O = std::byte>
+    int RunService(std::span<I> in = {}, std::span<O> out = {}) {
+        return RunService(T::name, in, out);
+    }
+
+    /// @brief Run a service by type with input and output data/containers by reference
+    /// @tparam T Service type with a static name member
+    /// @tparam I Input type
+    /// @tparam O Output type
+    /// @param in Input data/container
+    /// @param out Output data/container
+    /// @return Number of bytes written to output
+    template <typename T, typename I, typename O>
+    int RunService(I& in, O& out) {
+        return RunService(T::name, as_writable_bytes(in), as_writable_bytes(out));
+    }
+
+    /// @brief Run a service by type with input data/container by reference and output as a byte span
+    /// @tparam T Service type with a static name member
+    /// @tparam I Input type
+    /// @tparam O Output container type
+    /// @param in Input data/container
+    /// @param out Output data as a span of bytes (converted if necessary)
+    /// @return Number of bytes written to output
+    template <typename T, typename I, typename O = std::byte>
+    int RunService(I& in, std::span<O> out = {}) {
+        return RunService(T::name, as_writable_bytes(in), out);
+    }
+
+    /// @brief Run a service by type with input as a byte span and output data/container by reference
+    /// @tparam T Service type with a static name member
+    /// @tparam I Input container type
+    /// @tparam O Output type
+    /// @param in Input data as a span (converted to a span of bytes)
+    /// @param out Output data/container
+    /// @return Number of bytes written to output
+    template <typename T, typename I = std::byte, typename O>
+    int RunService(std::span<I> in, O& out) {
+        return RunService(T::name, in, as_writable_bytes(out));
+    }
+
+    // Legacy overloads for compatibility
     int RunService(int sid, int nIn, void* pIn, void* pOut, int nOut);
     int RunService(int sid, ServiceBuffer& b) { return RunService(sid, b.size(), b.data(), nullptr, 0); }
     int RunService(int sid, ServiceBuffer& b, void* pOut, int nOut) { return RunService(sid, b.size(), b.data(), pOut, nOut); }
@@ -329,56 +403,8 @@ class mdlBASE : protected mdlbt {
     int RunService(int sid, ServiceBuffer& b, ServiceBufferOut& out) { return RunService(sid, b.size(), b.data(), out.data(), out.size()); }
     int RunService(int sid, ServiceBufferOut& out) { return RunService(sid, 0, nullptr, out.data(), out.size()); }
     int RunService(int sid, void* pOut, int nOut) { return RunService(sid, 0, nullptr, pOut, nOut); }
-    // int RunService(int sid) { return RunService(sid, 0, nullptr, nullptr, 0); }
 
   public:
-    int RunService(std::string_view service_name, int nIn, void* pIn, void* pOut, int nOut);
-    int RunService(std::string_view service_name, int nIn, void* pIn) { return RunService(service_name, nIn, pIn, nullptr, 0); }
-    int RunService(std::string_view service_name, ServiceBuffer& b) { return RunService(service_name, b.size(), b.data(), nullptr, 0); }
-    int RunService(std::string_view service_name, ServiceBuffer& b, void* pOut, int nOut) { return RunService(service_name, b.size(), b.data(), pOut, nOut); }
-    int RunService(std::string_view service_name, int nIn, void* pIn, ServiceBufferOut& out) {
-        return RunService(service_name, nIn, pIn, out.data(), out.size());
-    }
-    int RunService(std::string_view service_name, ServiceBuffer& b, ServiceBufferOut& out) {
-        return RunService(service_name, b.size(), b.data(), out.data(), out.size());
-    }
-    int RunService(std::string_view service_name, ServiceBufferOut& out) { return RunService(service_name, 0, nullptr, out.data(), out.size()); }
-    int RunService(std::string_view service_name, void* pOut, int nOut) { return RunService(service_name, 0, nullptr, pOut, nOut); }
-    // int RunService(std::string_view service_name) { return RunService(service_name, 0, nullptr, nullptr, 0); }
-
-  public:
-    template <typename T>
-    int RunService(int nIn, void* pIn, void* pOut, int nOut) {
-        return RunService(T::name, nIn, pIn, pOut, nOut);
-    }
-    template <typename T>
-    int RunService(int nIn, void* pIn) {
-        return RunService<T>(nIn, pIn, nullptr, 0);
-    }
-    template <typename T>
-    int RunService(ServiceBuffer& b, void* pOut, int nOut) {
-        return RunService<T>(b.size(), b.data(), pOut, nOut);
-    }
-    template <typename T>
-    int RunService(ServiceBuffer& b) {
-        return RunService<T>(b.size(), b.data(), nullptr, 0);
-    }
-    template <typename T>
-    int RunService(int nIn, void* pIn, ServiceBufferOut& out) {
-        return RunService<T>(nIn, pIn, out.data());
-    }
-    template <typename T>
-    int RunService(ServiceBuffer& b, ServiceBufferOut& out) {
-        return RunService<T>(b.size(), b.data(), out.data(), out.size());
-    }
-    template <typename T>
-    int RunService(void* pOut, int nOut) {
-        return RunService<T>(0, nullptr, pOut, nOut);
-    }
-    template <typename T>
-    int RunService() {
-        return RunService<T>(0, nullptr, nullptr, 0);
-    }
     BasicService* GetService(unsigned sid) { return sid < services.size() ? services[sid].get() : nullptr; }
     BasicService* GetService(std::string_view service_name) {
         auto it = service_map.find(service_name);

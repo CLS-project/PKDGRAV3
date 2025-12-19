@@ -184,10 +184,6 @@ int mdlBASE::RunService(int sid, int nIn, void* pIn, void* pOut, int nOut) {
     return (*services[sid])(std::span<std::byte>(static_cast<std::byte*>(pIn), nIn), std::span<std::byte>(static_cast<std::byte*>(pOut), nOut));
 }
 
-int mdlBASE::RunService(std::string_view service_name, int nIn, void* pIn, void* pOut, int nOut) {
-    return RunService(service_map.at(service_name), nIn, pIn, pOut, nOut);
-}
-
 void mdlBASE::yield() {
 #ifdef _MSC_VER
     SwitchToThread();

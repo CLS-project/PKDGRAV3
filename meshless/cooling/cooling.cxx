@@ -78,7 +78,7 @@ void MSR::CoolingUpdate(float redshift) {
     cooling->dz = dz;
 
     // We update dz in each process
-    mdl->RunService<ServiceCoolingUpdateZ>(sizeof(float), &dz);
+    mdl->RunService<ServiceCoolingUpdateZ>(dz);
 
     /* Do we already have the correct tables loaded? */
     if (cooling->z_index == z_index) return;
@@ -130,7 +130,7 @@ void MSR::CoolingUpdate(float redshift) {
     for (int i = 0; i < eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance; i++)
         in.electron_abundance[i] = cooling->table.electron_abundance[i];
 
-    mdl->RunService<ServiceCoolingUpdate>(sizeof(in), &in);
+    mdl->RunService<ServiceCoolingUpdate>(in);
 }
 
 /**
@@ -225,7 +225,7 @@ void MSR::CoolingInit(float redshift) {
     for (int i = 0; i < eagle_cooling_N_abundances; i++) in.SolarAbundances[i] = cooling->SolarAbundances[i];
     for (int i = 0; i < eagle_cooling_N_abundances; i++) in.SolarAbundances_inv[i] = cooling->SolarAbundances_inv[i];
 
-    mdl->RunService<ServiceCoolingInit>(sizeof(in), &in);
+    mdl->RunService<ServiceCoolingInit>(in);
 }
 
 /**

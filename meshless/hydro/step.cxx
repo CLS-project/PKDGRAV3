@@ -34,7 +34,7 @@ void MSR::HydroStep(double dTime, double dDelta) {
 
     if (parameters.get_bWakeUpParticles()) {
         ServiceWakeParticles::input in{dTime};
-        mdl->RunService<ServiceWakeParticles>(sizeof(in), &in);
+        mdl->RunService<ServiceWakeParticles>(in);
     }
 }
 
