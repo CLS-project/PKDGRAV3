@@ -320,7 +320,7 @@ void momMomr2Momc(MOMR* ma, MOMC* mc) {
 /*
  ** This function converts a complete multipole (MOMC) to a reduced one (MOMR).
  */
-void momReduceMomc(MOMC* mc, MOMR* mr) {
+void momReduceMomc(const MOMC* mc, MOMR* mr) {
     momFloat t, tx, ty, tz, txx, txy, txz, tyy, tyz, tzz;
 
     /*
@@ -854,7 +854,7 @@ double momShiftFlocr(FLOCR* l, float v, float x, float y, float z) {
  **
  ** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
  */
-void momEvalMomr(MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az, momFloat* magai) {
+void momEvalMomr(const MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az, momFloat* magai) {
     const momFloat onethird = 1.0 / 3.0;
     momFloat xx, xy, xz, yy, yz, zz;
     momFloat xxx, xxy, xxz, xyy, yyy, yyz, xyz;
@@ -915,8 +915,8 @@ void momEvalMomr(MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, momF
 **
 ** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
 */
-void momGenEvalMomr(MOMR* m, momFloat g0, momFloat g1, momFloat g2, momFloat g3, momFloat g4, momFloat g5, momFloat x, momFloat y, momFloat z, momFloat* fPot,
-                    momFloat* ax, momFloat* ay, momFloat* az, momFloat* magai) {
+void momGenEvalMomr(const MOMR* m, momFloat g0, momFloat g1, momFloat g2, momFloat g3, momFloat g4, momFloat g5, momFloat x, momFloat y, momFloat z,
+                    momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az, momFloat* magai) {
     const momFloat onethird = 1.0 / 3.0;
     momFloat xx, xy, xz, yy, yz, zz;
     momFloat xxx, xxy, xxz, xyy, yyy, yyz, xyz;
@@ -966,7 +966,7 @@ void momGenEvalMomr(MOMR* m, momFloat g0, momFloat g1, momFloat g2, momFloat g3,
 /*
 ** Op Count = (*,+) = (302,207) = 509
 */
-double momLocrAddMomr5cm(LOCR* l, MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, double* tax, double* tay, double* taz) {
+double momLocrAddMomr5cm(LOCR* l, const MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, double* tax, double* tay, double* taz) {
     const momFloat onethird = 1.0 / 3.0;
     momFloat xx, xy, xz, yy, yz, zz;
     momFloat xxx, xxy, xyy, yyy, xxz, xyz, yyz;
@@ -1529,7 +1529,7 @@ double momFlocrAddMono5(FLOCR* l, float v, float m, float dir, float x, float y,
 /*
 ** Op Count = (*,+,-) = (265,150,49) = 464
 */
-double momLocrAddFmomr5cm(LOCR* l, FMOMR* m, double u, double dir, double x, double y, double z, double* tax, double* tay, double* taz) {
+double momLocrAddFmomr5cm(LOCR* l, const FMOMR* m, double u, double dir, double x, double y, double z, double* tax, double* tay, double* taz) {
     const double onethird = 1.0 / 3.0;
     momFloat u2, u3, u4;
     momFloat xx, xy, xz, yy, yz, zz;
@@ -1702,7 +1702,7 @@ double momLocrAddFmomr5cm(LOCR* l, FMOMR* m, double u, double dir, double x, dou
 /*
 ** Op Count = (*,+,-) = (344,178,72) = 594
 */
-double momLocrAddFmomr5(LOCR* l, FMOMR* m, double u, double dir, double x, double y, double z, double* tax, double* tay, double* taz) {
+double momLocrAddFmomr5(LOCR* l, const FMOMR* m, double u, double dir, double x, double y, double z, double* tax, double* tay, double* taz) {
     const double onethird = 1.0 / 3.0;
     momFloat u2, u3, u4;
     momFloat xx, xy, xz, yy, yz, zz;
@@ -1881,7 +1881,7 @@ double momLocrAddFmomr5(LOCR* l, FMOMR* m, double u, double dir, double x, doubl
     return (594.0);
 }
 
-void momEvalLocr(LOCR* l, momFloat x, momFloat y, momFloat z, momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az) {
+void momEvalLocr(const LOCR* l, momFloat x, momFloat y, momFloat z, momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az) {
     const momFloat onethird = 1.0 / 3.0;
     momFloat xx, xy, xz, yy, yz, zz, xxx, xxz, yyy, yyz, xxy, xyy, xyz, xxxx, xxxy, xxyy, xyyy, yyyy, xxxz, xxyz, xyyz, yyyz;
     momFloat g1, A, Ax, Ay, Az, B, Bx, By, Bz, C, Cx, Cy, Cz, D, Dx, Dy, Dz;
@@ -1942,7 +1942,7 @@ void momEvalLocr(LOCR* l, momFloat x, momFloat y, momFloat z, momFloat* fPot, mo
     *fPot += l->m + g1 + A + B + C + D;
 }
 
-void momEvalFlocr(FLOCR* l, float v, float x, float y, float z, float* fPot, float* ax, float* ay, float* az) {
+void momEvalFlocr(const FLOCR* l, float v, float x, float y, float z, float* fPot, float* ax, float* ay, float* az) {
     const float onethird = 1.0f / 3.0f;
     float xx, xy, xz, yy, yz, zz, xxx, xxz, yyy, yyz, xxy, xyy, xyz, xxxx, xxxy, xxyy, xyyy, yyyy, xxxz, xxyz, xyyz, yyyz;
     float g1, A, Ax, Ay, Az, B, Bx, By, Bz, C, Cx, Cy, Cz, D, Dx, Dy, Dz;
@@ -2177,7 +2177,7 @@ void momClearFlocr(FLOCR* l) {
 /*
  ** This function adds the complete moment ma to the complete moment mc
  */
-void momAddMomc(MOMC* mc, MOMC* ma) {
+void momAddMomc(MOMC* mc, const MOMC* ma) {
     mc->m += ma->m;
     mc->xx += ma->xx;
     mc->yy += ma->yy;
@@ -2215,7 +2215,7 @@ void momAddMomc(MOMC* mc, MOMC* ma) {
 /*
  ** This function adds the reduced moment ma to the reduced moment mr
  */
-void momAddMomr(MOMR* mr, MOMR* ma) {
+void momAddMomr(MOMR* mr, const MOMR* ma) {
     mr->m += ma->m;
     mr->xx += ma->xx;
     mr->yy += ma->yy;
@@ -2243,7 +2243,7 @@ void momAddMomr(MOMR* mr, MOMR* ma) {
 /*
  ** This function adds the reduced moment ma to the reduced moment mr.
  */
-void momAddFmomr(FMOMR* mr, FMOMR* ma) {
+void momAddFmomr(FMOMR* mr, const FMOMR* ma) {
     mr->m += ma->m;
     mr->x += ma->x;
     mr->y += ma->y;
@@ -2275,7 +2275,7 @@ void momAddFmomr(FMOMR* mr, FMOMR* ma) {
  ** This function adds the reduced scaled moment ma to the reduced scaled moment mr.
  ** It needs to correctly rescale the moments of ma to be compatible with the scaling of mr.
  */
-void momScaledAddFmomr(FMOMR* mr, float ur, FMOMR* ma, float ua) {
+void momScaledAddFmomr(FMOMR* mr, float ur, const FMOMR* ma, float ua) {
     float f, s;
     assert(ur > 0.0f && ua > 0.0f);
     f = ua / ur;
@@ -2349,7 +2349,7 @@ void momRescaleFmomr(FMOMR* mr, float unew, float uold) {
 /*
  ** This function multiply-adds the complete moment ma
  */
-void momMulAddMomc(MOMC* mc, momFloat m, MOMC* ma) {
+void momMulAddMomc(MOMC* mc, momFloat m, const MOMC* ma) {
     mc->m += m * ma->m;
     mc->xx += m * ma->xx;
     mc->yy += m * ma->yy;
@@ -2387,7 +2387,7 @@ void momMulAddMomc(MOMC* mc, momFloat m, MOMC* ma) {
 /*
  ** This function multiply-adds the reduced moment ma
  */
-void momMulAddMomr(MOMR* mr, momFloat m, MOMR* ma) {
+void momMulAddMomr(MOMR* mr, momFloat m, const MOMR* ma) {
     mr->m += m * ma->m;
     mr->xx += m * ma->xx;
     mr->yy += m * ma->yy;
@@ -2415,7 +2415,7 @@ void momMulAddMomr(MOMR* mr, momFloat m, MOMR* ma) {
 /*
  ** This function multiply-adds the reduced scaled moment ma
  */
-void momMulAddFmomr(FMOMR* mr, float ur, float m, FMOMR* ma, float ua) {
+void momMulAddFmomr(FMOMR* mr, float ur, float m, const FMOMR* ma, float ua) {
     float f;
     assert(ua > 0.0 && ur > 0.0);
     f = ua / ur;
@@ -2453,7 +2453,7 @@ void momMulAddFmomr(FMOMR* mr, float ur, float m, FMOMR* ma, float ua) {
 /*
 ** This function adds the reduced local expansion la to the reduced local explansion lr.
 */
-void momAddLocr(LOCR* lr, LOCR* la) {
+void momAddLocr(LOCR* lr, const LOCR* la) {
     lr->m += la->m;
     lr->x += la->x;
     lr->y += la->y;
@@ -2495,7 +2495,7 @@ void momAddLocr(LOCR* lr, LOCR* la) {
 /*
 ** This function adds the reduced local expansion la to the reduced local explansion lr.
 */
-void momAddFlocr(FLOCR* lr, FLOCR* la) {
+void momAddFlocr(FLOCR* lr, const FLOCR* la) {
     lr->m += la->m;
     lr->x += la->x;
     lr->y += la->y;
@@ -2534,7 +2534,7 @@ void momAddFlocr(FLOCR* lr, FLOCR* la) {
     lr->xxyyz += la->xxyyz;
 }
 
-void momLocrAddFlocr(LOCR* lr, FLOCR* la, float v) {
+void momLocrAddFlocr(LOCR* lr, const FLOCR* la, float v) {
     double u = 1.0 / ((double)v);
     double uu;
 
@@ -2580,7 +2580,7 @@ void momLocrAddFlocr(LOCR* lr, FLOCR* la, float v) {
     lr->xxyyz += uu * la->xxyyz;
 }
 
-void momFlocrToLocr(LOCR* lr, FLOCR* la, float v) {
+void momFlocrToLocr(LOCR* lr, const FLOCR* la, float v) {
     double u = 1.0 / ((double)v);
     double uu;
 
@@ -2626,7 +2626,7 @@ void momFlocrToLocr(LOCR* lr, FLOCR* la, float v) {
     lr->xxyyz = uu * la->xxyyz;
 }
 
-void momLocrToFlocr(FLOCR* lr, LOCR* la, float v) {
+void momLocrToFlocr(FLOCR* lr, const LOCR* la, float v) {
     double u = v;
     double uu;
     lr->m = u * la->m;
@@ -2675,7 +2675,7 @@ void momLocrToFlocr(FLOCR* lr, LOCR* la, float v) {
  ** This function adds the reduced scaled local expansion la to the reduced scaled local expansion lr.
  ** It needs to correctly rescale the elements of la to be compatible with the scaling of lr.
  */
-void momScaledAddFlocr(FLOCR* lr, float vr, FLOCR* la, float va) {
+void momScaledAddFlocr(FLOCR* lr, float vr, const FLOCR* la, float va) {
     float f, s;
     assert(vr > 0.0 && va > 0);
     f = va / vr;
@@ -2775,7 +2775,7 @@ void momRescaleFlocr(FLOCR* lr, float vnew, float vold) {
  ** This function subtracts the complete moment ma from the complete moment mc
  ** (rarely used)
  */
-void momSubMomc(MOMC* mc, MOMC* ma) {
+void momSubMomc(MOMC* mc, const MOMC* ma) {
     mc->m -= ma->m;
     mc->xx -= ma->xx;
     mc->yy -= ma->yy;
@@ -2814,7 +2814,7 @@ void momSubMomc(MOMC* mc, MOMC* ma) {
  ** This function subtracts the reduced moment ma from the reduced moment mc
  ** (rarely used)
  */
-void momSubMomr(MOMR* mr, MOMR* ma) {
+void momSubMomr(MOMR* mr, const MOMR* ma) {
     mr->m -= ma->m;
     mr->xx -= ma->xx;
     mr->yy -= ma->yy;
@@ -2839,7 +2839,7 @@ void momSubMomr(MOMR* mr, MOMR* ma) {
     mr->xyyz -= ma->xyyz;
 }
 
-void momPrintMomc(MOMC* m) {
+void momPrintMomc(const MOMC* m) {
     printf("MOMC :%20.15g\n", (double)m->m);
     printf("   xx:%20.15g   yy:%20.15g   zz:%20.15g\n", (double)m->xx, (double)m->yy, (double)m->zz);
     printf("   xy:%20.15g   yz:%20.15g   xz:%20.15g\n", (double)m->xy, (double)m->yz, (double)m->xz);
@@ -2854,7 +2854,7 @@ void momPrintMomc(MOMC* m) {
     printf(" yyzz:%20.15g xxzz:%20.15g xyzz:%20.15g\n", (double)m->yyzz, (double)m->xxzz, (double)m->xyzz);
 }
 
-void momPrintMomr(MOMR* m) {
+void momPrintMomr(const MOMR* m) {
     printf("MOMR :%20.15g\n", (double)m->m);
     printf("   xx:%20.15g   xy:%20.15g   xz:%20.15g\n", (double)m->xx, (double)m->xy, (double)m->xz);
     printf("   yy:%20.15g   yz:%20.15g  xxx:%20.15g\n", (double)m->yy, (double)m->yz, (double)m->xxx);
@@ -2865,7 +2865,7 @@ void momPrintMomr(MOMR* m) {
     printf(" xyyz:%20.15g yyyy:%20.15g yyyz:%20.15g\n", (double)m->xyyz, (double)m->yyyy, (double)m->yyyz);
 }
 
-void momPrintFmomr(FMOMR* m, float u) {
+void momPrintFmomr(const FMOMR* m, float u) {
     double uu = u;
     printf("FMOMR:%20.8g\n", m->m);
     printf("    x:%20.8g    y:%20.8g    z:%20.8g\n", m->x, m->y, m->z);
@@ -2882,7 +2882,7 @@ void momPrintFmomr(FMOMR* m, float u) {
     printf(" xyyz:%20.8g yyyy:%20.8g yyyz:%20.8g\n", m->xyyz * uu, m->yyyy * uu, m->yyyz * uu);
 }
 
-void momPrintLocr(LOCR* m) {
+void momPrintLocr(const LOCR* m) {
     printf("LOCR :%20.15g\n", (double)m->m);
     printf("    x:%20.15g     y:%20.15g     z:%20.15g\n", (double)m->x, (double)m->y, (double)m->z);
     printf("   xx:%20.15g    xy:%20.15g    xz:%20.15g\n", (double)m->xx, (double)m->xy, (double)m->xz);
@@ -2898,7 +2898,7 @@ void momPrintLocr(LOCR* m) {
     printf("xyyyz:%20.15g yyyyz:%20.15g              \n", (double)m->xyyyz, (double)m->yyyyz);
 }
 
-void momPrintFlocr(FLOCR* m, float v) {
+void momPrintFlocr(const FLOCR* m, float v) {
     double u = 1.0 / ((double)v);
     double uu;
     printf("FLOCR:%20.8g\n", m->m);

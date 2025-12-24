@@ -106,7 +106,7 @@ momFloat momMakeMomr(MOMR* mr, momFloat m, momFloat x, momFloat y, momFloat z);
 float momMakeFmomr(FMOMR* mr, float m, float u, float x, float y, float z);
 void momOldMakeMomr(MOMR* mr, momFloat m, momFloat x, momFloat y, momFloat z);
 void momMomr2Momc(MOMR* ma, MOMC* mc);
-void momReduceMomc(MOMC* mc, MOMR* mr);
+void momReduceMomc(const MOMC* mc, MOMR* mr);
 /*
 ** Shifting functions.
 */
@@ -119,24 +119,24 @@ double momShiftFlocr(FLOCR* l, float v, float x, float y, float z);
 /*
 ** Some variants of EvalMomr...
 */
-void momEvalMomr(MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az, momFloat* magai);
-void momGenEvalMomr(MOMR* m, momFloat g0, momFloat g1, momFloat g2, momFloat g3, momFloat g4, momFloat g5, momFloat x, momFloat y, momFloat z, momFloat* fPot,
-                    momFloat* ax, momFloat* ay, momFloat* az, momFloat* magai);
+void momEvalMomr(const MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az, momFloat* magai);
+void momGenEvalMomr(const MOMR* m, momFloat g0, momFloat g1, momFloat g2, momFloat g3, momFloat g4, momFloat g5, momFloat x, momFloat y, momFloat z,
+                    momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az, momFloat* magai);
 /*
 ** These are the prefered versions that should be used in pkdgrav2.
 */
-double momLocrAddMomr5cm(LOCR* l, MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, double* tax, double* tay, double* taz);
+double momLocrAddMomr5cm(LOCR* l, const MOMR* m, momFloat dir, momFloat x, momFloat y, momFloat z, double* tax, double* tay, double* taz);
 double momLocrAddMono5(LOCR* l, momFloat m, momFloat dir, momFloat x, momFloat y, momFloat z, double* tax, double* tay, double* taz);
 double momFlocrAddFmomr5cm(FLOCR* l, float v, FMOMR* m, float u, float dir, float x, float y, float z, float* tax, float* tay, float* taz);
 double momFlocrAddMono5(FLOCR* l, float v, float m, float dir, float x, float y, float z, float* tax, float* tay, float* taz);
-double momLocrAddFmomr5cm(LOCR* l, FMOMR* m, double u, double dir, double x, double y, double z, double* tax, double* tay, double* taz);
-double momLocrAddFmomr5(LOCR* l, FMOMR* m, double u, double dir, double x, double y, double z, double* tax, double* tay, double* taz);
-void momLocrAddFlocr(LOCR* lr, FLOCR* la, float v);
+double momLocrAddFmomr5cm(LOCR* l, const FMOMR* m, double u, double dir, double x, double y, double z, double* tax, double* tay, double* taz);
+double momLocrAddFmomr5(LOCR* l, const FMOMR* m, double u, double dir, double x, double y, double z, double* tax, double* tay, double* taz);
+void momLocrAddFlocr(LOCR* lr, const FLOCR* la, float v);
 /*
 ** All the functions for evaluating local expansions.
 */
-void momEvalLocr(LOCR* l, momFloat x, momFloat y, momFloat z, momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az);
-void momEvalFlocr(FLOCR* l, float v, float x, float y, float z, float* fPot, float* ax, float* ay, float* az);
+void momEvalLocr(const LOCR* l, momFloat x, momFloat y, momFloat z, momFloat* fPot, momFloat* ax, momFloat* ay, momFloat* az);
+void momEvalFlocr(const FLOCR* l, float v, float x, float y, float z, float* fPot, float* ax, float* ay, float* az);
 
 /*
 ** Basic arithmetic functions.
@@ -146,33 +146,33 @@ void momClearMomr(MOMR* l);
 void momClearFmomr(FMOMR* l);
 void momClearLocr(LOCR* l);
 void momClearFlocr(FLOCR* l);
-void momAddMomc(MOMC* mc, MOMC* ma);
-void momAddMomr(MOMR* mr, MOMR* ma);
-void momAddFmomr(FMOMR* mr, FMOMR* ma);
-void momScaledAddFmomr(FMOMR* mr, float ur, FMOMR* ma, float ua);
+void momAddMomc(MOMC* mc, const MOMC* ma);
+void momAddMomr(MOMR* mr, const MOMR* ma);
+void momAddFmomr(FMOMR* mr, const FMOMR* ma);
+void momScaledAddFmomr(FMOMR* mr, float ur, const FMOMR* ma, float ua);
 void momRescaleFmomr(FMOMR* mr, float unew, float uold);
-void momMulAddMomc(MOMC* mc, momFloat m, MOMC* ma);
-void momMulAddMomr(MOMR* mr, momFloat m, MOMR* ma);
-void momMulAddFmomr(FMOMR* mr, float ur, float m, FMOMR* ma, float ua);
-void momAddLocr(LOCR* lr, LOCR* la);
-void momAddFlocr(FLOCR* lr, FLOCR* la);
-void momScaledAddFlocr(FLOCR* lr, float vr, FLOCR* la, float va);
+void momMulAddMomc(MOMC* mc, momFloat m, const MOMC* ma);
+void momMulAddMomr(MOMR* mr, momFloat m, const MOMR* ma);
+void momMulAddFmomr(FMOMR* mr, float ur, float m, const FMOMR* ma, float ua);
+void momAddLocr(LOCR* lr, const LOCR* la);
+void momAddFlocr(FLOCR* lr, const FLOCR* la);
+void momScaledAddFlocr(FLOCR* lr, float vr, const FLOCR* la, float va);
 void momRescaleFlocr(FLOCR* lr, float vnew, float vold);
-void momSubMomc(MOMC* mc, MOMC* ma);
-void momSubMomr(MOMR* mr, MOMR* ma);
+void momSubMomc(MOMC* mc, const MOMC* ma);
+void momSubMomr(MOMR* mr, const MOMR* ma);
 /*
 ** Conversion
 */
-void momFlocrToLocr(LOCR* lr, FLOCR* la, float v);
-void momLocrToFlocr(FLOCR* lr, LOCR* la, float v);
+void momFlocrToLocr(LOCR* lr, const FLOCR* la, float v);
+void momLocrToFlocr(FLOCR* lr, const LOCR* la, float v);
 /*
 ** Printing functions:
 */
-void momPrintMomc(MOMC* m);
-void momPrintMomr(MOMR* m);
-void momPrintFmomr(FMOMR* m, float u);
-void momPrintLocr(LOCR* l);
-void momPrintFlocr(FLOCR* l, float v);
+void momPrintMomc(const MOMC* m);
+void momPrintMomr(const MOMR* m);
+void momPrintFmomr(const FMOMR* m, float u);
+void momPrintLocr(const LOCR* l);
+void momPrintFlocr(const FLOCR* l, float v);
 #ifdef __cplusplus
 }
 #endif
