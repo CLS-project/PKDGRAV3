@@ -29,11 +29,11 @@ int ServiceFftSizes::Service(PST pst, std::span<std::byte> vin, std::span<std::b
     return sizeof(output);
 }
 
-int ServiceFftSizes::Combine(std::span<std::byte> vout, std::span<std::byte> vout2) {
+int ServiceFftSizes::Combine(std::span<std::byte> vout, std::span<const std::byte> vin) {
     auto out = reinterpret_cast<output*>(vout.data());
-    auto out2 = reinterpret_cast<output*>(vout2.data());
-    out->nMaxLocal = std::max(out->nMaxLocal, out2->nMaxLocal);
-    out->nMaxZ = std::max(out->nMaxZ, out2->nMaxZ);
-    out->nMaxY = std::max(out->nMaxY, out2->nMaxY);
+    auto in = reinterpret_cast<const output*>(vin.data());
+    out->nMaxLocal = std::max(out->nMaxLocal, in->nMaxLocal);
+    out->nMaxZ = std::max(out->nMaxZ, in->nMaxZ);
+    out->nMaxY = std::max(out->nMaxY, in->nMaxY);
     return sizeof(output);
 }

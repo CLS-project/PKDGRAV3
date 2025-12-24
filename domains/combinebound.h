@@ -25,5 +25,5 @@ class ServiceCombineBound : public TraverseCombinePST {
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
-    virtual int Combine(std::span<std::byte> out, std::span<std::byte> out2) override;
+    virtual int Combine(std::span<std::byte> out, std::span<const std::byte> in) override;
 };
