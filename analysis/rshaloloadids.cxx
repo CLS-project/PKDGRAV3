@@ -26,11 +26,11 @@ namespace rs {
 void ServiceRsHaloLoadIds::Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
     pst->plcl->pkd->RsHaloIdRead(iElement, filename, iBeg, iEnd);
 }
-void ServiceRsHaloLoadIds::start(PST pst, uint64_t nElements, void* vin, int nIn) {
-    auto in = static_cast<input*>(vin);
+void ServiceRsHaloLoadIds::start(PST pst, uint64_t nElements, std::span<std::byte> vin) {
+    auto in = reinterpret_cast<input*>(vin.data());
     pst->plcl->pkd->RsHaloIdStart(nElements, in->bAppend);
 }
-void ServiceRsHaloLoadIds::finish(PST pst, uint64_t nElements, void* vin, int nIn) {
+void ServiceRsHaloLoadIds::finish(PST pst, uint64_t nElements, std::span<std::byte> vin) {
     pst->plcl->pkd->RsHaloIdFinish(nElements);
 }
 void pkdContext::RsHaloIdStart(uint64_t nElements, bool bAppend) {

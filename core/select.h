@@ -23,7 +23,7 @@ class ServiceCountSelected : public TraverseCount<uint64_t> {
     explicit ServiceCountSelected(PST pst) : TraverseCount(pst, name) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelActives : public TraverseCount<uint64_t> {
@@ -38,7 +38,7 @@ class ServiceSelActives : public TraverseCount<uint64_t> {
     explicit ServiceSelActives(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 class ServiceSelBlackholes : public TraverseCount<uint64_t> {
   public:
@@ -52,7 +52,7 @@ class ServiceSelBlackholes : public TraverseCount<uint64_t> {
     explicit ServiceSelBlackholes(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelSpecies : public TraverseCount<uint64_t> {
@@ -68,7 +68,7 @@ class ServiceSelSpecies : public TraverseCount<uint64_t> {
     explicit ServiceSelSpecies(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelGroup : public TraverseCount<uint64_t> {
@@ -84,7 +84,7 @@ class ServiceSelGroup : public TraverseCount<uint64_t> {
     explicit ServiceSelGroup(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelMass : public TraverseCount<uint64_t> {
@@ -102,7 +102,7 @@ class ServiceSelMass : public TraverseCount<uint64_t> {
     explicit ServiceSelMass(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelPhaseDensity : public TraverseCount<uint64_t> {
@@ -120,7 +120,7 @@ class ServiceSelPhaseDensity : public TraverseCount<uint64_t> {
     explicit ServiceSelPhaseDensity(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelById : public TraverseCount<uint64_t> {
@@ -138,7 +138,7 @@ class ServiceSelById : public TraverseCount<uint64_t> {
     explicit ServiceSelById(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelBox : public TraverseCount<uint64_t> {
@@ -160,7 +160,7 @@ class ServiceSelBox : public TraverseCount<uint64_t> {
     explicit ServiceSelBox(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelSphere : public TraverseCount<uint64_t> {
@@ -182,7 +182,7 @@ class ServiceSelSphere : public TraverseCount<uint64_t> {
     explicit ServiceSelSphere(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSelCylinder : public TraverseCount<uint64_t> {
@@ -204,5 +204,5 @@ class ServiceSelCylinder : public TraverseCount<uint64_t> {
     explicit ServiceSelCylinder(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };

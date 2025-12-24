@@ -27,8 +27,8 @@ struct output_particle {
     TinyVector<float, 3> r, v;
 };
 
-void ServiceRsExtract::Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) {
-    auto hdr = static_cast<header*>(vin);
+void ServiceRsExtract::Write(PST pst, std::span<std::byte> vin, int iGroup, const std::string& filename, int iSegment, int nSegment) {
+    auto hdr = reinterpret_cast<header*>(vin.data());
     auto pOrds = reinterpret_cast<input*>(hdr + 1);
     pst->plcl->pkd->RsExtract(filename, iSegment, pOrds);
 }

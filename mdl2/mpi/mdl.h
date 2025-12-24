@@ -467,6 +467,21 @@ class mdlClass : public mdlBASE {
         return ReqService(id, service_name, bytes);
     }
 
+    template <typename S>
+    int ReqService(int id, std::span<std::byte> vin = {}) {
+        return ReqService(id, S::name, vin);
+    }
+    template <typename S, typename I>
+    int ReqService(int id, /*const*/ I& in) {
+        auto bytes = as_bytes(in);
+        return ReqService<S>(id, bytes);
+    }
+    template <typename S, typename I>
+    int ReqService(int id, std::span<I> in) {
+        auto bytes = as_bytes(in);
+        return ReqService<S>(id, bytes);
+    }
+
     int ReqService(int id, int sid, void* vin, int nInBytes);
     template <typename T>
     int ReqService(int id, int sid, T& in) {
@@ -477,11 +492,8 @@ class mdlClass : public mdlBASE {
     int ReqService(int id, void* vin, int nInBytes) {
         return ReqService(id, S::name, vin, nInBytes);
     }
-    template <typename S>
-    int ReqService(int id) {
-        return ReqService(id, S::name);
-    }
-    int GetReply(int rID, int nMaxBytes = 0, void* vout = nullptr);
+    int GetReply(int rID, std::span<std::byte> vout = {});
+    int GetReply(int rID, int nMaxBytes, void* vout);
     template <typename T, typename std::enable_if<!std::is_pointer<T>::value, int>::type = 0>
     int GetReply(int rID, T& out) {
         return GetReply(rID, sizeof(out), &out);

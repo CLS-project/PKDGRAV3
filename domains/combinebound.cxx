@@ -21,18 +21,18 @@
 static_assert(std::is_void_v<ServiceCombineBound::input> || std::is_standard_layout_v<ServiceCombineBound::input>);
 static_assert(std::is_void_v<ServiceCombineBound::output> || std::is_standard_layout_v<ServiceCombineBound::output>);
 
-int ServiceCombineBound::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceCombineBound::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     static_assert(std::is_void_v<input>);
-    auto out = static_cast<output*>(vout);
-    assert(nIn == 0);
-    assert(nOut == sizeof(output));
+    auto out = reinterpret_cast<output*>(vout.data());
+    assert(vin.size() == 0);
+    assert(vout.size() == sizeof(output));
     *out = pst->plcl->pkd->bnd;
     return sizeof(output);
 }
 
-int ServiceCombineBound::Combine(void* vout, void* vout2) {
-    auto out = static_cast<output*>(vout);
-    auto out2 = static_cast<output*>(vout2);
+int ServiceCombineBound::Combine(std::span<std::byte> vout, std::span<std::byte> vout2) {
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto out2 = reinterpret_cast<output*>(vout2.data());
     *out = out->combine(*out2);
     return sizeof(output);
 }

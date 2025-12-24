@@ -25,7 +25,7 @@
 #include "fmt/format.h"
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
-void ServiceSaveGroupStats::Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) {
+void ServiceSaveGroupStats::Write(PST pst, std::span<std::byte> vin, int iGroup, const std::string& filename, int iSegment, int nSegment) {
     pst->plcl->pkd->GroupStatsSave(iGroup, filename, iSegment, nSegment);
 }
 

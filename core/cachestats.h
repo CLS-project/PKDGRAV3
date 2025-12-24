@@ -44,7 +44,7 @@ class ServiceCacheStats : public TraverseCount<CacheStats> {
 
   protected:
     // We are collecting MPI statistics at each node, so we use AtNode to do the work
-    virtual int AtNode(PST pst, void* vin, int nIn, void* vout, int nOut) { return Service(pst, vin, nIn, vout, nOut); }
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
+    virtual int AtNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) { return Service(pst, in, out); }
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out);
 };
 #endif

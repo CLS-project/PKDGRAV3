@@ -30,6 +30,6 @@ class ServiceFftSizes : public TraverseCombinePST {
     explicit ServiceFftSizes(PST pst) : TraverseCombinePST(pst, name, sizeof(input), sizeof(output)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
-    virtual int Combine(void* vout, void* vout2);
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Combine(std::span<std::byte> vout, std::span<std::byte> vout2) override;
 };

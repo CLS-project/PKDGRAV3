@@ -20,11 +20,11 @@
 void ServiceRsLoadIds::Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
     pst->plcl->pkd->RsIdRead(iElement, filename, iBeg, iEnd);
 }
-void ServiceRsLoadIds::start(PST pst, uint64_t nElements, void* vin, int nIn) {
-    auto in = static_cast<input*>(vin);
+void ServiceRsLoadIds::start(PST pst, uint64_t nElements, std::span<std::byte> vin) {
+    auto in = reinterpret_cast<input*>(vin.data());
     pst->plcl->pkd->RsIdStart(nElements, in->bAppend);
 }
-void ServiceRsLoadIds::finish(PST pst, uint64_t nElements, void* vin, int nIn) {
+void ServiceRsLoadIds::finish(PST pst, uint64_t nElements, std::span<std::byte> vin) {
     pst->plcl->pkd->RsIdFinish(nElements);
 }
 void pkdContext::RsIdStart(uint64_t nElements, bool bAppend) {

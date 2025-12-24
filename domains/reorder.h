@@ -36,10 +36,10 @@ class ServiceReorder : public TraversePST {
     explicit ServiceReorder(PST pst) : TraversePST(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int OffNode(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int AtNode(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int OffNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int AtNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 } // namespace NewDD

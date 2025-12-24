@@ -56,7 +56,7 @@ class ServiceSaveGroupStats : public ServiceOutput {
     explicit ServiceSaveGroupStats(PST pst) : ServiceOutput(pst, name, sizeof(input)) {}
 
   protected:
-    virtual void Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
+    virtual void Write(PST pst, std::span<std::byte> vin, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
 };
 
 #endif

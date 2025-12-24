@@ -36,18 +36,18 @@ static void pkdCalcRoot(PKD pkd, uint32_t uRoot, blitz::TinyVector<double, 3> co
 static_assert(std::is_void_v<ServiceCalcRoot::input> || std::is_standard_layout_v<ServiceCalcRoot::input>);
 static_assert(std::is_void_v<ServiceCalcRoot::output> || std::is_standard_layout_v<ServiceCalcRoot::output>);
 
-int ServiceCalcRoot::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<input*>(vin);
-    auto out = static_cast<output*>(vout);
-    assert(nIn == sizeof(input));
-    assert(nOut == sizeof(output));
+int ServiceCalcRoot::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    auto in = reinterpret_cast<input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == sizeof(output));
     pkdCalcRoot(pst->plcl->pkd, in->uRoot, in->com, out->momc);
     return sizeof(output);
 }
 
-int ServiceCalcRoot::Combine(void* vout, void* vout2) {
-    auto out = static_cast<output*>(vout);
-    auto out2 = static_cast<output*>(vout2);
+int ServiceCalcRoot::Combine(std::span<std::byte> vout, std::span<std::byte> vout2) {
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto out2 = reinterpret_cast<output*>(vout2.data());
     momAddMomc(&out->momc, &out2->momc);
     return sizeof(output);
 }

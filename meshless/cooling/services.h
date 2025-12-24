@@ -19,7 +19,7 @@ class ServiceCoolingInit : public TraversePST {
     explicit ServiceCoolingInit(PST pst) : TraversePST(pst, name) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceCoolingUpdate : public TraversePST {
@@ -38,7 +38,7 @@ class ServiceCoolingUpdate : public TraversePST {
     explicit ServiceCoolingUpdate(PST pst) : TraversePST(pst, name) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceCoolingUpdateZ : public TraversePST {
@@ -50,7 +50,7 @@ class ServiceCoolingUpdateZ : public TraversePST {
     explicit ServiceCoolingUpdateZ(PST pst) : TraversePST(pst, name) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceCoolingHydReionization : public TraversePST {
@@ -62,6 +62,6 @@ class ServiceCoolingHydReionization : public TraversePST {
     explicit ServiceCoolingHydReionization(PST pst) : TraversePST(pst, name) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 #endif

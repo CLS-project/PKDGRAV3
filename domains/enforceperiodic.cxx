@@ -21,8 +21,8 @@
 static_assert(std::is_void_v<ServiceEnforcePeriodic::input> || std::is_standard_layout_v<ServiceEnforcePeriodic::input>);
 static_assert(std::is_void_v<ServiceEnforcePeriodic::output> || std::is_standard_layout_v<ServiceEnforcePeriodic::output>);
 
-int ServiceEnforcePeriodic::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    const auto& in = *static_cast<input*>(vin);
+int ServiceEnforcePeriodic::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    const auto& in = *reinterpret_cast<input*>(vin.data());
     static_assert(std::is_void_v<output>);
     auto pkd = pst->plcl->pkd;
     pkdEnforcePeriodic(pkd, in);

@@ -80,31 +80,32 @@ template <class C>
 concept WritableByteBufferLike = ByteBufferLike<C> && !std::is_const_v<std::remove_pointer_t<decltype(std::declval<C&>().data())>>;
 
 // Helper functions to convert various types to byte spans
-static std::span<std::byte> as_writable_bytes(std::span<std::byte> s) noexcept {
+static inline std::span<std::byte> as_writable_bytes(std::span<std::byte> s) noexcept {
     return s;
 }
-static std::span<const std::byte> as_bytes(std::span<const std::byte> s) noexcept {
+static inline std::span</*const*/ std::byte> as_bytes(std::span</*const*/ std::byte> s) noexcept {
     return s;
 }
 template <WritableByteBufferLike C>
-static std::span<std::byte> as_writable_bytes(C& c) {
+static inline std::span<std::byte> as_writable_bytes(C& c) {
     using T = std::remove_pointer_t<decltype(c.data())>;
     return std::as_writable_bytes(std::span<T>{c.data(), c.size()});
 }
 template <ByteBufferLike C>
-static std::span<const std::byte> as_bytes(const C& c) {
+static inline std::span</*const*/ std::byte> as_bytes(/*const*/ C& c) {
     using T = std::remove_pointer_t<decltype(c.data())>;
-    return std::as_bytes(std::span<const T>{c.data(), c.size()});
+    return std::as_writable_bytes(std::span</*const*/ T>{c.data(), c.size()});
+    // return std::as_bytes(std::span</*const*/ T>{c.data(), c.size()});
 }
 template <class T>
     requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
-static std::span<std::byte> as_writable_bytes(T& obj) noexcept {
+static inline std::span<std::byte> as_writable_bytes(T& obj) noexcept {
     return {reinterpret_cast<std::byte*>(std::addressof(obj)), sizeof(T)};
 }
 template <class T>
     requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
-static std::span<const std::byte> as_bytes(const T& obj) noexcept {
-    return {reinterpret_cast<const std::byte*>(std::addressof(obj)), sizeof(T)};
+static inline std::span</*const*/ std::byte> as_bytes(/*const*/ T& obj) noexcept {
+    return {reinterpret_cast</*const*/ std::byte*>(std::addressof(obj)), sizeof(T)};
 }
 
 // This struct is use to keep track of a variable length buffer for service requests.
@@ -240,6 +241,7 @@ class mdlBASE : protected mdlbt {
     typedef enum { TIME_WAITING, TIME_COMPUTING, TIME_SYNCHRONIZING, TIME_COUNT } TICK_TIMER;
 
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+
   protected:
     ticks nTicks;
 #endif

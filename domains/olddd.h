@@ -33,8 +33,8 @@ class ServiceColRejects : public TraversePST {
     explicit ServiceColRejects(PST pst) : TraversePST(pst, name, 0, pst->mdl->Threads() * sizeof(output)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceSwapRejects : public TraversePST {
@@ -45,8 +45,8 @@ class ServiceSwapRejects : public TraversePST {
     explicit ServiceSwapRejects(PST pst) : TraversePST(pst, name, pst->mdl->Threads() * sizeof(input), pst->mdl->Threads() * sizeof(output)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceColOrdRejects : public TraversePST {
@@ -60,8 +60,8 @@ class ServiceColOrdRejects : public TraversePST {
     explicit ServiceColOrdRejects(PST pst) : TraversePST(pst, name, 0, pst->mdl->Threads() * sizeof(output)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceDomain : public TraversePST {
@@ -87,8 +87,8 @@ class ServiceDomainDecomp : public ServiceDomain {
     explicit ServiceDomainDecomp(PST pst) : ServiceDomain(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 
   private:
     void RootSplit(PST pst, int iSplitDim, int bDoRootFind, int bDoSplitDimFind);
@@ -109,8 +109,8 @@ class ServiceDomainOrder : public ServiceDomain {
     explicit ServiceDomainOrder(PST pst) : ServiceDomain(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 
   private:
     uint64_t OrdSplit(PST pst, uint64_t iMinOrder, uint64_t iMaxOrder);
@@ -130,8 +130,8 @@ class ServiceLocalOrder : public TraversePST {
     explicit ServiceLocalOrder(PST pst) : TraversePST(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 #endif
 
@@ -154,8 +154,8 @@ class ServiceWeight : public TraversePST {
     explicit ServiceWeight(PST pst) : TraversePST(pst, name, sizeof(input), sizeof(output)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceWeightWrap : public TraversePST {
@@ -175,8 +175,8 @@ class ServiceWeightWrap : public TraversePST {
     explicit ServiceWeightWrap(PST pst) : TraversePST(pst, name, sizeof(input), sizeof(output)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
 class ServiceOrdWeight : public TraversePST {
@@ -194,7 +194,7 @@ class ServiceOrdWeight : public TraversePST {
     explicit ServiceOrdWeight(PST pst) : TraversePST(pst, name, sizeof(input), sizeof(output)) {}
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 } // namespace OldDD

@@ -30,8 +30,7 @@ class ServiceRsExtract : public ServiceOutput {
     explicit ServiceRsExtract(PST pst) : ServiceOutput(pst, name, sizeof(header) + sizeof(input) * (pst->mdl->Threads() + 1)) {}
 
   protected:
-    virtual void Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
-    // virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    virtual void Write(PST pst, std::span<std::byte> in, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
 };
 
 #endif /* DB0087E1_11FE_4040_88EB_FA1695330E03 */

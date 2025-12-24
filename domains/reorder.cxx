@@ -18,38 +18,38 @@
 
 namespace NewDD {
 
-int ServiceReorder::OffNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceReorder::OffNode(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
-    auto in = static_cast<input*>(vin);
+    auto in = reinterpret_cast<input*>(vin.data());
     auto thread = mdl->Self() + pst->nLower;
     auto proc = mdl->ThreadToProc(thread);
     pst->iOrdSplit = in->nPerProc * proc;
-    auto rID = ReqService(pst, std::span(reinterpret_cast<std::byte*>(in), size_t(nIn)));
-    Traverse(pst->pstLower, in, nIn, NULL, 0);
+    auto rID = ReqService(pst, vin);
+    Traverse(pst->pstLower, vin, vout);
     mdl->GetReply(rID);
     return 0;
     // return Recurse(pst,vin,nIn,vout,nOut);
 }
 
-int ServiceReorder::AtNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceReorder::AtNode(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
-    auto in = static_cast<input*>(vin);
+    auto in = reinterpret_cast<input*>(vin.data());
     in->nPerCore = (in->nPerProc + mdl->Cores() - 1) / mdl->Cores();
-    return Recurse(pst, vin, nIn, vout, nOut);
+    return Recurse(pst, vin, vout);
 }
 
-int ServiceReorder::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceReorder::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
-    auto in = static_cast<input*>(vin);
+    auto in = reinterpret_cast<input*>(vin.data());
     pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * (pst->nLower + mdl->Core());
-    auto rID = ReqService(pst, std::span(reinterpret_cast<std::byte*>(in), size_t(nIn)));
-    Traverse(pst->pstLower, in, nIn, NULL, 0);
+    auto rID = ReqService(pst, vin);
+    Traverse(pst->pstLower, vin, vout);
     mdl->GetReply(rID);
     return 0;
 }
 
-int ServiceReorder::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<input*>(vin);
+int ServiceReorder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    auto in = reinterpret_cast<input*>(vin.data());
     auto pkd = pst->plcl->pkd;
     auto mdl = pst->mdl;
 

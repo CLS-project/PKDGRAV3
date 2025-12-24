@@ -2522,6 +2522,13 @@ int mdlClass::ReqService(int id, std::string_view service_name, void* vin, int n
     return ReqService(id, service_map.at(service_name), vin, nInBytes);
 }
 
+int mdlClass::GetReply(int rID, std::span<std::byte> vout) {
+    assert(vout.size() <= nMaxSrvBytes && vout.size() >= 0);
+    mdlMessageReceiveReply receive(vout.data(), vout.size(), rID, Core());
+    enqueueAndWait(receive);
+    return receive.getCount();
+}
+
 int mdlClass::GetReply(int rID, int nMaxBytes, void* vout) {
     assert(nMaxBytes <= nMaxSrvBytes && nMaxBytes >= 0);
     mdlMessageReceiveReply receive(vout, nMaxBytes, rID, Core());

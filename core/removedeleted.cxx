@@ -21,7 +21,7 @@
 static_assert(std::is_void_v<ServiceRemoveDeleted::input> || std::is_standard_layout_v<ServiceRemoveDeleted::input>);
 static_assert(std::is_void_v<ServiceRemoveDeleted::output> || std::is_standard_layout_v<ServiceRemoveDeleted::output>);
 
-int ServiceRemoveDeleted::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceRemoveDeleted::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     static_assert(std::is_void_v<input>);
     auto pkd = pst->plcl->pkd;
     // Move the deleted particles to the end of the array
@@ -72,8 +72,8 @@ int ServiceRemoveDeleted::Service(PST pst, void* vin, int nIn, void* vout, int n
     // ... and remove them
     pkd->SetLocal(i - pkd->particles.begin());
     // Count the particles species
-    ServiceCountSpecies::Service(pst, vin, nIn, vout, nOut);
-    auto out = static_cast<output*>(vout);
+    ServiceCountSpecies::Service(pst, vin, vout);
+    auto out = reinterpret_cast<output*>(vout.data());
     auto nDecorator = out->counts[FIO_SPECIES_SPH] + out->counts[FIO_SPECIES_STAR] + out->counts[FIO_SPECIES_BH];
 
     pkd->decorators.SetLocal(nDecorator);

@@ -26,8 +26,8 @@ class ServiceRsLoadIds : public ServiceInput {
     };
     explicit ServiceRsLoadIds(PST pst) : ServiceInput(pst, name, sizeof(input)) {}
     virtual void Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) override;
-    virtual void start(PST pst, uint64_t nElements, void* vin, int nIn) override;
-    virtual void finish(PST pst, uint64_t nElements, void* vin, int nIn) override;
+    virtual void start(PST pst, uint64_t nElements, std::span<std::byte> in) override;
+    virtual void finish(PST pst, uint64_t nElements, std::span<std::byte> in) override;
 };
 
 #endif /* E64EF539_F17B_4CA8_91AA_C22D36E59AC9 */

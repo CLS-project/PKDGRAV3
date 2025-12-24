@@ -20,18 +20,18 @@
 static_assert(std::is_void_v<ServiceFftSizes::input> || std::is_standard_layout_v<ServiceFftSizes::input>);
 static_assert(std::is_void_v<ServiceFftSizes::output> || std::is_standard_layout_v<ServiceFftSizes::output>);
 
-int ServiceFftSizes::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<input*>(vin);
-    auto out = static_cast<output*>(vout);
-    assert(nIn == sizeof(input));
-    assert(nOut == sizeof(output));
+int ServiceFftSizes::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    auto in = reinterpret_cast<input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == sizeof(output));
     out->nMaxLocal = pst->mdl->FFTlocalCount(in->nx, in->ny, in->nz, &out->nMaxZ, 0, &out->nMaxY, 0);
     return sizeof(output);
 }
 
-int ServiceFftSizes::Combine(void* vout, void* vout2) {
-    auto out = static_cast<output*>(vout);
-    auto out2 = static_cast<output*>(vout2);
+int ServiceFftSizes::Combine(std::span<std::byte> vout, std::span<std::byte> vout2) {
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto out2 = reinterpret_cast<output*>(vout2.data());
     out->nMaxLocal = std::max(out->nMaxLocal, out2->nMaxLocal);
     out->nMaxZ = std::max(out->nMaxZ, out2->nMaxZ);
     out->nMaxY = std::max(out->nMaxY, out2->nMaxY);

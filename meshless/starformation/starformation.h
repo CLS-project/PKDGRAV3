@@ -67,10 +67,10 @@ class ServiceStarForm : public TraverseCount<struct outStarForm> {
     explicit ServiceStarForm(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+    virtual int Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) override {
         auto pkd = pst->plcl->pkd;
-        auto& out = *static_cast<output*>(vout);
-        auto& in = *static_cast<input*>(vin);
+        auto& out = *reinterpret_cast<output*>(vout.data());
+        auto& in = *reinterpret_cast<input*>(vin.data());
         pkdStarForm(pkd, in, &(out.nFormed), &(out.dMassFormed), &(out.nFormed));
 
         return sizeof(output);

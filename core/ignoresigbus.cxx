@@ -21,7 +21,7 @@
 static_assert(std::is_void_v<ServiceIgnoreSIGBUS::input> || std::is_trivial_v<ServiceIgnoreSIGBUS::input>);
 static_assert(std::is_void_v<ServiceIgnoreSIGBUS::output> || std::is_trivial_v<ServiceIgnoreSIGBUS::output>);
 
-int ServiceIgnoreSIGBUS::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceIgnoreSIGBUS::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     static_assert(std::is_void_v<input>);
     static_assert(std::is_void_v<output>);
     pst->mdl->ignore_SIGBUS();

@@ -18,8 +18,8 @@
 #include <algorithm>
 #include <tuple>
 
-int ServiceRsReorderIds::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto pOrds = reinterpret_cast<input*>(vin);
+int ServiceRsReorderIds::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    auto pOrds = reinterpret_cast<input*>(vin.data());
     pst->plcl->pkd->RsReorder(pOrds);
     return 0;
 }

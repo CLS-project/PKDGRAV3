@@ -26,8 +26,8 @@ class ServiceRsHaloLoadIds : public ServiceInput {
     };
     explicit ServiceRsHaloLoadIds(PST pst) : ServiceInput(pst, name, sizeof(input)) {}
     virtual void Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) override;
-    virtual void start(PST pst, uint64_t nElements, void* vin, int nIn) override;
-    virtual void finish(PST pst, uint64_t nElements, void* vin, int nIn) override;
+    virtual void start(PST pst, uint64_t nElements, std::span<std::byte> vin) override;
+    virtual void finish(PST pst, uint64_t nElements, std::span<std::byte> vin) override;
 };
 
 #endif /* BD2FB51E_EAF8_41BC_B8A5_6333435EB545 */

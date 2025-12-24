@@ -21,10 +21,10 @@
 static_assert(std::is_void_v<ServiceInitCosmology::input> || std::is_trivial_v<ServiceInitCosmology::input>);
 static_assert(std::is_void_v<ServiceInitCosmology::output> || std::is_trivial_v<ServiceInitCosmology::output>);
 
-int ServiceInitCosmology::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<input*>(vin);
+int ServiceInitCosmology::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    auto in = reinterpret_cast<input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    assert(nIn == sizeof(input));
+    assert(vin.size() == sizeof(input));
     pkdInitCosmology(pst->plcl->pkd, in);
     return 0;
 }

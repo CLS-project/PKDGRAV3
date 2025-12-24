@@ -21,9 +21,9 @@
 static_assert(std::is_void_v<ServiceGetOrdSplits::input> || std::is_standard_layout_v<ServiceGetOrdSplits::input>);
 static_assert(std::is_void_v<ServiceGetOrdSplits::output> || std::is_standard_layout_v<ServiceGetOrdSplits::output>);
 
-int ServiceGetOrdSplits::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    assert(nOut >= sizeof(output));
-    auto out = static_cast<output*>(vout);
+int ServiceGetOrdSplits::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    assert(vout.size() >= sizeof(output));
+    auto out = reinterpret_cast<output*>(vout.data());
     *out = pst->iOrdSplit;
     return sizeof(output);
 }

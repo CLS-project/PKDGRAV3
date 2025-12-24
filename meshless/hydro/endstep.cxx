@@ -5,9 +5,9 @@
 #include "meshless/blackhole/evolve.h"
 #include "eEOS/eEOS.h"
 
-int ServiceEndTimestepIntegration::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceEndTimestepIntegration::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pkd = pst->plcl->pkd;
-    auto in = static_cast<input*>(vin);
+    auto in = reinterpret_cast<input*>(vin.data());
     double pDelta, dScaleFactor, dHubble;
     blitz::TinyVector<double, 3> pa;
 

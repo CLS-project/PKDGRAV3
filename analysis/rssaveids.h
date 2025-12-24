@@ -27,7 +27,7 @@ class ServiceRsSaveIds : public ServiceOutput {
     explicit ServiceRsSaveIds(PST pst) : ServiceOutput(pst, name, sizeof(input)) {}
 
   protected:
-    virtual void Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
+    virtual void Write(PST pst, std::span<std::byte> in, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
 };
 
 #endif /* DF755BD8_0CD7_42F4_AE2E_201894E9ECAB */

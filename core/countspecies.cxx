@@ -21,9 +21,9 @@
 static_assert(std::is_void_v<ServiceCountSpecies::input> || std::is_standard_layout_v<ServiceCountSpecies::input>);
 static_assert(std::is_void_v<ServiceCountSpecies::output> || std::is_standard_layout_v<ServiceCountSpecies::output>);
 
-int ServiceCountSpecies::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceCountSpecies::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     static_assert(std::is_void_v<input>);
-    auto& out = *static_cast<output*>(vout);
+    auto& out = *reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     out.counts = 0;
     out.nMaxOrder = 0;

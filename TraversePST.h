@@ -45,19 +45,36 @@ class TraversePST : public mdl::BasicService {
 
   protected:
     virtual int operator()(std::span<std::byte> In, std::span<std::byte> Out) final;
-    virtual int Traverse(PST pst, void* vin, int nIn, void* vout, int nOut);
+    virtual int Traverse(PST pst, std::span<std::byte> in, std::span<std::byte> out);
 
-    virtual int OffNode(PST pst, void* vin, int nIn, void* vout, int nOut) { return Recurse(pst, vin, nIn, vout, nOut); }
-    virtual int AtNode(PST pst, void* vin, int nIn, void* vout, int nOut) { return Recurse(pst, vin, nIn, vout, nOut); }
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut);
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) = 0;
+    virtual int OffNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) { return Recurse(pst, in, out); }
+    virtual int AtNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) { return Recurse(pst, in, out); }
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out);
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) = 0;
 
   protected:
-    static int Traverse(unsigned sid, PST pst, void* vin, int nIn, void* vout, int nOut);
-    static int Traverse(std::string_view service_name, PST pst, void* vin, int nIn, void* vout, int nOut);
-    template <typename T>
-    static int Traverse(PST pst, void* vin, int nIn, void* vout, int nOut) {
-        return Traverse(T::name, pst, vin, nIn, vout, nOut);
+    static int Traverse(unsigned sid, PST pst, std::span<std::byte> in, std::span<std::byte> out);
+    static int Traverse(std::string_view service_name, PST pst, std::span<std::byte> in, std::span<std::byte> out);
+
+    // template <typename T>
+    // static int Traverse(PST pst, std::span<std::byte> in, std::span<std::byte> out) {
+    //     return Traverse(T::name, pst, in, out);
+    // }
+    template <typename T, typename I = std::byte, typename O = std::byte>
+    static int Traverse(PST pst, std::span<I> in = {}, std::span<O> out = {}) {
+        return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+    }
+    template <typename T, typename I, typename O>
+    static int Traverse(PST pst, I& in, O& out) {
+        return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+    }
+    template <typename T, typename I = std::byte, typename O = std::byte>
+    static int Traverse(PST pst, I& in, std::span<O> out = {}) {
+        return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+    }
+    template <typename T, typename I = std::byte, typename O>
+    static int Traverse(PST pst, std::span<I> in, O& out) {
+        return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
     }
 };
 
@@ -70,8 +87,8 @@ class TraverseCombinePST : public TraversePST {
     virtual ~TraverseCombinePST() = default;
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) final;
-    virtual int Combine(void* vout, void* vout2) = 0;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) final;
+    virtual int Combine(std::span<std::byte> vout, std::span<std::byte> vout2) = 0;
 };
 
 // This class is for services where the input does not change as the PST is walked,
@@ -85,18 +102,18 @@ class TraverseGatherPST : public TraversePST {
     using output = OUTPUT;
 
   protected:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) final {
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> vout) final {
         auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
-        auto out1 = static_cast<output*>(vout);
-        auto out2 = out1 + pst->nLower;
         int nBytesLower = pst->nLower * sizeof(output);
         int nBytesUpper = pst->nUpper * sizeof(output);
-        assert(nBytesLower + nBytesUpper <= nOut);
-        nOut = nBytesLower + nBytesUpper;
-        auto rID = mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
-        Traverse(pst->pstLower, vin, nIn, out1, nBytesLower);
-        nBytesUpper = mdl->GetReply(rID, nBytesUpper, out2);
-        assert(nBytesLower + nBytesUpper == nOut);
+        assert(nBytesLower + nBytesUpper <= vout.size());
+        auto out = vout.subspan(0, nBytesLower + nBytesUpper);
+        auto out1 = out.subspan(0, nBytesLower);
+        auto out2 = out.subspan(nBytesLower, nBytesUpper);
+        auto nOut = nBytesLower + nBytesUpper;
+        auto rID = mdl->ReqService(pst->idUpper, getServiceID(), in);
+        Traverse(pst->pstLower, in, out1);
+        nBytesUpper = mdl->GetReply(rID, out2);
         return nOut;
     }
 };
@@ -112,13 +129,13 @@ class TraverseCount : public TraverseCombinePST {
     explicit TraverseCount(PST pst, std::string_view service_name, int nInBytes = 0) : TraverseCombinePST(pst, service_name, nInBytes, sizeof(output)) {}
 
   protected:
-    int Combine(void* vout, void* vout2) final {
-        auto out = static_cast<output*>(vout);
-        auto out2 = static_cast<output*>(vout2);
+    int Combine(std::span<std::byte> vout, std::span<std::byte> vout2) final {
+        auto out = reinterpret_cast<output*>(vout.data());
+        auto out2 = reinterpret_cast<output*>(vout2.data());
         *out += *out2;
         return sizeof(output);
     }
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) override = 0;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override = 0;
 };
 
 #endif

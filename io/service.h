@@ -39,13 +39,13 @@ class ServiceIO : public TraversePST {
     explicit ServiceIO(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraversePST(pst, service_name, nInBytes + sizeof(input)) {}
 
   private:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) final;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) final;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) final;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) final;
 
   protected:
-    virtual int do_lower(PST pst, void* vin, int nIn, void* vout, int nOut);
-    virtual int do_upper(PST pst, void* vin, int nIn);
-    virtual void IO(PST pst, void* vin, int nIn, int iGroup, int iSegment, int nSegment) = 0;
+    virtual int do_lower(PST pst, std::span<std::byte> in, std::span<std::byte> out);
+    virtual int do_upper(PST pst, std::span<std::byte> in);
+    virtual void IO(PST pst, std::span<std::byte> in, int iGroup, int iSegment, int nSegment) = 0;
 };
 
 class ServiceFileSizes : public TraversePST {
@@ -66,8 +66,8 @@ class ServiceFileSizes : public TraversePST {
     explicit ServiceFileSizes(PST pst, std::string_view service_name = name) : TraversePST(pst, service_name, sizeof(input), max_files * (sizeof(output))) {}
 
   private:
-    virtual int Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) final;
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut) final;
+    virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) final;
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) final;
 
   protected:
     virtual uint64_t GetSize(const std::string& filename, uint64_t file_size);
@@ -96,13 +96,13 @@ class ServiceInput : public ServiceIO {
         : ServiceIO(pst, service_name, nInBytes + sizeof(input) + max_files * (sizeof(io_elements))) {}
 
   protected:
-    virtual int do_lower(PST pst, void* vin, int nIn, void* vout, int nOut) override;
-    virtual int do_upper(PST pst, void* vin, int nIn) override;
-    virtual void IO(PST pst, void* vin, int nIn, int iGroup, int iSegment, int nSegment) override;
+    virtual int do_lower(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    virtual int do_upper(PST pst, std::span<std::byte> in) override;
+    virtual void IO(PST pst, std::span<std::byte> in, int iGroup, int iSegment, int nSegment) override;
 
   protected:
-    virtual void start(PST pst, uint64_t nElements, void* vin, int nIn);
-    virtual void finish(PST pst, uint64_t nElements, void* vin, int nIn);
+    virtual void start(PST pst, uint64_t nElements, std::span<std::byte> in);
+    virtual void finish(PST pst, uint64_t nElements, std::span<std::byte> in);
     virtual void Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) = 0;
 };
 
@@ -122,10 +122,10 @@ class ServiceOutput : public ServiceIO {
     explicit ServiceOutput(PST pst, std::string_view service_name = name, int nInBytes = 0) : ServiceIO(pst, service_name, nInBytes + sizeof(input)) {}
 
   protected:
-    virtual void IO(PST pst, void* vin, int nIn, int iGroup, int iSegment, int nSegment) override;
+    virtual void IO(PST pst, std::span<std::byte> in, int iGroup, int iSegment, int nSegment) override;
 
   protected:
-    virtual void Write(PST pst, void* vin, int nIn, int iGroup, const std::string& filename, int iSegment, int nSegment) = 0;
+    virtual void Write(PST pst, std::span<std::byte> in, int iGroup, const std::string& filename, int iSegment, int nSegment) = 0;
 };
 
 #endif /* SERVICE_H */

@@ -21,19 +21,19 @@
 static_assert(std::is_void_v<ServiceCalcBound::input> || std::is_standard_layout_v<ServiceCalcBound::input>);
 static_assert(std::is_void_v<ServiceCalcBound::output> || std::is_standard_layout_v<ServiceCalcBound::output>);
 
-int ServiceCalcBound::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int ServiceCalcBound::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pkd = pst->plcl->pkd;
     static_assert(std::is_void_v<input>);
-    auto& out = *static_cast<output*>(vout);
-    assert(nIn == 0);
-    assert(nOut == sizeof(output));
+    auto& out = *reinterpret_cast<output*>(vout.data());
+    assert(vin.size() == 0);
+    assert(vout.size() == sizeof(output));
     out = pkd->bnd = pkd->particles.bound();
     return sizeof(output);
 }
 
-int ServiceCalcBound::Combine(void* vout, void* vout2) {
-    auto out = static_cast<output*>(vout);
-    auto out2 = static_cast<output*>(vout2);
+int ServiceCalcBound::Combine(std::span<std::byte> vout, std::span<std::byte> vout2) {
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto out2 = reinterpret_cast<output*>(vout2.data());
     *out = out->combine(*out2);
     return sizeof(output);
 }

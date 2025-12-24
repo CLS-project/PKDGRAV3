@@ -17,41 +17,42 @@
 #include "TraversePST.h"
 
 int TraversePST::operator()(std::span<std::byte> In, std::span<std::byte> Out) {
-    return Traverse(node_pst, In.data(), In.size(), Out.data(), getMaxBytesOut());
+    assert(Out.size() >= size_t(getMaxBytesOut()) && "Output buffer too small for TraversePST service");
+    return Traverse(node_pst, In, Out.subspan(0, getMaxBytesOut()));
 }
 
-int TraversePST::Traverse(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    if (pstAmCore(pst)) return Service(pst, vin, nIn, vout, nOut);
-    else if (pstOffNode(pst)) return OffNode(pst, vin, nIn, vout, nOut);
-    else if (pstAmNode(pst)) return AtNode(pst, vin, nIn, vout, nOut);
-    else return Recurse(pst, vin, nIn, vout, nOut);
+int TraversePST::Traverse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    if (pstAmCore(pst)) return Service(pst, vin, vout);
+    else if (pstOffNode(pst)) return OffNode(pst, vin, vout);
+    else if (pstAmNode(pst)) return AtNode(pst, vin, vout);
+    else return Recurse(pst, vin, vout);
 }
 
 // This is a static version of traverse that we use when we want to traverse a subtree,
 // but for a difference service. We look it up in the MDL and call the real traverse.
 // This relies on the service being a "TraversePST" and if PST was converted to C++ then
 // there would be a more elegant way of doing this.
-int TraversePST::Traverse(unsigned sid, PST pst, void* vin, int nIn, void* vout, int nOut) {
+int TraversePST::Traverse(unsigned sid, PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
     auto service = dynamic_cast<TraversePST*>(mdl->GetService(sid));
     assert(service); // It would be a serious error if this was not a TraversePST service.
-    return service->Traverse(pst, vin, nIn, vout, nOut);
+    return service->Traverse(pst, vin, vout);
 }
-int TraversePST::Traverse(std::string_view service_name, PST pst, void* vin, int nIn, void* vout, int nOut) {
+int TraversePST::Traverse(std::string_view service_name, PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
     auto service = dynamic_cast<TraversePST*>(mdl->GetService(service_name));
     assert(service); // It would be a serious error if this was not a TraversePST service.
-    return service->Traverse(pst, vin, nIn, vout, nOut);
+    return service->Traverse(pst, vin, vout);
 }
 
 // This is the default function for when we are still traversing the PST
 // (OffNode,AtNode,Recurse) and will just naively recurse. Once we reach
 // the leaf (AmCore) then Service() is called and must be provided.
-int TraversePST::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int TraversePST::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
-    auto rID = ReqService(pst, {static_cast<std::byte*>(vin), size_t(nIn)});
-    Traverse(pst->pstLower, vin, nIn, vout, nOut);
-    return mdl->GetReply(rID, nOut, vout);
+    auto rID = ReqService(pst, vin);
+    Traverse(pst->pstLower, vin, vout);
+    return mdl->GetReply(rID, vout.size(), vout.data());
 }
 
 int TraversePST::ReqService(PST pst, std::span<std::byte> in) {
@@ -60,12 +61,12 @@ int TraversePST::ReqService(PST pst, std::span<std::byte> in) {
 
 // This class is used for services that pass the same input (or none),
 // and need to combine output results of the same size and type.
-int TraverseCombinePST::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
+int TraverseCombinePST::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
-    auto rID = ReqService(pst, {static_cast<std::byte*>(vin), size_t(nIn)});
-    Traverse(pst->pstLower, vin, nIn, vout, nOut);
-    void* vout2 = alloca(nOut);
-    nOut = mdl->GetReply(rID, nOut, vout2);
+    auto rID = ReqService(pst, vin);
+    Traverse(pst->pstLower, vin, vout);
+    std::span<std::byte> vout2{reinterpret_cast<std::byte*>(alloca(vout.size())), vout.size()};
+    auto nOut = mdl->GetReply(rID, vout2);
     Combine(vout, vout2);
     return nOut;
 }

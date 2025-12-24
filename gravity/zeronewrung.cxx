@@ -21,8 +21,8 @@
 static_assert(std::is_void_v<ServiceZeroNewRung::input> || std::is_trivial_v<ServiceZeroNewRung::input>);
 static_assert(std::is_void_v<ServiceZeroNewRung::output> || std::is_trivial_v<ServiceZeroNewRung::output>);
 
-int ServiceZeroNewRung::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<input*>(vin);
+int ServiceZeroNewRung::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    auto in = reinterpret_cast<input*>(vin.data());
     static_assert(std::is_void_v<output>);
     auto pkd = pst->plcl->pkd;
     pkdZeroNewRung(pkd, in->uRungLo, in->uRungHi, in->uRung);

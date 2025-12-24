@@ -28,5 +28,5 @@ class ServiceSetSoft : public TraversePST {
     explicit ServiceSetSoft(PST pst) : TraversePST(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };

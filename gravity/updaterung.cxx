@@ -22,9 +22,9 @@
 static_assert(std::is_void_v<ServiceUpdateRung::input> || std::is_standard_layout_v<ServiceUpdateRung::input>);
 static_assert(std::is_void_v<ServiceUpdateRung::output> || std::is_standard_layout_v<ServiceUpdateRung::output>);
 
-int ServiceUpdateRung::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto const& in = *static_cast<input*>(vin);
-    auto& out = *static_cast<output*>(vout);
+int ServiceUpdateRung::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    auto const& in = *reinterpret_cast<input*>(vin.data());
+    auto& out = *reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
 
     assert(pkd->particles.present(PKD_FIELD::oNewRung) || !pkd->bNoParticleOrder);

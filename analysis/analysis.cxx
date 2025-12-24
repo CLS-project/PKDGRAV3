@@ -276,12 +276,12 @@ void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<
 }
 
 // Count the number of elements that are interior to r2 (between r2i and r2o).
-int ServiceCountDistance::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<input*>(vin);
-    auto out = static_cast<output*>(vout);
+int ServiceCountDistance::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+    auto in = reinterpret_cast<input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
-    assert(nIn == sizeof(input));
-    assert(nOut == sizeof(output));
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == sizeof(output));
     decltype(distance::d2) r2i = in->dRadius2Inner, r2o = in->dRadius2Outer; // Avoid potential type conversions below
     auto ephemeral = pkd->Ephemeral<distance>();
     auto upper = std::lower_bound(ephemeral, ephemeral + pkd->Local(), r2o); // First element >= r2o

@@ -28,6 +28,6 @@ class ServiceRemoveDeleted : public ServiceCountSpecies {
     explicit ServiceRemoveDeleted(PST pst, std::string_view service_name = name, int nInBytes = 0) : ServiceCountSpecies(pst, service_name, nInBytes) {}
 
   protected:
-    virtual int Service(PST pst, void* vin, int nIn, void* vout, int nOut);
+    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 #endif
