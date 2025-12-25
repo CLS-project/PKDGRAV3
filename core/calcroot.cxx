@@ -37,7 +37,7 @@ static_assert(std::is_void_v<ServiceCalcRoot::input> || std::is_standard_layout_
 static_assert(std::is_void_v<ServiceCalcRoot::output> || std::is_standard_layout_v<ServiceCalcRoot::output>);
 
 int ServiceCalcRoot::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vin.size() == sizeof(input));
     assert(vout.size() == sizeof(output));

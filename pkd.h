@@ -476,7 +476,7 @@ class pkdContext : public Integerize {
     void RsIdFinish(uint64_t nElements);
     void RsIdRead(uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd);
     void RsIdSave(int iGroup, const std::string& filename, int iSegment, int nSegment);
-    void RsReorder(uint64_t* pOrds);
+    void RsReorder(const uint64_t* pOrds);
     void RsExtract(const std::string& filename, int iSegment, uint64_t* pOrds);
 
   public:
@@ -695,13 +695,13 @@ static inline int pkdIsNew(PKD pkd, PARTICLE* p) {
 */
 void pkdVATreeBuild(PKD pkd, int nBucket);
 void pkdTreeBuild(PKD pkd, int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
-uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN* pTop, int allocateMemory);
+uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, const KDN* pTop, int allocateMemory);
 void pkdOpenCloseCaches(PKD pkd, int bOpen, int bFixed);
 void pkdTreeInitMarked(PKD pkd);
 void pkdDumpTrees(PKD pkd, int bOnlyVA, uint8_t uRungDD);
 void pkdCombineCells1(PKD, treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
 void pkdCombineCells2(PKD, treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
-void pkdDistribRoot(PKD, double*, MOMC*);
+void pkdDistribRoot(PKD, const double*, const MOMC*);
 void pkdGroupOrder(PKD pkd, uint32_t* iGrpOffset);
 void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup);
 
@@ -780,7 +780,7 @@ void pkdKickKDKClose(PKD pkd, double dTime, double dDelta, uint8_t uRungLo, uint
 void pkdKick(PKD pkd, double dTime, double dDelta, int bDoGas, double, double, double, uint8_t uRungLo, uint8_t uRungHi);
 void pkdKickTree(PKD pkd, double dTime, double dDelta, double, double, double, int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
-void pkdInitCosmology(PKD pkd, struct csmVariables* cosmo);
+void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo);
 void pkdInitLightcone(PKD pkd, int bBowtie, int bLightConeParticles, double dBoxSize, double dRedshiftLCP, double alphaLCP, blitz::TinyVector<double, 3> hLCP,
                       int mOctants);
 void pkdZeroNewRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);

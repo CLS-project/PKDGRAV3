@@ -22,10 +22,10 @@ static_assert(std::is_void_v<ServiceDistribTopTree::input> || std::is_trivial_v<
 static_assert(std::is_void_v<ServiceDistribTopTree::output> || std::is_trivial_v<ServiceDistribTopTree::output>);
 
 int ServiceDistribTopTree::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
     auto pkd = pst->plcl->pkd;
-    auto pTop = reinterpret_cast<KDN*>(in + 1);
+    auto pTop = reinterpret_cast<const KDN*>(in + 1);
     assert(vin.size() == sizeof(input) + in->nTop * pkd->NodeSize());
     pkdDistribTopTree(pkd, in->uRoot, in->nTop, pTop, in->allocateMemory);
     return 0;

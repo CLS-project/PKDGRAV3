@@ -23,7 +23,7 @@ static_assert(std::is_void_v<ServiceUpdateRung::input> || std::is_standard_layou
 static_assert(std::is_void_v<ServiceUpdateRung::output> || std::is_standard_layout_v<ServiceUpdateRung::output>);
 
 int ServiceUpdateRung::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto const& in = *reinterpret_cast<input*>(vin.data());
+    auto const& in = *reinterpret_cast<const input*>(vin.data());
     auto& out = *reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
 

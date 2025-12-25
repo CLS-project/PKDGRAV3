@@ -42,7 +42,7 @@
 #include <numeric>
 #include <algorithm>
 
-uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN* pTop, int allocateMemory) {
+uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, const KDN* pTop, int allocateMemory) {
     int i, iTop;
     auto LocalRoot = pkd->tree[uRoot];
 
@@ -53,7 +53,8 @@ uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN* pTop, in
         iTop = pkd->iTopTree[uRoot];
     }
     for (i = 0; i < nTop; ++i) {
-        treeStore::NodeReference node(pkd->tree, pTop, i);
+        // FIXME: avoid const_cast
+        const treeStore::NodeReference node(pkd->tree, const_cast<KDN*>(pTop), i);
         auto Local = pkd->tree[iTop + i];
         *Local = node;
         // Local->copy(node);
@@ -947,7 +948,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
     pkd->mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(pkd));
 }
 
-void pkdDistribRoot(PKD pkd, double* r, MOMC* pmom) {
+void pkdDistribRoot(PKD pkd, const double* r, const MOMC* pmom) {
     pkd->ew.r[0] = r[0];
     pkd->ew.r[1] = r[1];
     pkd->ew.r[2] = r[2];

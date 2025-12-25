@@ -2511,7 +2511,7 @@ void pkdKickTree(PKD pkd, double dTime, double dDelta, double dDeltaVPred, doubl
     }
 }
 
-void pkdInitCosmology(PKD pkd, struct csmVariables* cosmo) {
+void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo) {
     /*
     ** Need to be careful to correctly copy the cosmo
     ** parameters. This is a bit ugly.

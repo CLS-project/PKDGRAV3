@@ -22,7 +22,7 @@ static_assert(std::is_void_v<ServiceDistribRoot::input> || std::is_trivial_v<Ser
 static_assert(std::is_void_v<ServiceDistribRoot::output> || std::is_trivial_v<ServiceDistribRoot::output>);
 
 int ServiceDistribRoot::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
     auto pkd = pst->plcl->pkd;
     pkdDistribRoot(pkd, in->r, &in->momc);

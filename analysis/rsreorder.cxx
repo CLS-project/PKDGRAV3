@@ -19,13 +19,13 @@
 #include <tuple>
 
 int ServiceRsReorderIds::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto pOrds = reinterpret_cast<input*>(vin.data());
+    auto pOrds = reinterpret_cast<const input*>(vin.data());
     pst->plcl->pkd->RsReorder(pOrds);
     return 0;
 }
 using dd_offset_type = mdl::mdlClass::dd_offset_type;
 using ordinal_t = uint64_t;
-void pkdContext::RsReorder(uint64_t* globalOrds) {
+void pkdContext::RsReorder(const uint64_t* globalOrds) {
     auto pOrders_first = Ephemeral<ordinal_t>();
     auto pOrders_last = pOrders_first + nRsElements;
     auto N = EphemeralElementBytes() * FreeStore() / sizeof(ordinal_t);

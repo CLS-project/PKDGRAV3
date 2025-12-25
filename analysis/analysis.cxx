@@ -277,7 +277,7 @@ void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<
 
 // Count the number of elements that are interior to r2 (between r2i and r2o).
 int ServiceCountDistance::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));

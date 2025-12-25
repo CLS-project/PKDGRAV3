@@ -40,11 +40,11 @@ float cooling_get_temperature(PKD pkd, const float redshift, const struct coolin
 }
 #endif
 
-void pkd_cooling_update(PKD pkd, ServiceCoolingUpdate::input* in);
-void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data, float Redshifts[eagle_cooling_N_redshifts],
-                              float nH[eagle_cooling_N_density], float Temp[eagle_cooling_N_temperature], float HeFrac[eagle_cooling_N_He_frac],
-                              float Therm[eagle_cooling_N_temperature], float SolarAbundances[eagle_cooling_N_abundances],
-                              float SolarAbundances_inv[eagle_cooling_N_abundances]);
+void pkd_cooling_update(PKD pkd, const ServiceCoolingUpdate::input* in);
+void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data, const float Redshifts[eagle_cooling_N_redshifts],
+                              const float nH[eagle_cooling_N_density], const float Temp[eagle_cooling_N_temperature],
+                              const float HeFrac[eagle_cooling_N_He_frac], const float Therm[eagle_cooling_N_temperature],
+                              const float SolarAbundances[eagle_cooling_N_abundances], const float SolarAbundances_inv[eagle_cooling_N_abundances]);
 void cooling_Hydrogen_reionization(PKD pkd);
 void cooling_clean(struct cooling_function_data* data);
 

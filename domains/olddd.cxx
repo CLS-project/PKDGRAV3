@@ -135,7 +135,7 @@ int ServiceDomainDecomp::Recurse(PST pst, std::span<std::byte> vin, std::span<st
 }
 
 int ServiceDomainDecomp::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
     auto pkd = pst->plcl->pkd;
 
@@ -786,7 +786,7 @@ int ServiceSwapRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<std
 
 int ServiceSwapRejects::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pkd = pst->plcl->pkd;
-    auto pidSwap = reinterpret_cast<input*>(vin.data());
+    auto pidSwap = reinterpret_cast<const input*>(vin.data());
     auto pOutRej = reinterpret_cast<output*>(vout.data());
     auto idSwap = pidSwap[pst->idSelf];
     std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdSwapRejects(pkd, idSwap);
@@ -816,7 +816,7 @@ int ServiceColOrdRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<s
 
 int ServiceColOrdRejects::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pkd = pst->plcl->pkd;
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto pOutRej = reinterpret_cast<output*>(vout.data());
     std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdColOrdRejects(pkd, in->iOrdSplit, in->iSplitSide);
     pOutRej->nSpace = pkdSwapSpace(pkd);
@@ -855,7 +855,7 @@ int ServiceDomainOrder::Recurse(PST pst, std::span<std::byte> vin, std::span<std
 }
 
 int ServiceDomainOrder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     pst->iOrdSplit = in->iMinOrder;
     return 0;
 }
@@ -974,7 +974,7 @@ int ServiceLocalOrder::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
 
 int ServiceLocalOrder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pkd = pst->plcl->pkd;
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     pkdLocalOrder(pkd, in->iMinOrder, in->iMaxOrder);
     return 0;
 }
@@ -1011,7 +1011,7 @@ int ServiceWeight::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byt
 int ServiceWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto plcl = pst->plcl;
     auto pkd = plcl->pkd;
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto fSplit = in->fSplit;
     auto iSplitSide = in->iSplitSide;
@@ -1109,7 +1109,7 @@ int ServiceWeightWrap::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
 int ServiceWeightWrap::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto plcl = pst->plcl;
     auto pkd = plcl->pkd;
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     if (in->ittr == 0) {
         /*
@@ -1169,7 +1169,7 @@ int ServiceOrdWeight::Recurse(PST pst, std::span<std::byte> vin, std::span<std::
 int ServiceOrdWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto plcl = pst->plcl;
     auto pkd = plcl->pkd;
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     if (in->ittr == 0) {
         /*

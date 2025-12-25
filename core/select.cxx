@@ -30,7 +30,7 @@ int ServiceCountSelected::Service(PST pst, std::span<std::byte> vin, std::span<s
 static_assert(std::is_void_v<ServiceSelActives::input> || std::is_standard_layout_v<ServiceSelActives::input>);
 static_assert(std::is_void_v<ServiceSelActives::output> || std::is_standard_layout_v<ServiceSelActives::output>);
 int ServiceSelActives::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -42,7 +42,7 @@ int ServiceSelActives::Service(PST pst, std::span<std::byte> vin, std::span<std:
 static_assert(std::is_void_v<ServiceSelBlackholes::input> || std::is_standard_layout_v<ServiceSelBlackholes::input>);
 static_assert(std::is_void_v<ServiceSelBlackholes::output> || std::is_standard_layout_v<ServiceSelBlackholes::output>);
 int ServiceSelBlackholes::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -54,7 +54,7 @@ int ServiceSelBlackholes::Service(PST pst, std::span<std::byte> vin, std::span<s
 static_assert(std::is_void_v<ServiceSelSpecies::input> || std::is_standard_layout_v<ServiceSelSpecies::input>);
 static_assert(std::is_void_v<ServiceSelSpecies::output> || std::is_standard_layout_v<ServiceSelSpecies::output>);
 int ServiceSelSpecies::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -66,7 +66,7 @@ int ServiceSelSpecies::Service(PST pst, std::span<std::byte> vin, std::span<std:
 static_assert(std::is_void_v<ServiceSelGroup::input> || std::is_standard_layout_v<ServiceSelGroup::input>);
 static_assert(std::is_void_v<ServiceSelGroup::output> || std::is_standard_layout_v<ServiceSelGroup::output>);
 int ServiceSelGroup::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -78,7 +78,7 @@ int ServiceSelGroup::Service(PST pst, std::span<std::byte> vin, std::span<std::b
 static_assert(std::is_void_v<ServiceSelMass::input> || std::is_standard_layout_v<ServiceSelMass::input>);
 static_assert(std::is_void_v<ServiceSelMass::output> || std::is_standard_layout_v<ServiceSelMass::output>);
 int ServiceSelMass::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -90,7 +90,7 @@ int ServiceSelMass::Service(PST pst, std::span<std::byte> vin, std::span<std::by
 static_assert(std::is_void_v<ServiceSelPhaseDensity::input> || std::is_standard_layout_v<ServiceSelPhaseDensity::input>);
 static_assert(std::is_void_v<ServiceSelPhaseDensity::output> || std::is_standard_layout_v<ServiceSelPhaseDensity::output>);
 int ServiceSelPhaseDensity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -102,7 +102,7 @@ int ServiceSelPhaseDensity::Service(PST pst, std::span<std::byte> vin, std::span
 static_assert(std::is_void_v<ServiceSelById::input> || std::is_standard_layout_v<ServiceSelById::input>);
 static_assert(std::is_void_v<ServiceSelById::output> || std::is_standard_layout_v<ServiceSelById::output>);
 int ServiceSelById::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -114,7 +114,7 @@ int ServiceSelById::Service(PST pst, std::span<std::byte> vin, std::span<std::by
 static_assert(std::is_void_v<ServiceSelBox::input> || std::is_standard_layout_v<ServiceSelBox::input>);
 static_assert(std::is_void_v<ServiceSelBox::output> || std::is_standard_layout_v<ServiceSelBox::output>);
 int ServiceSelBox::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -126,7 +126,7 @@ int ServiceSelBox::Service(PST pst, std::span<std::byte> vin, std::span<std::byt
 static_assert(std::is_void_v<ServiceSelSphere::input> || std::is_standard_layout_v<ServiceSelSphere::input>);
 static_assert(std::is_void_v<ServiceSelSphere::output> || std::is_standard_layout_v<ServiceSelSphere::output>);
 int ServiceSelSphere::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));
@@ -138,7 +138,7 @@ int ServiceSelSphere::Service(PST pst, std::span<std::byte> vin, std::span<std::
 static_assert(std::is_void_v<ServiceSelCylinder::input> || std::is_standard_layout_v<ServiceSelCylinder::input>);
 static_assert(std::is_void_v<ServiceSelCylinder::output> || std::is_standard_layout_v<ServiceSelCylinder::output>);
 int ServiceSelCylinder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->plcl->pkd;
     assert(vin.size() == sizeof(input));

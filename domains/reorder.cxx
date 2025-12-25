@@ -49,7 +49,7 @@ int ServiceReorder::Recurse(PST pst, std::span<std::byte> vin, std::span<std::by
 }
 
 int ServiceReorder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     auto pkd = pst->plcl->pkd;
     auto mdl = pst->mdl;
 

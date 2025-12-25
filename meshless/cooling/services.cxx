@@ -1,7 +1,7 @@
 #include "cooling.h"
 
 int ServiceCoolingInit::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
 
     pkd_cooling_init_backend(pst->plcl->pkd, in->in_cooling_data, in->Redshifts, in->nH, in->Temp, in->HeFrac, in->Therm, in->SolarAbundances,
                              in->SolarAbundances_inv);
@@ -10,13 +10,13 @@ int ServiceCoolingInit::Service(PST pst, std::span<std::byte> vin, std::span<std
 }
 
 int ServiceCoolingUpdate::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<input*>(vin.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
     pkd_cooling_update(pst->plcl->pkd, in);
     return 0;
 }
 
 int ServiceCoolingUpdateZ::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto in = reinterpret_cast<float*>(vin.data());
+    auto in = reinterpret_cast<const float*>(vin.data());
     pst->plcl->pkd->cooling->dz = *in;
     return 0;
 }

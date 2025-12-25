@@ -50,7 +50,7 @@ int ServiceFileSizes::Recurse(PST pst, std::span<std::byte> vin, std::span<std::
 }
 
 int ServiceFileSizes::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto hdr = reinterpret_cast<ServiceFileSizes::input*>(vin.data());
+    auto hdr = reinterpret_cast<const ServiceFileSizes::input*>(vin.data());
     auto out = reinterpret_cast<ServiceFileSizes::output*>(vout.data());
     int nOut = 0;
     struct stat s;
