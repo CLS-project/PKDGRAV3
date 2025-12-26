@@ -477,22 +477,28 @@ class mdlClass : public mdlBASE {
         return ReqService<S>(id, bytes);
     }
 
+    // Deprecated interface
     int ReqService(int id, int sid, void* vin, int nInBytes);
     template <typename T>
     int ReqService(int id, int sid, T& in) {
         return ReqService(id, sid, &in, sizeof(in));
     }
-    int ReqService(int id, std::string_view service_name, void* vin, int nInBytes);
-    template <typename S>
-    int ReqService(int id, void* vin, int nInBytes) {
-        return ReqService(id, S::name, vin, nInBytes);
-    }
+
     int GetReply(int rID, std::span<std::byte> vout = {});
-    int GetReply(int rID, int nMaxBytes, void* vout);
-    template <typename T, typename std::enable_if<!std::is_pointer<T>::value, int>::type = 0>
-    int GetReply(int rID, T& out) {
-        return GetReply(rID, sizeof(out), &out);
+    template <typename O>
+    int GetReply(int rID, O& out) {
+        auto bytes = as_writable_bytes(out);
+        return GetReply(rID, bytes);
     }
+    template <typename O>
+    int GetReply(int rID, std::span<O> out) {
+        auto bytes = as_writable_bytes(out);
+        return GetReply(rID, bytes);
+    }
+
+    // Deprecated interface
+    int GetReply(int rID, int nMaxBytes, void* vout);
+
     void Send(int id, mdlPack pack, void* ctx);
     void Recv(int id, mdlPack unpack, void* ctx);
     int Swap(int id, size_t nBufBytes, void* vBuf, size_t nOutBytes, size_t* pnSndBytes, size_t* pnRcvBytes, size_t nSkipBytes = 0);

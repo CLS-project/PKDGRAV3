@@ -1169,7 +1169,7 @@ void MSR::OneNodeRead(struct inReadFile* in, FIO fio) {
          */
         SwapClasses(id);
         inswap.idSwap = 0;
-        rID = mdl->ReqService<ServiceSwapAll>(id, &inswap, sizeof(inswap));
+        rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
         pkdSwapAll(plcl->pkd, id);
         pst0->mdl->GetReply(rID);
     }
@@ -1908,7 +1908,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
                  * Swap particles with the remote processor.
                  */
                 inswap.idSwap = 0;
-                rID = mdl->ReqService<ServiceSwapAll>(id, &inswap, sizeof(inswap));
+                rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
                 pkdSwapAll(plcl->pkd, id);
                 pst0->mdl->GetReply(rID);
                 /*
@@ -1919,7 +1919,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
                  * Swap them back again.
                  */
                 inswap.idSwap = 0;
-                rID = mdl->ReqService<ServiceSwapAll>(id, &inswap, sizeof(inswap));
+                rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
                 pkdSwapAll(plcl->pkd, id);
                 pst0->mdl->GetReply(rID);
             }

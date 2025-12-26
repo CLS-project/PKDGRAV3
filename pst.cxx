@@ -392,7 +392,7 @@ int pstReadFile(PST pst, void* vin, int nIn, void* vout, int nOut) {
             // Now shove them over to the remote processor.
             swap_classes(pkd, id);
             inswap = mdl->Self();
-            rID = pst->mdl->ReqService<ServiceSwapAll>(id, &inswap, sizeof(inswap));
+            rID = pst->mdl->ReqService<ServiceSwapAll>(id, inswap);
             pkdSwapAll(pkd, id);
             pst->mdl->GetReply(rID);
         }
