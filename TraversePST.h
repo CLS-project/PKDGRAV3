@@ -17,8 +17,14 @@
 #ifndef TRAVERSEPST_H
 #define TRAVERSEPST_H
 #include "pst.h"
+#include <cstddef>
 #include <string>
 #include <type_traits>
+
+class TraversePST; // forward declaration is sufficient
+
+template <typename T>
+concept TraverseService = std::derived_from<T, TraversePST>;
 
 // This class will traverse the PST calling Recurse() at each level.
 // The Recurse method is responsible for making a request,
@@ -48,16 +54,24 @@ class TraversePST : public mdl::BasicService {
     explicit TraversePST(PST node_pst, std::string_view service_name, int nInBytes = 0, int nOutBytes = 0)
         : BasicService(service_name, nInBytes, nOutBytes), node_pst(node_pst) {}
     virtual ~TraversePST() = default;
-    int ReqService(PST pst, std::span<std::byte> in);
-    template <typename I>
-    int ReqService(PST pst, const I& in) {
-        auto bytes = mdl::as_bytes(in);
-        return ReqService(pst, bytes);
+
+    template <typename I = std::byte>
+    int ReqService(PST pst, std::span<I> in = {}) {
+        return pst->mdl->ReqService(pst->idUpper, getServiceID(), mdl::as_bytes(in));
     }
     template <typename I>
-    int ReqService(PST pst, std::span<I> in) {
-        auto bytes = mdl::as_bytes(in);
-        return ReqService(pst, bytes);
+    int ReqService(PST pst, const I& in) {
+        return pst->mdl->ReqService(pst->idUpper, getServiceID(), mdl::as_bytes(in));
+    }
+
+    template <typename O = std::byte>
+    int GetReply(int rID, std::span<O> out = {}) {
+        return node_pst->mdl->GetReply(rID, mdl::as_writable_bytes(out));
+    }
+
+    template <typename O>
+    int GetReply(int rID, O& out) {
+        return node_pst->mdl->GetReply(rID, mdl::as_writable_bytes(out));
     }
 
   protected:
@@ -70,26 +84,44 @@ class TraversePST : public mdl::BasicService {
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) = 0;
 
   protected:
-    static int Traverse(unsigned sid, PST pst, std::span<std::byte> in, std::span<std::byte> out);
-    static int Traverse(std::string_view service_name, PST pst, std::span<std::byte> in, std::span<std::byte> out);
+    template <typename I = std::byte, typename O = std::byte>
+        requires(!TraverseService<I>)
+    int Traverse(PST pst, std::span<I> in = {}, std::span<O> out = {}) {
+        return Traverse(pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+    }
+    template <typename I, typename O>
+        requires(!TraverseService<I>)
+    int Traverse(PST pst, I& in, O& out) {
+        return Traverse(pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+    }
+    template <typename I, typename O = std::byte>
+        requires(!TraverseService<I>)
+    int Traverse(PST pst, I& in, std::span<O> out = {}) {
+        return Traverse(pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+    }
+    template <typename I = std::byte, typename O>
+        requires(!TraverseService<I>)
+    int Traverse(PST pst, std::span<I> in, O& out) {
+        return Traverse(pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+    }
 
-    // template <typename T>
-    // static int Traverse(PST pst, std::span<std::byte> in, std::span<std::byte> out) {
-    //     return Traverse(T::name, pst, in, out);
-    // }
-    template <typename T, typename I = std::byte, typename O = std::byte>
+  protected:
+    static int Traverse(unsigned sid, PST pst, std::span<std::byte> in, std::span<std::byte> out);
+
+    static int Traverse(std::string_view service_name, PST pst, std::span<std::byte> in, std::span<std::byte> out);
+    template <TraverseService T, typename I = std::byte, typename O = std::byte>
     static int Traverse(PST pst, std::span<I> in = {}, std::span<O> out = {}) {
         return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
     }
-    template <typename T, typename I, typename O>
+    template <TraverseService T, typename I, typename O>
     static int Traverse(PST pst, I& in, O& out) {
         return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
     }
-    template <typename T, typename I = std::byte, typename O = std::byte>
+    template <TraverseService T, typename I, typename O = std::byte>
     static int Traverse(PST pst, I& in, std::span<O> out = {}) {
         return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
     }
-    template <typename T, typename I = std::byte, typename O>
+    template <TraverseService T, typename I = std::byte, typename O>
     static int Traverse(PST pst, std::span<I> in, O& out) {
         return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
     }
@@ -128,9 +160,9 @@ class TraverseGatherPST : public TraversePST {
         auto out1 = out.subspan(0, nBytesLower);
         auto out2 = out.subspan(nBytesLower, nBytesUpper);
         auto nOut = nBytesLower + nBytesUpper;
-        auto rID = mdl->ReqService(pst->idUpper, getServiceID(), in);
+        auto rID = ReqService(pst, in);
         Traverse(pst->pstLower, in, out1);
-        nBytesUpper = mdl->GetReply(rID, out2);
+        nBytesUpper = GetReply(rID, out2);
         return nOut;
     }
 };

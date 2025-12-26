@@ -26,7 +26,7 @@ int ServiceReorder::OffNode(PST pst, std::span<std::byte> vin, std::span<std::by
     pst->iOrdSplit = in->nPerProc * proc;
     auto rID = ReqService(pst, vin);
     Traverse(pst->pstLower, vin, vout);
-    mdl->GetReply(rID);
+    GetReply(rID);
     return 0;
     // return Recurse(pst,vin,nIn,vout,nOut);
 }
@@ -44,7 +44,7 @@ int ServiceReorder::Recurse(PST pst, std::span<std::byte> vin, std::span<std::by
     pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * (pst->nLower + mdl->Core());
     auto rID = ReqService(pst, vin);
     Traverse(pst->pstLower, vin, vout);
-    mdl->GetReply(rID);
+    GetReply(rID);
     return 0;
 }
 

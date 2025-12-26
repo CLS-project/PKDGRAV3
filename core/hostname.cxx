@@ -23,13 +23,14 @@ static_assert(std::is_void_v<ServiceHostname::output> || std::is_trivial_v<Servi
 
 int ServiceHostname::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     static_assert(std::is_void_v<input>);
-    auto out = reinterpret_cast<output*>(vout.data());
-    auto iUpper = pst->idUpper - pst->idSelf;
-    auto outUp = out + iUpper;
-    auto rID = pst->mdl->ReqService(pst->idUpper, getServiceID(), vin);
-    auto nLower = Traverse(pst->pstLower, vin, vout);
-    pst->mdl->GetReply(rID, vout.size() - nLower, outUp);
-    return pst->nLeaves * sizeof(output);
+    auto out = span_cast<output>(vout);
+    assert(out.size() >= pst->nLeaves);
+    auto lowerOut = out.subspan(0, pst->nLower);
+    auto upperOut = out.subspan(pst->nLower, pst->nUpper);
+    auto rID = ReqService(pst, vin);
+    auto nLower = Traverse(pst->pstLower, vin, lowerOut);
+    auto nUpper = GetReply(rID, upperOut);
+    return nLower + nUpper;
 }
 
 int ServiceHostname::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {

@@ -52,11 +52,7 @@ int TraversePST::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte>
     auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
     auto rID = ReqService(pst, vin);
     Traverse(pst->pstLower, vin, vout);
-    return mdl->GetReply(rID, vout.size(), vout.data());
-}
-
-int TraversePST::ReqService(PST pst, std::span<std::byte> in) {
-    return pst->mdl->ReqService(pst->idUpper, getServiceID(), in);
+    return mdl->GetReply(rID, vout);
 }
 
 // This class is used for services that pass the same input (or none),
