@@ -27,6 +27,23 @@
 class TraversePST : public mdl::BasicService {
     PST node_pst;
 
+  protected:
+    template <typename T>
+    std::span<T> span_cast(std::span<std::byte> bytes) {
+        assert(bytes.size() % sizeof(T) == 0);
+        assert(reinterpret_cast<std::uintptr_t>(bytes.data()) % alignof(T) == 0);
+
+        return {reinterpret_cast<T*>(bytes.data()), bytes.size() / sizeof(T)};
+    }
+
+    template <typename T>
+    std::span<const T> span_cast(std::span<const std::byte> bytes) {
+        assert(bytes.size() % sizeof(T) == 0);
+        assert(reinterpret_cast<std::uintptr_t>(bytes.data()) % alignof(T) == 0);
+
+        return {reinterpret_cast<const T*>(bytes.data()), bytes.size() / sizeof(T)};
+    }
+
   public:
     explicit TraversePST(PST node_pst, std::string_view service_name, int nInBytes = 0, int nOutBytes = 0)
         : BasicService(service_name, nInBytes, nOutBytes), node_pst(node_pst) {}

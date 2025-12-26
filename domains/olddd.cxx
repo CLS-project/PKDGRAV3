@@ -595,7 +595,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
     rID = mdl->ReqService<ServiceColRejects>(pst->idUpper);
     nOut = Traverse<ServiceColRejects>(pst->pstLower, {}, lowerRej);
     assert(nOut / sizeof(ServiceColRejects::output) == pst->nLower);
-    nOut = mdl->GetReply(rID, pst->nUpper * sizeof(ServiceColRejects::output), upperRej.data());
+    nOut = mdl->GetReply(rID, upperRej);
     assert(nOut / sizeof(ServiceColRejects::output) == pst->nUpper);
 
     mdlPrintTimer(pst->mdl, "TIME Collected Rejects _pstRootSplit ", &t);
@@ -746,12 +746,12 @@ static_assert(std::is_void_v<ServiceColRejects::output> || std::is_trivial_v<Ser
 
 int ServiceColRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
-    auto pOutRej = reinterpret_cast<output*>(vout.data());
+    auto rejects = span_cast<output>(vout);
+    auto lowerRej = rejects.subspan(0, pst->nLower);
+    auto upperRej = rejects.subspan(pst->nLower);
     auto rID = mdl->ReqService<ServiceColRejects>(pst->idUpper, vin);
-    auto nLower = Traverse<ServiceColRejects>(pst->pstLower, vin, vout);
-    auto iUpper = nLower / sizeof(output);
-    int nUpper;
-    nUpper = mdl->GetReply(rID, vout.size() - nLower, pOutRej + iUpper);
+    auto nLower = Traverse<ServiceColRejects>(pst->pstLower, vin, lowerRej);
+    auto nUpper = mdl->GetReply(rID, upperRej);
     return nLower + nUpper;
 }
 
@@ -775,12 +775,12 @@ static_assert(std::is_void_v<ServiceSwapRejects::output> || std::is_trivial_v<Se
 
 int ServiceSwapRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
-    auto pOutRej = reinterpret_cast<output*>(vout.data());
+    auto rejects = span_cast<output>(vout);
+    auto lowerRej = rejects.subspan(0, pst->nLower);
+    auto upperRej = rejects.subspan(pst->nLower);
     auto rID = mdl->ReqService<ServiceSwapRejects>(pst->idUpper, vin);
-    auto nLower = Traverse<ServiceSwapRejects>(pst->pstLower, vin, vout);
-    auto iUpper = nLower / sizeof(ServiceSwapRejects::output);
-    int nUpper;
-    nUpper = mdl->GetReply(rID, vout.size() - nLower, pOutRej + iUpper);
+    auto nLower = Traverse<ServiceSwapRejects>(pst->pstLower, vin, lowerRej);
+    auto nUpper = mdl->GetReply(rID, upperRej);
     return nLower + nUpper;
 }
 
@@ -805,12 +805,12 @@ static_assert(std::is_void_v<ServiceColOrdRejects::output> || std::is_trivial_v<
 
 int ServiceColOrdRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
-    auto pOutRej = reinterpret_cast<output*>(vout.data());
+    auto rejects = span_cast<output>(vout);
+    auto lowerRej = rejects.subspan(0, pst->nLower);
+    auto upperRej = rejects.subspan(pst->nLower);
     auto rID = mdl->ReqService<ServiceColOrdRejects>(pst->idUpper, vin);
-    auto nLower = Traverse<ServiceColOrdRejects>(pst->pstLower, vin, vout);
-    auto iUpper = nLower / sizeof(output);
-    int nUpper;
-    nUpper = pst->mdl->GetReply(rID, vout.size() - nLower, &pOutRej[iUpper]);
+    auto nLower = Traverse<ServiceColOrdRejects>(pst->pstLower, vin, lowerRej);
+    auto nUpper = mdl->GetReply(rID, upperRej);
     return nLower + nUpper;
 }
 
@@ -935,7 +935,7 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst, uint64_t iMinOrder, uint64_t iMax
     inCol.iSplitSide = 0;
     nOut = Traverse<ServiceColOrdRejects>(pst->pstLower, inCol, lowerRej);
     mdlassert(pst->mdl, nOut / sizeof(ServiceColRejects::output) == pst->nLower);
-    nOut = mdl->GetReply(rID, pst->nUpper * sizeof(ServiceColRejects::output), upperRej.data());
+    nOut = mdl->GetReply(rID, upperRej);
     mdlassert(pst->mdl, nOut / sizeof(ServiceColRejects::output) == pst->nUpper);
     while (1) {
         iRet = RejMatch(pst, pst->nLower, lowerRej.data(), pst->nUpper, upperRej.data(), pidSwap.data());
@@ -943,7 +943,7 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst, uint64_t iMinOrder, uint64_t iMax
         rID = mdl->ReqService<ServiceSwapRejects>(pst->idUpper, pidSwap);
         nOut = Traverse<ServiceSwapRejects>(pst->pstLower, pidSwap, lowerRej);
         mdlassert(pst->mdl, nOut / sizeof(ServiceSwapRejects::output) == pst->nLower);
-        nOut = mdl->GetReply(rID, pst->nUpper * sizeof(ServiceColRejects::output), upperRej.data());
+        nOut = mdl->GetReply(rID, upperRej);
         mdlassert(pst->mdl, nOut / sizeof(ServiceSwapRejects::output) == pst->nUpper);
     }
     return pst->iOrdSplit;
