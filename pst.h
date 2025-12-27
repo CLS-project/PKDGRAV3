@@ -202,7 +202,6 @@ inline constexpr std::string_view SetGlobalDt = "SetGlobalDt";
 inline constexpr std::string_view LightConeOpen = "LightConeOpen";
 inline constexpr std::string_view LightConeClose = "LightConeClose";
 inline constexpr std::string_view LightConeVel = "LightConeVel";
-inline constexpr std::string_view GetParticles = "GetParticles";
 inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
 inline constexpr std::string_view BHInit = "BHInit";
 inline constexpr std::string_view BHReposition = "BHReposition";
@@ -314,7 +313,6 @@ enum pst_service {
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
     PST_LIGHTCONEVEL,
-    PST_GET_PARTICLES,
 };
 
 void pstAddServices(PST, mdl::mdlClass*);
@@ -1119,8 +1117,5 @@ struct inLightConeVel {
     double dBoxSize;
 };
 int pstLightConeVel(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-/* PST_GET_PARICLES */
-int pstGetParticles(PST pst, void* vin, int nIn, void* vout, int nOut);
 
 #endif

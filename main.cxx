@@ -50,6 +50,7 @@
 #include "io/restore.h"
 
 #include "analysis/analysis.h"
+#include "analysis/orbits.h"
 #ifdef HAVE_ROCKSTAR
     #include "analysis/rshalocount.h"
     #include "analysis/rshaloloadids.h"
@@ -159,6 +160,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceGetOrdSplits>(pst);
     mdl->AddService<ServiceSaveGroupStats>(pst);
     mdl->AddService<ServiceCountDistance>(pst);
+    mdl->AddService<ServiceGetOrbits>(pst);
 #ifdef HAVE_ROCKSTAR
     mdl->AddService<ServiceRsHaloCount>(pst);
     mdl->AddService<ServiceRsHaloLoadIds>(pst);

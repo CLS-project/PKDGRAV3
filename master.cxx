@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "analysis/orbits.h"
 #include "pkd_config.h"
 
 #include <stdio.h>
@@ -50,6 +51,7 @@
 #include <sys/stat.h>
 #include <algorithm>
 #include <numeric>
+#include <ranges>
 #include <functional>
 #include <fstream>
 #include <filesystem>
@@ -4884,12 +4886,6 @@ void MSR::LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen)
 }
 #endif
 
-mdl::ServiceBuffer MSR::GetParticles(std::vector<std::int64_t>& particle_ids) {
-    mdl::ServiceBufferOut outBuffer{mdl::ServiceBuffer::Field<struct outGetParticles>(particle_ids.size())};
-    mdl->RunService(PST_GET_PARTICLES, sizeof(uint64_t) * particle_ids.size(), particle_ids.data(), outBuffer);
-    return std::move(outBuffer);
-}
-
 void MSR::OutputOrbits(int iStep, double dTime) {
     int i;
 
@@ -4905,9 +4901,17 @@ void MSR::OutputOrbits(int iStep, double dTime) {
             dvFac = 1.0;
         }
 
+        // Sort the particle IDs to get them in order so we can binary search later
         auto particle_ids = parameters.get_lstOrbits();
-        auto out = GetParticles(particle_ids);
-        auto particles = static_cast<struct outGetParticles*>(out.data(0));
+        std::ranges::sort(particle_ids);
+        // There should be exactly one of each ID, so remove duplicates and resize output vector
+        auto last = std::ranges::unique(particle_ids);
+        particle_ids.erase(last.begin(), last.end());
+        std::vector<ServiceGetOrbits::output> particles(particle_ids.size());
+        // Retrieve the particle data and sort by ID
+        auto n = mdl->RunService<ServiceGetOrbits>(particle_ids, particles);
+        particles.resize(n / sizeof(ServiceGetOrbits::output));
+        std::ranges::sort(particles, {}, &ServiceGetOrbits::output::id);
 
         auto filename = BuildName(iStep, ".orb");
         std::ofstream fs(filename);

@@ -2883,25 +2883,6 @@ void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType) {
     else assert(0);
 }
 
-int pkdGetParticles(PKD pkd, int nIn, uint64_t* ID, struct outGetParticles* out) {
-    assert(!pkd->bNoParticleOrder); /* We need particle IDs */
-    int nOut = 0;
-    for (auto& p : pkd->particles) {
-        for (auto j = 0; j < nIn; ++j) {
-            if (ID[j] == p.order()) {
-                out[nOut].id = ID[j];
-                out[nOut].mass = p.mass();
-                out[nOut].phi = p.have_potential() ? p.potential() : 0.0;
-                out[nOut].r = p.position();
-                out[nOut].v = p.velocity();
-                ++nOut;
-                break;
-            }
-        }
-    }
-    return nOut;
-}
-
 void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters* kick, SPHOptions* SPHoptions) {
     int doUConversion = SPHoptions->doUConversion;
     if (SPHoptions->doUConversion) {

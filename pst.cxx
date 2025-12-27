@@ -190,8 +190,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_LIGHTCONE_OPEN, pst, (fcnService_t*)pstLightConeOpen, sizeof(struct inLightConeOpen), 0, Legacy::LightConeOpen);
     mdl->AddService(PST_LIGHTCONE_CLOSE, pst, (fcnService_t*)pstLightConeClose, sizeof(struct inLightConeClose), 0, Legacy::LightConeClose);
     mdl->AddService(PST_LIGHTCONEVEL, pst, (fcnService_t*)pstLightConeVel, sizeof(struct inLightConeVel), 0, Legacy::LightConeVel);
-    mdl->AddService(PST_GET_PARTICLES, pst, (fcnService_t*)pstGetParticles, sizeof(uint64_t) * GET_PARTICLES_MAX,
-                    sizeof(struct outGetParticles) * GET_PARTICLES_MAX, Legacy::GetParticles);
 }
 
 static void initializePStore(PKD* ppkd, MDL mdl, struct inInitializePStore* in) {
@@ -1979,22 +1977,4 @@ int pstLightConeVel(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pkdLightConeVel(plcl->pkd, in->dBoxSize);
     }
     return 0;
-}
-
-int pstGetParticles(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto out = static_cast<struct outGetParticles*>(vout);
-    auto ID = static_cast<uint64_t*>(vin);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GET_PARTICLES, vin, nIn);
-        auto nOutLower = pstGetParticles(pst->lower(), vin, nIn, vout, nOut);
-        auto nOutUpper = pst->mdl()->GetReply(rID, nOut - nOutLower, out + (nOutLower / sizeof(struct outGetParticles)));
-        nOut = nOutLower + nOutUpper;
-    }
-    else {
-        int nParticles = nIn / sizeof(uint64_t);
-        int n = pkdGetParticles(plcl->pkd, nParticles, ID, out);
-        nOut = n * sizeof(struct outGetParticles);
-    }
-    return nOut;
 }

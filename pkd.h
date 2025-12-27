@@ -851,13 +851,6 @@ void pkdLightCone(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dLookbackFac
 void pkdLightConeVel(PKD pkd, double dBoxSize);
 void pkdSetupInterpScale(PKD pkd, double dBoxSize, double mrMax);
 
-struct outGetParticles { /* Array of these */
-    uint64_t id;
-    float mass, phi;
-    blitz::TinyVector<float, 3> r, v;
-};
-int pkdGetParticles(PKD pkd, int nIn, uint64_t* ID, struct outGetParticles* out);
-
 #define vec_sub(r, a, b)                                                                                                                                       \
     do {                                                                                                                                                       \
         int i;                                                                                                                                                 \
