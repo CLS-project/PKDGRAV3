@@ -60,7 +60,7 @@
 #include "analysis/rsreorder.h"
 #include "analysis/rsextract.h"
 
-#include "initlightcone.h"
+#include "lightcone.h"
 
 #include "io/output.h"
 
@@ -183,6 +183,9 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<OldDD::ServiceWeight>(pst);
     mdl->AddService<OldDD::ServiceWeightWrap>(pst);
     mdl->AddService<OldDD::ServiceOrdWeight>(pst);
+    mdl->AddService<ServiceLightConeOpen>(pst);
+    mdl->AddService<ServiceLightConeClose>(pst);
+    mdl->AddService<ServiceLightConeVel>(pst);
 #ifdef INSTRUMENT_MPI
     mdl->AddService<ServiceCacheStats>(pst);
 #endif

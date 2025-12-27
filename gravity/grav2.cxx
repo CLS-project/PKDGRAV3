@@ -537,8 +537,8 @@ void pkdParticleWorkDone(workParticle* wp) {
                         ** timestep as is usual for kicking (we are drifting afterall).
                         */
                         if (wp->lc->dLookbackFac > 0) {
-                            pkdProcessLightCone(pkd, &p, wp->pInfoOut[i].fPot, wp->lc->dLookbackFac, wp->lc->dLookbackFacLCP, wp->lc->dtLCDrift[p.rung()],
-                                                wp->lc->dtLCKick[p.rung()], wp->lc->dBoxSize, wp->lc->bLightConeParticles, wp->lc->hLCP, wp->lc->tanalpha_2);
+                            pkd->ProcessLightCone(&p, wp->pInfoOut[i].fPot, wp->lc->dLookbackFac, wp->lc->dLookbackFacLCP, wp->lc->dtLCDrift[p.rung()],
+                                                  wp->lc->dtLCKick[p.rung()], wp->lc->dBoxSize, wp->lc->bLightConeParticles, wp->lc->hLCP, wp->lc->tanalpha_2);
                         }
                     }
                     p.set_marked(true);

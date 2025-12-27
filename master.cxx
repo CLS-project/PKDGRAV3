@@ -124,7 +124,7 @@ struct fmt::formatter<DeferFormat> {
 #include "core/decorator_reorder.h"
 #include "io/restore.h"
 #include "io/output.h"
-#include "initlightcone.h"
+#include "lightcone.h"
 #ifdef INSTRUMENT_MPI
     #include "core/cachestats.h"
 #endif
@@ -2802,7 +2802,7 @@ void MSR::UpdateRung(uint8_t uRung) {
  */
 void MSR::LightConeOpen(int iStep) {
     if (parameters.get_bLightCone()) {
-        struct inLightConeOpen lc;
+        ServiceLightConeOpen::input lc;
         if (parameters.get_bLightConeParticles()) {
             auto filename = [&]() {
                 if (parameters.has_lstLightConeOctants()) {
@@ -2815,7 +2815,7 @@ void MSR::LightConeOpen(int iStep) {
         }
         else lc.achOutFileLcp[0] = 0;
         lc.nSideHealpix = parameters.get_nSideHealpix();
-        pstLightConeOpen(pst, &lc, sizeof(lc), NULL, 0);
+        mdl->RunService<ServiceLightConeOpen>(lc);
     }
 }
 
@@ -2824,14 +2824,14 @@ void MSR::LightConeOpen(int iStep) {
  */
 void MSR::LightConeClose(int iStep) {
     if (parameters.get_bLightCone()) {
-        struct inLightConeClose lc;
+        ServiceLightConeClose::input lc;
         // BuildName actually creates directories, so only do so if we are making the maps
         if (parameters.get_nSideHealpix()) {
             auto filename = BuildNameWithI(iStep, ".hpb");
             marshal_string(lc.achOutFileHpb, filename);
         }
         else lc.achOutFileHpb[0] = 0;
-        pstLightConeClose(pst, &lc, sizeof(lc), NULL, 0);
+        mdl->RunService<ServiceLightConeClose>(lc);
     }
 }
 
@@ -2841,11 +2841,11 @@ void MSR::LightConeClose(int iStep) {
  */
 void MSR::LightConeVel() {
     double dsec;
-    struct inLightConeVel in;
+    ServiceLightConeVel::input in;
 
     in.dBoxSize = parameters.get_dBoxSize();
     TimerStart(TIMER_NONE);
-    pstLightConeVel(pst, &in, sizeof(in), NULL, 0);
+    mdl->RunService<ServiceLightConeVel>(in);
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
     print("Converted lightcone velocities to physical, Wallclock: {:.5f} secs.\n", dsec);

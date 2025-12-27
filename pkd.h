@@ -479,6 +479,17 @@ class pkdContext : public Integerize {
     void RsReorder(const uint64_t* pOrds);
     void RsExtract(const std::string& filename, int iSegment, uint64_t* pOrds);
 
+  protected:
+    void flushLightCone(int octant);
+    void addToLightCone(double dvFac, double* r, float fPot, PARTICLE* p, int bParticleOutput);
+
+  public:
+    void LightConeOpen(const char* name_template, int nSideHealpix);
+    void LightConeClose(const char* healpixname_template);
+    void ProcessLightCone(PARTICLE* p, float fPot, double dLookbackFac, double dLookbackFacLCP, double dDriftDelta, double dKickDelta, double dBoxSize,
+                          int bLightConeParticles, blitz::TinyVector<double, 3> hlcp, double tanalpha2);
+    void LightConeVel(double dBoxSize);
+
   public:
     mdl::mdlClass* mdl;
     auto Self() const { return mdl->Self(); }
@@ -762,8 +773,6 @@ void pkdGravAll(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconePara
                 uint64_t* pnActive, double* pdPart, double* pdPartNumAccess, double* pdPartMissRatio, double* pdCell, double* pdCellNumAccess,
                 double* pdCellMissRatio, double* pdFlop, uint64_t* pnRung);
 void pkdCalcEandL(PKD pkd, double& T, double& U, double& Eth, blitz::TinyVector<double, 3>& L, blitz::TinyVector<double, 3>& F, double& W);
-void pkdProcessLightCone(PKD pkd, PARTICLE* p, float fPot, double dLookbackFac, double dLookbackFacLCP, double dDriftDelta, double dKickDelta, double dBoxSize,
-                         int bLightConeParticles, blitz::TinyVector<double, 3> hlcp, double tanalpha2);
 void pkdGravEvalPP(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out);
 void pkdDensityEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOptions* SPHoptions);
 void pkdDensityCorrectionEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOptions* SPHoptions);
@@ -845,10 +854,7 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize, int nBins, 
 #endif
 void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType);
 
-void pkdLightConeOpen(PKD pkd, const char* fname, int nSideHealpix);
-void pkdLightConeClose(PKD pkd, const char* healpixname);
 void pkdLightCone(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dLookbackFac, double dLookbackFacLCP, double* dtLCDrift, double* dtLCKick);
-void pkdLightConeVel(PKD pkd, double dBoxSize);
 void pkdSetupInterpScale(PKD pkd, double dBoxSize, double mrMax);
 
 #define vec_sub(r, a, b)                                                                                                                                       \

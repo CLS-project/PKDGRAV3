@@ -187,9 +187,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_MEASURELINPK, pst, (fcnService_t*)pstMeasureLinPk, sizeof(struct inMeasureLinPk), sizeof(struct outMeasureLinPk), Legacy::MeasureLinPk);
 #endif
     mdl->AddService(PST_TOTALMASS, pst, (fcnService_t*)pstTotalMass, 0, sizeof(struct outTotalMass), Legacy::TotalMass);
-    mdl->AddService(PST_LIGHTCONE_OPEN, pst, (fcnService_t*)pstLightConeOpen, sizeof(struct inLightConeOpen), 0, Legacy::LightConeOpen);
-    mdl->AddService(PST_LIGHTCONE_CLOSE, pst, (fcnService_t*)pstLightConeClose, sizeof(struct inLightConeClose), 0, Legacy::LightConeClose);
-    mdl->AddService(PST_LIGHTCONEVEL, pst, (fcnService_t*)pstLightConeVel, sizeof(struct inLightConeVel), 0, Legacy::LightConeVel);
 }
 
 static void initializePStore(PKD* ppkd, MDL mdl, struct inInitializePStore* in) {
@@ -1930,51 +1927,4 @@ int pstGetMinDt(PST pst, void* vin, int nIn, void* vout, int nOut) {
         out->uMinDt = pkdGetMinDt(plcl->pkd);
     }
     return sizeof(struct outGetMinDt);
-}
-
-int pstLightConeOpen(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inLightConeOpen*>(vin);
-    assert(nIn == sizeof(struct inLightConeOpen));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_LIGHTCONE_OPEN, in, nIn);
-        pstLightConeOpen(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        PKD pkd = pst->lcl()->pkd;
-        pkdLightConeOpen(pkd, in->achOutFileLcp, in->nSideHealpix);
-    }
-    return 0;
-}
-
-int pstLightConeClose(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inLightConeClose*>(vin);
-    assert(nIn == sizeof(struct inLightConeClose));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_LIGHTCONE_CLOSE, in, nIn);
-        pstLightConeClose(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        PKD pkd = pst->lcl()->pkd;
-        auto achOutFile = makeName(in->achOutFileHpb, pkd->mdl->Self());
-        pkdLightConeClose(pst->lcl()->pkd, achOutFile.c_str());
-    }
-    return 0;
-}
-
-int pstLightConeVel(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inLightConeVel*>(vin);
-
-    assert(nIn == 0);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_LIGHTCONEVEL, in, nIn);
-        pstLightConeVel(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdLightConeVel(plcl->pkd, in->dBoxSize);
-    }
-    return 0;
 }

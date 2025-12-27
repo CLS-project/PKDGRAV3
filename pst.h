@@ -199,9 +199,6 @@ inline constexpr std::string_view BispectrumCalculate = "BispectrumCalculate";
 inline constexpr std::string_view TotalMass = "TotalMass";
 inline constexpr std::string_view GetMinDt = "GetMinDt";
 inline constexpr std::string_view SetGlobalDt = "SetGlobalDt";
-inline constexpr std::string_view LightConeOpen = "LightConeOpen";
-inline constexpr std::string_view LightConeClose = "LightConeClose";
-inline constexpr std::string_view LightConeVel = "LightConeVel";
 inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
 inline constexpr std::string_view BHInit = "BHInit";
 inline constexpr std::string_view BHReposition = "BHReposition";
@@ -310,9 +307,6 @@ enum pst_service {
     PST_TOTALMASS,
     PST_GETMINDT,
     PST_SETGLOBALDT,
-    PST_LIGHTCONE_OPEN,
-    PST_LIGHTCONE_CLOSE,
-    PST_LIGHTCONEVEL,
 };
 
 void pstAddServices(PST, mdl::mdlClass*);
@@ -1102,20 +1096,5 @@ struct outGetMinDt {
 };
 int pstGetMinDt(PST pst, void* vin, int nIn, void* vout, int nOut);
 int pstSetGlobalDt(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-struct inLightConeOpen {
-    int nSideHealpix;
-    char achOutFileLcp[PATH_MAX];
-};
-int pstLightConeOpen(PST pst, void* vin, int nIn, void* vout, int nOut);
-struct inLightConeClose {
-    char achOutFileHpb[PATH_MAX];
-};
-int pstLightConeClose(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-struct inLightConeVel {
-    double dBoxSize;
-};
-int pstLightConeVel(PST pst, void* vin, int nIn, void* vout, int nOut);
 
 #endif

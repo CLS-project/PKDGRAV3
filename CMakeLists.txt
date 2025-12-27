@@ -254,7 +254,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
 	core/ignoresigbus.cxx
 	eEOS/eEOS.cxx
-	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx
+	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 

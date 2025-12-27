@@ -76,9 +76,6 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "SPH/SPHEOS.h"
 #include "SPH/SPHpredict.h"
 #include <stack>
-extern "C" {
-#include "core/healpix.h"
-}
 #include "cooling/cooling.h"
 #include "blackhole/evolve.h"
 #ifdef GRACKLE
@@ -2085,139 +2082,6 @@ void pkdCalcEandL(PKD pkd, double& T, double& U, double& Eth, TinyVector<double,
     }
 }
 
-static void flushLightCone(PKD pkd, int octant) {
-    size_t count = pkd->nLightCone[octant] * sizeof(LIGHTCONEP);
-    io_write(&pkd->afiLightCone[octant], pkd->pLightCone[octant], count);
-    pkd->nLightCone[octant] = 0;
-}
-
-class HealpixHelper : public mdl::arrayCACHEhelper {
-    virtual void init(void* dst) override final {
-        auto m = static_cast<healpixData*>(dst);
-        m->nGrouped = 0;
-        m->nUngrouped = 0;
-        m->fPotential = 0;
-    }
-    virtual void combine(void* dst, const void* src, const void* key) override final {
-        auto m1 = static_cast<healpixData*>(dst);
-        auto m2 = static_cast<const healpixData*>(src);
-        auto SumWithSaturate = [](uint32_t a, uint32_t b) -> uint32_t {
-            uint64_t sum = static_cast<uint64_t>(a) + b;
-            return (sum > 0xffffffffu) ? 0xffffffffu : static_cast<uint32_t>(sum);
-        };
-        m1->nGrouped = SumWithSaturate(m1->nGrouped, m2->nGrouped);
-        m1->nUngrouped = SumWithSaturate(m1->nUngrouped, m2->nUngrouped);
-        m1->fPotential += m2->fPotential;
-    }
-
-  public:
-    explicit HealpixHelper(PKD pkd) : arrayCACHEhelper(pkd->pHealpixData, pkd->nHealpixPerDomain, true) {}
-};
-
-void pkdLightConeClose(PKD pkd, const char* healpixname) {
-    int i;
-    size_t nWrite;
-    for (auto octant = 0; octant < 8; ++octant) {
-        if (pkd->afiLightCone[octant].fd > 0) {
-            flushLightCone(pkd, octant);
-            io_close(&pkd->afiLightCone[octant]);
-        }
-    }
-    if (pkd->nSideHealpix) {
-        assert(healpixname && healpixname[0]);
-        pkd->mdl->FinishCache(CID_HEALPIX);
-        int fd = open(healpixname, O_CREAT | O_WRONLY | O_TRUNC, FILE_PROTECTION);
-        if (fd < 0) {
-            perror(healpixname);
-            abort();
-        }
-        for (i = 0; i < pkd->nHealpixPerDomain; ++i) {
-            uint64_t sum = pkd->pHealpixData[i].nGrouped;
-            sum += pkd->pHealpixData[i].nUngrouped;
-            if (sum) pkd->pHealpixData[i].fPotential /= sum;
-        }
-        nWrite = pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData);
-        if (write(fd, pkd->pHealpixData, nWrite) != nWrite) {
-            perror("Wrong size writing Healpix");
-        }
-        close(fd);
-    }
-}
-
-void pkdLightConeOpen(PKD pkd, const char* name_template, int nSideHealpix) {
-    int mOctants = pkd->mLightConeOctants;
-    int i;
-    auto mask = (mOctants == 0) ? 1 : mOctants;
-    for (auto octant = 0; octant < 8; ++octant) {
-        if ((mask & (1 << octant)) == 0 || name_template[0] == '\0') {
-            pkd->afiLightCone[octant].fd = -1;
-            continue;
-        }
-        auto fname = fmt::format(name_template, "octant"_a = octant, "i"_a = pkd->mdl->Self());
-        if (io_create(&pkd->afiLightCone[octant], fname.c_str()) < 0) {
-            perror(fname.c_str());
-            abort();
-        }
-    }
-
-    pkd->nSideHealpix = nSideHealpix;
-    if (pkd->nSideHealpix) {
-        pkd->nHealpixPerDomain = (nside2npix64(pkd->nSideHealpix) + pkd->mdl->Threads() - 1) / pkd->mdl->Threads();
-        pkd->nHealpixPerDomain = (pkd->nHealpixPerDomain + 15) & ~15;
-        if (pkd->pHealpixData == NULL) {
-            pkd->pHealpixData = static_cast<healpixData*>(malloc(pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData)));
-            assert(pkd->pHealpixData != NULL);
-        }
-        for (i = 0; i < pkd->nHealpixPerDomain; ++i) {
-            pkd->pHealpixData[i].nGrouped = 0;
-            pkd->pHealpixData[i].nUngrouped = 0;
-            pkd->pHealpixData[i].fPotential = 0;
-        }
-        pkd->mdl->CacheInitialize(CID_HEALPIX, std::make_shared<HealpixHelper>(pkd));
-    }
-}
-
-void addToLightCone(PKD pkd, double dvFac, double* r, float fPot, PARTICLE* p, int bParticleOutput) {
-    auto P = pkd->particles[p];
-    const auto& v = P.velocity();
-    if (bParticleOutput) {
-        auto octant = pkd->mLightConeOctants == 0 ? 0 : (((r[0] < 0) ? 4 : 0) + ((r[1] < 0) ? 2 : 0) + ((r[2] < 0) ? 1 : 0));
-        if (pkd->afiLightCone[octant].fd > 0) {
-            auto pLC = pkd->pLightCone[octant];
-            auto nLightCone = pkd->nLightCone[octant];
-            pLC[nLightCone].id = P.order();
-            pLC[nLightCone].pos[0] = r[0];
-            pLC[nLightCone].pos[1] = r[1];
-            pLC[nLightCone].pos[2] = r[2];
-            /*
-            ** Convert momentum (a^2 * x_dot to physical peculiar velocity (a * x_dot in sim units)
-            ** This is easy to do now, and somewhat more involved to do later.
-            */
-            pLC[nLightCone].vel[0] = v[0] * dvFac;
-            pLC[nLightCone].vel[1] = v[1] * dvFac;
-            pLC[nLightCone].vel[2] = v[2] * dvFac;
-            pLC[nLightCone].pot = fPot;
-            if (++pkd->nLightCone[octant] == pkd->nLightConeMax) flushLightCone(pkd, octant);
-        }
-    }
-    if (pkd->nSideHealpix) {
-        int64_t iPixel = vec2pix_ring64(pkd->nSideHealpix, r);
-        assert(iPixel >= 0);
-        int id = iPixel / pkd->nHealpixPerDomain;
-        int idx = iPixel - id * pkd->nHealpixPerDomain;
-        assert(id < pkd->mdl->Threads());
-        assert(idx < pkd->nHealpixPerDomain);
-        auto m = pkd->mdl->VirtualFetch<healpixData>(CID_HEALPIX, idx, id);
-        if (P.group()) {
-            if (m->nGrouped < 0xffffffffu) ++m->nGrouped; /* Increment with saturate */
-        }
-        else {
-            if (m->nUngrouped < 0xffffffffu) ++m->nUngrouped; /* Increment with saturate */
-        }
-        m->fPotential += fPot;
-    }
-}
-
 /*
 ** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
 ** and those whose destination activity flag is set.
@@ -2410,45 +2274,6 @@ void pkdSetupInterpScale(PKD pkd, double dBoxSize, double mrMax) {
     pkd->interp_accel = gsl_interp_accel_alloc();
     pkd->interp_scale = gsl_spline_alloc(gsl_interp_cspline, nTable);
     gsl_spline_init(pkd->interp_scale, rt, at_inv, nTable);
-}
-
-void pkdLightConeVel(PKD pkd, double dBoxSize) {
-    const int nTable = 1000;
-    const double rMax = 3.0;
-    gsl_spline* scale;
-    gsl_interp_accel* acc = gsl_interp_accel_alloc();
-    double dr, rt[nTable], at_inv[nTable];
-    double dvFac;
-    const double dLightSpeed = dLightSpeedSim(dBoxSize);
-    int i;
-
-    assert(pkd->particles.present(PKD_FIELD::oVelocity));
-    /*
-    ** Setup lookup table.
-    */
-    dr = rMax / (nTable - 1);
-    for (i = 0; i < nTable; ++i) {
-        rt[i] = i * dr;
-        at_inv[i] = 1.0 / csmComoveLookbackTime2Exp(pkd->csm, rt[i] / dLightSpeed);
-    }
-    scale = gsl_spline_alloc(gsl_interp_cspline, nTable);
-    gsl_spline_init(scale, rt, at_inv, nTable);
-    /*
-    ** Now loop over all particles using this table.
-    */
-    for (auto& p : pkd->particles) {
-        auto& v = p.velocity();
-        auto r = p.position();
-        auto r2 = dot(r, r);
-        /*
-        ** Use r -> 1/a spline table.
-        */
-        dvFac = gsl_spline_eval(scale, sqrt(r2), acc);
-        /* input velocities are momenta p = a^2*x_dot and we want v_pec = a*x_dot */
-        v *= dvFac;
-    }
-    gsl_spline_free(scale);
-    gsl_interp_accel_free(acc);
 }
 
 /*
