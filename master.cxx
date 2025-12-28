@@ -4290,9 +4290,9 @@ uint64_t MSR::SelCylinder(blitz::TinyVector<double, 3> dP1, blitz::TinyVector<do
 }
 
 double MSR::TotalMass() {
-    struct outTotalMass out;
-    pstTotalMass(pst, NULL, 0, &out, sizeof(out));
-    return out.dMass;
+    ServiceTotalMass::output out;
+    mdl->RunService<ServiceTotalMass>({}, out);
+    return out;
 }
 
 void MSR::CalcDistance(const double* dCenter, double dRadius) {
@@ -4328,18 +4328,6 @@ void MSR::CalcCOM(const double* dCenter, double dRadius, double* com, double* vc
         vec_add_const_mult(L, out.L, -out.M, T);
         for (j = 0; j < 3; j++) L[j] /= out.M;
     }
-}
-
-void MSR::CalcMtot(double* M, uint64_t* N) {
-    struct inCalcMtot in;
-    struct outCalcMtot out;
-    int nOut;
-
-    nOut = pstCalcMtot(pst, &in, sizeof(in), &out, sizeof(out));
-    assert(nOut == sizeof(out));
-
-    *M = out.M;
-    *N = out.N;
 }
 
 void MSR::SetSPHoptions() {

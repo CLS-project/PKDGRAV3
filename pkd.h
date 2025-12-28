@@ -532,6 +532,8 @@ class pkdContext : public Integerize {
 
     void UpdateGasValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions);
 
+    auto TotalMass() -> double;
+
   public:
     mdl::mdlClass* mdl;
     auto Self() const { return mdl->Self(); }
@@ -763,7 +765,6 @@ void pkdEnforcePeriodic(PKD, Bound);
 void pkdPhysicalSoft(PKD pkd, double dSoftMax, double dFac, int bSoftMaxMul);
 int pkdWeight(PKD, int, double, int, int, int, int*, int*, double*, double*);
 void pkdCountVA(PKD, int, double, int*, int*);
-double pkdTotalMass(PKD pkd);
 uint8_t pkdGetMinDt(PKD pkd);
 void pkdSetGlobalDt(PKD pkd, uint8_t minDt);
 int pkdLowerPart(PKD, int, double, int, int);
@@ -869,7 +870,6 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVect
 void pkdCalcDistance(PKD pkd, blitz::TinyVector<double, 3> dCenter, int bPeriodic);
 void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double, 3>& dCenter, double dRadius, int bPeriodic, blitz::TinyVector<double, 3>& com,
                 blitz::TinyVector<double, 3>& vcm, blitz::TinyVector<double, 3>& L, double& M, uint64_t& N);
-void pkdCalcMtot(PKD pkd, double* M, uint64_t* N);
 void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
 void pkdInitializeEOS(PKD pkd);
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);

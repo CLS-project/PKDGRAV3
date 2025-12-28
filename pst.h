@@ -175,7 +175,6 @@ inline constexpr std::string_view SwapClasses = "SwapClasses";
 inline constexpr std::string_view Profile = "Profile";
 inline constexpr std::string_view CalcDistance = "CalcDistance";
 inline constexpr std::string_view CalcCOM = "CalcCOM";
-inline constexpr std::string_view CalcMtot = "CalcMtot";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view ResetCOM = "ResetCOM";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
@@ -192,7 +191,6 @@ inline constexpr std::string_view Interlace = "Interlace";
 inline constexpr std::string_view GridBinK = "GridBinK";
 inline constexpr std::string_view BispectrumSelect = "BispectrumSelect";
 inline constexpr std::string_view BispectrumCalculate = "BispectrumCalculate";
-inline constexpr std::string_view TotalMass = "TotalMass";
 inline constexpr std::string_view GetMinDt = "GetMinDt";
 inline constexpr std::string_view SetGlobalDt = "SetGlobalDt";
 inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
@@ -277,7 +275,6 @@ enum pst_service {
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
-    PST_CALCMTOT,
     PST_SETSPHOPTIONS,
     PST_RESETCOM,
     PST_INITIALIZEEOS,
@@ -296,7 +293,6 @@ enum pst_service {
     PST_GRID_BIN_K,
     PST_BISPECTRUM_SELECT,
     PST_BISPECTRUM_CALCULATE,
-    PST_TOTALMASS,
     PST_GETMINDT,
     PST_SETGLOBALDT,
 };
@@ -918,15 +914,6 @@ struct outCalcCOM {
 };
 int pstCalcCOM(PST pst, void* vin, int nIn, void* vout, int nOut);
 
-/* PST_CALCMTOT */
-struct inCalcMtot {
-    int a; // placeholder as struct can't be empty, later may be particle type here?
-};
-struct outCalcMtot {
-    double M;
-    uint64_t N;
-};
-int pstCalcMtot(PST pst, void* vin, int nIn, void* vout, int nOut);
 /* PST_SETSPHOPTIONS */
 struct inSetSPHoptions {
     SPHOptions SPHoptions;
@@ -1046,12 +1033,6 @@ struct outMeasureLinPk {
 };
 int pstMeasureLinPk(PST pst, void* vin, int nIn, void* vout, int nOut);
 #endif
-
-/* PST_TOTALMASS */
-struct outTotalMass {
-    double dMass;
-};
-int pstTotalMass(PST pst, void* vin, int nIn, void* vout, int nOut);
 
 /* PST_GETMINDT */
 struct outGetMinDt {

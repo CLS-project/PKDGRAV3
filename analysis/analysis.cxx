@@ -261,9 +261,16 @@ void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double, 3>& dCenter, double dRa
 /*
 ** Return the mass of all particles
 */
-void pkdCalcMtot(PKD pkd, double* M, uint64_t* N) {
-    *N = pkd->Local();
-    *M = std::accumulate(pkd->particles.begin(), pkd->particles.end(), 0.0, [](double a, auto& p) { return a + p.mass(); });
+auto ServiceTotalMass::Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int {
+    assert(in.size() == 0);
+    assert(out.size() == sizeof(double));
+    auto pOut = reinterpret_cast<double*>(out.data());
+    *pOut = pst->lcl()->pkd->TotalMass();
+    return sizeof(double);
+}
+
+auto pkdContext::TotalMass() -> double {
+    return std::accumulate(particles.begin(), particles.end(), 0.0, [](double a, auto& p) { return a + p.mass(); });
 }
 
 void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com) {

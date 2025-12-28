@@ -160,7 +160,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_PROFILE, pst, (fcnService_t*)pstProfile, sizeof(struct inProfile), 0, Legacy::Profile);
     mdl->AddService(PST_CALCDISTANCE, pst, (fcnService_t*)pstCalcDistance, sizeof(struct inCalcDistance), 0, Legacy::CalcDistance);
     mdl->AddService(PST_CALCCOM, pst, (fcnService_t*)pstCalcCOM, sizeof(struct inCalcCOM), sizeof(struct outCalcCOM), Legacy::CalcCOM);
-    mdl->AddService(PST_CALCMTOT, pst, (fcnService_t*)pstCalcMtot, sizeof(struct inCalcMtot), sizeof(struct outCalcMtot), Legacy::CalcMtot);
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_RESETCOM, pst, (fcnService_t*)pstResetCOM, sizeof(struct inResetCOM), 0, Legacy::ResetCOM);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
@@ -180,7 +179,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_SETLINGRID, pst, (fcnService_t*)pstSetLinGrid, sizeof(struct inSetLinGrid), 0, Legacy::SetLinGrid);
     mdl->AddService(PST_MEASURELINPK, pst, (fcnService_t*)pstMeasureLinPk, sizeof(struct inMeasureLinPk), sizeof(struct outMeasureLinPk), Legacy::MeasureLinPk);
 #endif
-    mdl->AddService(PST_TOTALMASS, pst, (fcnService_t*)pstTotalMass, 0, sizeof(struct outTotalMass), Legacy::TotalMass);
 }
 
 static void initializePStore(PKD* ppkd, MDL mdl, struct inInitializePStore* in) {
@@ -1659,27 +1657,6 @@ int pstCalcCOM(PST pst, void* vin, int nIn, void* vout, int nOut) {
     return sizeof(struct outCalcCOM);
 }
 
-int pstCalcMtot(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    // auto in = static_cast<struct inCalcMtot *>(vin);
-    auto out = static_cast<struct outCalcMtot*>(vout);
-    struct outCalcMtot outUpper;
-
-    assert(nIn == sizeof(struct inCalcMtot));
-    assert(vout != NULL);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_CALCMTOT, vin, nIn);
-        pstCalcMtot(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID, outUpper);
-        out->N += outUpper.N;
-        out->M += outUpper.M;
-    }
-    else {
-        pkdCalcMtot(plcl->pkd, &out->M, &out->N);
-    }
-    return sizeof(struct outCalcMtot);
-}
-
 int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut) {
     LCL* plcl = pst->lcl();
     auto in = static_cast<struct inSetSPHoptions*>(vin);
@@ -1759,24 +1736,6 @@ int pstGridDeleteFFT(PST pst, void* vin, int nIn, void* vout, int nOut) {
     return 0;
 }
 #endif
-
-int pstTotalMass(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto out = static_cast<struct outTotalMass*>(vout);
-    struct outTotalMass outUpper;
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_TOTALMASS, vin, nIn);
-        pstTotalMass(pst->lower(), vin, nIn, vout, nOut);
-        nOut = pst->mdl()->GetReply(rID, outUpper);
-        assert(nOut == sizeof(struct outTotalMass));
-        out->dMass += outUpper.dMass;
-    }
-    else {
-        out->dMass = pkdTotalMass(plcl->pkd);
-    }
-    return sizeof(struct outTotalMass);
-}
 
 int pstGetMinDt(PST pst, void* vin, int nIn, void* vout, int nOut) {
     LCL* plcl = pst->lcl();

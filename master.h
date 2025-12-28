@@ -529,7 +529,6 @@ class MSR {
 
     void CalcDistance(const double* dCenter, double dRadius);
     void CalcCOM(const double* dCenter, double dRadius, double* com, double* vcm, double* L, double* M);
-    void CalcMtot(double* M, uint64_t* N);
     void SetSPHoptions();
     void ResetCOM();
     void InitializeEOS();

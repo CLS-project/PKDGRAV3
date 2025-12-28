@@ -29,7 +29,17 @@ class ServiceCountDistance : public TraverseCount<uint64_t> {
     explicit ServiceCountDistance(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
-    virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceTotalMass : public TraverseCount<double> {
+  public:
+    static constexpr std::string_view name = "TotalMass";
+    using input = void;
+    explicit ServiceTotalMass(PST pst) : TraverseCount(pst, name) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
 #endif

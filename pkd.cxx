@@ -2645,10 +2645,6 @@ int pkdIsBH(PKD pkd, PARTICLE* p) {
     return pkdSpecies(pkd, p) == FIO_SPECIES_BH;
 }
 
-double pkdTotalMass(PKD pkd) {
-    return std::accumulate(pkd->particles.begin(), pkd->particles.end(), 0.0, [](double a, auto& p) { return a + p.mass(); });
-}
-
 uint8_t pkdGetMinDt(PKD pkd) {
     return std::accumulate(pkd->particles.begin(), pkd->particles.end(), 0, [](uint8_t a, auto& p) { return std::max(a, p.new_rung()); });
 }

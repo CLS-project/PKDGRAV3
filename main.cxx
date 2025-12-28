@@ -144,6 +144,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceFftSizes>(pst);
     mdl->AddService<ServiceIgnoreSIGBUS>(pst);
     mdl->AddService<ServiceCountSpecies>(pst);
+    mdl->AddService<ServiceTotalMass>(pst);
     mdl->AddService<ServiceRemoveDeleted>(pst);
     mdl->AddService<ServiceFileSizes>(pst);
     mdl->AddService<ServiceRestore>(pst);
