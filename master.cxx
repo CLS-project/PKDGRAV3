@@ -162,6 +162,7 @@ namespace rockstar {
 #include "gravity/zeronewrung.h"
 
 #include "SPH/gasvalues.h"
+#include "SPH/resetcom.h"
 #include "meshless/hydro/endstep.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -4343,11 +4344,8 @@ void MSR::ResetCOM() {
     print("Before reseting: x_com = {:.5e}, y_com = {:.5e}, z_com = {:.5e}, vx_com = {:.5e}, vy_com = {:.5e}, vz_com = {:.5e}\n", com[0], com[1], com[2],
           vcm[0], vcm[1], vcm[2]);
 
-    struct inResetCOM in;
-    in.r_com = com;
-    in.v_com = vcm;
-
-    pstResetCOM(pst, &in, sizeof(in), NULL, 0);
+    ServiceResetCOM::input in{.r_com = com, .v_com = vcm};
+    mdl->RunService<ServiceResetCOM>(in);
 
     CalcCOM(&dCenter[0], -1.0, &com[0], &vcm[0], &L[0], &M);
     print("After reseting: x_com = {:.5e}, y_com = {:.5e}, z_com = {:.5e}, vx_com = {:.5e}, vy_com = {:.5e}, vz_com = {:.5e}\n", com[0], com[1], com[2], vcm[0],

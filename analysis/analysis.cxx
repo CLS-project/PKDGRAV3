@@ -273,15 +273,6 @@ auto pkdContext::TotalMass() -> double {
     return std::accumulate(particles.begin(), particles.end(), 0.0, [](double a, auto& p) { return a + p.mass(); });
 }
 
-void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com) {
-    for (auto& p : pkd->particles) {
-        auto r = p.position();
-        p.set_position(p.position() - r_com);
-        auto& v = p.velocity();
-        v -= v_com;
-    }
-}
-
 // Count the number of elements that are interior to r2 (between r2i and r2o).
 int ServiceCountDistance::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());

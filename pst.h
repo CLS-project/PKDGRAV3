@@ -176,7 +176,6 @@ inline constexpr std::string_view Profile = "Profile";
 inline constexpr std::string_view CalcDistance = "CalcDistance";
 inline constexpr std::string_view CalcCOM = "CalcCOM";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
-inline constexpr std::string_view ResetCOM = "ResetCOM";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
 inline constexpr std::string_view GridCreateFFT = "GridCreateFFT";
 inline constexpr std::string_view GridDeleteFFT = "GridDeleteFFT";
@@ -276,7 +275,6 @@ enum pst_service {
     PST_CALCDISTANCE,
     PST_CALCCOM,
     PST_SETSPHOPTIONS,
-    PST_RESETCOM,
     PST_INITIALIZEEOS,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
@@ -919,11 +917,6 @@ struct inSetSPHoptions {
     SPHOptions SPHoptions;
 };
 int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_RESETCOM */
-struct inResetCOM {
-    blitz::TinyVector<double, 3> r_com, v_com;
-};
-int pstResetCOM(PST pst, void* vin, int nIn, void* vout, int nOut);
 /* PST_INITIALIZEEOS */
 int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut);
 

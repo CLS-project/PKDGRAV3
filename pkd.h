@@ -531,6 +531,7 @@ class pkdContext : public Integerize {
     void GroupOrder(uint32_t* iGrpOffset);
 
     void UpdateGasValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions);
+    void ResetCOM(blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
 
     auto TotalMass() -> double;
 
@@ -870,7 +871,6 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVect
 void pkdCalcDistance(PKD pkd, blitz::TinyVector<double, 3> dCenter, int bPeriodic);
 void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double, 3>& dCenter, double dRadius, int bPeriodic, blitz::TinyVector<double, 3>& com,
                 blitz::TinyVector<double, 3>& vcm, blitz::TinyVector<double, 3>& L, double& M, uint64_t& N);
-void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
 void pkdInitializeEOS(PKD pkd);
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
 #ifdef MDL_FFTW

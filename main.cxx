@@ -83,6 +83,7 @@
 #include "gravity/zeronewrung.h"
 
 #include "SPH/gasvalues.h"
+#include "SPH/resetcom.h"
 
 #include "meshless/hydro/wakeup.h"
 #include "meshless/hydro/endstep.h"
@@ -145,6 +146,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceIgnoreSIGBUS>(pst);
     mdl->AddService<ServiceCountSpecies>(pst);
     mdl->AddService<ServiceTotalMass>(pst);
+    mdl->AddService<ServiceResetCOM>(pst);
     mdl->AddService<ServiceRemoveDeleted>(pst);
     mdl->AddService<ServiceFileSizes>(pst);
     mdl->AddService<ServiceRestore>(pst);

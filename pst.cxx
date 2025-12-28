@@ -161,7 +161,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_CALCDISTANCE, pst, (fcnService_t*)pstCalcDistance, sizeof(struct inCalcDistance), 0, Legacy::CalcDistance);
     mdl->AddService(PST_CALCCOM, pst, (fcnService_t*)pstCalcCOM, sizeof(struct inCalcCOM), sizeof(struct outCalcCOM), Legacy::CalcCOM);
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
-    mdl->AddService(PST_RESETCOM, pst, (fcnService_t*)pstResetCOM, sizeof(struct inResetCOM), 0, Legacy::ResetCOM);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
 #ifdef MDL_FFTW
     mdl->AddService(PST_GRID_CREATE_FFT, pst, (fcnService_t*)pstGridCreateFFT, sizeof(struct inGridCreateFFT), 0, Legacy::GridCreateFFT);
@@ -1669,22 +1668,6 @@ int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         copySPHOptions(&in->SPHoptions, &plcl->pkd->SPHoptions);
-    }
-    return 0;
-}
-
-int pstResetCOM(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inResetCOM*>(vin);
-
-    assert(nIn == sizeof(struct inResetCOM));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_RESETCOM, vin, nIn);
-        pstResetCOM(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdResetCOM(plcl->pkd, in->r_com, in->v_com);
     }
     return 0;
 }
