@@ -2699,28 +2699,6 @@ void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType) {
     else assert(0);
 }
 
-void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters* kick, SPHOptions* SPHoptions) {
-    int doUConversion = SPHoptions->doUConversion;
-    if (SPHoptions->doUConversion) {
-        for (auto& p : pkd->particles) {
-            if (!pkdIsGas(pkd, &p)) continue;
-            auto& NewSph = p.newsph();
-            NewSph.u = SPHEOSUofRhoT(pkd, p.density(), NewSph.u, p.imaterial(), SPHoptions);
-            NewSph.oldRho = p.density();
-            if (SPHoptions->trackPeakPressure) {
-                auto& NewSphPeakP = p.newsphpeakp();
-                NewSphPeakP.Ppeak = -1e20;
-            }
-        }
-    }
-    if (doUConversion) SPHoptions->doUConversion = 0;
-    for (auto& p : pkd->particles) {
-        if (SPHoptions->useDensityFlags && p.rung() < SPHoptions->nPredictRung && !p.marked()) continue;
-        SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, SPHoptions);
-    }
-    if (doUConversion) SPHoptions->doUConversion = 1;
-}
-
 /*
 ** Initialize the EOS tables
 */

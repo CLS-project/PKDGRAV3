@@ -164,7 +164,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_RESETCOM, pst, (fcnService_t*)pstResetCOM, sizeof(struct inResetCOM), 0, Legacy::ResetCOM);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
-    mdl->AddService(PST_UPDATEGASVALUES, pst, (fcnService_t*)pstUpdateGasValues, sizeof(struct inUpdateGasValues), 0, Legacy::UpdateGasValues);
 #ifdef MDL_FFTW
     mdl->AddService(PST_GRID_CREATE_FFT, pst, (fcnService_t*)pstGridCreateFFT, sizeof(struct inGridCreateFFT), 0, Legacy::GridCreateFFT);
     mdl->AddService(PST_GRID_DELETE_FFT, pst, (fcnService_t*)pstGridDeleteFFT, 0, 0, Legacy::GridDeleteFFT);
@@ -1722,22 +1721,6 @@ int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdInitializeEOS(plcl->pkd);
-    }
-    return 0;
-}
-
-int pstUpdateGasValues(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inUpdateGasValues*>(vin);
-
-    assert(nIn == sizeof(struct inUpdateGasValues));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_UPDATEGASVALUES, vin, nIn);
-        pstUpdateGasValues(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdUpdateGasValues(plcl->pkd, &in->kick, &in->SPHoptions);
     }
     return 0;
 }

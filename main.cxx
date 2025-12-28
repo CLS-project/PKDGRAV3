@@ -82,6 +82,8 @@
 #include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 
+#include "SPH/gasvalues.h"
+
 #include "meshless/hydro/wakeup.h"
 #include "meshless/hydro/endstep.h"
 
@@ -187,6 +189,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<OldDD::ServiceWeight>(pst);
     mdl->AddService<OldDD::ServiceWeightWrap>(pst);
     mdl->AddService<OldDD::ServiceOrdWeight>(pst);
+    mdl->AddService<ServiceUpdateGasValues>(pst);
     mdl->AddService<ServiceLightConeOpen>(pst);
     mdl->AddService<ServiceLightConeClose>(pst);
     mdl->AddService<ServiceLightConeVel>(pst);

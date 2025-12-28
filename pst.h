@@ -179,7 +179,6 @@ inline constexpr std::string_view CalcMtot = "CalcMtot";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view ResetCOM = "ResetCOM";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
-inline constexpr std::string_view UpdateGasValues = "UpdateGasValues";
 inline constexpr std::string_view GridCreateFFT = "GridCreateFFT";
 inline constexpr std::string_view GridDeleteFFT = "GridDeleteFFT";
 inline constexpr std::string_view AddLinearSignal = "AddLinearSignal";
@@ -282,7 +281,6 @@ enum pst_service {
     PST_SETSPHOPTIONS,
     PST_RESETCOM,
     PST_INITIALIZEEOS,
-    PST_UPDATEGASVALUES,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
     PST_GRID_DELETE_FFT,
@@ -941,12 +939,6 @@ struct inResetCOM {
 int pstResetCOM(PST pst, void* vin, int nIn, void* vout, int nOut);
 /* PST_INITIALIZEEOS */
 int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_UPDATEGASVALUES */
-struct inUpdateGasValues {
-    SPHOptions SPHoptions;
-    struct pkdKickParameters kick;
-};
-int pstUpdateGasValues(PST pst, void* vin, int nIn, void* vout, int nOut);
 
 /* PST_GRID_CREATE_FFT */
 struct inGridCreateFFT {

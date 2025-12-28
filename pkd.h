@@ -530,6 +530,8 @@ class pkdContext : public Integerize {
     void CombineCells2(treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
     void GroupOrder(uint32_t* iGrpOffset);
 
+    void UpdateGasValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions);
+
   public:
     mdl::mdlClass* mdl;
     auto Self() const { return mdl->Self(); }
@@ -871,7 +873,6 @@ void pkdCalcMtot(PKD pkd, double* M, uint64_t* N);
 void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
 void pkdInitializeEOS(PKD pkd);
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
-void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters* kick, SPHOptions* SPHoptions);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta, int fold);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);

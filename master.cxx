@@ -161,6 +161,7 @@ namespace rockstar {
 #include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 
+#include "SPH/gasvalues.h"
 #include "meshless/hydro/endstep.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -4507,7 +4508,7 @@ void MSR::CalculateKickParameters(struct pkdKickParameters* kick, uint8_t uRungL
 }
 
 void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double dStep, int bKickClose, int bKickOpen, SPHOptions SPHoptions) {
-    struct inUpdateGasValues in;
+    ServiceUpdateGasValues::input in;
     in.SPHoptions = SPHoptions;
     double sec, dsec;
     sec = MSR::Time();
@@ -4515,7 +4516,7 @@ void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double d
 
     CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
 
-    pstUpdateGasValues(pst, &in, sizeof(in), NULL, 0);
+    mdl->RunService<ServiceUpdateGasValues>(in);
     dsec = MSR::Time() - sec;
     print("Gas Values updated, Wallclock: {:.5f} secs\n\n", dsec);
 }
