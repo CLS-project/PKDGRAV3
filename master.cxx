@@ -1744,7 +1744,7 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
     ServiceDumpTrees::input dump(IRUNGMAX);
     mdl->RunService<ServiceDumpTrees>(dump);
 
-    pstTreeInitMarked(pst, NULL, 0, NULL, 0);
+    mdl->RunService<ServiceTreeInitMarked>();
     BuildTree(bNeedEwald, FIXROOT, 0);
     BuildTree(bNeedEwald, ROOT, FIXROOT);
 

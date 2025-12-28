@@ -1339,15 +1339,6 @@ int pkdInactive(PKD pkd) {
     return (pkd->Local() - pkd->nActive);
 }
 
-/*
-** Returns a pointer to the i'th KDN in the tree.  Used for fetching
-** cache element.  Normal code should use pkd->tree[].
-*/
-void* pkdTreeNodeGetElement(void* vData, int i, int iDataSize) {
-    auto pkd = static_cast<PKD>(vData);
-    return pkd->tree[i];
-}
-
 std::pair<int, int> pkdColOrdRejects(PKD pkd, uint64_t nOrdSplit, int iSplitSide) {
     int nSplit;
     if (iSplitSide) nSplit = pkdLowerOrdPart(pkd, nOrdSplit, 0, pkd->Local() - 1);

@@ -42,20 +42,20 @@
 #include <numeric>
 #include <algorithm>
 
-uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, const KDN* pTop, int allocateMemory) {
+uint32_t pkdContext::DistribTopTree(uint32_t uRoot, uint32_t nTop, const KDN* pTop, int allocateMemory) {
     int i, iTop;
-    auto LocalRoot = pkd->tree[uRoot];
+    auto LocalRoot = tree[uRoot];
 
     if (allocateMemory) {
-        iTop = pkd->iTopTree[uRoot] = pkd->tree.append(nTop);
+        iTop = iTopTree[uRoot] = tree.append(nTop);
     }
     else {
-        iTop = pkd->iTopTree[uRoot];
+        iTop = iTopTree[uRoot];
     }
     for (i = 0; i < nTop; ++i) {
         // FIXME: avoid const_cast
-        const treeStore::NodeReference node(pkd->tree, const_cast<KDN*>(pTop), i);
-        auto Local = pkd->tree[iTop + i];
+        const treeStore::NodeReference node(tree, const_cast<KDN*>(pTop), i);
+        auto Local = tree[iTop + i];
         *Local = node;
         // Local->copy(node);
         assert(Local->is_top_tree());
@@ -64,62 +64,54 @@ uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, const KDN* pT
             (*Local)->iLower += iTop + i;
             (*Local)->pUpper += iTop + i;
         }
-        else if (Local->remote_id() == pkd->Self()) {
+        else if (Local->remote_id() == Self()) {
             Local->set_local(LocalRoot->lower(), LocalRoot->upper(), LocalRoot->lchild());
         }
     }
     return iTop;
 }
 
-static auto InitializeRootCommon(PKD pkd, uint32_t uRoot) {
-    auto pRoot = pkd->tree[uRoot];
-    pRoot->set_local();
-    pRoot->set_bound(pkd->bnd);
-    return pRoot;
-}
-
 /*
 ** Creates a single root at ROOT with only marked particles
 */
-void pkdTreeInitMarked(PKD pkd) {
-    auto pRoot = InitializeRootCommon(pkd, ROOT);
-    auto pRootFix = InitializeRootCommon(pkd, FIXROOT);
+void pkdContext::TreeInitMarked() {
+    auto pRoot = InitializeRootCommon(ROOT);
+    auto pRootFix = InitializeRootCommon(FIXROOT);
 
-    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
-
-    auto i = std::partition(pkd->particles.begin(), pkd->particles.end(), [](auto& p) { return p.marked(); }) - pkd->particles.begin();
+    if (mdl->CacheStatus(CID_CELL)) mdl->FinishCache(CID_CELL);
+    auto i = std::partition(particles.begin(), particles.end(), [](auto& p) { return p.marked(); }) - particles.begin();
     pRoot->set_local(0, i - 1);
-    pRootFix->set_local(i, pkd->Local() - 1);
-    pkd->tree.resize(NRESERVED_NODES);
+    pRootFix->set_local(i, Local() - 1);
+    tree.resize(NRESERVED_NODES);
     pRoot->set_group(true);
     pRootFix->set_group(true);
 }
 
-void pkdDumpTrees(PKD pkd, int bOnlyVA, uint8_t uRungDD) {
-    auto pRoot = InitializeRootCommon(pkd, ROOT);
+void pkdContext::DumpTrees(int bOnlyVA, uint8_t uRungDD) {
+    auto pRoot = InitializeRootCommon(ROOT);
 
-    if (pkd->Nodes() == 0) {
+    if (Nodes() == 0) {
         assert(bOnlyVA == 0);
-        pkd->tree.resize(NRESERVED_NODES);
-        pkd->tree[ROOT]->set_local();
-        pkd->tree[FIXROOT]->set_local();
+        tree.resize(NRESERVED_NODES);
+        tree[ROOT]->set_local();
+        tree[FIXROOT]->set_local();
     }
 
     /* We can always close the "active" caches */
-    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
+    if (mdl->CacheStatus(CID_CELL)) mdl->FinishCache(CID_CELL);
     // done elsewhere   if (pkd->mdl->CacheStatus(CID_PARTICLE)) pkd->mdl->FinishCache(CID_PARTICLE);
 
     /* Full Normal tree build. Only ROOT will be used */
     if (uRungDD == IRUNGMAX) {
-        pRoot->set_local(0, pkd->Local() - 1);
+        pRoot->set_local(0, Local() - 1);
         pRoot->set_group(true);
-        pkd->tree.resize(NRESERVED_NODES);
+        tree.resize(NRESERVED_NODES);
     }
     /* Just rebuilding (active) ROOT. Truncate it. pLower and pUpper are still valid. */
     else if (bOnlyVA) {
         if (pRoot->is_cell()) {
             assert(pRoot->lchild() >= NRESERVED_NODES);
-            pkd->tree.resize(pRoot->lchild()); /* This effectively truncates the nodes used by this tree */
+            tree.resize(pRoot->lchild()); /* This effectively truncates the nodes used by this tree */
             pRoot->set_local(pRoot->lower(), pRoot->upper());
             pRoot->set_group(true);
         }
@@ -127,17 +119,17 @@ void pkdDumpTrees(PKD pkd, int bOnlyVA, uint8_t uRungDD) {
 
     /* Need to build two trees which is more complicated. */
     else {
-        auto pRootFix = InitializeRootCommon(pkd, FIXROOT);
+        auto pRootFix = InitializeRootCommon(FIXROOT);
 
 #ifndef SINGLE_CACHES
         /* Here we also have to close the "fixed" caches */
-        if (pkd->mdl->CacheStatus(CID_CELL2)) pkd->mdl->FinishCache(CID_CELL2);
-        if (pkd->mdl->CacheStatus(CID_PARTICLE2)) pkd->mdl->FinishCache(CID_PARTICLE2);
+        if (mdl->CacheStatus(CID_CELL2)) mdl->FinishCache(CID_CELL2);
+        if (mdl->CacheStatus(CID_PARTICLE2)) mdl->FinishCache(CID_PARTICLE2);
 #endif
-        auto iLast = std::partition(pkd->particles.begin(), pkd->particles.end(), [uRungDD](auto& p) { return p.rung() < uRungDD; }) - pkd->particles.begin();
+        auto iLast = std::partition(particles.begin(), particles.end(), [uRungDD](auto& p) { return p.rung() < uRungDD; }) - particles.begin();
 
-        pkd->tree.resize(NRESERVED_NODES);
-        pRoot->set_local(iLast + 1, pkd->Local() - 1);
+        tree.resize(NRESERVED_NODES);
+        pRoot->set_local(iLast + 1, Local() - 1);
         pRoot->set_group(true);
         pRootFix->set_local(0, iLast);
         pRootFix->set_group(true);
@@ -587,7 +579,7 @@ void pkdContext::Create(int iRoot, double ddHonHLimit) {
             pj = pkdn->lower();
             auto pkdl = tree[pkdn->lchild()];
             auto pkdu = tree[pkdn->rchild()];
-            pkdCombineCells1(this, pkdn, pkdl, pkdu);
+            CombineCells1(pkdn, pkdl, pkdu);
             kdn_r = pkdn->position();
             if (pkdn->count() <= NMAX_OPENCALC) {
                 assert(pj <= pkdn->upper());
@@ -631,13 +623,13 @@ void pkdContext::Create(int iRoot, double ddHonHLimit) {
             else {
                 pkdn->calc_open(bmin); // set bMax
             }
-            pkdCombineCells2(this, pkdn, pkdl, pkdu);
+            CombineCells2(pkdn, pkdl, pkdu);
         }
         ++iNode;
     }
 }
 
-void pkdCombineCells1(PKD pkd, treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2) {
+void pkdContext::CombineCells1(treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2) {
     auto p1bnd = p1->bound();
     auto p2bnd = p2->bound();
     auto bnd = p1bnd.combine(p2bnd);
@@ -673,7 +665,7 @@ void pkdCombineCells1(PKD pkd, treeStore::NodePointer pkdn, treeStore::NodePoint
         const auto& SPHbob1 = p1->BOB();
         const auto& SPHbob2 = p2->BOB();
 
-        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
+        if (particles.present(PKD_FIELD::oNewSph)) {
             /* Combine ball or box of balls */
             SPHbob = SPHbob1.combine(SPHbob2);
         }
@@ -686,7 +678,7 @@ void pkdCombineCells1(PKD pkd, treeStore::NodePointer pkdn, treeStore::NodePoint
     pkdn->set_NN(p1->is_NN() || p2->is_NN());
 }
 
-void pkdCombineCells2(PKD pkd, treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2) {
+void pkdContext::CombineCells2(treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2) {
     /*
     ** Now calculate the reduced multipole moment.
     ** Shift the multipoles of each of the children
@@ -713,7 +705,7 @@ void pkdCombineCells2(PKD pkd, treeStore::NodePointer pkdn, treeStore::NodePoint
     /*
     ** Combine the special fast gas ball bounds for SPH.
     */
-    if (pkd->tree.present(KDN_FIELD::oNodeSphBounds)) {
+    if (tree.present(KDN_FIELD::oNodeSphBounds)) {
         const auto& b1 = p1->sphbounds();
         const auto& b2 = p2->sphbounds();
         auto& bn = pkdn->sphbounds();
@@ -763,32 +755,32 @@ void pkdContext::TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTe
 /*
 ** The array iGrpOffset[i] passed in here must have 2*pkd->nGroups entries!
 */
-void pkdGroupOrder(PKD pkd, uint32_t* iGrpOffset) {
+void pkdContext::GroupOrder(uint32_t* iGrpOffset) {
     uint32_t i, iTree;
-    uint32_t* iGrpEnd = &iGrpOffset[pkd->nGroups]; /* tricky because the 0th element is not used! */
+    uint32_t* iGrpEnd = &iGrpOffset[nGroups]; /* tricky because the 0th element is not used! */
 
     /* Count the number of particles in each group */
-    for (i = 0; i <= pkd->nGroups; ++i) iGrpOffset[i] = 0;
-    for (i = 0; i < pkd->Local(); ++i) {
-        auto P = pkd->particles[i];
+    for (i = 0; i <= nGroups; ++i) iGrpOffset[i] = 0;
+    for (i = 0; i < Local(); ++i) {
+        auto P = particles[i];
         auto gid = P.group();
         ++iGrpOffset[gid + 1];
     }
     iGrpOffset[1] = 0;
     /* Calculate starting offsets for particles in a group */
-    for (i = 2; i <= pkd->nGroups; ++i) {
+    for (i = 2; i <= nGroups; ++i) {
         iGrpOffset[i] += iGrpOffset[i - 1];
         iGrpEnd[i - 1] = iGrpOffset[i];
     }
     /* Reorder the particles into group order */
-    for (iTree = 1; iTree < pkd->nGroups; ++iTree) {
+    for (iTree = 1; iTree < nGroups; ++iTree) {
         for (i = iGrpOffset[iTree]; i < iGrpEnd[iTree];) {
-            auto P = pkd->particles[i];
+            auto P = particles[i];
             auto gid = P.group();
-            if (!gid) gid = pkd->nGroups;
+            if (!gid) gid = nGroups;
             if (gid == iTree) ++i;
             else {
-                auto p2 = pkd->particles[iGrpOffset[gid]++];
+                auto p2 = particles[iGrpOffset[gid]++];
                 swap(P, p2);
             }
         }
@@ -933,11 +925,11 @@ void pkdContext::TreeBuildByGroup(int nBucket, int nGroup) {
     mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(this));
 }
 
-void pkdDistribRoot(PKD pkd, const double* r, const MOMC* pmom) {
-    pkd->ew.r[0] = r[0];
-    pkd->ew.r[1] = r[1];
-    pkd->ew.r[2] = r[2];
-    pkd->ew.mom = *pmom;
+void pkdContext::DistribRoot(const double* r, const MOMC* pmom) {
+    ew.r[0] = r[0];
+    ew.r[1] = r[1];
+    ew.r[2] = r[2];
+    ew.mom = *pmom;
 }
 
 void pkdContext::TreeUpdateFlagBoundsRecurse(uint32_t uRoot, const SPHOptions* SPHoptions) {

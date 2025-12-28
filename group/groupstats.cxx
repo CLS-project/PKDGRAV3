@@ -900,7 +900,7 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     iGrpOffset = (uint32_t*)(&pkd->tinyGroupTable[pkd->nGroups]);
     mrIndex = (int*)(&iGrpOffset[2 * pkd->nGroups]); /* this stores the ending index of each group in the mr below */
     mr = (MassRadius*)(&mrIndex[pkd->nGroups]);      /* we must be careful how much of this we use! */
-    pkdGroupOrder(pkd, iGrpOffset);
+    pkd->GroupOrder(iGrpOffset);
     iGrpEnd = &iGrpOffset[pkd->nGroups];
     iGrpEnd[0] = 0;
     /*

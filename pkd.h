@@ -511,11 +511,24 @@ class pkdContext : public Integerize {
     void Create(int iRoot, double ddHonHLimit);
     void BuildFromTemplate(int iNode, int M, int nGroup, int iTemplate);
     void TreeUpdateFlagBoundsRecurse(uint32_t uRoot, const SPHOptions* SPHoptions);
+    auto InitializeRootCommon(uint32_t uRoot) {
+        auto pRoot = tree[uRoot];
+        pRoot->set_local();
+        pRoot->set_bound(bnd);
+        return pRoot;
+    }
 
   public:
     void TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
     void TreeBuildByGroup(int nBucket, int nGroup);
     void TreeUpdateFlagBounds(uint32_t uRoot, const SPHOptions* SPHoptions);
+    void TreeInitMarked();
+    auto DistribTopTree(uint32_t uRoot, uint32_t nTop, const KDN* pTop, int allocateMemory) -> uint32_t;
+    void DistribRoot(const double*, const MOMC*);
+    void DumpTrees(int bOnlyVA, uint8_t uRungDD);
+    void CombineCells1(treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
+    void CombineCells2(treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
+    void GroupOrder(uint32_t* iGrpOffset);
 
   public:
     mdl::mdlClass* mdl;
@@ -703,8 +716,6 @@ static inline int pkdIsActive(PKD pkd, PARTICLE* p) {
     return pkdIsRungActive(pkd, p->uRung);
 }
 
-void* pkdTreeNodeGetElement(void* vData, int i, int iDataSize);
-
 /*
 ** The size of a particle is variable based on the memory model.
 ** The following three routines must be used instead of accessing pStore
@@ -732,14 +743,7 @@ static inline int pkdIsNew(PKD pkd, PARTICLE* p) {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd, int nBucket);
-uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, const KDN* pTop, int allocateMemory);
 void pkdOpenCloseCaches(PKD pkd, int bOpen, int bFixed);
-void pkdTreeInitMarked(PKD pkd);
-void pkdDumpTrees(PKD pkd, int bOnlyVA, uint8_t uRungDD);
-void pkdCombineCells1(PKD, treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
-void pkdCombineCells2(PKD, treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
-void pkdDistribRoot(PKD, const double*, const MOMC*);
-void pkdGroupOrder(PKD pkd, uint32_t* iGrpOffset);
 
 /*
 ** From pkd.c:

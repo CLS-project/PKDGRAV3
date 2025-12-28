@@ -27,6 +27,6 @@ int ServiceDistribTopTree::Service(PST pst, std::span<std::byte> vin, std::span<
     auto pkd = pst->lcl()->pkd;
     auto pTop = reinterpret_cast<const KDN*>(in + 1);
     assert(vin.size() == sizeof(input) + in->nTop * pkd->NodeSize());
-    pkdDistribTopTree(pkd, in->uRoot, in->nTop, pTop, in->allocateMemory);
+    pkd->DistribTopTree(in->uRoot, in->nTop, pTop, in->allocateMemory);
     return 0;
 }

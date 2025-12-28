@@ -112,7 +112,6 @@ inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view Checkpoint = "Checkpoint";
-inline constexpr std::string_view TreeInitMarked = "TreeInitMarked";
 inline constexpr std::string_view Smooth = "Smooth";
 inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view LightCone = "LightCone";
@@ -215,7 +214,6 @@ enum pst_service {
     PST_OUTPUT,
     PST_OUTPUT_SEND,
     PST_CHECKPOINT,
-    PST_TREEINITMARKED,
     PST_SMOOTH,
     PST_GRAVITY,
     PST_LIGHTCONE,
@@ -416,9 +414,6 @@ int pstCheckpoint(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
-
-/* PST_TREEINITMARKED */
-int pstTreeInitMarked(PST, void*, int, void*, int);
 
 /* PST_HOP_LINK */
 struct inHopLink {

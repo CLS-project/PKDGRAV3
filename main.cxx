@@ -153,6 +153,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceDistribTopTree>(pst);
     mdl->AddService<ServiceDistribRoot>(pst);
     mdl->AddService<ServiceDumpTrees>(pst);
+    mdl->AddService<ServiceTreeInitMarked>(pst);
     mdl->AddService<ServiceEnforcePeriodic>(pst);
     mdl->AddService<ServiceFreeStore>(pst);
     mdl->AddService<ServiceSetSoft>(pst);

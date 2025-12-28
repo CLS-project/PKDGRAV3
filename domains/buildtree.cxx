@@ -45,9 +45,9 @@ auto ServiceBuildTree::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
     auto pCell2 = pTop + pst->n_lower() * 2;
     pTop->bMax() = HUGE_VAL; /* initialize bMax for CombineCells */
     auto minside = pst->bnd.minside();
-    pkdCombineCells1(pkd, pTop, pCell1, pCell2);
+    pkd->CombineCells1(pTop, pCell1, pCell2);
     pTop->calc_open(minside);
-    pkdCombineCells2(pkd, pTop, pCell1, pCell2);
+    pkd->CombineCells2(pTop, pCell1, pCell2);
 
     /* Get our cell ready */
     pTop->set_top_tree(pst->n_lower() * 2);
@@ -78,4 +78,10 @@ auto ServiceBuildTree::build_tree(PKD pkd, std::span<std::byte> in) -> void {
 auto ServiceTreeUpdateFlagBounds::build_tree(PKD pkd, std::span<std::byte> in) -> void {
     auto input_data = reinterpret_cast<const input*>(in.data());
     pkd->TreeUpdateFlagBounds(input_data->base.uRoot, &input_data->SPHoptions);
+}
+
+auto ServiceTreeInitMarked::Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int {
+    auto pkd = pst->lcl()->pkd;
+    pkd->TreeInitMarked();
+    return 0;
 }

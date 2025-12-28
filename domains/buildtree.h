@@ -52,4 +52,13 @@ class ServiceTreeUpdateFlagBounds : public ServiceBuildTree {
     auto build_tree(PKD pkd, std::span<std::byte> in) -> void override;
 };
 
+class ServiceTreeInitMarked : public TraversePST {
+  public:
+    static constexpr std::string_view name = "TreeInitMarked";
+    explicit ServiceTreeInitMarked(PST pst) : TraversePST(pst, name) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 #endif // BUILDTREE_H

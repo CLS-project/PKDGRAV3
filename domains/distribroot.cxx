@@ -25,6 +25,6 @@ int ServiceDistribRoot::Service(PST pst, std::span<std::byte> vin, std::span<std
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
     auto pkd = pst->lcl()->pkd;
-    pkdDistribRoot(pkd, in->r, &in->momc);
+    pkd->DistribRoot(in->r, &in->momc);
     return 0;
 }

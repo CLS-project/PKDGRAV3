@@ -88,7 +88,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
-    mdl->AddService(PST_TREEINITMARKED, pst, (fcnService_t*)pstTreeInitMarked, 0, 0, Legacy::TreeInitMarked);
     mdl->AddService(PST_HOP_LINK, pst, (fcnService_t*)pstHopLink, sizeof(struct inHopLink), sizeof(uint64_t), Legacy::HopLink);
     mdl->AddService(PST_HOP_JOIN, pst, (fcnService_t*)pstHopJoin, sizeof(struct inHopLink), sizeof(struct outHopJoin), Legacy::HopJoin);
     mdl->AddService(PST_HOP_FINISH_UP, pst, (fcnService_t*)pstHopFinishUp, sizeof(struct inHopFinishUp), sizeof(uint64_t), Legacy::HopFinishUp);
@@ -599,22 +598,6 @@ int pstWrite(PST pst, void* vin, int nIn, void* vout, int nOut) {
         }
     }
 
-    return 0;
-}
-
-int pstTreeInitMarked(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
-    assert(nIn == 0);
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_TREEINITMARKED, vin, nIn);
-        pstTreeInitMarked(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdTreeInitMarked(pkd);
-    }
     return 0;
 }
 

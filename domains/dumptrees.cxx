@@ -25,6 +25,6 @@ int ServiceDumpTrees::Service(PST pst, std::span<std::byte> vin, std::span<std::
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
     auto pkd = pst->lcl()->pkd;
-    pkdDumpTrees(pkd, in->bOnlyVA, in->uRungDD);
+    pkd->DumpTrees(in->bOnlyVA, in->uRungDD);
     return 0;
 }
