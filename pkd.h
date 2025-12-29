@@ -531,6 +531,9 @@ class pkdContext : public Integerize {
 
     void fetch_forces(int cid, int nGrid, base_type::force_array_t& forces, const base_type::shape_vector_t& lower);
     void flush_masses(int nGrid, const base_type::mass_array_t& masses, const base_type::shape_vector_t& lower, int fold);
+    void FofRemoteSearch(double dTau2, int bPeriodic, int nReplicas, int nBucket);
+    auto FofGatherLocal(std::vector<int>& S, double fBall2, blitz::TinyVector<double, 3> r, uint32_t iGroup, uint32_t iTail, uint32_t* Fifo,
+                        int* pbCurrFofContained, const Bound::coord_type fMinFofContained, const Bound::coord_type fMaxFofContained) -> uint32_t;
 
   public:
     void TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
@@ -557,6 +560,9 @@ class pkdContext : public Integerize {
     void AddLinearSignal(int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a);
     void AssignMass(uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta, int fold);
     void WindowCorrection(int iAssignment, int iGrid);
+    void NewFof(double dTau2, int nMinMembers, int bPeriodic, int nReplicas, int nBucket);
+    auto FofPhases() -> bool;
+    auto FofFinishUp(int nMinGroupSize) -> uint64_t;
 
   public:
     mdl::mdlClass* mdl;
@@ -647,7 +653,7 @@ class pkdContext : public Integerize {
     struct smGroupArray* ga;
     Bound bndInterior; /* this gets calculated at the start of Fof for now but should be done elsewhere */
     /*
-    ** Some variables needed for pkdNewFof().
+    ** Some variables needed for NewFof().
     */
     uint32_t iRemoteGroup, nMaxRemoteGroups;
     FOFRemote* tmpFofRemote;

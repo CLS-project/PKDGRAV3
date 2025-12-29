@@ -29,7 +29,7 @@ int ServiceFftSizes::Service(PST pst, std::span<std::byte> vin, std::span<std::b
     return sizeof(output);
 }
 
-int ServiceFftSizes::Combine(std::span<std::byte> vout, std::span<const std::byte> vin) {
+int ServiceFftSizes::Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) {
     auto out = reinterpret_cast<output*>(vout.data());
     auto in = reinterpret_cast<const output*>(vin.data());
     out->nMaxLocal = std::max(out->nMaxLocal, in->nMaxLocal);

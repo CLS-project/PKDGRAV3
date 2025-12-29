@@ -15,13 +15,53 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FOF_INCLUDED
-#define FOF_INCLUDED
+#ifndef FOF_H
+#define FOF_H
+#include "TraversePST.h"
 
-#include "pkd.h"
+class ServiceNewFof : public TraversePST {
+  public:
+    static constexpr std::string_view name = "NewFof";
+    struct input {
+        double dTau2;
+        int nMinMembers;
+        int bPeriodic;
+        int nReplicas;
+        int nBucket;
+    };
+    using output = void;
+    explicit ServiceNewFof(PST pst) : TraversePST(pst, name, sizeof(input)) {}
 
-void pkdNewFof(PKD pkd, double dTau2, int nMinMembers, int bPeriodic, int nReplicas, int nBucket);
-int pkdFofPhases(PKD pkd);
-uint64_t pkdFofFinishUp(PKD pkd, int nMinGroupSize);
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceFofPhases : public TraverseCombinePST {
+  public:
+    static constexpr std::string_view name = "FofPhases";
+    using input = void;
+    struct output {
+        bool bMadeProgress;
+    };
+    explicit ServiceFofPhases(PST pst) : TraverseCombinePST(pst, name, 0, sizeof(output)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) -> int override;
+};
+
+class ServiceFofFinishUp : public TraverseCombinePST {
+  public:
+    static constexpr std::string_view name = "FofFinishUp";
+    struct input {
+        int nMinGroupSize;
+    };
+    using output = uint64_t;
+    explicit ServiceFofFinishUp(PST pst) : TraverseCombinePST(pst, name, sizeof(input), sizeof(output)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) -> int override;
+};
 
 #endif

@@ -76,7 +76,7 @@ class ServiceMeasureLinearPk : public TraverseCombinePST {
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
-    auto Combine(std::span<std::byte> vout, std::span<const std::byte> vin) -> int override;
+    auto Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) -> int override;
 };
 
 class ServiceSetLinearGrid : public TraversePST {

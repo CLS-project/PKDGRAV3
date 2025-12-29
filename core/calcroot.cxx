@@ -45,7 +45,7 @@ int ServiceCalcRoot::Service(PST pst, std::span<std::byte> vin, std::span<std::b
     return sizeof(output);
 }
 
-int ServiceCalcRoot::Combine(std::span<std::byte> vout, std::span<const std::byte> vin) {
+int ServiceCalcRoot::Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) {
     auto out = reinterpret_cast<output*>(vout.data());
     auto in = reinterpret_cast<const output*>(vin.data());
     momAddMomc(&out->momc, &in->momc);

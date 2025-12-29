@@ -443,7 +443,7 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
         dAccumulate[4 * gid + 3] = 0;
     }
     /*
-    ** Make sure we got a consistent number of local groups from after pkdFofFinishUp().
+    ** Make sure we got a consistent number of local groups from after FofFinishUp().
     */
     assert(nLocalGroups == pkd->nLocalGroups);
     /*

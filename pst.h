@@ -152,9 +152,6 @@ inline constexpr std::string_view AddWriteStart = "AddWriteStart";
 inline constexpr std::string_view ColNParts = "ColNParts";
 inline constexpr std::string_view NewOrder = "NewOrder";
 inline constexpr std::string_view SetNParts = "SetNParts";
-inline constexpr std::string_view NewFof = "NewFof";
-inline constexpr std::string_view FofPhases = "FofPhases";
-inline constexpr std::string_view FofFinishUp = "FofFinishUp";
 inline constexpr std::string_view HopLink = "HopLink";
 inline constexpr std::string_view HopJoin = "HopJoin";
 inline constexpr std::string_view HopFinishUp = "HopFinishUp";
@@ -177,9 +174,7 @@ inline constexpr std::string_view CalcDistance = "CalcDistance";
 inline constexpr std::string_view CalcCOM = "CalcCOM";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
-inline constexpr std::string_view AssignMass = "AssignMass";
 inline constexpr std::string_view DensityContrast = "DensityContrast";
-inline constexpr std::string_view WindowCorrection = "WindowCorrection";
 inline constexpr std::string_view Interlace = "Interlace";
 inline constexpr std::string_view GridBinK = "GridBinK";
 inline constexpr std::string_view BispectrumSelect = "BispectrumSelect";
@@ -245,9 +240,6 @@ enum pst_service {
     PST_COLNPARTS,
     PST_NEWORDER,
     PST_SETNPARTS,
-    PST_NEW_FOF,
-    PST_FOF_PHASES,
-    PST_FOF_FINISH_UP,
     PST_HOP_LINK,
     PST_HOP_JOIN,
     PST_HOP_FINISH_UP,
@@ -533,13 +525,13 @@ struct inGravity {
     SPHOptions SPHoptions;
 };
 
-typedef struct StatsCollector {
+using STAT = struct StatsCollector {
     double dSum;
     double dSum2;
     double dMax;
     int idMax;
     int n;
-} STAT;
+};
 
 /*
 ** The outGravityReduct structure is at the beginning of the output message,
@@ -738,28 +730,6 @@ struct inSetNParts {
     uint64_t nBH;
 };
 int pstSetNParts(PST, void*, int, void*, int);
-
-/* PST_NEW_FOF */
-struct inNewFof {
-    double dTau2;
-    int nMinMembers;
-    int bPeriodic;
-    int nReplicas;
-    int nBucket;
-};
-int pstNewFof(PST, void*, int, void*, int);
-
-/* PST_FOF_PHASES */
-struct outFofPhases {
-    int bMadeProgress;
-};
-int pstFofPhases(PST, void*, int, void*, int);
-
-/* PST_FOF_FINISH_UP */
-struct inFofFinishUp {
-    int nMinGroupSize;
-};
-int pstFofFinishUp(PST, void*, int, void*, int);
 
 #ifdef MDL_FFTW
     /* PST_GENERATEIC */

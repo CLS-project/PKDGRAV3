@@ -143,7 +143,7 @@ class TraverseCombinePST : public TraversePST {
 
   protected:
     virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) final;
-    virtual int Combine(std::span<std::byte> vout, std::span<const std::byte> vin) = 0;
+    virtual int Combine(std::span<std::byte> vout, std::span<const std::byte> vin, [[maybe_unused]] PST pst) = 0;
 };
 
 // This class is for services where the input does not change as the PST is walked,
@@ -183,7 +183,7 @@ class TraverseCount : public TraverseCombinePST {
     explicit TraverseCount(PST pst, std::string_view service_name, int nInBytes = 0) : TraverseCombinePST(pst, service_name, nInBytes, sizeof(output)) {}
 
   protected:
-    int Combine(std::span<std::byte> vout, std::span<const std::byte> vin) final {
+    int Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) final {
         auto out = reinterpret_cast<output*>(vout.data());
         auto in = reinterpret_cast<const output*>(vin.data());
         *out += *in;

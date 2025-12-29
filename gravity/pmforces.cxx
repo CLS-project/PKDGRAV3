@@ -452,7 +452,7 @@ auto ServiceMeasureLinearPk::Service(PST pst, std::span<std::byte> vin, std::spa
     std::fill(out->nPower + in->nBins, out->nPower + max_k_bins, 0);
     return sizeof(output);
 }
-auto ServiceMeasureLinearPk::Combine(std::span<std::byte> vout, std::span<const std::byte> vin) -> int {
+auto ServiceMeasureLinearPk::Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) -> int {
     auto out = reinterpret_cast<output*>(vout.data());
     auto in = reinterpret_cast<const output*>(vin.data());
     for (std::size_t i = 0; i < max_k_bins; i++) {

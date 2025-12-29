@@ -146,6 +146,7 @@ namespace rockstar {
 #include "analysis/rsreorder.h"
 #include "analysis/rssaveids.h"
 #include "analysis/rsextract.h"
+#include "group/fof.h"
 
 #include "domains/buildtree.h"
 #include "domains/calcbound.h"
@@ -3638,38 +3639,34 @@ void MSR::Hop(double dTime, double dDelta) {
 }
 
 void MSR::NewFof(double dTau, int nMinMembers) {
-    struct inNewFof in;
-    struct outFofPhases out;
-    struct inFofFinishUp inFinish;
-    int i;
-    uint64_t nGroups;
     double dsec;
 
     TimerStart(TIMER_FOF);
 
-    in.dTau2 = dTau * dTau;
-    in.nMinMembers = nMinMembers;
-    in.bPeriodic = parameters.get_bPeriodic();
-    in.nReplicas = in.bPeriodic ? parameters.get_nReplicas() : 0;
-    in.nBucket = parameters.get_nBucket();
+    ServiceNewFof::input in{.dTau2 = dTau * dTau,
+                            .nMinMembers = nMinMembers,
+                            .bPeriodic = parameters.get_bPeriodic(),
+                            .nReplicas = static_cast<int>(parameters.get_bPeriodic() ? parameters.get_nReplicas() : 0),
+                            .nBucket = static_cast<int>(parameters.get_nBucket())};
 
     if (parameters.get_bVStep()) {
-        print("Running FoF with linking length %g\n", dTau);
+        print("Running FoF with linking length {}\n", dTau);
     }
 
     TimerStart(TIMER_NONE);
-    pstNewFof(pst, &in, sizeof(in), NULL, 0);
+    mdl->RunService<ServiceNewFof>(in);
 
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
     if (parameters.get_bVStep()) print("Initial FoF calculation complete in {:.5f} secs\n", dsec);
 
     TimerStart(TIMER_NONE);
-    i = 0;
+    int i = 0;
+    ServiceFofPhases::output out{.bMadeProgress = true};
     do {
         ++i;
         assert(i < 100);
-        pstFofPhases(pst, NULL, 0, &out, sizeof(out));
+        mdl->RunService<ServiceFofPhases>({}, out);
         if (parameters.get_bVStep()) print("... {} iteration{}\n", i, i == 1 ? "" : "s");
     } while (out.bMadeProgress);
 
@@ -3677,8 +3674,10 @@ void MSR::NewFof(double dTau, int nMinMembers) {
     dsec = TimerGet(TIMER_NONE);
     if (parameters.get_bVStep()) print("Global merge complete in {:.5f} secs\n", dsec);
 
-    inFinish.nMinGroupSize = nMinMembers;
-    pstFofFinishUp(pst, &inFinish, sizeof(inFinish), &nGroups, sizeof(nGroups));
+    uint64_t nGroups;
+    ServiceFofFinishUp::input inFinish{.nMinGroupSize = nMinMembers};
+    mdl->RunService<ServiceFofFinishUp>(inFinish, nGroups);
+
     if (parameters.get_bVStep()) print("Removed groups with fewer than {} particles, {} remain\n", inFinish.nMinGroupSize, nGroups);
     TimerStop(TIMER_FOF);
     dsec = TimerGet(TIMER_FOF);

@@ -141,9 +141,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_COLNPARTS, pst, (fcnService_t*)pstColNParts, 0, nThreads * sizeof(struct outColNParts), Legacy::ColNParts);
     mdl->AddService(PST_NEWORDER, pst, (fcnService_t*)pstNewOrder, nThreads * sizeof(uint64_t), 0, Legacy::NewOrder);
     mdl->AddService(PST_SETNPARTS, pst, (fcnService_t*)pstSetNParts, sizeof(struct inSetNParts), 0, Legacy::SetNParts);
-    mdl->AddService(PST_NEW_FOF, pst, (fcnService_t*)pstNewFof, sizeof(struct inNewFof), 0, Legacy::NewFof);
-    mdl->AddService(PST_FOF_PHASES, pst, (fcnService_t*)pstFofPhases, 0, sizeof(struct outFofPhases), Legacy::FofPhases);
-    mdl->AddService(PST_FOF_FINISH_UP, pst, (fcnService_t*)pstFofFinishUp, sizeof(struct inFofFinishUp), sizeof(uint64_t), Legacy::FofFinishUp);
     mdl->AddService(PST_INITIALIZEPSTORE, pst, (fcnService_t*)pstInitializePStore, sizeof(struct inInitializePStore), sizeof(struct outInitializePStore),
                     Legacy::InitializePStore);
 #ifdef MDL_FFTW
@@ -1398,66 +1395,6 @@ int pstSetNParts(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pkdSetNParts(pst->lcl()->pkd, in->nGas, in->nDark, in->nStar, in->nBH);
     }
     return 0;
-}
-
-int pstNewFof(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inNewFof*>(vin);
-
-    assert(nIn == sizeof(struct inNewFof));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_NEW_FOF, in, nIn);
-        pstNewFof(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        pkdNewFof(plcl->pkd, in->dTau2, in->nMinMembers, in->bPeriodic, in->nReplicas, in->nBucket);
-    }
-    return 0;
-}
-
-int pstFofPhases(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto out = static_cast<struct outFofPhases*>(vout);
-    int bMadeProgress;
-
-    assert(nIn == 0);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_FOF_PHASES, vin, nIn);
-        pstFofPhases(pst->lower(), vin, nIn, out, nOut);
-        bMadeProgress = out->bMadeProgress;
-        pst->mdl()->GetReply(rID, nOut, out);
-        if (!out->bMadeProgress) out->bMadeProgress = bMadeProgress;
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        out->bMadeProgress = pkdFofPhases(plcl->pkd);
-    }
-    return sizeof(struct outFofPhases);
-}
-
-/*
-** This is an almost identical copy of HopFinishUp.
-** JST: added the count of lower subtree number of local groups.
-*/
-int pstFofFinishUp(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inFofFinishUp*>(vin);
-    auto nOutGroups = static_cast<uint64_t*>(vout);
-    uint64_t nOutUpper;
-
-    assert(nIn == sizeof(struct inFofFinishUp));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_FOF_FINISH_UP, vin, nIn);
-        pstFofFinishUp(pst->lower(), vin, nIn, vout, nOut);
-        pst->nLowerGroups = *nOutGroups;
-        pst->mdl()->GetReply(rID, nOutUpper);
-        *nOutGroups += nOutUpper;
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        *nOutGroups = pkdFofFinishUp(plcl->pkd, in->nMinGroupSize);
-        pst->nLowerGroups = 0;
-    }
-    return sizeof(uint64_t);
 }
 
 int pstMemStatus(PST pst, void* vin, int nIn, void* vout, int nOut) {
