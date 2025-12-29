@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <type_traits>
 #ifdef HAVE_CONFIG_H
     #include "config.h"
 #else
@@ -163,9 +164,7 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
 #ifdef MDL_FFTW
-    mdl->AddService(PST_ASSIGN_MASS, pst, (fcnService_t*)pstAssignMass, sizeof(struct inAssignMass), 0, Legacy::AssignMass);
     mdl->AddService(PST_DENSITY_CONTRAST, pst, (fcnService_t*)pstDensityContrast, sizeof(struct inDensityContrast), 0, Legacy::DensityContrast);
-    mdl->AddService(PST_WINDOW_CORRECTION, pst, (fcnService_t*)pstWindowCorrection, sizeof(struct inWindowCorrection), 0, Legacy::WindowCorrection);
     mdl->AddService(PST_INTERLACE, pst, (fcnService_t*)pstInterlace, sizeof(struct inInterlace), 0, Legacy::Interlace);
     mdl->AddService(PST_GRID_BIN_K, pst, (fcnService_t*)pstGridBinK, sizeof(struct inGridBinK), sizeof(struct outGridBinK), Legacy::GridBinK);
     mdl->AddService(PST_BISPECTRUM_SELECT, pst, (fcnService_t*)pstBispectrumSelect, sizeof(struct inBispectrumSelect), 0, Legacy::BispectrumSelect);

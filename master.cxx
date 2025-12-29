@@ -141,6 +141,7 @@ namespace rockstar {
 
 #include "analysis/analysis.h"
 #include "analysis/measurepk.h"
+#include "analysis/assignmass.h"
 #include "analysis/rsloadids.h"
 #include "analysis/rsreorder.h"
 #include "analysis/rssaveids.h"
@@ -4793,6 +4794,22 @@ MSR::MeasurePk(int iAssignment, int bInterlace, int nGrid, double a, int nBins, 
     dsec = TimerGet(TIMER_NONE);
     print("P(k) Calculated, Wallclock: {:.5} secs\n\n", dsec);
     return {nPk, fK, fPk, fPkAll};
+}
+
+void MSR::AssignMass(int iAssignment, int iGrid, float fDelta, int fold) {
+    static const char* schemes[] = {"Nearest Grid Point (NGP)", "Cloud in Cell (CIC)", "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)"};
+    assert(iAssignment >= 0 && iAssignment <= 3);
+    printf("Assigning mass using %s (order %d)\n", schemes[iAssignment], iAssignment);
+    ServiceAssignMass::input mass{.iAssignment = iAssignment, .iGrid = iGrid, .fDelta = fDelta, .fold = fold};
+    auto sec = MSR::Time();
+    mdl->RunService<ServiceAssignMass>(mass);
+    printf("Mass assignment complete, Wallclock: %f secs\n", MSR::Time() - sec);
+}
+
+void MSR::WindowCorrection(int iAssignment, int iGrid) {
+    assert(iAssignment >= 0 && iAssignment <= 3);
+    ServiceWindowCorrection::input in{.iAssignment = iAssignment, .iGrid = iGrid};
+    mdl->RunService<ServiceWindowCorrection>(in);
 }
 
 void MSR::AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed, float fPhase) {

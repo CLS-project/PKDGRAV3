@@ -52,6 +52,7 @@
 #include "analysis/analysis.h"
 #include "analysis/orbits.h"
 #include "analysis/measurepk.h"
+#include "analysis/assignmass.h"
 #ifdef HAVE_ROCKSTAR
     #include "analysis/rshalocount.h"
     #include "analysis/rshaloloadids.h"
@@ -171,6 +172,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceGridDeleteFFT>(pst);
     mdl->AddService<ServiceLinearKick>(pst);
     mdl->AddService<ServiceMeasureLinearPk>(pst);
+    mdl->AddService<ServiceAssignMass>(pst);
+    mdl->AddService<ServiceWindowCorrection>(pst);
     mdl->AddService<ServiceSetLinearGrid>(pst);
     mdl->AddService<ServiceAddLinearSignal>(pst);
     mdl->AddService<ServiceZeroNewRung>(pst);

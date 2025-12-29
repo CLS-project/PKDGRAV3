@@ -383,6 +383,8 @@ using force_array_t = blitz::Array<force_t, 3>;
 using position_t = double;
 using position_vector_t = blitz::TinyVector<position_t, 3>;
 using shape_vector_t = blitz::TinyVector<int, 3>;
+using mass_t = float;
+using mass_array_t = blitz::Array<mass_t, 3>;
 } // namespace base_type
 
 class pkdContext : public Integerize {
@@ -528,6 +530,7 @@ class pkdContext : public Integerize {
     }
 
     void fetch_forces(int cid, int nGrid, base_type::force_array_t& forces, const base_type::shape_vector_t& lower);
+    void flush_masses(int nGrid, const base_type::mass_array_t& masses, const base_type::shape_vector_t& lower, int fold);
 
   public:
     void TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
@@ -552,6 +555,8 @@ class pkdContext : public Integerize {
     void LinearKick(vel_t dtOpen, vel_t dtClose, int iAssignment = 3);
     void MeasureLinearPk(int nGrid, double dA, double dBoxSize, int nBins, int iSeed, int bFixed, float fPhase, double* fK, double* fPower, uint64_t* nPower);
     void AddLinearSignal(int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a);
+    void AssignMass(uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta, int fold);
+    void WindowCorrection(int iAssignment, int iGrid);
 
   public:
     mdl::mdlClass* mdl;
@@ -892,7 +897,6 @@ void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double, 3>& dCenter, double dRa
 void pkdInitializeEOS(PKD pkd);
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
 #ifdef MDL_FFTW
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta, int fold);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
 float getLinAcc(PKD pkd, MDLFFT fft, int cid, double r[3]);
 #endif
