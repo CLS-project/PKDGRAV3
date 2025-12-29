@@ -201,7 +201,6 @@ enum pst_service {
     PST_CHECKPOINT,
     PST_SMOOTH,
     PST_GRAVITY,
-    PST_LIGHTCONE,
     PST_CALCEANDL,
     PST_DRIFT,
 #ifdef GRACKLE
@@ -212,8 +211,6 @@ enum pst_service {
     PST_BH_REPOSITION,
     PST_BH_INIT,
     PST_BH_ACCRETION,
-    PST_ROPARTICLECACHE,
-    PST_PARTICLECACHEFINISH,
     PST_KICK,
     PST_KICKTREE,
     PST_PHYSICALSOFT,
@@ -595,14 +592,6 @@ struct outFluxStats {
     int nAvoided;
     int nComputed;
 };
-
-/* PST_ROPARTICLECACHE */
-
-int pstROParticleCache(PST, void*, int, void*, int);
-
-/* PST_PARTICLECACHEFINISH */
-
-int pstParticleCacheFinish(PST, void*, int, void*, int);
 
 /* PST_KICK */
 struct inKick {

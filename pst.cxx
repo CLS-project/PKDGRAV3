@@ -112,8 +112,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_BH_ACCRETION, pst, (fcnService_t*)pstBHAccretion, sizeof(struct inBHAccretion), 0, Legacy::BHAccretion);
     mdl->AddService(PST_GETMINDT, pst, (fcnService_t*)pstGetMinDt, 0, sizeof(struct outGetMinDt), Legacy::GetMinDt);
     //
-    mdl->AddService(PST_ROPARTICLECACHE, pst, (fcnService_t*)pstROParticleCache, 0, 0, Legacy::ROParticleCache);
-    mdl->AddService(PST_PARTICLECACHEFINISH, pst, (fcnService_t*)pstParticleCacheFinish, 0, 0, Legacy::ParticleCacheFinish);
     mdl->AddService(PST_KICK, pst, (fcnService_t*)pstKick, sizeof(struct inKick), 0, Legacy::Kick);
     mdl->AddService(PST_KICKTREE, pst, (fcnService_t*)pstKickTree, sizeof(struct inKickTree), 0, Legacy::KickTree);
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
@@ -1185,44 +1183,6 @@ int pstChemCompInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdChemCompInit(plcl->pkd, *in);
-    }
-    return 0;
-}
-
-int pstROParticleCache(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-
-    assert(nIn == 0);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_ROPARTICLECACHE, vin, nIn);
-        pstROParticleCache(pst->lower(), NULL, 0, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        /*
-        ** Start particle caching space.
-        */
-        PKD pkd = plcl->pkd;
-        pkd->mdl->CacheInitialize(CID_PARTICLE, std::make_shared<particleCACHEhelper>(pkd));
-    }
-    return 0;
-}
-
-int pstParticleCacheFinish(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-
-    assert(nIn == 0);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_PARTICLECACHEFINISH, vin, nIn);
-        pstParticleCacheFinish(pst->lower(), NULL, 0, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        /*
-        ** Start particle caching space.
-        */
-        PKD pkd = plcl->pkd;
-        pkd->mdl->FinishCache(CID_PARTICLE);
     }
     return 0;
 }
