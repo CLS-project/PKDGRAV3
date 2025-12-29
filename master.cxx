@@ -2672,8 +2672,9 @@ void MSR::ActiveRung(int iRung, int bGreater) {
     }
 }
 
-void MSR::ActiveOrder() {
-    pstActiveOrder(pst, NULL, 0, &(nActive), sizeof(nActive));
+auto MSR::ActiveOrder() -> uint64_t {
+    mdl->RunService<OldDD::ServiceActiveOrder>({}, nActive);
+    return nActive;
 }
 
 int MSR::CountRungs(uint64_t* nRungs) {

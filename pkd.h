@@ -18,6 +18,7 @@
 #ifndef PKD_HINCLUDED
 #define PKD_HINCLUDED
 
+#include <cstdint>
 #include <stdint.h>
 #include <string.h>
 #include <optional>
@@ -546,6 +547,7 @@ class pkdContext : public Integerize {
     void CombineCells1(treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
     void CombineCells2(treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
     void GroupOrder(uint32_t* iGrpOffset);
+    auto ActiveOrder() -> uint64_t;
 
     void UpdateGasValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions);
     void ResetCOM(blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
@@ -804,7 +806,6 @@ int pkdLowerPartWrap(PKD, int, double, double, int, int);
 int pkdUpperPartWrap(PKD, int, double, double, int, int);
 int pkdLowerOrdPart(PKD, uint64_t, int, int);
 int pkdUpperOrdPart(PKD, uint64_t, int, int);
-int pkdActiveOrder(PKD);
 
 /*#define PEANO_HILBERT_KEY_MAX 0x3ffffffffffull*/  /* 2d */
 #define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */

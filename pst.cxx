@@ -121,7 +121,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
-    mdl->AddService(PST_ACTIVEORDER, pst, (fcnService_t*)pstActiveOrder, 0, sizeof(uint64_t), Legacy::ActiveOrder);
     mdl->AddService(PST_DENSITYSTEP, pst, (fcnService_t*)pstDensityStep, sizeof(struct inDensityStep), 0, Legacy::DensityStep);
     mdl->AddService(PST_CORRECTENERGY, pst, (fcnService_t*)pstCorrectEnergy, sizeof(struct inCorrectEnergy), 0, Legacy::CorrectEnergy);
     mdl->AddService(PST_ACCELSTEP, pst, (fcnService_t*)pstAccelStep, sizeof(struct inAccelStep), 0, Legacy::AccelStep);
@@ -351,30 +350,6 @@ int pstReadFile(PST pst, void* vin, int nIn, void* vout, int nOut) {
         fioClose(fio);
     }
     return 0;
-}
-
-int pstActiveOrder(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto plcl = pst->lcl();
-    auto pnActive = static_cast<uint64_t*>(vout);
-    uint64_t nActiveLeaf;
-
-    assert(nIn == 0);
-    /*
-      pkdStartTimer(pst->lcl()->pkd,5);
-    */
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_ACTIVEORDER, NULL, 0);
-        pstActiveOrder(pst->lower(), NULL, 0, vout, nOut);
-        pst->mdl()->GetReply(rID, nActiveLeaf);
-        *pnActive += nActiveLeaf;
-    }
-    else {
-        *pnActive = pkdActiveOrder(plcl->pkd);
-    }
-    return sizeof(uint64_t);
-    /*
-      pkdStopTimer(pst->lcl()->pkd,5);
-    */
 }
 
 int pstAddWriteStart(PST pst, void* vin, int nIn, void* vout, int nOut) {

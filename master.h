@@ -418,7 +418,7 @@ class MSR {
     void InitCosmology(CSM csm);
     void BuildTree(int bNeedEwald, uint32_t uRoot, uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
-    void ActiveOrder();
+    auto ActiveOrder() -> uint64_t;
     void CalcBound(Bound& bnd);
     void CalcBound();
     void CountSpecies();

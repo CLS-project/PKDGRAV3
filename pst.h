@@ -137,7 +137,6 @@ inline constexpr std::string_view KickTree = "KickTree";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view SetTotal = "SetTotal";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-inline constexpr std::string_view ActiveOrder = "ActiveOrder";
 inline constexpr std::string_view AccelStep = "AccelStep";
 inline constexpr std::string_view StarForm = "StarForm";
 inline constexpr std::string_view StarFormInit = "StarFormInit";
@@ -216,7 +215,6 @@ enum pst_service {
     PST_PHYSICALSOFT,
     PST_SETTOTAL,
     PST_ONENODEREADINIT,
-    PST_ACTIVEORDER,
     PST_ACCELSTEP,
     PST_STARFORM,
     PST_STARFORMINIT,
@@ -633,9 +631,6 @@ int pstSetTotal(PST, void*, int, void*, int);
 
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-/* PST_ACTIVEORDER */
-int pstActiveOrder(PST, void*, int, void*, int);
 
 struct inDensCheck {
     int iRung;

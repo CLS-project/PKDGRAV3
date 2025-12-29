@@ -17,6 +17,7 @@
 #include "olddd.h"
 #include "freestore.h"
 #include "pkd.h"
+#include <cstdint>
 #include <vector>
 
 namespace OldDD {
@@ -216,7 +217,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
         ** First order the particles into active/inactive order...
         */
         uint64_t nActiveOrder;
-        pstActiveOrder(pst, NULL, 0, &nActiveOrder, sizeof(nActiveOrder)); /* SOON NO MORE ACTIVE ORDER */
+        Traverse<ServiceActiveOrder>(pst, {}, nActiveOrder);
 
         fmm = (fl + fu) / 2;
         /*
@@ -1199,4 +1200,16 @@ int ServiceOrdWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::
     out->nHigh = nHigh;
     return sizeof(output);
 }
+
+auto ServiceActiveOrder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto pkd = pst->lcl()->pkd;
+    *out = pkd->ActiveOrder();
+    return sizeof(output);
+}
 } // namespace OldDD
+
+auto pkdContext::ActiveOrder() -> uint64_t {
+    auto i = std::partition(particles.begin(), particles.end(), [](auto& p) { return p.is_active(); });
+    return (nActive = i - particles.begin());
+}

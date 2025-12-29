@@ -1114,11 +1114,6 @@ int pkdUpperOrdPart(PKD pkd, uint64_t nOrdSplit, int i, int j) {
     return ii - pkd->particles.begin();
 }
 
-int pkdActiveOrder(PKD pkd) {
-    auto i = std::partition(pkd->particles.begin(), pkd->particles.end(), [](auto& p) { return p.is_active(); });
-    return (pkd->nActive = i - pkd->particles.begin());
-}
-
 std::pair<int, int> pkdColRejects(PKD pkd, int nSplit) {
     int iRejects, iDecoratorRejects, i;
 

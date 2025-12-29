@@ -207,6 +207,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<OldDD::ServiceWeight>(pst);
     mdl->AddService<OldDD::ServiceWeightWrap>(pst);
     mdl->AddService<OldDD::ServiceOrdWeight>(pst);
+    mdl->AddService<OldDD::ServiceActiveOrder>(pst);
     mdl->AddService<ServiceUpdateGasValues>(pst);
     mdl->AddService<ServiceLightConeOpen>(pst);
     mdl->AddService<ServiceLightConeClose>(pst);

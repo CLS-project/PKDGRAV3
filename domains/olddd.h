@@ -16,6 +16,7 @@
  */
 #include "pkd_config.h"
 #include "TraversePST.h"
+#include <cstdint>
 
 namespace OldDD {
 class ServiceColRejects : public TraversePST {
@@ -197,4 +198,15 @@ class ServiceOrdWeight : public TraversePST {
     virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
+
+class ServiceActiveOrder : public TraverseCount<uint64_t> {
+  public:
+    static constexpr std::string_view name = "ActiveOrder";
+    using input = void;
+    explicit ServiceActiveOrder(PST pst) : TraverseCount<uint64_t>(pst, name, 0) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 } // namespace OldDD
