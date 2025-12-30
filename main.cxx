@@ -53,7 +53,7 @@
 #include "analysis/orbits.h"
 #include "analysis/measurepk.h"
 #include "analysis/assignmass.h"
-#include "bispectrum.h"
+#include "analysis/bispectrum.h"
 #ifdef HAVE_ROCKSTAR
     #include "analysis/rshalocount.h"
     #include "analysis/rshaloloadids.h"
@@ -64,7 +64,7 @@
 #include "analysis/rsextract.h"
 #include "group/fof.h"
 
-#include "lightcone.h"
+#include "analysis/lightcone.h"
 
 #include "io/output.h"
 #include "io/classes.h"

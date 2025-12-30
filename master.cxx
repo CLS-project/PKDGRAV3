@@ -128,7 +128,7 @@ struct fmt::formatter<DeferFormat> {
 #include "io/restore.h"
 #include "io/output.h"
 #include "io/classes.h"
-#include "lightcone.h"
+#include "analysis/lightcone.h"
 #ifdef INSTRUMENT_MPI
     #include "core/cachestats.h"
 #endif
@@ -145,7 +145,7 @@ namespace rockstar {
 #include "analysis/analysis.h"
 #include "analysis/measurepk.h"
 #include "analysis/assignmass.h"
-#include "bispectrum.h"
+#include "analysis/bispectrum.h"
 #include "analysis/rsloadids.h"
 #include "analysis/rsreorder.h"
 #include "analysis/rssaveids.h"
