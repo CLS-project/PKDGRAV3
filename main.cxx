@@ -177,6 +177,9 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceMeasureLinearPk>(pst);
     mdl->AddService<ServiceAssignMass>(pst);
     mdl->AddService<ServiceWindowCorrection>(pst);
+    mdl->AddService<ServiceDensityContrast>(pst);
+    mdl->AddService<ServiceInterlace>(pst);
+    mdl->AddService<ServiceGridBinK>(pst);
     mdl->AddService<ServiceSetLinearGrid>(pst);
     mdl->AddService<ServiceAddLinearSignal>(pst);
     mdl->AddService<ServiceBispectrumSelect>(pst);

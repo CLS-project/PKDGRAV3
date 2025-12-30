@@ -4712,7 +4712,7 @@ MSR::MeasurePk(int iAssignment, int bInterlace, int nGrid, double a, int nBins, 
     GridCreateFFT(nGrid);
 
     if (nGrid / 2 < nBins) nBins = nGrid / 2;
-    assert(nBins <= PST_MAX_K_BINS);
+    assert(nBins <= ServiceGridBinK::max_k_bins);
 
     TimerStart(TIMER_NONE);
     print("Measuring P(k) with grid size {grid} ({bins} bins)...\n", "grid"_a = nGrid, "bins"_a = nBins);
@@ -4753,6 +4753,16 @@ void MSR::AssignMass(int iAssignment, int iGrid, float fDelta, int fold) {
     printf("Mass assignment complete, Wallclock: %f secs\n", MSR::Time() - sec);
 }
 
+void MSR::DensityContrast(int iGrid, bool k) {
+    ServiceDensityContrast::input in{.dTotalMass = TotalMass(), .iGrid = iGrid, .k = k};
+    mdl->RunService<ServiceDensityContrast>(in);
+}
+
+void MSR::Interlace(int iGridTarget, int iGridSource) {
+    ServiceInterlace::input in{.iGridTarget = iGridTarget, .iGridSource = iGridSource};
+    mdl->RunService<ServiceInterlace>(in);
+}
+
 void MSR::WindowCorrection(int iAssignment, int iGrid) {
     assert(iAssignment >= 0 && iAssignment <= 3);
     ServiceWindowCorrection::input in{.iAssignment = iAssignment, .iGrid = iGrid};
@@ -4768,14 +4778,12 @@ std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>> // nPk
 MSR::GridBinK(int nBins, int iGrid) {
     std::vector<uint64_t> nPk(nBins);
     std::vector<float> fK(nBins), fPk(nBins);
-    struct inGridBinK in;
-    auto out = new struct outGridBinK;
-    in.nBins = nBins;
-    in.iGrid = iGrid;
+    auto out = std::make_unique<ServiceGridBinK::output>();
 
     assert(sizeof(out->nPower) / sizeof(out->nPower[0]) > nBins);
 
-    pstGridBinK(pst, &in, sizeof(in), out, sizeof(*out));
+    ServiceGridBinK::input in{.nBins = nBins, .iGrid = iGrid};
+    mdl->RunService<ServiceGridBinK>(in, *out);
     for (int i = 0; i < nBins; i++) {
         if (out->nPower[i] == 0) fK[i] = fPk[i] = 0;
         else {
@@ -4784,7 +4792,6 @@ MSR::GridBinK(int nBins, int iGrid) {
             fPk[i] = out->fPower[i] / out->nPower[i];
         }
     }
-    delete out;
 
     /* At this point, dPk[] needs to be corrected by the box size */
     return {nPk, fK, fPk};

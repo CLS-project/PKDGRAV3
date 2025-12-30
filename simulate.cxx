@@ -19,6 +19,7 @@
 #include <cmath>
 #include <fstream>
 #include "master.h"
+#include "analysis/measurepk.h"
 #include "units.h"
 #include "fmt/format.h"
 #include <fmt/ranges.h>
@@ -674,7 +675,7 @@ int MSR::ValidateParameters() {
 #ifdef MDL_FFTW
     auto nGridPk = parameters.get_nGridPk();
     if (nGridPk) {
-        parameters.set_nBinsPk(std::min(parameters.has_nBinsPk() ? parameters.get_nBinsPk() : PST_MAX_K_BINS, nGridPk / 2));
+        parameters.set_nBinsPk(std::min(parameters.has_nBinsPk() ? parameters.get_nBinsPk() : static_cast<int>(ServiceGridBinK::max_k_bins), nGridPk / 2));
     }
     auto iPkOrder = parameters.get_iPkOrder();
     if (iPkOrder < ASSIGNMENT_ORDER::NGP || iPkOrder > ASSIGNMENT_ORDER::PCS) {

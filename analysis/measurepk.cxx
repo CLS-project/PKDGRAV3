@@ -94,15 +94,39 @@ void pkdContext::AddLinearSignal(int iGrid, int iSeed, bool bFixed, float fPhase
     ng.FillNoise(K1, nGrid);
 }
 
-void pkdGridBinK(PKD pkd, int nBins, int iGrid, double* fK, double* fPower, uint64_t* nPower) {
-    assert(pkd->fft != NULL);
-    auto fft = pkd->fft;
+auto ServiceGridBinK::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto pkd = pst->lcl()->pkd;
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == sizeof(output));
+    pkd->GridBinK(in->nBins, in->iGrid, std::span{out->fK}, std::span{out->fPower}, std::span{out->nPower});
+    return sizeof(output);
+}
+
+auto ServiceGridBinK::Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte> vin, PST) -> int {
+    auto out1 = reinterpret_cast<output*>(vout1.data());
+    auto out2 = reinterpret_cast<const output*>(vout2.data());
+    auto in = reinterpret_cast<const input*>(vin.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout1.size() == sizeof(output));
+    assert(vout2.size() == sizeof(output));
+    for (auto i = 0; i < in->nBins; i++) {
+        out1->fK[i] += out2->fK[i];
+        out1->fPower[i] += out2->fPower[i];
+        out1->nPower[i] += out2->nPower[i];
+    }
+    return sizeof(output);
+}
+
+void pkdContext::GridBinK(int nBins, int iGrid, std::span<double> fK, std::span<double> fPower, std::span<uint64_t> nPower) {
+    assert(fft != NULL);
     int nGrid = fft->rgrid->n1;
     auto iNyquist = nGrid / 2;
-    GridInfo G(pkd->mdl, fft);
+    GridInfo G(mdl, fft);
 
     complex_array_t K1;
-    auto data1 = pkd->mdl->SetArray(pkd->Ephemeral<real_t>()) + fft->rgrid->nLocal * iGrid;
+    auto data1 = mdl->SetArray(Ephemeral<real_t>()) + fft->rgrid->nLocal * iGrid;
     G.setupArray(data1, K1);
 
     for (auto i = 0; i < nBins; i++) {
@@ -143,30 +167,61 @@ void pkdGridBinK(PKD pkd, int nBins, int iGrid, double* fK, double* fPower, uint
     }
 }
 
-int pstGridBinK(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = reinterpret_cast<struct inGridBinK*>(vin);
-    auto out = reinterpret_cast<struct outGridBinK*>(vout);
-    int i;
+auto ServiceDensityContrast::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto pkd = pst->lcl()->pkd;
+    auto in = reinterpret_cast<const input*>(vin.data());
+    assert(vin.size() == sizeof(input));
+    pkd->DensityContrast(in->dTotalMass, in->iGrid, in->k);
+    return 0;
+}
 
-    assert(nIn == sizeof(struct inGridBinK));
-    assert(nOut == sizeof(struct outGridBinK));
-    if (pst->NotCore()) {
-        auto outUpper = new struct outGridBinK;
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GRID_BIN_K, vin, nIn);
-        pstGridBinK(pst->lower(), vin, nIn, vout, nOut);
-        nOut = pst->mdl()->GetReply(rID, sizeof(*outUpper), outUpper);
-        assert(nOut == sizeof(struct outGridBinK));
+void pkdContext::DensityContrast(double dTotalMass, int iGrid, bool k) {
+    GridInfo G(mdl, fft);
+    int nGrid = fft->rgrid->n1;
+    auto data = mdl->SetArray(Ephemeral<real_t>()) + fft->rgrid->nLocal * iGrid;
+    real_array_t R;
+    G.setupArray(data, R);
+    if (k) { // Delta(k): same as Delta(r) below, but apply normalization for the FFT (divide by nGrid^3)
+        real_t diTotalMass = 1.0 / dTotalMass;
+        real_t fftNormalize = 1.0 / (1.0 * nGrid * nGrid * nGrid);
+        R = R * diTotalMass - fftNormalize;
+        mdl->FFT(fft, data);
+    }
+    else { // Delta(r) = rho / rho_bar - 1.0
+        real_t diRhoBar = (1.0 * nGrid * nGrid * nGrid) / dTotalMass;
+        R = R * diRhoBar - 1.0;
+    }
+}
 
-        for (i = 0; i < in->nBins; i++) {
-            out->fK[i] += outUpper->fK[i];
-            out->fPower[i] += outUpper->fPower[i];
-            out->nPower[i] += outUpper->nPower[i];
-        }
-        delete outUpper;
+auto ServiceInterlace::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto pkd = pst->lcl()->pkd;
+    auto in = reinterpret_cast<const input*>(vin.data());
+    assert(vin.size() == sizeof(input));
+    pkd->Interlace(in->iGridTarget, in->iGridSource);
+    return 0;
+}
+
+void pkdContext::Interlace(int iGridTarget, int iGridSource) {
+    auto ephemeral = Ephemeral<real_t>();
+    int nGrid = fft->rgrid->n1;
+    auto iNyquist = nGrid / 2;
+
+    GridInfo G(mdl, fft);
+
+    complex_array_t K1, K2;
+    auto data1 = mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridTarget;
+    auto data2 = mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridSource;
+    G.setupArray(data1, K1);
+    G.setupArray(data2, K2);
+
+    for (auto index = K1.begin(); index != K1.end(); ++index) {
+        const auto v1 = *index;
+        auto pos = index.position();
+        auto i = pos[0]; // i is positive; j and k can be negative
+        auto j = pos[1] > iNyquist ? pos[1] - nGrid : pos[1];
+        auto k = pos[2] > iNyquist ? pos[2] - nGrid : pos[2];
+        float theta = M_PI / nGrid * (i + j + k);
+        auto v2 = K2(index.position()) * complex_t(cosf(theta), sinf(theta));
+        *index = complex_t(0.5) * (v1 + v2);
     }
-    else {
-        pkdGridBinK(plcl->pkd, in->nBins, in->iGrid, out->fK, out->fPower, out->nPower);
-    }
-    return sizeof(struct outGridBinK);
 }

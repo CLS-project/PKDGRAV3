@@ -561,7 +561,10 @@ class pkdContext : public Integerize {
     void MeasureLinearPk(int nGrid, double dA, double dBoxSize, int nBins, int iSeed, int bFixed, float fPhase, double* fK, double* fPower, uint64_t* nPower);
     void AddLinearSignal(int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a);
     void AssignMass(uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta, int fold);
+    void DensityContrast(double dTotalMass, int iGrid, bool k = false);
+    void Interlace(int iGridTarget, int iGridSource);
     void WindowCorrection(int iAssignment, int iGrid);
+    void GridBinK(int nBins, int iGrid, std::span<double> fK, std::span<double> fPower, std::span<uint64_t> nPower);
     void BispectrumSelect(int iGridTarget, int iGridSource, double kmin, double kmax);
     auto BispectrumCalculate(int iGrid1, int iGrid2, int iGrid3) -> double;
     void BispectrumNormalize(int iGridTarget, double kmin, double kmax);
@@ -903,7 +906,6 @@ void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double, 3>& dCenter, double dRa
 void pkdInitializeEOS(PKD pkd);
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
 #ifdef MDL_FFTW
-void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
 float getLinAcc(PKD pkd, MDLFFT fft, int cid, double r[3]);
 #endif
 void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType);

@@ -151,11 +151,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_CALCCOM, pst, (fcnService_t*)pstCalcCOM, sizeof(struct inCalcCOM), sizeof(struct outCalcCOM), Legacy::CalcCOM);
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
-#ifdef MDL_FFTW
-    mdl->AddService(PST_DENSITY_CONTRAST, pst, (fcnService_t*)pstDensityContrast, sizeof(struct inDensityContrast), 0, Legacy::DensityContrast);
-    mdl->AddService(PST_INTERLACE, pst, (fcnService_t*)pstInterlace, sizeof(struct inInterlace), 0, Legacy::Interlace);
-    mdl->AddService(PST_GRID_BIN_K, pst, (fcnService_t*)pstGridBinK, sizeof(struct inGridBinK), sizeof(struct outGridBinK), Legacy::GridBinK);
-#endif
 }
 
 static void initializePStore(PKD* ppkd, MDL mdl, struct inInitializePStore* in) {

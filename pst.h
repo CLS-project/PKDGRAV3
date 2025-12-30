@@ -164,9 +164,6 @@ inline constexpr std::string_view CalcDistance = "CalcDistance";
 inline constexpr std::string_view CalcCOM = "CalcCOM";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
-inline constexpr std::string_view DensityContrast = "DensityContrast";
-inline constexpr std::string_view Interlace = "Interlace";
-inline constexpr std::string_view GridBinK = "GridBinK";
 inline constexpr std::string_view GetMinDt = "GetMinDt";
 inline constexpr std::string_view SetGlobalDt = "SetGlobalDt";
 inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
@@ -237,9 +234,7 @@ enum pst_service {
     PST_CALCCOM,
     PST_SETSPHOPTIONS,
     PST_INITIALIZEEOS,
-    PST_DENSITY_CONTRAST,
     PST_INTERLACE,
-    PST_GRID_BIN_K,
     PST_GETMINDT,
     PST_SETGLOBALDT,
 };
@@ -795,34 +790,6 @@ struct inSetSPHoptions {
 int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut);
 /* PST_INITIALIZEEOS */
 int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-#ifdef MDL_FFTW
-    #define PST_MAX_K_BINS 2500
-/* PST_GRID_BIN_K */
-struct inGridBinK {
-    int nBins;
-    int iGrid;
-};
-struct outGridBinK {
-    double fK[PST_MAX_K_BINS];
-    double fPower[PST_MAX_K_BINS];
-    uint64_t nPower[PST_MAX_K_BINS];
-};
-int pstGridBinK(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_DENSITY_CONTRAST */
-struct inDensityContrast {
-    int iGrid;
-    int k;
-    double dTotalMass;
-};
-int pstDensityContrast(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_INTERLACE */
-struct inInterlace {
-    int iGridTarget;
-    int iGridSource;
-};
-int pstInterlace(PST pst, void* vin, int nIn, void* vout, int nOut);
-#endif
 
 /* PST_GETMINDT */
 struct outGetMinDt {
