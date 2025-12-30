@@ -562,6 +562,9 @@ class pkdContext : public Integerize {
     void AddLinearSignal(int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a);
     void AssignMass(uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta, int fold);
     void WindowCorrection(int iAssignment, int iGrid);
+    void BispectrumSelect(int iGridTarget, int iGridSource, double kmin, double kmax);
+    auto BispectrumCalculate(int iGrid1, int iGrid2, int iGrid3) -> double;
+    void BispectrumNormalize(int iGridTarget, double kmin, double kmax);
     void NewFof(double dTau2, int nMinMembers, int bPeriodic, int nReplicas, int nBucket);
     auto FofPhases() -> bool;
     auto FofFinishUp(int nMinGroupSize) -> uint64_t;

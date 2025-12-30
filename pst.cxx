@@ -155,9 +155,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_DENSITY_CONTRAST, pst, (fcnService_t*)pstDensityContrast, sizeof(struct inDensityContrast), 0, Legacy::DensityContrast);
     mdl->AddService(PST_INTERLACE, pst, (fcnService_t*)pstInterlace, sizeof(struct inInterlace), 0, Legacy::Interlace);
     mdl->AddService(PST_GRID_BIN_K, pst, (fcnService_t*)pstGridBinK, sizeof(struct inGridBinK), sizeof(struct outGridBinK), Legacy::GridBinK);
-    mdl->AddService(PST_BISPECTRUM_SELECT, pst, (fcnService_t*)pstBispectrumSelect, sizeof(struct inBispectrumSelect), 0, Legacy::BispectrumSelect);
-    mdl->AddService(PST_BISPECTRUM_CALCULATE, pst, (fcnService_t*)pstBispectrumCalculate, sizeof(struct inBispectrumCalculate), sizeof(double),
-                    Legacy::BispectrumCalculate);
 #endif
 }
 

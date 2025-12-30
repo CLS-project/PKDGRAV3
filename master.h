@@ -205,7 +205,7 @@ class MSR {
     std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>> // nPk, fK, fPk
     GridBinK(int nBins, int iGrid);
     void BispectrumSelect(int iGridTarget, int iGridSource, double kmin, double kmax);
-    double BispectrumCalculate(int iGrid1, int iGrid2, int iGrid3);
+    auto BispectrumCalculate(int iGrid1, int iGrid2, int iGrid3) -> double;
     void GridCreateFFT(int nGrid);
     void GridDeleteFFT();
 

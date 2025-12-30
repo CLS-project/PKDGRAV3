@@ -15,20 +15,27 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "pkd_config.h"
-#include "master.h"
+#include "bispectrum.h"
 #include "core/gridinfo.hpp"
 using namespace gridinfo;
 
-void pkdBispectrumNormalize(PKD pkd, int iGridTarget, double kmin, double kmax) {
-    auto ephemeral = pkd->Ephemeral<real_t>();
-    auto fft = pkd->fft;
+auto ServiceBispectrumSelect::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    if (in->iGridSource < 0) pkd->BispectrumNormalize(in->iGridTarget, in->kmin, in->kmax);
+    else pkd->BispectrumSelect(in->iGridTarget, in->iGridSource, in->kmin, in->kmax);
+    return 0;
+}
+
+void pkdContext::BispectrumNormalize(int iGridTarget, double kmin, double kmax) {
+    auto ephemeral = Ephemeral<real_t>();
     int nGrid = fft->rgrid->n1;
     auto iNyquist = nGrid / 2;
 
-    GridInfo G(pkd->mdl, fft);
+    GridInfo G(mdl, fft);
 
     complex_array_t K1;
-    auto data1 = pkd->mdl->SetArray(ephemeral, 0) + fft->rgrid->nLocal * iGridTarget;
+    auto data1 = mdl->SetArray(ephemeral, 0) + fft->rgrid->nLocal * iGridTarget;
     G.setupArray(data1, K1);
     double k2min = kmin * kmin;
     double k2max = kmax * kmax;
@@ -40,20 +47,19 @@ void pkdBispectrumNormalize(PKD pkd, int iGridTarget, double kmin, double kmax) 
         auto k2 = i * i + j * j + k * k;
         *index = (k2 >= k2min && k2 < k2max) ? 1.0 : 0.0;
     }
-    pkd->mdl->IFFT(fft, (FFTW3(complex)*)K1.dataFirst());
+    mdl->IFFT(fft, (FFTW3(complex)*)K1.dataFirst());
 }
 
-void pkdBispectrumSelect(PKD pkd, int iGridTarget, int iGridSource, double kmin, double kmax) {
-    auto ephemeral = pkd->Ephemeral<real_t>();
-    auto fft = pkd->fft;
+void pkdContext::BispectrumSelect(int iGridTarget, int iGridSource, double kmin, double kmax) {
+    auto ephemeral = Ephemeral<real_t>();
     int nGrid = fft->rgrid->n1;
     auto iNyquist = nGrid / 2;
 
-    GridInfo G(pkd->mdl, fft);
+    GridInfo G(mdl, fft);
 
     complex_array_t K1, K2;
-    auto data1 = pkd->mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridTarget;
-    auto data2 = pkd->mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridSource;
+    auto data1 = mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridTarget;
+    auto data2 = mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGridSource;
     G.setupArray(data1, K1);
     G.setupArray(data2, K2);
 
@@ -68,73 +74,26 @@ void pkdBispectrumSelect(PKD pkd, int iGridTarget, int iGridSource, double kmin,
         if (k2 < k2min || k2 >= k2max) *index = 0.0;
         else *index = K2(index.position());
     }
-    pkd->mdl->IFFT(fft, (FFTW3(complex)*)K1.dataFirst());
+    mdl->IFFT(fft, (FFTW3(complex)*)K1.dataFirst());
 }
 
-int pstBispectrumSelect(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    struct inBispectrumSelect* in = reinterpret_cast<struct inBispectrumSelect*>(vin);
-    assert(nIn == sizeof(struct inBispectrumSelect));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_BISPECTRUM_SELECT, vin, nIn);
-        pstBispectrumSelect(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        if (in->iGridSource < 0) pkdBispectrumNormalize(plcl->pkd, in->iGridTarget, in->kmin, in->kmax);
-        else pkdBispectrumSelect(plcl->pkd, in->iGridTarget, in->iGridSource, in->kmin, in->kmax);
-    }
-    return 0;
+auto ServiceBispectrumCalculate::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto pkd = pst->lcl()->pkd;
+    *out = pkd->BispectrumCalculate(in->iGrid1, in->iGrid2, in->iGrid3);
+    return sizeof(output);
 }
 
-void MSR::BispectrumSelect(int iGridTarget, int iGridSource, double kmin, double kmax) {
-    struct inBispectrumSelect in;
-    in.iGridTarget = iGridTarget;
-    in.iGridSource = iGridSource;
-    in.kmin = kmin;
-    in.kmax = kmax;
-    pstBispectrumSelect(pst, &in, sizeof(in), NULL, 0);
-}
-
-double pkdBispectrumCalculate(PKD pkd, int iGrid1, int iGrid2, int iGrid3) {
-    auto ephemeral = pkd->Ephemeral<real_t>();
-    auto fft = pkd->fft;
-    GridInfo G(pkd->mdl, fft);
+auto pkdContext::BispectrumCalculate(int iGrid1, int iGrid2, int iGrid3) -> double {
+    auto ephemeral = Ephemeral<real_t>();
+    GridInfo G(mdl, fft);
     real_array_t R1, R2, R3;
-    auto data1 = pkd->mdl->SetArray<real_t>(ephemeral) + fft->rgrid->nLocal * iGrid1;
-    auto data2 = pkd->mdl->SetArray<real_t>(ephemeral) + fft->rgrid->nLocal * iGrid2;
-    auto data3 = pkd->mdl->SetArray<real_t>(ephemeral) + fft->rgrid->nLocal * iGrid3;
+    auto data1 = mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGrid1;
+    auto data2 = mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGrid2;
+    auto data3 = mdl->SetArray(ephemeral) + fft->rgrid->nLocal * iGrid3;
     G.setupArray(data1, R1);
     G.setupArray(data2, R2);
     G.setupArray(data3, R3);
     return sum(R1 * R2 * R3);
-}
-
-int pstBispectrumCalculate(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    struct inBispectrumCalculate* in = reinterpret_cast<struct inBispectrumCalculate*>(vin);
-    auto out = reinterpret_cast<double*>(vout);
-    assert(nIn == sizeof(struct inBispectrumCalculate));
-    assert(nOut == sizeof(double));
-    if (pst->NotCore()) {
-        double outUpper;
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_BISPECTRUM_CALCULATE, vin, nIn);
-        pstBispectrumCalculate(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID, outUpper);
-        *out += outUpper;
-    }
-    else {
-        *out = pkdBispectrumCalculate(plcl->pkd, in->iGrid1, in->iGrid2, in->iGrid3);
-    }
-    return nOut;
-}
-
-double MSR::BispectrumCalculate(int iGrid1, int iGrid2, int iGrid3) {
-    struct inBispectrumCalculate in;
-    double result;
-    in.iGrid1 = iGrid1;
-    in.iGrid2 = iGrid2;
-    in.iGrid3 = iGrid3;
-    pstBispectrumCalculate(pst, &in, sizeof(in), &result, sizeof(result));
-    return result;
 }

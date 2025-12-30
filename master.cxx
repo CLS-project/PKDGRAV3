@@ -145,6 +145,7 @@ namespace rockstar {
 #include "analysis/analysis.h"
 #include "analysis/measurepk.h"
 #include "analysis/assignmass.h"
+#include "bispectrum.h"
 #include "analysis/rsloadids.h"
 #include "analysis/rsreorder.h"
 #include "analysis/rssaveids.h"
@@ -4849,6 +4850,18 @@ void MSR::SetLinearGrid(double dTime, double dDelta, int nGrid, int bKickClose, 
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
     print("Force grids of linear species set, Wallclock: {:.5} secs\n\n", dsec);
+}
+
+void MSR::BispectrumSelect(int iGridTarget, int iGridSource, double kmin, double kmax) {
+    ServiceBispectrumSelect::input in{.iGridTarget = iGridTarget, .iGridSource = iGridSource, .kmin = kmin, .kmax = kmax};
+    mdl->RunService<ServiceBispectrumSelect>(in);
+}
+
+auto MSR::BispectrumCalculate(int iGrid1, int iGrid2, int iGrid3) -> double {
+    ServiceBispectrumCalculate::input in{.iGrid1 = iGrid1, .iGrid2 = iGrid2, .iGrid3 = iGrid3};
+    ServiceBispectrumCalculate::output result;
+    mdl->RunService<ServiceBispectrumCalculate>(in, result);
+    return result;
 }
 
 /* First call SetLinearGrid() to setup the grid */

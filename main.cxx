@@ -53,6 +53,7 @@
 #include "analysis/orbits.h"
 #include "analysis/measurepk.h"
 #include "analysis/assignmass.h"
+#include "bispectrum.h"
 #ifdef HAVE_ROCKSTAR
     #include "analysis/rshalocount.h"
     #include "analysis/rshaloloadids.h"
@@ -178,6 +179,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceWindowCorrection>(pst);
     mdl->AddService<ServiceSetLinearGrid>(pst);
     mdl->AddService<ServiceAddLinearSignal>(pst);
+    mdl->AddService<ServiceBispectrumSelect>(pst);
+    mdl->AddService<ServiceBispectrumCalculate>(pst);
     mdl->AddService<ServiceNewFof>(pst);
     mdl->AddService<ServiceFofPhases>(pst);
     mdl->AddService<ServiceFofFinishUp>(pst);

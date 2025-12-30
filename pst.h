@@ -167,8 +167,6 @@ inline constexpr std::string_view InitializeEOS = "InitializeEOS";
 inline constexpr std::string_view DensityContrast = "DensityContrast";
 inline constexpr std::string_view Interlace = "Interlace";
 inline constexpr std::string_view GridBinK = "GridBinK";
-inline constexpr std::string_view BispectrumSelect = "BispectrumSelect";
-inline constexpr std::string_view BispectrumCalculate = "BispectrumCalculate";
 inline constexpr std::string_view GetMinDt = "GetMinDt";
 inline constexpr std::string_view SetGlobalDt = "SetGlobalDt";
 inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
@@ -242,8 +240,6 @@ enum pst_service {
     PST_DENSITY_CONTRAST,
     PST_INTERLACE,
     PST_GRID_BIN_K,
-    PST_BISPECTRUM_SELECT,
-    PST_BISPECTRUM_CALCULATE,
     PST_GETMINDT,
     PST_SETGLOBALDT,
 };
@@ -826,18 +822,6 @@ struct inInterlace {
     int iGridSource;
 };
 int pstInterlace(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_BISPECTRUM_SELECT */
-struct inBispectrumSelect {
-    int iGridTarget;
-    int iGridSource;
-    double kmin, kmax;
-};
-int pstBispectrumSelect(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_BISPECTRUM_CALCULATE */
-struct inBispectrumCalculate {
-    int iGrid1, iGrid2, iGrid3;
-};
-int pstBispectrumCalculate(PST pst, void* vin, int nIn, void* vout, int nOut);
 #endif
 
 /* PST_GETMINDT */
