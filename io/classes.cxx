@@ -55,17 +55,17 @@ auto ServiceGetClasses::Service(PST pst, std::span<std::byte> vin, std::span<std
     return out.size_bytes();
 }
 
-auto ServiceGetClasses::Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) -> int {
-    auto out = span_cast<PARTCLASS>(vout);
-    auto in = span_cast<const PARTCLASS>(vin);
+auto ServiceGetClasses::Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) -> int {
+    auto out1 = span_cast<PARTCLASS>(vout1);
+    auto out2 = span_cast<const PARTCLASS>(vout2);
     // Combine the two sorted lists into one sorted list without duplicates
     std::vector<PARTCLASS> combined;
     combined.reserve(PKD_MAX_CLASSES);
-    std::ranges::set_union(out, in, std::back_inserter(combined));
+    std::ranges::set_union(out1, out2, std::back_inserter(combined));
     assert(combined.size() <= PKD_MAX_CLASSES);
-    out = out.subspan(0, combined.size());
-    std::ranges::copy(combined, out.begin());
-    return out.size_bytes();
+    out1 = out1.subspan(0, combined.size());
+    std::ranges::copy(combined, out1.begin());
+    return out1.size_bytes();
 }
 
 auto ServiceSetClasses::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {

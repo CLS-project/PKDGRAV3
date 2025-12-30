@@ -658,12 +658,12 @@ auto ServiceFofPhases::Service(PST pst, std::span<std::byte> vin, std::span<std:
     return sizeof(output);
 }
 
-auto ServiceFofPhases::Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) -> int {
-    auto out = reinterpret_cast<output*>(vout.data());
-    assert(vout.size() == sizeof(output));
-    auto in = reinterpret_cast<const output*>(vin.data());
-    assert(vin.size() == sizeof(output));
-    out->bMadeProgress |= in->bMadeProgress;
+auto ServiceFofPhases::Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) -> int {
+    auto out1 = reinterpret_cast<output*>(vout1.data());
+    assert(vout1.size() == sizeof(output));
+    auto out2 = reinterpret_cast<const output*>(vout2.data());
+    assert(vout2.size() == sizeof(output));
+    out1->bMadeProgress |= out2->bMadeProgress;
     return sizeof(output);
 }
 
@@ -779,13 +779,13 @@ auto ServiceFofFinishUp::Service(PST pst, std::span<std::byte> vin, std::span<st
     return sizeof(output);
 }
 
-auto ServiceFofFinishUp::Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST pst) -> int {
-    auto out = reinterpret_cast<output*>(vout.data());
-    assert(vout.size() == sizeof(output));
-    auto in = reinterpret_cast<const output*>(vin.data());
-    assert(vin.size() == sizeof(output));
-    pst->nLowerGroups = *out;
-    *out += *in;
+auto ServiceFofFinishUp::Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST pst) -> int {
+    auto out1 = reinterpret_cast<output*>(vout1.data());
+    assert(vout1.size() == sizeof(output));
+    auto out2 = reinterpret_cast<const output*>(vout2.data());
+    assert(vout2.size() == sizeof(output));
+    pst->nLowerGroups = *out1;
+    *out1 += *out2;
     return sizeof(output);
 }
 

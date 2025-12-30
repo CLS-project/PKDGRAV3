@@ -40,7 +40,7 @@ class ServiceGetClasses : public TraverseCombinePST {
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
-    auto Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) -> int override;
+    auto Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) -> int override;
 };
 
 class ServiceSetClasses : public TraversePST {

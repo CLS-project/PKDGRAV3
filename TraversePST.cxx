@@ -64,5 +64,5 @@ int TraverseCombinePST::Recurse(PST pst, std::span<std::byte> vin, std::span<std
     auto nOut1 = Traverse(pst->lower(), vin, vout);
     std::span<std::byte> vout2{reinterpret_cast<std::byte*>(alloca(vout.size())), vout.size()};
     auto nOut2 = mdl->GetReply(rID, vout2);
-    return Combine(vout.subspan(0, nOut1), vout2.subspan(0, nOut2), pst);
+    return Combine(vout.subspan(0, nOut1), vout2.subspan(0, nOut2), vin, pst);
 }

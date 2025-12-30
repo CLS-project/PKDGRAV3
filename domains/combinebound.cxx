@@ -30,9 +30,9 @@ int ServiceCombineBound::Service(PST pst, std::span<std::byte> vin, std::span<st
     return sizeof(output);
 }
 
-int ServiceCombineBound::Combine(std::span<std::byte> vout, std::span<const std::byte> vin, PST) {
-    auto out = reinterpret_cast<output*>(vout.data());
-    auto in = reinterpret_cast<const output*>(vin.data());
-    *out = out->combine(*in);
+int ServiceCombineBound::Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) {
+    auto out1 = reinterpret_cast<output*>(vout1.data());
+    auto out2 = reinterpret_cast<const output*>(vout2.data());
+    *out1 = out1->combine(*out2);
     return sizeof(output);
 }
