@@ -865,7 +865,6 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in);
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3
 #define CORRECTENERGY_IC_MESHLESS 4
-void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iType);
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung, int iMaxRung, uint64_t* nRungCount);
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung);

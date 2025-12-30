@@ -124,7 +124,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
     mdl->AddService(PST_DENSITYSTEP, pst, (fcnService_t*)pstDensityStep, sizeof(struct inDensityStep), 0, Legacy::DensityStep);
-    mdl->AddService(PST_CORRECTENERGY, pst, (fcnService_t*)pstCorrectEnergy, sizeof(struct inCorrectEnergy), 0, Legacy::CorrectEnergy);
     mdl->AddService(PST_ACCELSTEP, pst, (fcnService_t*)pstAccelStep, sizeof(struct inAccelStep), 0, Legacy::AccelStep);
     mdl->AddService(PST_RESMOOTH, pst, (fcnService_t*)pstReSmooth, sizeof(struct inSmooth), sizeof(struct outSmooth), Legacy::ReSmooth);
 #ifdef OPTIM_SMOOTH_NODE
@@ -1252,21 +1251,6 @@ int pstDensityStep(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdDensityStep(plcl->pkd, in->uRungLo, in->uRungHi, in->iMaxRung, in->dDelta, in->dEta, in->dRhoFac);
-    }
-    return 0;
-}
-
-int pstCorrectEnergy(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inCorrectEnergy*>(vin);
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_CORRECTENERGY, vin, nIn);
-        pstCorrectEnergy(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdCorrectEnergy(plcl->pkd, in->dTuFac, in->z, in->dTime, in->iDirection);
     }
     return 0;
 }

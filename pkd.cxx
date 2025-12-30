@@ -2458,25 +2458,6 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
     }
 }
 
-void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirection) {
-    /*PARTICLE *p;
-    meshless::FIELDS *sph;
-    int i;
-    double T,E;*/
-    switch (iDirection) {
-    case CORRECTENERGY_IN:
-        break;
-    /* Careful using this -- it permanenty converts the thermal energy */
-    case CORRECTENERGY_OUT:
-        break;
-    case CORRECTENERGY_SPECIAL:
-        break;
-    default:
-        assert(0);
-        break;
-    }
-}
-
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac) {
     assert(!pkd->bNoParticleOrder);
     for (auto& p : pkd->particles) {

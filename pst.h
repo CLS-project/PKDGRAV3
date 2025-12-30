@@ -138,10 +138,7 @@ inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view SetTotal = "SetTotal";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view AccelStep = "AccelStep";
-inline constexpr std::string_view StarForm = "StarForm";
-inline constexpr std::string_view StarFormInit = "StarFormInit";
 inline constexpr std::string_view DensityStep = "DensityStep";
-inline constexpr std::string_view CorrectEnergy = "CorrectEnergy";
 inline constexpr std::string_view ReSmooth = "ReSmooth";
 inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
 inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
@@ -210,10 +207,7 @@ enum pst_service {
     PST_SETTOTAL,
     PST_ONENODEREADINIT,
     PST_ACCELSTEP,
-    PST_STARFORM,
-    PST_STARFORMINIT,
     PST_DENSITYSTEP,
-    PST_CORRECTENERGY,
     PST_RESMOOTH,
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
@@ -659,15 +653,6 @@ struct inDensityStep {
     uint8_t uRungHi;
 };
 int pstDensityStep(PST, void*, int, void*, int);
-
-/* PST_CORRECTENERGY */
-struct inCorrectEnergy {
-    double dTuFac;
-    double z;
-    double dTime;
-    int iDirection;
-};
-int pstCorrectEnergy(PST, void*, int, void*, int);
 
 /* PST_SETWRITESTART */
 struct inSetWriteStart {
