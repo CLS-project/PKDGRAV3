@@ -176,15 +176,15 @@ class TraverseGatherPST : public TraversePST {
 // This function more generally handles the common case where the return
 // needs to simply add the lower and upper values. This works for any
 // type that provides a "+=" function.
-template <class TYPENAME>
+template <class Derived>
 class TraverseCount : public TraverseCombinePST {
   public:
-    typedef TYPENAME output;
-    static_assert(std::is_standard_layout<output>());
-    explicit TraverseCount(PST pst, std::string_view service_name, int nInBytes = 0) : TraverseCombinePST(pst, service_name, nInBytes, sizeof(output)) {}
+    explicit TraverseCount(PST pst, std::string_view service_name, int nInBytes = 0)
+        : TraverseCombinePST(pst, service_name, nInBytes, sizeof(typename Derived::output)) {}
 
   protected:
     int Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) final {
+        using output = typename Derived::output;
         auto out1 = reinterpret_cast<output*>(vout1.data());
         auto out2 = reinterpret_cast<const output*>(vout2.data());
         *out1 += *out2;

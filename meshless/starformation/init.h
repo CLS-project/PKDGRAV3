@@ -12,11 +12,11 @@ struct inStarFormInit {
     bool bFeedback;
 };
 
-class ServiceStarFormInit : public TraverseCount<struct outStarForm> {
+class ServiceStarFormInit : public TraverseCount<ServiceStarFormInit> {
   public:
     static constexpr std::string_view name = "StarFormInit";
-    typedef struct inStarFormInit input;
-    typedef struct outStarForm output;
+    using input = struct inStarFormInit;
+    using output = struct outStarForm;
     explicit ServiceStarFormInit(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
 
   protected:

@@ -16,17 +16,18 @@
  */
 #include "TraversePST.h"
 
-class ServiceCountSelected : public TraverseCount<uint64_t> {
+class ServiceCountSelected : public TraverseCount<ServiceCountSelected> {
   public:
     static constexpr std::string_view name = "CountSelected";
-    typedef void input;
+    using input = void;
+    using output = uint64_t;
     explicit ServiceCountSelected(PST pst) : TraverseCount(pst, name) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelActives : public TraverseCount<uint64_t> {
+class ServiceSelActives : public TraverseCount<ServiceSelActives> {
   public:
     static constexpr std::string_view name = "SelActives";
     struct input {
@@ -35,12 +36,13 @@ class ServiceSelActives : public TraverseCount<uint64_t> {
         input() = default;
         input(int setIfTrue = true, int clearIfFalse = true) : setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelActives(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
-class ServiceSelBlackholes : public TraverseCount<uint64_t> {
+class ServiceSelBlackholes : public TraverseCount<ServiceSelBlackholes> {
   public:
     static constexpr std::string_view name = "SelBlackholes";
     struct input {
@@ -49,13 +51,14 @@ class ServiceSelBlackholes : public TraverseCount<uint64_t> {
         input() = default;
         input(int setIfTrue = true, int clearIfFalse = true) : setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelBlackholes(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelSpecies : public TraverseCount<uint64_t> {
+class ServiceSelSpecies : public TraverseCount<ServiceSelSpecies> {
   public:
     static constexpr std::string_view name = "SelSpecies";
     struct input {
@@ -65,13 +68,14 @@ class ServiceSelSpecies : public TraverseCount<uint64_t> {
         input() = default;
         input(uint64_t mSpecies, int setIfTrue = true, int clearIfFalse = true) : mSpecies(mSpecies), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelSpecies(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelGroup : public TraverseCount<uint64_t> {
+class ServiceSelGroup : public TraverseCount<ServiceSelGroup> {
   public:
     static constexpr std::string_view name = "SelGroup";
     struct input {
@@ -81,13 +85,14 @@ class ServiceSelGroup : public TraverseCount<uint64_t> {
         input() = default;
         input(uint64_t iGroup, int setIfTrue = true, int clearIfFalse = true) : iGroup(iGroup), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelGroup(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelMass : public TraverseCount<uint64_t> {
+class ServiceSelMass : public TraverseCount<ServiceSelMass> {
   public:
     static constexpr std::string_view name = "SelMass";
     struct input {
@@ -99,13 +104,14 @@ class ServiceSelMass : public TraverseCount<uint64_t> {
         input(double dMinMass, double dMaxMass, int setIfTrue = true, int clearIfFalse = true)
             : dMinMass(dMinMass), dMaxMass(dMaxMass), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelMass(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelPhaseDensity : public TraverseCount<uint64_t> {
+class ServiceSelPhaseDensity : public TraverseCount<ServiceSelPhaseDensity> {
   public:
     static constexpr std::string_view name = "SelPhaseDensity";
     struct input {
@@ -117,13 +123,14 @@ class ServiceSelPhaseDensity : public TraverseCount<uint64_t> {
         input(double dMinDensity, double dMaxDensity, int setIfTrue = true, int clearIfFalse = true)
             : dMinDensity(dMinDensity), dMaxDensity(dMaxDensity), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelPhaseDensity(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelById : public TraverseCount<uint64_t> {
+class ServiceSelById : public TraverseCount<ServiceSelById> {
   public:
     static constexpr std::string_view name = "SelById";
     struct input {
@@ -135,13 +142,14 @@ class ServiceSelById : public TraverseCount<uint64_t> {
         input(uint64_t idStart, uint64_t idEnd, int setIfTrue = true, int clearIfFalse = true)
             : idStart(idStart), idEnd(idEnd), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelById(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelBox : public TraverseCount<uint64_t> {
+class ServiceSelBox : public TraverseCount<ServiceSelBox> {
   public:
     static constexpr std::string_view name = "SelBox";
     struct input {
@@ -157,13 +165,14 @@ class ServiceSelBox : public TraverseCount<uint64_t> {
         input(double p0, double p1, double p2, double s0, double s1, double s2, int setIfTrue = true, int clearIfFalse = true)
             : dCenter{p0, p1, p2}, dSize{s0, s1, s2}, setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelBox(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelSphere : public TraverseCount<uint64_t> {
+class ServiceSelSphere : public TraverseCount<ServiceSelSphere> {
   public:
     static constexpr std::string_view name = "SelSphere";
     struct input {
@@ -179,13 +188,14 @@ class ServiceSelSphere : public TraverseCount<uint64_t> {
         input(double r0, double r1, double r2, double dRadius, int setIfTrue = true, int clearIfFalse = true)
             : r{r0, r1, r2}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelSphere(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceSelCylinder : public TraverseCount<uint64_t> {
+class ServiceSelCylinder : public TraverseCount<ServiceSelCylinder> {
   public:
     static constexpr std::string_view name = "SelCylinder";
     struct input {
@@ -201,6 +211,7 @@ class ServiceSelCylinder : public TraverseCount<uint64_t> {
         input(double ra0, double ra1, double ra2, double rb0, double rb1, double rb2, double dRadius, int setIfTrue = true, int clearIfFalse = true)
             : dP1{ra0, ra1, ra2}, dP2{rb0, rb1, rb2}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
     };
+    using output = uint64_t;
     explicit ServiceSelCylinder(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:

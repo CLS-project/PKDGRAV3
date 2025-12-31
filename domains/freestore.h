@@ -16,10 +16,11 @@
  */
 #include "TraversePST.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
+class ServiceFreeStore : public TraverseCount<ServiceFreeStore> {
   public:
     static constexpr std::string_view name = "FreeStore";
-    typedef void input;
+    using input = void;
+    using output = uint64_t;
     explicit ServiceFreeStore(PST pst) : TraverseCount(pst, name) {}
 
   protected:

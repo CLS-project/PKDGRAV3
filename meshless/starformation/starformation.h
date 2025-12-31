@@ -59,11 +59,11 @@ struct inStarForm {
     struct eEOSparam eEOS;
 };
 
-class ServiceStarForm : public TraverseCount<struct outStarForm> {
+class ServiceStarForm : public TraverseCount<ServiceStarForm> {
   public:
     static constexpr std::string_view name = "StarForm";
-    typedef struct inStarForm input;
-    typedef struct outStarForm output;
+    using input = struct inStarForm;
+    using output = struct outStarForm;
     explicit ServiceStarForm(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
 
   protected:

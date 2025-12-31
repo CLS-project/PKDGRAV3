@@ -33,13 +33,14 @@ class ServiceBispectrumSelect : public TraversePST {
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-class ServiceBispectrumCalculate : public TraverseCount<double> {
+class ServiceBispectrumCalculate : public TraverseCount<ServiceBispectrumCalculate> {
   public:
     static constexpr std::string_view name = "BispectrumCalculate";
     struct input {
         int iGrid1, iGrid2, iGrid3;
     };
-    explicit ServiceBispectrumCalculate(PST pst) : TraverseCount<double>(pst, name, sizeof(input)) {}
+    using output = double;
+    explicit ServiceBispectrumCalculate(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;

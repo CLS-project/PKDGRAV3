@@ -199,11 +199,12 @@ class ServiceOrdWeight : public TraversePST {
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 
-class ServiceActiveOrder : public TraverseCount<uint64_t> {
+class ServiceActiveOrder : public TraverseCount<ServiceActiveOrder> {
   public:
     static constexpr std::string_view name = "ActiveOrder";
     using input = void;
-    explicit ServiceActiveOrder(PST pst) : TraverseCount<uint64_t>(pst, name, 0) {}
+    using output = uint64_t;
+    explicit ServiceActiveOrder(PST pst) : TraverseCount(pst, name, 0) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;

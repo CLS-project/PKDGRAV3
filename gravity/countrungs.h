@@ -18,10 +18,11 @@
 #define SERVICE_COUNTRUNGS_H
 #include "TraversePST.h"
 
-class ServiceCountRungs : public TraverseCount<blitz::TinyVector<uint64_t, MAX_RUNG + 1>> {
+class ServiceCountRungs : public TraverseCount<ServiceCountRungs> {
   public:
     static constexpr std::string_view name = "CountRungs";
-    typedef void input;
+    using input = void;
+    using output = blitz::TinyVector<uint64_t, MAX_RUNG + 1>;
     explicit ServiceCountRungs(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
 
   protected:

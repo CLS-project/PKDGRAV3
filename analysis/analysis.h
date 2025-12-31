@@ -19,23 +19,25 @@
 
 #include "TraversePST.h"
 
-class ServiceCountDistance : public TraverseCount<uint64_t> {
+class ServiceCountDistance : public TraverseCount<ServiceCountDistance> {
   public:
     static constexpr std::string_view name = "CountDistance";
     struct input {
         double dRadius2Inner;
         double dRadius2Outer;
     };
+    using output = uint64_t;
     explicit ServiceCountDistance(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-class ServiceTotalMass : public TraverseCount<double> {
+class ServiceTotalMass : public TraverseCount<ServiceTotalMass> {
   public:
     static constexpr std::string_view name = "TotalMass";
     using input = void;
+    using output = double;
     explicit ServiceTotalMass(PST pst) : TraverseCount(pst, name) {}
 
   protected:

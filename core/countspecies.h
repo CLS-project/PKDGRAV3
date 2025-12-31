@@ -20,22 +20,20 @@
 #include "TraversePST.h"
 #include "io/fio.h"
 
-struct CountSpeciesCounts {
-    blitz::TinyVector<std::uint_fast64_t, FIO_SPECIES_LAST> counts;
-    std::uint_fast64_t nMaxOrder;
-    CountSpeciesCounts() {}
-    // In this context += is used to "combine" the results -- not necessarily to add them
-    CountSpeciesCounts& operator+=(const CountSpeciesCounts& rhs) {
-        counts += rhs.counts;
-        nMaxOrder = std::max(nMaxOrder, rhs.nMaxOrder);
-        return *this;
-    }
-};
-
-class ServiceCountSpecies : public TraverseCount<CountSpeciesCounts> {
+class ServiceCountSpecies : public TraverseCount<ServiceCountSpecies> {
   public:
     static constexpr std::string_view name = "CountSpecies";
-    typedef void input;
+    using input = void;
+    struct output {
+        blitz::TinyVector<std::uint_fast64_t, FIO_SPECIES_LAST> counts;
+        std::uint_fast64_t nMaxOrder;
+        // In this context += is used to "combine" the results -- not necessarily to add them
+        auto operator+=(const output& rhs) -> output& {
+            counts += rhs.counts;
+            nMaxOrder = std::max(nMaxOrder, rhs.nMaxOrder);
+            return *this;
+        }
+    };
     explicit ServiceCountSpecies(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
 
   protected:

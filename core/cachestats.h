@@ -19,27 +19,27 @@
 #include <cstdint>
 #include "TraversePST.h"
 #include "mdl.h"
+#include "mdl2/WelfordStats.h"
 
-struct CacheStats {
-    WelfordStats<double> mpi_loop;
-    WelfordStats<double> mpi_test;
-    WelfordStats<double> gpu_test;
-    WelfordStats<double> msg_test;
-    CacheStats() {}
-    // In this context += is used to "combine" the results -- not necessarily to add them
-    CacheStats& operator+=(const CacheStats& rhs) {
-        mpi_loop += rhs.mpi_loop;
-        mpi_test += rhs.mpi_test;
-        gpu_test += rhs.gpu_test;
-        msg_test += rhs.msg_test;
-        return *this;
-    }
-};
-
-class ServiceCacheStats : public TraverseCount<CacheStats> {
+class ServiceCacheStats : public TraverseCount<ServiceCacheStats> {
   public:
     static constexpr std::string_view name = "CacheStats";
-    typedef void input;
+    using input = void;
+    struct output {
+        WelfordStats<double> mpi_loop;
+        WelfordStats<double> mpi_test;
+        WelfordStats<double> gpu_test;
+        WelfordStats<double> msg_test;
+        // In this context += is used to "combine" the results -- not necessarily to add them
+        auto operator+=(const output& rhs) -> output& {
+            mpi_loop += rhs.mpi_loop;
+            mpi_test += rhs.mpi_test;
+            gpu_test += rhs.gpu_test;
+            msg_test += rhs.msg_test;
+            return *this;
+        }
+    };
+
     explicit ServiceCacheStats(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
 
   protected:
