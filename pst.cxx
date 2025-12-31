@@ -140,9 +140,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_MOVEIC, pst, (fcnService_t*)pstMoveIC, sizeof(struct inGenerateIC), 0, Legacy::LocalMoveIC);
 #endif
     mdl->AddService(PST_MEMSTATUS, pst, (fcnService_t*)pstMemStatus, 0, nThreads * sizeof(struct outMemStatus), Legacy::MemStatus);
-    mdl->AddService(PST_PROFILE, pst, (fcnService_t*)pstProfile, sizeof(struct inProfile), 0, Legacy::Profile);
-    mdl->AddService(PST_CALCDISTANCE, pst, (fcnService_t*)pstCalcDistance, sizeof(struct inCalcDistance), 0, Legacy::CalcDistance);
-    mdl->AddService(PST_CALCCOM, pst, (fcnService_t*)pstCalcCOM, sizeof(struct inCalcCOM), sizeof(struct outCalcCOM), Legacy::CalcCOM);
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
 }
@@ -1178,64 +1175,6 @@ int pstMemStatus(PST pst, void* vin, int nIn, void* vout, int nOut) {
         out->nBytesIlc = pkdIlcMemory(plcl->pkd);
     }
     return pst->n_total() * sizeof(struct outMemStatus);
-}
-
-int pstProfile(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inProfile*>(vin);
-    /*assert( nIn==sizeof(struct inProfile) );*/
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_PROFILE, vin, nIn);
-        pstProfile(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdProfile(plcl->pkd, in->uRungLo, in->uRungHi, in->dCenter, in->dRadii, in->nBins, in->com, in->vcm, in->L);
-    }
-    return 0;
-}
-
-int pstCalcDistance(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inCalcDistance*>(vin);
-
-    assert(nIn == sizeof(struct inCalcDistance));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_CALCDISTANCE, vin, nIn);
-        pstCalcDistance(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdCalcDistance(plcl->pkd, in->dCenter, in->bPeriodic);
-    }
-    return 0;
-}
-
-int pstCalcCOM(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inCalcCOM*>(vin);
-    auto out = static_cast<struct outCalcCOM*>(vout);
-    struct outCalcCOM outUpper;
-    int i;
-
-    assert(nIn == sizeof(struct inCalcCOM));
-    assert(vout != NULL);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_CALCCOM, vin, nIn);
-        pstCalcCOM(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID, outUpper);
-        out->N += outUpper.N;
-        out->M += outUpper.M;
-        for (i = 0; i < 3; i++) {
-            out->com[i] += outUpper.com[i];
-            out->vcm[i] += outUpper.vcm[i];
-            out->L[i] += outUpper.L[i];
-        }
-    }
-    else {
-        pkdCalcCOM(plcl->pkd, in->dCenter, in->dRadius, in->bPeriodic, out->com, out->vcm, out->L, out->M, out->N);
-    }
-    return sizeof(struct outCalcCOM);
 }
 
 int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut) {

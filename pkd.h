@@ -535,6 +535,7 @@ class pkdContext : public Integerize {
     void FofRemoteSearch(double dTau2, int bPeriodic, int nReplicas, int nBucket);
     auto FofGatherLocal(std::vector<int>& S, double fBall2, blitz::TinyVector<double, 3> r, uint32_t iGroup, uint32_t iTail, uint32_t* Fifo,
                         int* pbCurrFofContained, const Bound::coord_type fMinFofContained, const Bound::coord_type fMaxFofContained) -> uint32_t;
+    auto GetDistance2(particleStore::Particle& p, blitz::TinyVector<double, 3> dCenter, int bPeriodic) -> double;
 
   public:
     void TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
@@ -575,6 +576,11 @@ class pkdContext : public Integerize {
     void HopTreeBuild(int nBucket, int nGroup);
     auto HopGravity(double dTime, double dThetaMin, double* pdFlop, double* pdPartSum, double* pdCellSum) -> int;
     auto HopUnbind(double dTime, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) -> int;
+    void Profile(uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVector<double, 3>& dCenter, const double* dRadii, int nBins,
+                 const blitz::TinyVector<double, 3>& com, const blitz::TinyVector<double, 3>& vcm, const blitz::TinyVector<double, 3>& L);
+    void CalcDistance(blitz::TinyVector<double, 3> dCenter, int bPeriodic);
+    void CalcCOM(const blitz::TinyVector<double, 3>& dCenter, double dRadius, int bPeriodic, blitz::TinyVector<double, 3>& com,
+                 blitz::TinyVector<double, 3>& vcm, blitz::TinyVector<double, 3>& L, double& M, uint64_t& N);
 
     void swap_classes(int id);
 
@@ -903,11 +909,6 @@ int pkdIsStar(PKD, PARTICLE*);
 int pkdIsBH(PKD, PARTICLE*);
 
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double* r, float* fPot);
-void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVector<double, 3>& dCenter, const double* dRadii, int nBins,
-                const blitz::TinyVector<double, 3>& com, const blitz::TinyVector<double, 3>& vcm, const blitz::TinyVector<double, 3>& L);
-void pkdCalcDistance(PKD pkd, blitz::TinyVector<double, 3> dCenter, int bPeriodic);
-void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double, 3>& dCenter, double dRadius, int bPeriodic, blitz::TinyVector<double, 3>& com,
-                blitz::TinyVector<double, 3>& vcm, blitz::TinyVector<double, 3>& L, double& M, uint64_t& N);
 void pkdInitializeEOS(PKD pkd);
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
 #ifdef MDL_FFTW
@@ -918,18 +919,6 @@ void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType);
 void pkdLightCone(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dLookbackFac, double dLookbackFacLCP, double* dtLCDrift, double* dtLCKick);
 void pkdSetupInterpScale(PKD pkd, double dBoxSize, double mrMax);
 
-#define vec_sub(r, a, b)                                                                                                                                       \
-    do {                                                                                                                                                       \
-        int i;                                                                                                                                                 \
-        for (i = 0; i < 3; i++) (r)[i] = (a)[i] - (b)[i];                                                                                                      \
-    } while (0)
-
-#define vec_add_const_mult(r, a, c, b)                                                                                                                         \
-    do {                                                                                                                                                       \
-        int i;                                                                                                                                                 \
-        for (i = 0; i < 3; i++) (r)[i] = (a)[i] + (c) * (b)[i];                                                                                                \
-    } while (0)
-
 #define matrix_vector_mult(b, mat, a)                                                                                                                          \
     do {                                                                                                                                                       \
         int i;                                                                                                                                                 \
@@ -937,31 +926,6 @@ void pkdSetupInterpScale(PKD pkd, double dBoxSize, double mrMax);
             int j;                                                                                                                                             \
             (b)[i] = 0.0;                                                                                                                                      \
             for (j = 0; j < 3; j++) (b)[i] += (mat)[i][j] * (a)[j];                                                                                            \
-        }                                                                                                                                                      \
-    } while (0)
-
-static inline double dot_product(const double* a, const double* b) {
-    double r = 0.0;
-    int i;
-    for (i = 0; i < 3; i++) r += a[i] * b[i];
-    return r;
-}
-
-#define cross_product(r, a, b)                                                                                                                                 \
-    do {                                                                                                                                                       \
-        (r)[0] = (a)[1] * (b)[2] - (a)[2] * (b)[1];                                                                                                            \
-        (r)[1] = (a)[2] * (b)[0] - (a)[0] * (b)[2];                                                                                                            \
-        (r)[2] = (a)[0] * (b)[1] - (a)[1] * (b)[0];                                                                                                            \
-    } while (0)
-
-#define mat_transpose(mat, trans_mat)                                                                                                                          \
-    do {                                                                                                                                                       \
-        int i;                                                                                                                                                 \
-        for (i = 0; i < 3; i++) {                                                                                                                              \
-            int j;                                                                                                                                             \
-            for (j = 0; j < 3; j++) {                                                                                                                          \
-                (trans_mat)[i][j] = (mat)[j][i];                                                                                                               \
-            }                                                                                                                                                  \
         }                                                                                                                                                      \
     } while (0)
 

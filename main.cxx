@@ -194,6 +194,9 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceHopTreeBuild>(pst);
     mdl->AddService<ServiceHopGravity>(pst);
     mdl->AddService<ServiceHopUnbind>(pst);
+    mdl->AddService<ServiceProfile>(pst);
+    mdl->AddService<ServiceCalcDistance>(pst);
+    mdl->AddService<ServiceCalcCOM>(pst);
     mdl->AddService<ServiceZeroNewRung>(pst);
     mdl->AddService<ServiceGetOrdSplits>(pst);
     mdl->AddService<ServiceSaveGroupStats>(pst);

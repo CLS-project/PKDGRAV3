@@ -462,7 +462,7 @@ class MSR {
     void CoolSetup(double dTime);
     void Cooling(double dTime, double dStep, int bUpdateState, int bUpdateTable, int bInterateDt);
     void InitSph(double dTime, double dDelta, bool bRestart);
-    uint64_t CountDistance(double dRadius2Outer, double dRadius2Inner = 0.0);
+    auto CountDistance(double dRadius2Outer, double dRadius2Inner = 0.0) -> uint64_t;
 
     // Meshless hydrodynamics
     void MeshlessGradients(double dTime, double dDelta);
@@ -527,8 +527,9 @@ class MSR {
                                               to iKickRung */
                     int iAdjust);             /* Do an adjust? */
 
-    void CalcDistance(const double* dCenter, double dRadius);
-    void CalcCOM(const double* dCenter, double dRadius, double* com, double* vcm, double* L, double* M);
+    void CalcDistance(blitz::TinyVector<double, 3> dCenter, double dRadius);
+    void CalcCOM(blitz::TinyVector<double, 3> dCenter, double dRadius, blitz::TinyVector<double, 3>& com, blitz::TinyVector<double, 3>& vcm,
+                 blitz::TinyVector<double, 3>& L, double& M);
     void SetSPHoptions();
     void ResetCOM();
     void InitializeEOS();
@@ -538,8 +539,8 @@ class MSR {
     void TreeUpdateFlagBounds(int bNeedEwald, uint32_t uRoot, uint32_t utRoot, SPHOptions SPHoptions);
 
   public:
-    void Profile(const PROFILEBIN** pBins, int* pnBins, double* r, double dMinRadius, double dLogRadius, double dMaxRadius, int nPerBin, int nBins,
-                 int nAccuracy);
+    void Profile(const PROFILEBIN** pBins, int* pnBins, blitz::TinyVector<double, 3> r, double dMinRadius, double dLogRadius, double dMaxRadius, int nPerBin,
+                 int nBins, int nAccuracy);
     void OutputGrid(std::string_view filename, bool k = false, int iGrid = 0, int nParaWrite = 0);
 
     uint64_t CountSelected();

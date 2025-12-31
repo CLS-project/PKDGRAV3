@@ -16,6 +16,7 @@
  */
 
 #include "analysis/orbits.h"
+#include "blitz/tinyvec2.h"
 #include "core/partclass.h"
 #include "pkd_config.h"
 
@@ -4235,38 +4236,22 @@ double MSR::TotalMass() {
     return out;
 }
 
-void MSR::CalcDistance(const double* dCenter, double dRadius) {
-    struct inCalcDistance in;
-    int j;
-
-    for (j = 0; j < 3; j++) in.dCenter[j] = dCenter[j];
-    in.dRadius = dRadius;
-    in.bPeriodic = parameters.get_bPeriodic();
-    pstCalcDistance(pst, &in, sizeof(in), NULL, 0);
+void MSR::CalcDistance(blitz::TinyVector<double, 3> dCenter, double dRadius) {
+    ServiceCalcDistance::input in{.dCenter = dCenter, .dRadius = dRadius, .bPeriodic = parameters.get_bPeriodic()};
+    mdl->RunService<ServiceCalcDistance>(in);
 }
 
-void MSR::CalcCOM(const double* dCenter, double dRadius, double* com, double* vcm, double* L, double* M) {
-    struct inCalcCOM in;
-    struct outCalcCOM out;
-    int nOut;
-    int j;
-    double T[3];
-
-    for (j = 0; j < 3; j++) in.dCenter[j] = dCenter[j];
-    in.dRadius = dRadius;
-    in.bPeriodic = parameters.get_bPeriodic();
-    nOut = pstCalcCOM(pst, &in, sizeof(in), &out, sizeof(out));
-    assert(nOut == sizeof(out));
-
-    *M = out.M;
+void MSR::CalcCOM(blitz::TinyVector<double, 3> dCenter, double dRadius, blitz::TinyVector<double, 3>& com, blitz::TinyVector<double, 3>& vcm,
+                  blitz::TinyVector<double, 3>& L, double& M) {
+    ServiceCalcCOM::input in{.dCenter = dCenter, .dRadius = dRadius, .bPeriodic = parameters.get_bPeriodic()};
+    ServiceCalcCOM::output out;
+    mdl->RunService<ServiceCalcCOM>(in, out);
+    M = out.M;
     if (out.M > 0.0) {
-        for (j = 0; j < 3; j++) {
-            com[j] = out.com[j] / out.M;
-            vcm[j] = out.vcm[j] / out.M;
-        }
-        cross_product(T, com, vcm);
-        vec_add_const_mult(L, out.L, -out.M, T);
-        for (j = 0; j < 3; j++) L[j] /= out.M;
+        com = out.com / out.M;
+        vcm = out.vcm / out.M;
+        auto T = blitz::cross(com, vcm);
+        L = (out.L - out.M * T) / out.M;
     }
 }
 
@@ -4279,14 +4264,14 @@ void MSR::SetSPHoptions() {
 void MSR::ResetCOM() {
     blitz::TinyVector<double, 3> dCenter(0.0), com, vcm, L;
     double M;
-    CalcCOM(&dCenter[0], -1.0, &com[0], &vcm[0], &L[0], &M);
+    CalcCOM(dCenter, -1.0, com, vcm, L, M);
     print("Before reseting: x_com = {:.5e}, y_com = {:.5e}, z_com = {:.5e}, vx_com = {:.5e}, vy_com = {:.5e}, vz_com = {:.5e}\n", com[0], com[1], com[2],
           vcm[0], vcm[1], vcm[2]);
 
     ServiceResetCOM::input in{.r_com = com, .v_com = vcm};
     mdl->RunService<ServiceResetCOM>(in);
 
-    CalcCOM(&dCenter[0], -1.0, &com[0], &vcm[0], &L[0], &M);
+    CalcCOM(dCenter, -1.0, com, vcm, L, M);
     print("After reseting: x_com = {:.5e}, y_com = {:.5e}, z_com = {:.5e}, vx_com = {:.5e}, vy_com = {:.5e}, vz_com = {:.5e}\n", com[0], com[1], com[2], vcm[0],
           vcm[1], vcm[2]);
 }
@@ -4482,11 +4467,9 @@ void MSR::TreeUpdateFlagBounds(int bNeedEwald, uint32_t uRoot, uint32_t utRoot, 
     print("Tree updated, Wallclock: {:.5f} secs\n\n", dsec);
 }
 
-uint64_t MSR::CountDistance(double dRadius2Outer, double dRadius2Inner) {
-    ServiceCountDistance::input in;
+auto MSR::CountDistance(double dRadius2Outer, double dRadius2Inner) -> uint64_t {
+    ServiceCountDistance::input in{.dRadius2Inner = dRadius2Inner, .dRadius2Outer = dRadius2Outer};
     ServiceCountDistance::output out;
-    in.dRadius2Inner = dRadius2Inner;
-    in.dRadius2Outer = dRadius2Outer;
     auto nOut = mdl->RunService<ServiceCountDistance>(in, out);
     assert(nOut == sizeof(out));
     return out;
@@ -4529,13 +4512,14 @@ double MSR::countShell(double rInner, void* vctx) {
 ** Setting dLogRadius to dMinRadius results in purely logarithmic binning, while
 ** setting dLogRadius to dMaxRadius results in purely equal sized binning.
 */
-void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, double* r, double dMinRadius, double dLogRadius, double dMaxRadius, int nPerBin, int nBins,
-                  int nAccuracy) {
+void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, blitz::TinyVector<double, 3> r, double dMinRadius, double dLogRadius, double dMaxRadius, int nPerBin,
+                  int nBins, int nAccuracy) {
     SPHERECTX ctxSphere;
     SHELLCTX ctxShell;
     PROFILEBIN* pBins;
     double sec, dsec;
-    double com[3], vcm[3], L[3], M;
+    blitz::TinyVector<double, 3> com, vcm, L;
+    double M;
     size_t inSize;
     int i, j;
     int nBinsInner;
@@ -4550,7 +4534,7 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, double* r, double dMin
     if (dLogRadius == dMaxRadius) nBins = 0;
 
     CalcDistance(r, dMaxRadius);
-    CalcCOM(r, dMaxRadius, com, vcm, L, &M);
+    CalcCOM(r, dMaxRadius, com, vcm, L, M);
 
     if (dLogRadius > dMinRadius) {
         /*
@@ -4588,9 +4572,10 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, double* r, double dMin
         dLogRadius = dMinRadius;
     }
 
-    inSize = sizeof(inProfile) - sizeof(inProfile::dRadii[0]) * (sizeof(inProfile::dRadii) / sizeof(inProfile::dRadii[0]) - nBins - nBinsInner - 1);
-    std::unique_ptr<char[]> buffer{new char[inSize]};
-    auto in = new (buffer.get()) inProfile;
+    inSize = sizeof(ServiceProfile::input) - sizeof(ServiceProfile::input::dRadii[0]) *
+                                                 (sizeof(ServiceProfile::input::dRadii) / sizeof(ServiceProfile::input::dRadii[0]) - nBins - nBinsInner - 1);
+    auto buffer = std::make_unique<std::byte[]>(inSize);
+    auto in = new (buffer.get()) ServiceProfile::input;
 
     in->dRadii[0] = dMinRadius;
 
@@ -4605,7 +4590,7 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, double* r, double dMin
         ctxSphere.msr = this;
         ctxSphere.dFrac = 1.0 / nBinsInner;
         in->dRadii[nBinsInner] = dLogRadius;
-        profileRootFind(in->dRadii, 0, nBinsInner, nAccuracy, &ctxSphere);
+        profileRootFind(in->dRadii.data(), 0, nBinsInner, nAccuracy, &ctxSphere);
         dsec = Time() - sec;
         print_detail("Root finding complete, Wallclock: {seconds:.5} secs\n", "seconds"_a = dsec);
     }
@@ -4645,16 +4630,14 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, double* r, double dMin
 
     sec = Time();
     print_detail("Profiling\n");
-    for (i = 0; i < 3; i++) {
-        in->dCenter[i] = r[i];
-        in->com[i] = com[i];
-        in->vcm[i] = vcm[i];
-        in->L[i] = L[i];
-    }
+    in->dCenter = r;
+    in->com = com;
+    in->vcm = vcm;
+    in->L = L;
     in->nBins = nBins + 1;
     in->uRungLo = 0;
     in->uRungHi = MaxRung() - 1;
-    pstProfile(pst, in, inSize, NULL, 0);
+    mdl->RunService<ServiceProfile>(std::span(buffer.get(), inSize));
 
     /*
     ** Finalize bin values

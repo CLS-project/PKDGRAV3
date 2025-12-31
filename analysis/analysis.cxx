@@ -15,15 +15,9 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
-#include <stdio.h>
+#include "pkd_config.h"
 #include <assert.h>
 #include <stdlib.h>
-#include <math.h>
 #include <numeric>
 #include <algorithm>
 #include "pkd.h"
@@ -191,12 +185,12 @@ class HelperShapesBins1 : public mdl::arrayCACHEhelper {
 ** reference point.  If a periodic boundary is in effect then the smallest
 ** possible distance is returned.
 */
-double pkdGetDistance2(PKD pkd, particleStore::Particle& p, blitz::TinyVector<double, 3> dCenter, int bPeriodic) {
+double pkdContext::GetDistance2(particleStore::Particle& p, blitz::TinyVector<double, 3> dCenter, int bPeriodic) {
     blitz::TinyVector<double, 3> dx = p.position() - dCenter;
     // If a periodic wrap results in a smaller distance, then use that.
     if (bPeriodic) {
         for (auto j = 0; j < 3; j++) {
-            auto dx2 = dx[j] + (dx[j] < 0.0 ? pkd->fPeriod[j] : -pkd->fPeriod[j]);
+            auto dx2 = dx[j] + (dx[j] < 0.0 ? fPeriod[j] : -fPeriod[j]);
             if (dx2 * dx2 < dx[j] * dx[j]) dx[j] = dx2;
         }
     }
@@ -211,30 +205,46 @@ struct distance {
     friend bool operator<(float lhs, const distance& rhs) { return lhs < rhs.d2; }
 };
 
+auto ServiceCalcDistance::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    assert(vin.size() == sizeof(input));
+    auto in = reinterpret_cast<const input*>(vin.data());
+    pst->lcl()->pkd->CalcDistance(in->dCenter, in->bPeriodic);
+    return 0;
+}
+
 /*
 ** Use the Ephemeral structure to calculate the distance to each particle
 ** Sort by distance when finished.
 */
-void pkdCalcDistance(PKD pkd, blitz::TinyVector<double, 3> dCenter, int bPeriodic) {
-    auto ephemeral = pkd->Ephemeral<distance>();
+void pkdContext::CalcDistance(blitz::TinyVector<double, 3> dCenter, int bPeriodic) {
+    auto ephemeral = Ephemeral<distance>();
     int i;
 
     /*
     ** Initialize the temporary particles.
     */
-    for (i = 0; i < pkd->Local(); ++i) {
-        auto p = pkd->particles[i];
-        ephemeral[i].d2 = pkdGetDistance2(pkd, p, dCenter, bPeriodic);
+    for (i = 0; i < Local(); ++i) {
+        auto p = particles[i];
+        ephemeral[i].d2 = GetDistance2(p, dCenter, bPeriodic);
         ephemeral[i].i = i;
     }
-    std::sort(ephemeral, ephemeral + pkd->Local());
+    std::sort(ephemeral, ephemeral + Local());
+}
+
+auto ServiceCalcCOM::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == sizeof(output));
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    pst->lcl()->pkd->CalcCOM(in->dCenter, in->dRadius, in->bPeriodic, out->com, out->vcm, out->L, out->M, out->N);
+    return sizeof(output);
 }
 
 /*
 ** Return the mass weighted center of mass and velocity
 */
-void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double, 3>& dCenter, double dRadius, int bPeriodic, blitz::TinyVector<double, 3>& com,
-                blitz::TinyVector<double, 3>& vcm, blitz::TinyVector<double, 3>& L, double& M, uint64_t& N) {
+void pkdContext::CalcCOM(const blitz::TinyVector<double, 3>& dCenter, double dRadius, int bPeriodic, blitz::TinyVector<double, 3>& com,
+                         blitz::TinyVector<double, 3>& vcm, blitz::TinyVector<double, 3>& L, double& M, uint64_t& N) {
     using blitz::cross;
     com = 0.0;
     vcm = 0.0;
@@ -242,11 +252,11 @@ void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double, 3>& dCenter, double dRa
     M = 0.0;
     N = 0;
     auto dRadius2 = dRadius * dRadius;
-    for (auto& p : pkd->particles) {
+    for (auto& p : particles) {
         double m = p.mass();
         const blitz::TinyVector<double, 3> v = p.velocity();
         const auto r = p.position();
-        auto d2 = pkdGetDistance2(pkd, p, dCenter, bPeriodic);
+        auto d2 = GetDistance2(p, dCenter, bPeriodic);
         if (dRadius < 0 || d2 < dRadius2) {
             M += m;
             com += m * r;
@@ -470,27 +480,34 @@ void pkdShapes(PKD pkd, int nBins, const double* dCenter, const double* dRadii) 
 }
 #endif
 
+auto ServiceProfile::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    pkd->Profile(in->uRungLo, in->uRungHi, in->dCenter, in->dRadii.data(), in->nBins, in->com, in->vcm, in->L);
+    return 0;
+}
+
 /*
 ** Density Profile
 */
-void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVector<double, 3>& dCenter, const double* dRadii, int nBins,
-                const blitz::TinyVector<double, 3>& com, const blitz::TinyVector<double, 3>& vcm, const blitz::TinyVector<double, 3>& L) {
+void pkdContext::Profile(uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVector<double, 3>& dCenter, const double* dRadii, int nBins,
+                         const blitz::TinyVector<double, 3>& com, const blitz::TinyVector<double, 3>& vcm, const blitz::TinyVector<double, 3>& L) {
     using blitz::cross;
     using blitz::dot;
     using blitz::TinyVector;
-    auto ephemeral = pkd->Ephemeral<distance>();
-    local_t n = pkd->Local();
+    auto ephemeral = Ephemeral<distance>();
+    local_t n = Local();
     double r0, r, r2;
     int i, iBin;
     PROFILEBIN* pBin;
 
-    if (pkd->Self() == 0) {
-        if (pkd->profileBins != NULL) pkd->mdl->Free(pkd->profileBins);
-        pkd->profileBins = pkd->mdl->Malloc<PROFILEBIN>(nBins * sizeof(PROFILEBIN));
-        assert(pkd->profileBins != NULL);
+    if (Self() == 0) {
+        if (profileBins != NULL) mdl->Free(profileBins);
+        profileBins = mdl->Malloc<PROFILEBIN>(nBins * sizeof(PROFILEBIN));
+        assert(profileBins != NULL);
         r0 = 0.0;
         for (iBin = 0; iBin < nBins; iBin++) {
-            pBin = &pkd->profileBins[iBin];
+            pBin = &profileBins[iBin];
             r = dRadii[iBin];
             r2 = r * r;
             assert(r > r0);
@@ -504,7 +521,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVect
             r0 = r;
         }
     }
-    pkd->mdl->CacheInitialize(CID_BIN, std::make_shared<HelperProfileBins1>(pkd->profileBins, pkd->Self() == 0 ? nBins : 0));
+    mdl->CacheInitialize(CID_BIN, std::make_shared<HelperProfileBins1>(profileBins, Self() == 0 ? nBins : 0));
 
     /*
     ** Now we add all of the particles to the appropriate bin.  NOTE than both
@@ -513,14 +530,14 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVect
     r0 = 0.0;
     i = 0;
     for (iBin = 0; iBin < nBins; iBin++) {
-        pBin = pkd->mdl->Acquire<PROFILEBIN>(CID_BIN, iBin, 0);
+        pBin = mdl->Acquire<PROFILEBIN>(CID_BIN, iBin, 0);
         r = pBin->dRadius;
         r = dRadii[iBin];
         r2 = r * r;
         assert(r > r0);
 
         while (ephemeral[i].d2 <= r2 && i < n) {
-            auto P = pkd->particles[ephemeral[i].i];
+            auto P = particles[ephemeral[i].i];
             auto m = P.mass();
             auto v = P.velocity();
             const auto r = P.position();
@@ -541,21 +558,21 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVect
             i++;
         }
         r0 = r;
-        pkd->mdl->Release(CID_BIN, pBin);
+        mdl->Release(CID_BIN, pBin);
     }
-    pkd->mdl->FinishCache(CID_BIN);
+    mdl->FinishCache(CID_BIN);
 
     /* We need angular momentum to calculate tangental velocity sigma, so we reopen the cache */
-    pkd->mdl->CacheInitialize(CID_BIN, std::make_shared<HelperProfileBins2>(pkd->profileBins, pkd->Self() == 0 ? nBins : 0));
+    mdl->CacheInitialize(CID_BIN, std::make_shared<HelperProfileBins2>(profileBins, Self() == 0 ? nBins : 0));
     r0 = 0.0;
     i = 0;
     for (iBin = 0; iBin < nBins; iBin++) {
-        pBin = pkd->mdl->Acquire<PROFILEBIN>(CID_BIN, iBin, 0);
+        pBin = mdl->Acquire<PROFILEBIN>(CID_BIN, iBin, 0);
         r = dRadii[iBin];
         r2 = r * r;
         assert(r > r0);
         while (ephemeral[i].d2 <= r2 && i < n) {
-            auto P = pkd->particles[ephemeral[i].i];
+            auto P = particles[ephemeral[i].i];
             double m = P.mass();
             auto v = P.velocity();
             const auto r = P.position();
@@ -575,7 +592,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVect
             i++;
         }
         r0 = r;
-        pkd->mdl->Release(CID_BIN, pBin);
+        mdl->Release(CID_BIN, pBin);
     }
-    pkd->mdl->FinishCache(CID_BIN);
+    mdl->FinishCache(CID_BIN);
 }

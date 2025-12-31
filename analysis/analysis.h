@@ -33,12 +33,69 @@ class ServiceCountDistance : public TraverseCount<ServiceCountDistance> {
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
+class ServiceCalcDistance : public TraversePST {
+  public:
+    static constexpr std::string_view name = "CalcDistance";
+    struct input {
+        blitz::TinyVector<double, 3> dCenter;
+        double dRadius;
+        int bPeriodic;
+    };
+    using output = void;
+    explicit ServiceCalcDistance(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceCalcCOM : public TraversePST {
+  public:
+    static constexpr std::string_view name = "CalcCOM";
+    struct input {
+        blitz::TinyVector<double, 3> dCenter;
+        double dRadius;
+        int bPeriodic;
+    };
+    struct output {
+        blitz::TinyVector<double, 3> com;
+        blitz::TinyVector<double, 3> vcm;
+        blitz::TinyVector<double, 3> L;
+        double M;
+        uint64_t N;
+    };
+    explicit ServiceCalcCOM(PST pst) : TraversePST(pst, name, sizeof(input), sizeof(output)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 class ServiceTotalMass : public TraverseCount<ServiceTotalMass> {
   public:
     static constexpr std::string_view name = "TotalMass";
     using input = void;
     using output = double;
     explicit ServiceTotalMass(PST pst) : TraverseCount(pst, name) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceProfile : public TraversePST {
+  public:
+    static constexpr std::string_view name = "Profile";
+    static constexpr int max_profile_bins = 1000000;
+    struct input {
+        blitz::TinyVector<double, 3> dCenter;
+        blitz::TinyVector<double, 3> com;
+        blitz::TinyVector<double, 3> vcm;
+        blitz::TinyVector<double, 3> L;
+        uint32_t nBins;
+        uint8_t uRungLo;
+        uint8_t uRungHi;
+        std::array<double, max_profile_bins> dRadii;
+    };
+    using output = void;
+    explicit ServiceProfile(PST pst) : TraversePST(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;

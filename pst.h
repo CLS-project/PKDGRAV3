@@ -153,9 +153,6 @@ inline constexpr std::string_view LocalGenerateIC = "LocalGenerateIC";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
 inline constexpr std::string_view MemStatus = "MemStatus";
-inline constexpr std::string_view Profile = "Profile";
-inline constexpr std::string_view CalcDistance = "CalcDistance";
-inline constexpr std::string_view CalcCOM = "CalcCOM";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
 inline constexpr std::string_view GetMinDt = "GetMinDt";
@@ -217,9 +214,6 @@ enum pst_service {
     PST_MOVEIC,
     PLT_MOVEIC,
     PST_MEMSTATUS,
-    PST_PROFILE,
-    PST_CALCDISTANCE,
-    PST_CALCCOM,
     PST_SETSPHOPTIONS,
     PST_INITIALIZEEOS,
     PST_INTERLACE,
@@ -673,43 +667,6 @@ struct outMemStatus {
     uint64_t nBytesIlc;
 };
 int pstMemStatus(PST, void*, int, void*, int);
-
-/* PST_PROFILE */
-#define PST_MAX_PROFILE_BINS 1000000
-struct inProfile {
-    blitz::TinyVector<double, 3> dCenter;
-    blitz::TinyVector<double, 3> com;
-    blitz::TinyVector<double, 3> vcm;
-    blitz::TinyVector<double, 3> L;
-    uint32_t nBins;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    double dRadii[PST_MAX_PROFILE_BINS];
-};
-int pstProfile(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-/* PST_CALCDISTANCE */
-struct inCalcDistance {
-    blitz::TinyVector<double, 3> dCenter;
-    double dRadius;
-    int bPeriodic;
-};
-int pstCalcDistance(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-/* PST_CALCCOM */
-struct inCalcCOM {
-    blitz::TinyVector<double, 3> dCenter;
-    double dRadius;
-    int bPeriodic;
-};
-struct outCalcCOM {
-    blitz::TinyVector<double, 3> com;
-    blitz::TinyVector<double, 3> vcm;
-    blitz::TinyVector<double, 3> L;
-    double M;
-    uint64_t N;
-};
-int pstCalcCOM(PST pst, void* vin, int nIn, void* vout, int nOut);
 
 /* PST_SETSPHOPTIONS */
 struct inSetSPHoptions {
