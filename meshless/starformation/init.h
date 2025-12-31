@@ -21,7 +21,7 @@ class ServiceStarFormInit : public TraverseCount<struct outStarForm> {
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) override {
-        auto pkd = pst->plcl->pkd;
+        auto pkd = pst->lcl()->pkd;
         auto& out = *reinterpret_cast<output*>(vout.data());
         auto& in = *reinterpret_cast<input*>(vin.data());
         pkdStarFormInit(pkd, in, &(out.nFormed));

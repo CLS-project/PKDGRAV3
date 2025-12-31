@@ -490,7 +490,7 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
 
     outInitializePStore pout;
     pstInitializePStore(pst, &ps, sizeof(ps), &pout, sizeof(pout));
-    PKD pkd = pst->plcl->pkd;
+    PKD pkd = pst->lcl()->pkd;
     print("Allocated {} MB for {} particles on each processor.\n", pkd->ParticleMemory() / (1024 * 1024), pkd->FreeStore());
     print("Allocated {} MB for {} decorators on each processor.\n", pkd->DecoratorMemory() / (1024 * 1024), pkd->FreeDecoratorStore());
     print("Particles: {} bytes (persistent) + {} bytes (decorator) + {} bytes (ephemeral) , Nodes: {} bytes\n", pkd->particles.ParticleSize(),
@@ -1117,23 +1117,21 @@ void MSR::SetClasses() {
 }
 
 void MSR::SwapClasses(int id) {
-    LCL* plcl = pst->plcl;
-    PST pst0 = pst;
+    LCL* plcl = pst->lcl();
     int n;
     int rID;
 
     auto pClass = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
     n = plcl->pkd->particles.getClasses(PKD_MAX_CLASSES, pClass.get());
-    rID = pst0->mdl->ReqService(id, PST_SWAPCLASSES, pClass.get(), n * sizeof(PARTCLASS));
-    n = pst0->mdl->GetReply(rID, PKD_MAX_CLASSES * sizeof(PARTCLASS), pClass.get());
+    rID = pst->mdl()->ReqService(id, PST_SWAPCLASSES, pClass.get(), n * sizeof(PARTCLASS));
+    n = pst->mdl()->GetReply(rID, PKD_MAX_CLASSES * sizeof(PARTCLASS), pClass.get());
     n = n / sizeof(PARTCLASS);
     plcl->pkd->particles.setClasses(n, pClass.get(), 0);
 }
 
 void MSR::OneNodeRead(struct inReadFile* in, FIO fio) {
     int id;
-    PST pst0;
-    LCL* plcl;
+    LCL* plcl = pst->lcl();
     ServiceSwapAll::input inswap;
     int rID;
     fioSpeciesList nRead, nStart, nBasePart;
@@ -1144,10 +1142,6 @@ void MSR::OneNodeRead(struct inReadFile* in, FIO fio) {
         nStart[s] = in->nSpeciesStart[s] + nBasePart[s];
         nRead[s] = 0;
     }
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1) pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
 
     for (id = 1; id < nThreads; ++id) {
         for (auto s = FIO_SPECIES(0); s < FIO_SPECIES_LAST; s = FIO_SPECIES(s + 1)) {
@@ -1171,7 +1165,7 @@ void MSR::OneNodeRead(struct inReadFile* in, FIO fio) {
         inswap.idSwap = 0;
         rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
         pkdSwapAll(plcl->pkd, id);
-        pst0->mdl->GetReply(rID);
+        pst->mdl()->GetReply(rID);
     }
     for (auto s = FIO_SPECIES(0); s < FIO_SPECIES_LAST; s = FIO_SPECIES(s + 1)) {
         if (nBasePart[s] == 0) {
@@ -1223,7 +1217,7 @@ double MSR::getVfactor(double dExpansion) {
 }
 
 void MSR::RecvArray(void* vBuffer, PKD_FIELD field, int iUnitSize, double dTime, bool bMarked) {
-    PKD pkd = pst->plcl->pkd;
+    PKD pkd = pst->lcl()->pkd;
     inSendArray in;
     in.field = field;
     in.iUnitSize = iUnitSize;
@@ -1613,15 +1607,9 @@ void MSR::DomainDecomp(int iRung) {
 void MSR::BuildTree(int bNeedEwald, uint32_t uRoot, uint32_t utRoot) {
     struct inBuildTree in;
     const double ddHonHLimit = parameters.get_ddHonHLimit();
-    PST pst0;
-    LCL* plcl;
-    PKD pkd;
+    LCL* plcl = pst->lcl();
+    PKD pkd = plcl->pkd;
     double dsec;
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1) pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    pkd = plcl->pkd;
 
     auto nTopTree = pkd->NodeSize() * (2 * nThreads - 1);
     auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
@@ -1815,9 +1803,7 @@ void MSR::Reorder() {
 }
 
 void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
-
-    LCL* plcl;
-    PST pst0;
+    LCL* plcl = pst->lcl();
     int id, iDim;
     ServiceSwapAll::input inswap;
     PKDOUT pkdout;
@@ -1836,10 +1822,6 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
         arrayOrVector = NULL;
         assert(nDims == 1 || nDims == 3);
     }
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1) pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
 
     pstSetTotal(pst, NULL, 0, &total, sizeof(total));
 
@@ -1910,7 +1892,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
                 inswap.idSwap = 0;
                 rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
                 pkdSwapAll(plcl->pkd, id);
-                pst0->mdl->GetReply(rID);
+                pst->mdl()->GetReply(rID);
                 /*
                  * Write the swapped particles.
                  */
@@ -1921,7 +1903,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
                 inswap.idSwap = 0;
                 rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
                 pkdSwapAll(plcl->pkd, id);
-                pst0->mdl->GetReply(rID);
+                pst->mdl()->GetReply(rID);
             }
         }
         pkdCloseOutASCII(plcl->pkd, pkdout);
@@ -4533,17 +4515,11 @@ void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double d
 void MSR::TreeUpdateFlagBounds(int bNeedEwald, uint32_t uRoot, uint32_t utRoot, SPHOptions SPHoptions) {
     struct inTreeUpdateFlagBounds in;
     const double ddHonHLimit = parameters.get_ddHonHLimit();
-    PST pst0;
-    LCL* plcl;
-    PKD pkd;
+    LCL* plcl = pst->lcl();
+    PKD pkd = plcl->pkd;
     double sec, dsec;
 
     print("Update local trees...\n\n");
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1) pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    pkd = plcl->pkd;
 
     auto nTopTree = pkd->NodeSize() * (2 * nThreads - 1);
     auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
@@ -4627,8 +4603,7 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, double* r, double dMin
     int i, j;
     int nBinsInner;
     total_t N, n;
-    LCL* plcl;
-    PST pst0;
+    LCL* plcl = pst->lcl();
 
     assert(dMinRadius <= dLogRadius);
     assert(dLogRadius <= dMaxRadius);
@@ -4636,10 +4611,6 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, double* r, double dMin
     assert(dLogRadius == dMaxRadius || nBins > 0);
 
     if (dLogRadius == dMaxRadius) nBins = 0;
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1) pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
 
     CalcDistance(r, dMaxRadius);
     CalcCOM(r, dMaxRadius, com, vcm, L, &M);

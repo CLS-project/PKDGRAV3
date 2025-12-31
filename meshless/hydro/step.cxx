@@ -198,7 +198,7 @@ void hydroStep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN
 // Wake the particles whose uWake is greater than zero
 int ServiceWakeParticles::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->plcl->pkd;
+    auto pkd = pst->lcl()->pkd;
     auto dTime = in->dTime;
     for (auto& p : pkd->particles) {
         if (p.is_gas()) {

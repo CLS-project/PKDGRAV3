@@ -24,14 +24,14 @@ namespace rs {
 } // namespace rs
 
 void ServiceRsHaloLoadIds::Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
-    pst->plcl->pkd->RsHaloIdRead(iElement, filename, iBeg, iEnd);
+    pst->lcl()->pkd->RsHaloIdRead(iElement, filename, iBeg, iEnd);
 }
 void ServiceRsHaloLoadIds::start(PST pst, uint64_t nElements, std::span<std::byte> vin) {
     auto in = reinterpret_cast<input*>(vin.data());
-    pst->plcl->pkd->RsHaloIdStart(nElements, in->bAppend);
+    pst->lcl()->pkd->RsHaloIdStart(nElements, in->bAppend);
 }
 void ServiceRsHaloLoadIds::finish(PST pst, uint64_t nElements, std::span<std::byte> vin) {
-    pst->plcl->pkd->RsHaloIdFinish(nElements);
+    pst->lcl()->pkd->RsHaloIdFinish(nElements);
 }
 void pkdContext::RsHaloIdStart(uint64_t nElements, bool bAppend) {
     if (!bAppend) nRsElements = 0;

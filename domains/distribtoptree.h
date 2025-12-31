@@ -27,7 +27,7 @@ class ServiceDistribTopTree : public TraversePST {
     };
     typedef void output;
     explicit ServiceDistribTopTree(PST pst)
-        : TraversePST(pst, name, sizeof(input) + (pst->mdl->Threads() == 1 ? 1 : 2 * pst->mdl->Threads() - 1) * pkdContext::MaxNodeSize()) {}
+        : TraversePST(pst, name, sizeof(input) + (pst->mdl()->Threads() == 1 ? 1 : 2 * pst->mdl()->Threads() - 1) * pkdContext::MaxNodeSize()) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;

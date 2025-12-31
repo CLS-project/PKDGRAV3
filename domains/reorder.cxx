@@ -19,39 +19,39 @@
 namespace NewDD {
 
 int ServiceReorder::OffNode(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto mdl = pst->mdl();
     auto in = reinterpret_cast<input*>(vin.data());
-    auto thread = mdl->Self() + pst->nLower;
+    auto thread = mdl->Self() + pst->n_lower();
     auto proc = mdl->ThreadToProc(thread);
     pst->iOrdSplit = in->nPerProc * proc;
     auto rID = ReqService(pst, vin);
-    Traverse(pst->pstLower, vin, vout);
+    Traverse(pst->lower(), vin, vout);
     GetReply(rID);
     return 0;
     // return Recurse(pst,vin,nIn,vout,nOut);
 }
 
 int ServiceReorder::AtNode(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto mdl = pst->mdl();
     auto in = reinterpret_cast<input*>(vin.data());
     in->nPerCore = (in->nPerProc + mdl->Cores() - 1) / mdl->Cores();
     return Recurse(pst, vin, vout);
 }
 
 int ServiceReorder::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto mdl = pst->mdl();
     auto in = reinterpret_cast<input*>(vin.data());
-    pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * (pst->nLower + mdl->Core());
+    pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * (pst->n_lower() + mdl->Core());
     auto rID = ReqService(pst, vin);
-    Traverse(pst->pstLower, vin, vout);
+    Traverse(pst->lower(), vin, vout);
     GetReply(rID);
     return 0;
 }
 
 int ServiceReorder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->plcl->pkd;
-    auto mdl = pst->mdl;
+    auto pkd = pst->lcl()->pkd;
+    auto mdl = pst->mdl();
 
     pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * mdl->Core();
 

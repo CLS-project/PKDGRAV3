@@ -22,7 +22,7 @@ static_assert(std::is_void_v<ServiceCalcBound::input> || std::is_standard_layout
 static_assert(std::is_void_v<ServiceCalcBound::output> || std::is_standard_layout_v<ServiceCalcBound::output>);
 
 int ServiceCalcBound::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto pkd = pst->plcl->pkd;
+    auto pkd = pst->lcl()->pkd;
     static_assert(std::is_void_v<input>);
     auto& out = *reinterpret_cast<output*>(vout.data());
     assert(vin.size() == 0);

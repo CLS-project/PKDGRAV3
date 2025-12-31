@@ -39,13 +39,13 @@ static void pkdDensityContrast(PKD pkd, double dTotalMass, int iGrid, bool k = f
 }
 
 int pstDensityContrast(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->plcl;
+    LCL* plcl = pst->lcl();
     struct inDensityContrast* in = reinterpret_cast<struct inDensityContrast*>(vin);
     assert(nIn == sizeof(struct inDensityContrast));
-    if (pstNotCore(pst)) {
-        int rID = pst->mdl->ReqService(pst->idUpper, PST_DENSITY_CONTRAST, vin, nIn);
-        pstDensityContrast(pst->pstLower, vin, nIn, NULL, 0);
-        pst->mdl->GetReply(rID);
+    if (pst->NotCore()) {
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_DENSITY_CONTRAST, vin, nIn);
+        pstDensityContrast(pst->lower(), vin, nIn, NULL, 0);
+        pst->mdl()->GetReply(rID);
     }
     else {
         pkdDensityContrast(plcl->pkd, in->dTotalMass, in->iGrid, in->k);

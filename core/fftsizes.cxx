@@ -25,7 +25,7 @@ int ServiceFftSizes::Service(PST pst, std::span<std::byte> vin, std::span<std::b
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vin.size() == sizeof(input));
     assert(vout.size() == sizeof(output));
-    out->nMaxLocal = pst->mdl->FFTlocalCount(in->nx, in->ny, in->nz, &out->nMaxZ, 0, &out->nMaxY, 0);
+    out->nMaxLocal = pst->mdl()->FFTlocalCount(in->nx, in->ny, in->nz, &out->nMaxZ, 0, &out->nMaxY, 0);
     return sizeof(output);
 }
 

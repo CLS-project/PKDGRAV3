@@ -24,7 +24,7 @@ class ServiceGetOrdSplits : public TraverseGatherPST<uint64_t> {
     //     uint64_t iMinOrder;
     //     uint64_t iMaxOrder;
     // };
-    explicit ServiceGetOrdSplits(PST pst) : TraverseGatherPST(pst, name, 0, sizeof(output) * pst->mdl->Threads()) {}
+    explicit ServiceGetOrdSplits(PST pst) : TraverseGatherPST(pst, name, 0, sizeof(output) * pst->mdl()->Threads()) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) final;

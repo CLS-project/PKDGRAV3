@@ -72,13 +72,13 @@ void pkdBispectrumSelect(PKD pkd, int iGridTarget, int iGridSource, double kmin,
 }
 
 int pstBispectrumSelect(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->plcl;
+    LCL* plcl = pst->lcl();
     struct inBispectrumSelect* in = reinterpret_cast<struct inBispectrumSelect*>(vin);
     assert(nIn == sizeof(struct inBispectrumSelect));
-    if (pstNotCore(pst)) {
-        int rID = pst->mdl->ReqService(pst->idUpper, PST_BISPECTRUM_SELECT, vin, nIn);
-        pstBispectrumSelect(pst->pstLower, vin, nIn, NULL, 0);
-        pst->mdl->GetReply(rID);
+    if (pst->NotCore()) {
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_BISPECTRUM_SELECT, vin, nIn);
+        pstBispectrumSelect(pst->lower(), vin, nIn, NULL, 0);
+        pst->mdl()->GetReply(rID);
     }
     else {
         if (in->iGridSource < 0) pkdBispectrumNormalize(plcl->pkd, in->iGridTarget, in->kmin, in->kmax);
@@ -111,16 +111,16 @@ double pkdBispectrumCalculate(PKD pkd, int iGrid1, int iGrid2, int iGrid3) {
 }
 
 int pstBispectrumCalculate(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->plcl;
+    LCL* plcl = pst->lcl();
     struct inBispectrumCalculate* in = reinterpret_cast<struct inBispectrumCalculate*>(vin);
     auto out = reinterpret_cast<double*>(vout);
     assert(nIn == sizeof(struct inBispectrumCalculate));
     assert(nOut == sizeof(double));
-    if (pstNotCore(pst)) {
+    if (pst->NotCore()) {
         double outUpper;
-        int rID = pst->mdl->ReqService(pst->idUpper, PST_BISPECTRUM_CALCULATE, vin, nIn);
-        pstBispectrumCalculate(pst->pstLower, vin, nIn, vout, nOut);
-        pst->mdl->GetReply(rID, outUpper);
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_BISPECTRUM_CALCULATE, vin, nIn);
+        pstBispectrumCalculate(pst->lower(), vin, nIn, vout, nOut);
+        pst->mdl()->GetReply(rID, outUpper);
         *out += outUpper;
     }
     else {

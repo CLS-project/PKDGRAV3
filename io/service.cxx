@@ -24,22 +24,22 @@ using namespace fmt::literals;
 static_assert(std::is_void_v<ServiceFileSizes::input> || std::is_standard_layout_v<ServiceFileSizes::input>);
 
 int ServiceFileSizes::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = pst->mdl;
+    auto mdl = pst->mdl();
     auto hdr = reinterpret_cast<ServiceFileSizes::input*>(vin.data());
     auto out = reinterpret_cast<ServiceFileSizes::output*>(vout.data());
-    assert(hdr->nSimultaneous > 0 && hdr->nSimultaneous <= pst->nLeaves);
+    assert(hdr->nSimultaneous > 0 && hdr->nSimultaneous <= pst->n_total());
 
     // We are still trying to launch parallel I/O so split the work
     int nOut = 0;
     if (hdr->nSimultaneous > 1) {
-        int nLower = hdr->nSimultaneous * pst->nLower / pst->nLeaves;
+        int nLower = hdr->nSimultaneous * pst->n_lower() / pst->n_total();
         if (nLower == 0) nLower = 1;
         hdr->nSimultaneous -= nLower;
         hdr->iReaderWriter += nLower;
         auto rID = ReqService(pst, vin);
         hdr->nSimultaneous = nLower;
         hdr->iReaderWriter -= nLower;
-        auto nBytes = Traverse(pst->pstLower, vin, vout);
+        auto nBytes = Traverse(pst->lower(), vin, vout);
         nOut = nBytes + mdl->GetReply(rID, nOut - nBytes, out + nBytes / sizeof(output));
     }
     // Now calculate the file sizes
@@ -72,17 +72,17 @@ uint64_t ServiceFileSizes::GetSize(const std::string& filename, uint64_t file_si
 static_assert(std::is_void_v<ServiceIO::input> || std::is_standard_layout_v<ServiceIO::input>);
 
 int ServiceIO::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = pst->mdl;
+    auto mdl = pst->mdl();
     auto hdr = reinterpret_cast<ServiceIO::input*>(vin.data());
-    assert(hdr->nSimultaneous > 0 && hdr->nSimultaneous <= pst->nLeaves);
+    assert(hdr->nSimultaneous > 0 && hdr->nSimultaneous <= pst->n_total());
 
     // We are still trying to launch parallel I/O so split the work
     if (hdr->nSimultaneous > 1) {
-        int nLower = hdr->nSimultaneous * pst->nLower / pst->nLeaves;
+        int nLower = hdr->nSimultaneous * pst->n_lower() / pst->n_total();
         if (nLower == 0) nLower = 1;
         hdr->nSimultaneous -= nLower;
         hdr->iReaderWriter += nLower;
-        hdr->iThread = pst->idUpper;
+        hdr->iThread = pst->upper();
         auto rID = do_upper(pst, vin);
         hdr->nSimultaneous = nLower;
         hdr->iReaderWriter -= nLower;
@@ -92,7 +92,7 @@ int ServiceIO::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> v
     }
     // Now we go sequentially
     else {
-        if (hdr->nSegment == 0) hdr->nSegment = pst->nLeaves;
+        if (hdr->nSegment == 0) hdr->nSegment = pst->n_total();
         do_lower(pst, vin, vout);
         auto rID = do_upper(pst, vin);
         return mdl->GetReply(rID, vout);
@@ -100,7 +100,7 @@ int ServiceIO::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> v
 }
 
 int ServiceIO::do_lower(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    return Traverse(pst->pstLower, vin, vout);
+    return Traverse(pst->lower(), vin, vout);
 }
 
 int ServiceIO::do_upper(PST pst, std::span<std::byte> vin) {
@@ -108,9 +108,9 @@ int ServiceIO::do_upper(PST pst, std::span<std::byte> vin) {
 }
 
 int ServiceIO::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = pst->mdl;
+    auto mdl = pst->mdl();
     auto hdr = reinterpret_cast<ServiceIO::input*>(vin.data());
-    if (hdr->nSegment == 0) hdr->nSegment = pst->nLeaves;
+    if (hdr->nSegment == 0) hdr->nSegment = pst->n_total();
     auto iSegment = mdl->Self() - hdr->iThread;
     IO(pst, vin, hdr->iReaderWriter, iSegment, hdr->nSegment);
     return 0;
@@ -124,7 +124,7 @@ static_assert(std::is_void_v<ServiceInput::output> || std::is_standard_layout_v<
 
 auto get_elements = [](auto pst, auto hdr) {
     auto iBeg = hdr->iBeg, iEnd = hdr->iEnd, nElements = hdr->iEnd - hdr->iBeg;
-    auto nElementsLower = (nElements + pst->nLeaves - 1) / pst->nLeaves * pst->nLower;
+    auto nElementsLower = (nElements + pst->n_total() - 1) / pst->n_total() * pst->n_lower();
     auto iMid = iBeg + nElementsLower;
     return std::make_tuple(iBeg, iMid, iEnd);
 };
@@ -133,7 +133,7 @@ int ServiceInput::do_lower(PST pst, std::span<std::byte> vin, std::span<std::byt
     auto hdr = reinterpret_cast<ServiceInput::input*>(vin.data());
     auto [iBeg, iMid, iEnd] = get_elements(pst, hdr);
     hdr->iEnd = iMid;
-    auto n = Traverse(pst->pstLower, vin, vout);
+    auto n = Traverse(pst->lower(), vin, vout);
     hdr->iEnd = iEnd;
     return n;
 }
@@ -142,7 +142,7 @@ int ServiceInput::do_upper(PST pst, std::span<std::byte> vin) {
     auto hdr = reinterpret_cast<ServiceInput::input*>(vin.data());
     auto [iBeg, iMid, iEnd] = get_elements(pst, hdr);
     hdr->iBeg = iMid;
-    auto rID = pst->mdl->ReqService(pst->idUpper, getServiceID(), vin);
+    auto rID = pst->mdl()->ReqService(pst->upper(), getServiceID(), vin);
     hdr->iBeg = iBeg;
     return rID;
 }

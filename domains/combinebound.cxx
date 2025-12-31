@@ -26,7 +26,7 @@ int ServiceCombineBound::Service(PST pst, std::span<std::byte> vin, std::span<st
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vin.size() == 0);
     assert(vout.size() == sizeof(output));
-    *out = pst->plcl->pkd->bnd;
+    *out = pst->lcl()->pkd->bnd;
     return sizeof(output);
 }
 

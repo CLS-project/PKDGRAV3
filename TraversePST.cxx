@@ -22,9 +22,9 @@ int TraversePST::operator()(std::span<std::byte> In, std::span<std::byte> Out) {
 }
 
 int TraversePST::Traverse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    if (pstAmCore(pst)) return Service(pst, vin, vout);
-    else if (pstOffNode(pst)) return OffNode(pst, vin, vout);
-    else if (pstAmNode(pst)) return AtNode(pst, vin, vout);
+    if (pst->AmCore()) return Service(pst, vin, vout);
+    else if (pst->OffNode()) return OffNode(pst, vin, vout);
+    else if (pst->AmNode()) return AtNode(pst, vin, vout);
     else return Recurse(pst, vin, vout);
 }
 
@@ -33,13 +33,13 @@ int TraversePST::Traverse(PST pst, std::span<std::byte> vin, std::span<std::byte
 // This relies on the service being a "TraversePST" and if PST was converted to C++ then
 // there would be a more elegant way of doing this.
 int TraversePST::Traverse(unsigned sid, PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto mdl = pst->mdl();
     auto service = dynamic_cast<TraversePST*>(mdl->GetService(sid));
     assert(service); // It would be a serious error if this was not a TraversePST service.
     return service->Traverse(pst, vin, vout);
 }
 int TraversePST::Traverse(std::string_view service_name, PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
+    auto mdl = pst->mdl();
     auto service = dynamic_cast<TraversePST*>(mdl->GetService(service_name));
     assert(service); // It would be a serious error if this was not a TraversePST service.
     return service->Traverse(pst, vin, vout);
@@ -49,18 +49,18 @@ int TraversePST::Traverse(std::string_view service_name, PST pst, std::span<std:
 // (OffNode,AtNode,Recurse) and will just naively recurse. Once we reach
 // the leaf (AmCore) then Service() is called and must be provided.
 int TraversePST::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
+    auto mdl = pst->mdl();
     auto rID = ReqService(pst, vin);
-    Traverse(pst->pstLower, vin, vout);
+    Traverse(pst->lower(), vin, vout);
     return mdl->GetReply(rID, vout);
 }
 
 // This class is used for services that pass the same input (or none),
 // and need to combine output results of the same size and type.
 int TraverseCombinePST::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
+    auto mdl = pst->mdl();
     auto rID = ReqService(pst, vin);
-    Traverse(pst->pstLower, vin, vout);
+    Traverse(pst->lower(), vin, vout);
     std::span<std::byte> vout2{reinterpret_cast<std::byte*>(alloca(vout.size())), vout.size()};
     auto nOut = mdl->GetReply(rID, vout2);
     Combine(vout, vout2);

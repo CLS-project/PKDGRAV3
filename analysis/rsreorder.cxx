@@ -20,7 +20,7 @@
 
 int ServiceRsReorderIds::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pOrds = reinterpret_cast<const input*>(vin.data());
-    pst->plcl->pkd->RsReorder(pOrds);
+    pst->lcl()->pkd->RsReorder(pOrds);
     return 0;
 }
 using dd_offset_type = mdl::mdlClass::dd_offset_type;

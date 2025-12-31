@@ -24,7 +24,7 @@ static_assert(std::is_void_v<ServiceCacheStats::output> || std::is_standard_layo
 int ServiceCacheStats::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     static_assert(std::is_void_v<input>);
     auto& out = *reinterpret_cast<output*>(vout.data());
-    auto mpi = pst->mdl->mpi;
+    auto mpi = pst->mdl()->mpi;
     std::tie(out.mpi_loop, out.mpi_test, out.gpu_test, out.msg_test) = mpi->get_cache_stats();
     return sizeof(output);
 }

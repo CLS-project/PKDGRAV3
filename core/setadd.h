@@ -33,5 +33,5 @@ class ServiceSetAdd : public mdl::BasicService {
 
   protected:
     virtual int operator()(std::span<std::byte> In, std::span<std::byte> Out) override;
-    void SetAdd(PST pst, input* in);
+    void SetAdd(PST pst, input in);
 };

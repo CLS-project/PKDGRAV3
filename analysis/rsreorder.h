@@ -25,7 +25,7 @@ class ServiceRsReorderIds : public TraversePST {
     static constexpr std::string_view name = "RsReorderIds";
     using input = uint64_t;
     using output = void;
-    explicit ServiceRsReorderIds(PST pst) : TraversePST(pst, name, sizeof(input) * (pst->mdl->Threads() + 1)) {}
+    explicit ServiceRsReorderIds(PST pst) : TraversePST(pst, name, sizeof(input) * (pst->mdl()->Threads() + 1)) {}
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
 };
 

@@ -24,7 +24,7 @@ class ServiceHostname : public TraversePST {
         int iMpiID;
         char szHostname[20];
     };
-    explicit ServiceHostname(PST pst) : TraversePST(pst, name, 0, pst->mdl->Threads() * sizeof(output)) {}
+    explicit ServiceHostname(PST pst) : TraversePST(pst, name, 0, pst->mdl()->Threads() * sizeof(output)) {}
 
   protected:
     virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;

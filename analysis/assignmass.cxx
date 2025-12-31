@@ -177,13 +177,13 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
 }
 
 int pstAssignMass(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->plcl;
+    LCL* plcl = pst->lcl();
     struct inAssignMass* in = reinterpret_cast<struct inAssignMass*>(vin);
     assert(nIn == sizeof(struct inAssignMass));
-    if (pstNotCore(pst)) {
-        int rID = pst->mdl->ReqService(pst->idUpper, PST_ASSIGN_MASS, vin, nIn);
-        pstAssignMass(pst->pstLower, vin, nIn, NULL, 0);
-        pst->mdl->GetReply(rID);
+    if (pst->NotCore()) {
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_ASSIGN_MASS, vin, nIn);
+        pstAssignMass(pst->lower(), vin, nIn, NULL, 0);
+        pst->mdl()->GetReply(rID);
     }
     else {
         pkdAssignMass(plcl->pkd, ROOT, in->iAssignment, in->iGrid, in->fDelta, in->fold);
@@ -228,13 +228,13 @@ void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
 }
 
 int pstWindowCorrection(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->plcl;
+    LCL* plcl = pst->lcl();
     auto in = reinterpret_cast<struct inWindowCorrection*>(vin);
     assert(nIn == sizeof(struct inWindowCorrection));
-    if (pstNotCore(pst)) {
-        int rID = pst->mdl->ReqService(pst->idUpper, PST_WINDOW_CORRECTION, vin, nIn);
-        pstWindowCorrection(pst->pstLower, vin, nIn, NULL, 0);
-        pst->mdl->GetReply(rID);
+    if (pst->NotCore()) {
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_WINDOW_CORRECTION, vin, nIn);
+        pstWindowCorrection(pst->lower(), vin, nIn, NULL, 0);
+        pst->mdl()->GetReply(rID);
     }
     else {
         pkdWindowCorrection(plcl->pkd, in->iAssignment, in->iGrid);

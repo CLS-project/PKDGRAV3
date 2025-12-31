@@ -27,14 +27,7 @@
 #include "cosmo.h"
 #include "ic/ic.h"
 
-#define pstOffNode(pst) ((pst)->nLeaves > (pst)->mdl->Cores())
-#define pstOnNode(pst) ((pst)->nLeaves <= (pst)->mdl->Cores())
-#define pstAmNode(pst) ((pst)->nLeaves == (pst)->mdl->Cores())
-#define pstNotNode(pst) ((pst)->nLeaves != (pst)->mdl->Cores())
-#define pstAmCore(pst) ((pst)->nLeaves == 1)
-#define pstNotCore(pst) ((pst)->nLeaves > 1)
-
-typedef struct lclBlock {
+struct LCL {
     PKD pkd;
     int iWtFrom;
     int iWtTo;
@@ -48,18 +41,25 @@ typedef struct lclBlock {
     int nSplit;
     uint64_t nWriteStart;
     PKDOUT pkdout;
-} LCL;
+};
 
-typedef struct pstContext {
-    struct pstContext* pstLower;
-    mdl::mdlClass* mdl;
-    LCL* plcl;
-    int idSelf;
-    int idUpper;
-    int nLeaves;
-    int nLower;
-    int nUpper;
-    int iLvl;
+struct pstNode {
+    pstNode() = delete;
+    explicit pstNode(mdl::mdlClass* mdl, LCL* lcl)
+        : pstLower_(nullptr), mdl_(mdl), lcl_(lcl), idUpper_(-1), nLeaves_(1), nLower_(0), nUpper_(0), iLvl_(0), iSplitDim(-1), iOrdSplit(0), fSplit(0.0),
+          fSplitInactive(0.0), nTotal(0), nLowerGroups(0) {}
+
+  private:
+    pstNode* pstLower_;  // Left child node: found locally
+    mdl::mdlClass* mdl_; // MDL class
+    LCL* lcl_;           // Variables that are identical on all PST nodes
+    int idUpper_;        // ID of the thread with the right child node
+    int nLeaves_;        // Number of leaves in this subtree (nLower_ + nUpper_, or 1 for a leaf)
+    int nLower_;         // Number of leaves in the lower subtree (0 if leaf)
+    int nUpper_;         // Number of leaves in the upper subtree (0 if leaf)
+    int iLvl_;           // Depth in the PST tree
+
+  public:
     Bound bnd;
     int iSplitDim;
     uint64_t iOrdSplit;
@@ -67,7 +67,37 @@ typedef struct pstContext {
     double fSplitInactive;
     uint64_t nTotal;
     uint64_t nLowerGroups; /* count of number of groups in the lower sub-tree, used for making global group ids. */
-}* PST;
+
+    [[nodiscard]] auto OffNode() const { return nLeaves_ > mdl_->Cores(); }
+    [[nodiscard]] auto OnNode() const { return nLeaves_ <= mdl_->Cores(); }
+    [[nodiscard]] auto AmNode() const { return nLeaves_ == mdl_->Cores(); }
+    [[nodiscard]] auto NotNode() const { return nLeaves_ != mdl_->Cores(); }
+    [[nodiscard]] auto AmCore() const { return nLeaves_ == 1; }
+    [[nodiscard]] auto NotCore() const { return nLeaves_ > 1; }
+
+    [[nodiscard]] auto Self() const { return mdl_->Self(); }
+    [[nodiscard]] auto n_lower() const { return nLower_; }
+    [[nodiscard]] auto n_upper() const { return nUpper_; }
+    [[nodiscard]] auto n_total() const { return nLeaves_; }
+    [[nodiscard]] auto lower() const { return pstLower_; }
+    [[nodiscard]] auto upper() const { return idUpper_; }
+    [[nodiscard]] auto depth() const { return iLvl_; }
+
+    [[nodiscard]] auto mdl() const { return mdl_; }
+    [[nodiscard]] auto lcl() const { return lcl_; }
+
+    auto create_lower(int idMiddle, int idUp) {
+        assert(pstLower_ == nullptr);
+        idUpper_ = idMiddle;
+        nLower_ = idMiddle - Self();
+        nUpper_ = idUp - idMiddle;
+        nLeaves_ = nLower_ + nUpper_;
+        pstLower_ = new pstNode(mdl_, lcl_);
+        pstLower_->iLvl_ = iLvl_ + 1;
+        return pstLower_;
+    }
+};
+using PST = pstNode*;
 
 #define PST_SERVICES 100
 #define PST_MAX_FILES 16384
@@ -288,8 +318,6 @@ enum pst_service {
 };
 
 void pstAddServices(PST, mdl::mdlClass*);
-void pstInitialize(PST*, mdl::mdlClass*, LCL*);
-void pstFinish(PST);
 
 /* PST_INITIALIZEPSTORE */
 struct inInitializePStore {

@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "setadd.h"
+#include "pst.h"
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
@@ -23,41 +24,29 @@ static_assert(std::is_void_v<ServiceSetAdd::output> || std::is_trivial_v<Service
 
 // This is a weird service. Normally we use TraversePST, but here
 // we are actually setting up the PST structure.
-int ServiceSetAdd::operator()(std::span<std::byte> In, std::span<std::byte> Out) {
-    assert(In.size() == sizeof(input));
-    SetAdd(node_pst, reinterpret_cast<input*>(In.data()));
+int ServiceSetAdd::operator()(std::span<std::byte> in, std::span<std::byte> out) {
+    assert(in.size() == sizeof(input));
+    SetAdd(node_pst, *reinterpret_cast<input*>(in.data()));
     return 0;
 }
 
-void ServiceSetAdd::SetAdd(PST pst, input* in) {
-    auto mdl = pst->mdl;
-    PST pstNew;
-    int n, idMiddle, iProcLower, iProcUpper;
-    mdlassert(mdl, pst->nLeaves == 1);
-    mdlassert(mdl, in->idLower == mdl->Self());
-    n = in->idUpper - in->idLower;
-    idMiddle = (in->idUpper + in->idLower) / 2;
+void ServiceSetAdd::SetAdd(PST pst, input in) {
+    auto mdl = pst->mdl();
+    assert(in.idLower == mdl->Self());
+    auto n = in.idUpper - in.idLower;
     if (n > 1) {
-        int rID;
+        auto idMiddle = (in.idUpper + in.idLower) / 2;
         /* Make sure that the pst lands on core zero */
-        iProcLower = mdl->ThreadToProc(in->idLower);
-        iProcUpper = mdl->ThreadToProc(in->idUpper - 1);
+        auto iProcLower = mdl->ThreadToProc(in.idLower);
+        auto iProcUpper = mdl->ThreadToProc(in.idUpper - 1);
         if (iProcLower != iProcUpper) {
-            idMiddle = pst->mdl->ProcToThread(mdl->ThreadToProc(idMiddle));
+            idMiddle = mdl->ProcToThread(mdl->ThreadToProc(idMiddle));
         }
-        pst->nLeaves += n - 1;
-        pst->nLower = idMiddle - in->idLower;
-        pst->nUpper = in->idUpper - idMiddle;
-
-        in->idLower = idMiddle;
-        pst->idUpper = in->idLower;
-        rID = mdl->ReqService(pst->idUpper, getServiceID(), in, sizeof(input));
-        in->idLower = mdl->Self();
-        in->idUpper = idMiddle;
-        pstInitialize(&pstNew, mdl, pst->plcl);
-        pst->pstLower = pstNew;
-        pstNew->iLvl = pst->iLvl + 1;
-        SetAdd(pst->pstLower, in);
+        input lopart(in.idLower, idMiddle);
+        input hipart(idMiddle, in.idUpper);
+        auto low = pst->create_lower(idMiddle, in.idUpper);
+        auto rID = mdl->ReqService(pst->upper(), getServiceID(), hipart);
+        SetAdd(low, lopart);
         mdl->GetReply(rID);
     }
 }

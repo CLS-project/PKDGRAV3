@@ -30,7 +30,7 @@ struct output_particle {
 void ServiceRsExtract::Write(PST pst, std::span<std::byte> vin, int iGroup, const std::string& filename, int iSegment, int nSegment) {
     auto hdr = reinterpret_cast<header*>(vin.data());
     auto pOrds = reinterpret_cast<input*>(hdr + 1);
-    pst->plcl->pkd->RsExtract(filename, iSegment, pOrds);
+    pst->lcl()->pkd->RsExtract(filename, iSegment, pOrds);
 }
 
 void pkdContext::RsExtract(const std::string& filename, int iSegment, uint64_t* pOrds) {

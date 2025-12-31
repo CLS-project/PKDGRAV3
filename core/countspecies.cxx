@@ -24,7 +24,7 @@ static_assert(std::is_void_v<ServiceCountSpecies::output> || std::is_standard_la
 int ServiceCountSpecies::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     static_assert(std::is_void_v<input>);
     auto& out = *reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->plcl->pkd;
+    auto pkd = pst->lcl()->pkd;
     out.counts = 0;
     out.nMaxOrder = 0;
     for (auto& p : pkd->particles) {

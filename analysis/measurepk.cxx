@@ -92,13 +92,13 @@ void pkdAddLinearSignal(PKD pkd, int iGrid, int iSeed, bool bFixed, float fPhase
 }
 
 int pstAddLinearSignal(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->plcl;
+    LCL* plcl = pst->lcl();
     auto in = reinterpret_cast<struct inAddLinearSignal*>(vin);
     assert(nIn == sizeof(*in));
-    if (pstNotCore(pst)) {
-        int rID = pst->mdl->ReqService(pst->idUpper, PST_ADD_LINEAR_SIGNAL, vin, nIn);
-        pstAddLinearSignal(pst->pstLower, vin, nIn, NULL, 0);
-        pst->mdl->GetReply(rID);
+    if (pst->NotCore()) {
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_ADD_LINEAR_SIGNAL, vin, nIn);
+        pstAddLinearSignal(pst->lower(), vin, nIn, NULL, 0);
+        pst->mdl()->GetReply(rID);
     }
     else {
         pkdAddLinearSignal(plcl->pkd, in->iGrid, in->iSeed, in->bFixed, in->fPhase, in->Lbox, in->a);
@@ -167,18 +167,18 @@ void pkdGridBinK(PKD pkd, int nBins, int iGrid, double* fK, double* fPower, uint
 }
 
 int pstGridBinK(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->plcl;
+    LCL* plcl = pst->lcl();
     auto in = reinterpret_cast<struct inGridBinK*>(vin);
     auto out = reinterpret_cast<struct outGridBinK*>(vout);
     int i;
 
     assert(nIn == sizeof(struct inGridBinK));
     assert(nOut == sizeof(struct outGridBinK));
-    if (pstNotCore(pst)) {
+    if (pst->NotCore()) {
         auto outUpper = new struct outGridBinK;
-        int rID = pst->mdl->ReqService(pst->idUpper, PST_GRID_BIN_K, vin, nIn);
-        pstGridBinK(pst->pstLower, vin, nIn, vout, nOut);
-        nOut = pst->mdl->GetReply(rID, sizeof(*outUpper), outUpper);
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_GRID_BIN_K, vin, nIn);
+        pstGridBinK(pst->lower(), vin, nIn, vout, nOut);
+        nOut = pst->mdl()->GetReply(rID, sizeof(*outUpper), outUpper);
         assert(nOut == sizeof(struct outGridBinK));
 
         for (i = 0; i < in->nBins; i++) {

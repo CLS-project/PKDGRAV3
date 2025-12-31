@@ -279,7 +279,7 @@ void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<
 int ServiceCountDistance::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->plcl->pkd;
+    auto pkd = pst->lcl()->pkd;
     assert(vin.size() == sizeof(input));
     assert(vout.size() == sizeof(output));
     decltype(distance::d2) r2i = in->dRadius2Inner, r2o = in->dRadius2Outer; // Avoid potential type conversions below

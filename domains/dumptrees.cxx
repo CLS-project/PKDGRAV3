@@ -24,7 +24,7 @@ static_assert(std::is_void_v<ServiceDumpTrees::output> || std::is_trivial_v<Serv
 int ServiceDumpTrees::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    auto pkd = pst->plcl->pkd;
+    auto pkd = pst->lcl()->pkd;
     pkdDumpTrees(pkd, in->bOnlyVA, in->uRungDD);
     return 0;
 }

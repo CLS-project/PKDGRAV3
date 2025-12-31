@@ -27,7 +27,7 @@ class ServiceRsExtract : public ServiceOutput {
     using header = ServiceOutput::input;
     using input = uint64_t;
     using output = void;
-    explicit ServiceRsExtract(PST pst) : ServiceOutput(pst, name, sizeof(header) + sizeof(input) * (pst->mdl->Threads() + 1)) {}
+    explicit ServiceRsExtract(PST pst) : ServiceOutput(pst, name, sizeof(header) + sizeof(input) * (pst->mdl()->Threads() + 1)) {}
 
   protected:
     virtual void Write(PST pst, std::span<std::byte> in, int iGroup, const std::string& filename, int iSegment, int nSegment) override;

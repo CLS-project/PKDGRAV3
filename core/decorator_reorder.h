@@ -25,7 +25,7 @@ class ServiceReorderDecorator : public TraversePST {
 
   protected:
     int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override {
-        auto pkd = pst->plcl->pkd;
+        auto pkd = pst->lcl()->pkd;
         pkdReorderDecorator(pkd);
         return 0;
     }

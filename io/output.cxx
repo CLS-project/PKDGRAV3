@@ -26,7 +26,7 @@
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 void ServiceSaveGroupStats::Write(PST pst, std::span<std::byte> vin, int iGroup, const std::string& filename, int iSegment, int nSegment) {
-    pst->plcl->pkd->GroupStatsSave(iGroup, filename, iSegment, nSegment);
+    pst->lcl()->pkd->GroupStatsSave(iGroup, filename, iSegment, nSegment);
 }
 
 void pkdContext::GroupStatsSave(int iGroup, const std::string& filename, int iSegment, int nSegment) {
@@ -124,7 +124,7 @@ void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner, int iGrid) {
 
 int pstOutputSend(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto in = reinterpret_cast<struct inOutputSend*>(vin);
-    pkdOutputSend(pst->plcl->pkd, in->eOutputType, in->iPartner, in->iGrid);
+    pkdOutputSend(pst->lcl()->pkd, in->eOutputType, in->iPartner, in->iGrid);
     return 0;
 }
 
@@ -192,43 +192,43 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor, int nProcessor, int
 int pstOutput(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto in = reinterpret_cast<struct inOutput*>(vin);
 
-    mdlassert(pst->mdl, nIn >= sizeof(struct inOutput));
-    if (pstNotCore(pst)) {
+    assert(nIn >= sizeof(struct inOutput));
+    if (pst->NotCore()) {
         int nProcessor = in->nProcessor;
         int iProcessor = in->iProcessor;
 
         /* Still allowed to write more in parallel */
         if (nProcessor > 1) {
             int nLower, nUpper;
-            nLower = nProcessor * pst->nLower / pst->nLeaves;
+            nLower = nProcessor * pst->n_lower() / pst->n_total();
             if (nLower == 0) nLower = 1;
             nUpper = nProcessor - nLower;
             in->nProcessor = nUpper;
             in->iProcessor = iProcessor + nLower;
-            int rID = pst->mdl->ReqService(pst->idUpper, PST_OUTPUT, in, nIn);
+            int rID = pst->mdl()->ReqService(pst->upper(), PST_OUTPUT, in, nIn);
             in->nProcessor = nLower;
             in->iProcessor = iProcessor;
-            pstOutput(pst->pstLower, in, nIn, NULL, 0);
-            pst->mdl->GetReply(rID);
+            pstOutput(pst->lower(), in, nIn, NULL, 0);
+            pst->mdl()->GetReply(rID);
         }
         /* We are the node that will be the writer for all of the pst children */
         else if (nProcessor == 1) {
-            in->iPartner = pst->idSelf;
-            in->nPartner = pst->nLeaves;
+            in->iPartner = pst->Self();
+            in->nPartner = pst->n_total();
             in->nProcessor = 0;
-            pstOutput(pst->pstLower, in, nIn, NULL, 0); /* Keep decending to write */
+            pstOutput(pst->lower(), in, nIn, NULL, 0); /* Keep decending to write */
         }
         else {
-            pstOutput(pst->pstLower, in, nIn, NULL, 0); /* Keep decending to write */
+            pstOutput(pst->lower(), in, nIn, NULL, 0); /* Keep decending to write */
         }
     }
     else {
         /* If it is fully parallel then there is just us writing. */
         if (in->nProcessor > 0) {
-            in->iPartner = pst->idSelf;
+            in->iPartner = pst->Self();
             in->nPartner = 1;
         }
-        PKD pkd = pst->plcl->pkd;
+        PKD pkd = pst->lcl()->pkd;
         pkdOutput(pkd, in->eOutputType, in->iProcessor, in->nProcessor, in->iPartner, in->nPartner, in->achOutFile, in->iGrid);
     }
     return 0;

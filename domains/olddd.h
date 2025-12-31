@@ -30,7 +30,7 @@ class ServiceColRejects : public TraversePST {
         int nDecoratorSpace;
         int nLocal;
     };
-    explicit ServiceColRejects(PST pst) : TraversePST(pst, name, 0, pst->mdl->Threads() * sizeof(output)) {}
+    explicit ServiceColRejects(PST pst) : TraversePST(pst, name, 0, pst->mdl()->Threads() * sizeof(output)) {}
 
   protected:
     virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
@@ -42,7 +42,7 @@ class ServiceSwapRejects : public TraversePST {
     static constexpr std::string_view name = "SwapRejects";
     typedef int input;
     typedef ServiceColRejects::output output;
-    explicit ServiceSwapRejects(PST pst) : TraversePST(pst, name, pst->mdl->Threads() * sizeof(input), pst->mdl->Threads() * sizeof(output)) {}
+    explicit ServiceSwapRejects(PST pst) : TraversePST(pst, name, pst->mdl()->Threads() * sizeof(input), pst->mdl()->Threads() * sizeof(output)) {}
 
   protected:
     virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
@@ -57,7 +57,7 @@ class ServiceColOrdRejects : public TraversePST {
         int iSplitSide;
     };
     typedef ServiceColRejects::output output;
-    explicit ServiceColOrdRejects(PST pst) : TraversePST(pst, name, 0, pst->mdl->Threads() * sizeof(output)) {}
+    explicit ServiceColOrdRejects(PST pst) : TraversePST(pst, name, 0, pst->mdl()->Threads() * sizeof(output)) {}
 
   protected:
     virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;

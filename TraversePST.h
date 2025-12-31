@@ -57,21 +57,21 @@ class TraversePST : public mdl::BasicService {
 
     template <typename I = std::byte>
     int ReqService(PST pst, std::span<I> in = {}) {
-        return pst->mdl->ReqService(pst->idUpper, getServiceID(), mdl::as_bytes(in));
+        return pst->mdl()->ReqService(pst->upper(), getServiceID(), mdl::as_bytes(in));
     }
     template <typename I>
     int ReqService(PST pst, const I& in) {
-        return pst->mdl->ReqService(pst->idUpper, getServiceID(), mdl::as_bytes(in));
+        return pst->mdl()->ReqService(pst->upper(), getServiceID(), mdl::as_bytes(in));
     }
 
     template <typename O = std::byte>
     int GetReply(int rID, std::span<O> out = {}) {
-        return node_pst->mdl->GetReply(rID, mdl::as_writable_bytes(out));
+        return node_pst->mdl()->GetReply(rID, mdl::as_writable_bytes(out));
     }
 
     template <typename O>
     int GetReply(int rID, O& out) {
-        return node_pst->mdl->GetReply(rID, mdl::as_writable_bytes(out));
+        return node_pst->mdl()->GetReply(rID, mdl::as_writable_bytes(out));
     }
 
   protected:
@@ -152,16 +152,15 @@ class TraverseGatherPST : public TraversePST {
 
   protected:
     virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> vout) final {
-        auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
-        int nBytesLower = pst->nLower * sizeof(output);
-        int nBytesUpper = pst->nUpper * sizeof(output);
+        int nBytesLower = pst->n_lower() * sizeof(output);
+        int nBytesUpper = pst->n_upper() * sizeof(output);
         assert(nBytesLower + nBytesUpper <= vout.size());
         auto out = vout.subspan(0, nBytesLower + nBytesUpper);
         auto out1 = out.subspan(0, nBytesLower);
         auto out2 = out.subspan(nBytesLower, nBytesUpper);
         auto nOut = nBytesLower + nBytesUpper;
         auto rID = ReqService(pst, in);
-        Traverse(pst->pstLower, in, out1);
+        Traverse(pst->lower(), in, out1);
         nBytesUpper = GetReply(rID, out2);
         return nOut;
     }

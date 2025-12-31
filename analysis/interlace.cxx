@@ -46,13 +46,13 @@ void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource) {
 }
 
 int pstInterlace(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->plcl;
+    LCL* plcl = pst->lcl();
     struct inInterlace* in = reinterpret_cast<struct inInterlace*>(vin);
     assert(nIn == sizeof(struct inInterlace));
-    if (pstNotCore(pst)) {
-        int rID = pst->mdl->ReqService(pst->idUpper, PST_INTERLACE, vin, nIn);
-        pstInterlace(pst->pstLower, vin, nIn, NULL, 0);
-        pst->mdl->GetReply(rID);
+    if (pst->NotCore()) {
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_INTERLACE, vin, nIn);
+        pstInterlace(pst->lower(), vin, nIn, NULL, 0);
+        pst->mdl()->GetReply(rID);
     }
     else {
         pkdInterlace(plcl->pkd, in->iGridTarget, in->iGridSource);

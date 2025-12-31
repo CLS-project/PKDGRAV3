@@ -6,7 +6,7 @@
 #include "eEOS/eEOS.h"
 
 int ServiceEndTimestepIntegration::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto pkd = pst->plcl->pkd;
+    auto pkd = pst->lcl()->pkd;
     auto in = reinterpret_cast<const input*>(vin.data());
     double pDelta, dScaleFactor, dHubble;
     blitz::TinyVector<double, 3> pa;
