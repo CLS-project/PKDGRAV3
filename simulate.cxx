@@ -301,7 +301,7 @@ void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
     }
     if (MeshlessHydro()) {
         InitSph(dTime, dDelta, bRestart);
-        auto uRungMaxHydro = GetMinDt();
+        auto uRungMaxHydro = GetMaxRung();
         uRungMax = std::max(uRungMax, uRungMaxHydro);
     }
 

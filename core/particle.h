@@ -532,6 +532,7 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
     auto end() noexcept { return iterator(*this, Element(size())); }
     auto end() const noexcept { return const_iterator(*this, Element(size())); }
     auto cend() const noexcept { return const_iterator(*this, Element(size())); }
+    auto empty() const noexcept { return size() == 0; }
 
   public:
     void setClass(float fMass, float fSoft, int iMat, float accFac, FIO_SPECIES eSpecies, PARTICLE* p) {

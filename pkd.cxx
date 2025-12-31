@@ -2550,14 +2550,6 @@ int pkdIsBH(PKD pkd, PARTICLE* p) {
     return pkdSpecies(pkd, p) == FIO_SPECIES_BH;
 }
 
-uint8_t pkdGetMinDt(PKD pkd) {
-    return std::accumulate(pkd->particles.begin(), pkd->particles.end(), 0, [](uint8_t a, auto& p) { return std::max(a, p.new_rung()); });
-}
-
-void pkdSetGlobalDt(PKD pkd, uint8_t minDt) {
-    for (auto& p : pkd->particles) p.set_new_rung(minDt);
-}
-
 void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType) {
     FILE* fp;
     int i;

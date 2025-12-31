@@ -88,6 +88,7 @@
 #include "gravity/pmforces.h"
 #include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
+#include "gravity/timestep.h"
 
 #include "SPH/gasvalues.h"
 #include "SPH/resetcom.h"
@@ -205,6 +206,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSwapClasses>(pst);
     mdl->AddService<ServiceGetClasses>(pst);
     mdl->AddService<ServiceSetClasses>(pst);
+    mdl->AddService<ServiceMaxRung>(pst);
+    mdl->AddService<ServiceSetGlobalRung>(pst);
 #ifdef HAVE_ROCKSTAR
     mdl->AddService<ServiceRsHaloCount>(pst);
     mdl->AddService<ServiceRsHaloLoadIds>(pst);

@@ -581,6 +581,8 @@ class pkdContext : public Integerize {
     void CalcDistance(blitz::TinyVector<double, 3> dCenter, int bPeriodic);
     void CalcCOM(const blitz::TinyVector<double, 3>& dCenter, double dRadius, int bPeriodic, blitz::TinyVector<double, 3>& com,
                  blitz::TinyVector<double, 3>& vcm, blitz::TinyVector<double, 3>& L, double& M, uint64_t& N);
+    uint8_t MaxRung();
+    void SetGlobalRung(uint8_t minDt);
 
     void swap_classes(int id);
 
@@ -815,8 +817,6 @@ void pkdEnforcePeriodic(PKD, Bound);
 void pkdPhysicalSoft(PKD pkd, double dSoftMax, double dFac, int bSoftMaxMul);
 int pkdWeight(PKD, int, double, int, int, int, int*, int*, double*, double*);
 void pkdCountVA(PKD, int, double, int*, int*);
-uint8_t pkdGetMinDt(PKD pkd);
-void pkdSetGlobalDt(PKD pkd, uint8_t minDt);
 int pkdLowerPart(PKD, int, double, int, int);
 int pkdUpperPart(PKD, int, double, int, int);
 int pkdWeightWrap(PKD, int, double, double, int, int, int, int*, int*);

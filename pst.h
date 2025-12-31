@@ -155,8 +155,6 @@ inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
 inline constexpr std::string_view MemStatus = "MemStatus";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
-inline constexpr std::string_view GetMinDt = "GetMinDt";
-inline constexpr std::string_view SetGlobalDt = "SetGlobalDt";
 inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
 inline constexpr std::string_view BHInit = "BHInit";
 inline constexpr std::string_view BHReposition = "BHReposition";
@@ -217,8 +215,6 @@ enum pst_service {
     PST_SETSPHOPTIONS,
     PST_INITIALIZEEOS,
     PST_INTERLACE,
-    PST_GETMINDT,
-    PST_SETGLOBALDT,
 };
 
 void pstAddServices(PST, mdl::mdlClass*);
@@ -675,12 +671,5 @@ struct inSetSPHoptions {
 int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut);
 /* PST_INITIALIZEEOS */
 int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-/* PST_GETMINDT */
-struct outGetMinDt {
-    uint8_t uMinDt;
-};
-int pstGetMinDt(PST pst, void* vin, int nIn, void* vout, int nOut);
-int pstSetGlobalDt(PST pst, void* vin, int nIn, void* vout, int nOut);
 
 #endif

@@ -97,7 +97,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_GRAVITY, pst, (fcnService_t*)pstGravity, sizeof(struct inGravity), sizeof(struct outGravityReduct), Legacy::Gravity);
     mdl->AddService(PST_CALCEANDL, pst, (fcnService_t*)pstCalcEandL, 0, sizeof(struct outCalcEandL), Legacy::CalcEandL);
     mdl->AddService(PST_DRIFT, pst, (fcnService_t*)pstDrift, sizeof(struct inDrift), 0, Legacy::Drift);
-    mdl->AddService(PST_SETGLOBALDT, pst, (fcnService_t*)pstSetGlobalDt, sizeof(struct outGetMinDt), 0, Legacy::SetGlobalDt);
 #ifdef GRACKLE
     mdl->AddService(PST_GRACKLEINIT, pst, (fcnService_t*)pstGrackleInit, sizeof(struct inGrackleInit), 0, Legacy::GrackleInit);
 #endif
@@ -106,7 +105,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_BH_INIT, pst, (fcnService_t*)pstBHInit, sizeof(struct inPlaceBHSeed), 0, Legacy::BHInit);
     mdl->AddService(PST_BH_REPOSITION, pst, (fcnService_t*)pstBHReposition, 0, 0, Legacy::BHReposition);
     mdl->AddService(PST_BH_ACCRETION, pst, (fcnService_t*)pstBHAccretion, sizeof(struct inBHAccretion), 0, Legacy::BHAccretion);
-    mdl->AddService(PST_GETMINDT, pst, (fcnService_t*)pstGetMinDt, 0, sizeof(struct outGetMinDt), Legacy::GetMinDt);
     //
     mdl->AddService(PST_KICK, pst, (fcnService_t*)pstKick, sizeof(struct inKick), 0, Legacy::Kick);
     mdl->AddService(PST_KICKTREE, pst, (fcnService_t*)pstKickTree, sizeof(struct inKickTree), 0, Legacy::KickTree);
@@ -943,22 +941,6 @@ int pstDrift(PST pst, void* vin, int nIn, void* vout, int nOut) {
     return 0;
 }
 
-int pstSetGlobalDt(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct outGetMinDt*>(vin);
-
-    assert(nIn == sizeof(struct outGetMinDt));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_SETGLOBALDT, in, nIn);
-        pstSetGlobalDt(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdSetGlobalDt(plcl->pkd, in->uMinDt);
-    }
-    return 0;
-}
-
 #ifdef OPTIM_REORDER_IN_NODES
 int pstReorderWithinNodes(PST pst, void* vin, int nIn, void* vout, int nOut) {
     LCL* plcl = pst->lcl();
@@ -1204,22 +1186,4 @@ int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pkdInitializeEOS(plcl->pkd);
     }
     return 0;
-}
-
-int pstGetMinDt(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto out = static_cast<struct outGetMinDt*>(vout);
-    struct outGetMinDt outUpper;
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GETMINDT, vin, nIn);
-        pstGetMinDt(pst->lower(), vin, nIn, vout, nOut);
-        nOut = pst->mdl()->GetReply(rID, outUpper);
-        assert(nOut == sizeof(struct outGetMinDt));
-        if (out->uMinDt < outUpper.uMinDt) out->uMinDt = outUpper.uMinDt;
-    }
-    else {
-        out->uMinDt = pkdGetMinDt(plcl->pkd);
-    }
-    return sizeof(struct outGetMinDt);
 }

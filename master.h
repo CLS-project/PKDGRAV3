@@ -453,8 +453,8 @@ class MSR {
     void KickKDKClose(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi);
     void UpdateRung(uint8_t uRung);
     void AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelta);
-    uint8_t GetMinDt();
-    void SetGlobalDt(uint8_t minDt);
+    auto GetMaxRung() -> uint8_t;
+    void SetGlobalRung(uint8_t uRung);
     void DensityStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelta);
 
     void FastGasPhase1(double dTime, double dDelta, int iSmoothType);

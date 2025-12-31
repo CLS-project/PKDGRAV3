@@ -23,9 +23,7 @@ void MSR::HydroStep(double dTime, double dDelta) {
 #endif
 
     if (parameters.get_bGlobalDt()) {
-        uint8_t minDt;
-        minDt = GetMinDt();
-        SetGlobalDt(minDt);
+        SetGlobalRung(GetMaxRung());
     }
 
     TimerStop(TIMER_TIMESTEP);

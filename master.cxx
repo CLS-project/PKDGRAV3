@@ -170,6 +170,7 @@ namespace rockstar {
 #include "gravity/pmforces.h"
 #include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
+#include "gravity/timestep.h"
 
 #include "SPH/gasvalues.h"
 #include "SPH/resetcom.h"
@@ -2718,18 +2719,15 @@ void MSR::AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelt
     pstAccelStep(pst, &in, sizeof(in), NULL, 0);
 }
 
-uint8_t MSR::GetMinDt() {
-    struct outGetMinDt out;
-
-    pstGetMinDt(pst, NULL, 0, &out, sizeof(struct outGetMinDt));
-    return out.uMinDt;
+auto MSR::GetMaxRung() -> uint8_t {
+    ServiceMaxRung::output out;
+    mdl->RunService<ServiceMaxRung>({}, out);
+    return out.uMaxRung;
 }
 
-void MSR::SetGlobalDt(uint8_t minDt) {
-    struct outGetMinDt in;
-    in.uMinDt = minDt;
-
-    pstSetGlobalDt(pst, &in, sizeof(in), NULL, 0);
+void MSR::SetGlobalRung(uint8_t uRung) {
+    ServiceSetGlobalRung::input in{.uMaxRung = uRung};
+    mdl->RunService<ServiceSetGlobalRung>(in);
 }
 
 void MSR::DensityStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelta) {
