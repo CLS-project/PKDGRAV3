@@ -618,7 +618,6 @@ int pstGenerateIC(PST, void*, int, void*, int);
 
 struct inGenerateICthread {
     struct inGenerateIC* ic;
-    MDLFFT fft;
 };
 int pltGenerateIC(PST, void*, int, void*, int);
 

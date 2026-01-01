@@ -907,7 +907,7 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
 }
 
 int pltMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
+    auto pkd = pst->lcl()->pkd;
     struct inMoveIC* in = reinterpret_cast<struct inMoveIC*>(vin);
     int i;
     auto mdl = pst->mdl();
@@ -945,7 +945,6 @@ int pltMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pltMoveIC(pst->lower(), in, nIn, NULL, 0);
     }
     else {
-        PKD pkd = plcl->pkd;
         pkd->particles.clearClasses();
         double inGrid = 1.0 / in->nGrid;
         float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
@@ -1078,8 +1077,7 @@ int pltMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
 }
 
 int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
+    auto pkd = pst->lcl()->pkd;
     struct inGenerateIC* in = reinterpret_cast<struct inGenerateIC*>(vin);
     auto mdl = pst->mdl();
 
@@ -1181,8 +1179,6 @@ int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
         free(sdisps);
         free(rcount);
         free(rdisps);
-        pst->mdl()->FFTNodeFinish(fft);
-        pkd->fft = NULL;
 
         /* We need to relocate the particles */
         struct inMoveIC move;
@@ -1215,7 +1211,7 @@ int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
 
 /* NOTE: only called when on-node -- pointers are passed around. */
 int pltGenerateIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
+    auto pkd = pst->lcl()->pkd;
     struct inGenerateICthread* tin = reinterpret_cast<struct inGenerateICthread*>(vin);
     struct inGenerateIC* in = tin->ic;
     struct outGenerateIC *out = reinterpret_cast<struct outGenerateIC*>(vout), outUp;
@@ -1233,8 +1229,8 @@ int pltGenerateIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
         out->noiseCSQ += outUp.noiseCSQ;
     }
     else {
-        out->N = pkdGenerateIC(plcl->pkd, tin->fft, in->iSeed, in->bFixed, in->fPhase, in->nGrid, in->iLPT, in->dBoxSize, in->dExpansion, in->nTf, in->k,
-                               in->tf, &out->noiseMean, &out->noiseCSQ);
+        out->N = pkdGenerateIC(pkd, pkd->fft, in->iSeed, in->bFixed, in->fPhase, in->nGrid, in->iLPT, in->dBoxSize, in->dExpansion, in->nTf, in->k, in->tf,
+                               &out->noiseMean, &out->noiseCSQ);
         out->dExpansion = in->dExpansion;
     }
 
@@ -1242,8 +1238,7 @@ int pltGenerateIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
 }
 
 int pstGenerateIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
+    auto pkd = pst->lcl()->pkd;
     auto mdl = pst->mdl();
     struct inGenerateIC* in = reinterpret_cast<struct inGenerateIC*>(vin);
     struct outGenerateIC *out = reinterpret_cast<struct outGenerateIC*>(vout), outUp;
@@ -1254,18 +1249,16 @@ int pstGenerateIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
 
     if (pst->AmNode()) {
         struct inGenerateICthread tin;
-        MDLFFT fft = mdl->FFTNodeInitialize(in->nGrid, in->nGrid, in->nGrid, 0, 0);
         tin.ic = reinterpret_cast<struct inGenerateIC*>(vin);
-        tin.fft = fft;
         pltGenerateIC(pst, &tin, sizeof(tin), vout, nOut);
 
         int myProc = pst->mdl()->Proc();
-        uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid * in->nGrid;
+        uint64_t nLocal = (int64_t)pkd->fft->rgrid->rn[myProc] * in->nGrid * in->nGrid;
 
         /* Expand the particles by adding an iOrder */
         assert(sizeof(expandParticle) >= sizeof(basicParticle));
         overlayedParticle* pbBase = (overlayedParticle*)pkd->particles.Element(0);
-        blitz::TinyVector<int, 3> index(0, 0, fft->rgrid->rs[myProc] + fft->rgrid->rn[myProc]);
+        blitz::TinyVector<int, 3> index(0, 0, pkd->fft->rgrid->rs[myProc] + pkd->fft->rgrid->rn[myProc]);
         float inGrid = 1.0 / in->nGrid;
         for (i = nLocal - 1; i >= 0; --i) {
             basicParticle temp = (&pbBase->b)[i];
@@ -1295,11 +1288,9 @@ int pstGenerateIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
                 p->iz = index[2];
             }
         }
-        assert(index[0] == 0 && index[1] == 0 && index[2] == fft->rgrid->rs[myProc]);
-        /* Now we need to move excess particles between nodes so nStore is obeyed. */
-        pkd->fft = fft; /* This is freed in pstMoveIC() */
+        assert(index[0] == 0 && index[1] == 0 && index[2] == pkd->fft->rgrid->rs[myProc]);
     }
-    else if (pst->NotCore()) {
+    else {
         int rID = mdl->ReqService(pst->upper(), PST_GENERATEIC, in, nIn);
         pstGenerateIC(pst->lower(), in, nIn, vout, nOut);
         mdl->GetReply(rID, outUp);

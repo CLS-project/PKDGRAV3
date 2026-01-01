@@ -3647,8 +3647,6 @@ double MSR::GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm) {
     auto inptr = std::make_unique<inGenerateIC>(); // This has largish tables
     auto& in = *inptr;
     struct outGenerateIC out;
-    ServiceFftSizes::input inFFTSizes;
-    ServiceFftSizes::output outFFTSizes;
     fioSpeciesList nSpecies;
     double sec, dsec;
     double mean, rms;
@@ -3751,19 +3749,20 @@ double MSR::GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm) {
     sec = MSR::Time();
 
     /* Figure out the minimum number of particles */
-    inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = in.nGrid;
-    mdl->RunService<ServiceFftSizes>(inFFTSizes, outFFTSizes);
-    print("Grid size {} x {} x {}, per node {} x {} x {} and {} x {} x {}\n", inFFTSizes.nx, inFFTSizes.ny, inFFTSizes.nz, inFFTSizes.nx, inFFTSizes.ny,
-          outFFTSizes.nMaxZ, inFFTSizes.nx, outFFTSizes.nMaxY, inFFTSizes.nz);
+    ServiceGridCreateFFT::input gridIn{.nGrid = nGrid};
+    ServiceGridCreateFFT::output gridOut;
+    mdl->RunService<ServiceGridCreateFFT>(gridIn, gridOut);
 
     print_detail("IC Generation @ a={a} with seed {seed}\n", "a"_a = in.dExpansion, "seed"_a = iSeed);
-    in.nPerNode = outFFTSizes.nMaxLocal;
+    in.nPerNode = gridOut.nMaxLocal;
     pstGenerateIC(pst, &in, sizeof(in), &out, sizeof(out));
     mean = 2 * out.noiseMean / N;
     rms = sqrt(2 * out.noiseCSQ / N);
 
     print_detail("Transferring particles between/within nodes\n");
     pstMoveIC(pst, &in, sizeof(in), NULL, 0);
+
+    mdl->RunService<ServiceGridDeleteFFT>();
 
     SetClasses();
     dsec = MSR::Time() - sec;
