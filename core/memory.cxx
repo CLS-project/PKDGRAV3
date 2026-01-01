@@ -1,5 +1,5 @@
 #include "core/memory.h"
-#include "core/fftsizes.h"
+#include "core/fftgrid.h"
 #include "pst.h"
 
 // Constructor with MSR, grid, and count

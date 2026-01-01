@@ -122,7 +122,7 @@ struct fmt::formatter<DeferFormat> {
 #include "core/initcosmology.h"
 #include "core/calcroot.h"
 #include "core/select.h"
-#include "core/fftsizes.h"
+#include "core/fftgrid.h"
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "core/decorator_reorder.h"

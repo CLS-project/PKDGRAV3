@@ -14,7 +14,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "fftsizes.h"
+#include "fftgrid.h"
 
 // Ensure the communication structures are "standard" so that they can be moved around with "memcpy" (required by MDL)
 static_assert(std::is_void_v<ServiceFftSizes::input> || std::is_standard_layout_v<ServiceFftSizes::input>);
