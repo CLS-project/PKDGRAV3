@@ -29,11 +29,32 @@ int ServiceFftSizes::Service(PST pst, std::span<std::byte> vin, std::span<std::b
     return sizeof(output);
 }
 
-int ServiceFftSizes::Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) {
-    auto out1 = reinterpret_cast<output*>(vout1.data());
-    auto out2 = reinterpret_cast<const output*>(vout2.data());
-    out1->nMaxLocal = std::max(out1->nMaxLocal, out2->nMaxLocal);
-    out1->nMaxZ = std::max(out1->nMaxZ, out2->nMaxZ);
-    out1->nMaxY = std::max(out1->nMaxY, out2->nMaxY);
+auto ServiceGridCreateFFT::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == sizeof(output));
+    auto pkd = pst->lcl()->pkd;
+    auto [nMaxLocal, rs, rn, ks, kn] = pkd->GridCreateFFT(in->nGrid);
+    *out = {.nMaxLocal = nMaxLocal, .nMaxZ = rn, .nMaxY = kn};
     return sizeof(output);
+}
+
+auto pkdContext::GridCreateFFT(int nGrid) -> std::tuple<size_t, int, int, int, int> {
+    assert(fft == nullptr);
+    fft = mdl->FFTInitialize(nGrid, nGrid, nGrid, 0, 0);
+    return {fft->rgrid->nLocal, fft->rgrid->sSlab, fft->rgrid->nSlab, fft->kgrid->sSlab, fft->kgrid->nSlab};
+}
+
+auto ServiceGridDeleteFFT::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    assert(vin.size() == 0);
+    assert(vout.size() == 0);
+    pst->lcl()->pkd->GridDeleteFFT();
+    return 0;
+}
+
+void pkdContext::GridDeleteFFT() {
+    assert(fft != nullptr);
+    mdl->FFTFinish(fft);
+    fft = nullptr;
 }

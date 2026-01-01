@@ -17,30 +17,6 @@
 #include "TraversePST.h"
 #include <cstddef>
 
-class ServiceGridCreateFFT : public TraversePST {
-  public:
-    static constexpr std::string_view name = "GridCreateFFT";
-    struct input {
-        int nGrid;
-    };
-    using output = void;
-    explicit ServiceGridCreateFFT(PST pst) : TraversePST(pst, name, sizeof(input)) {}
-
-  protected:
-    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
-};
-
-class ServiceGridDeleteFFT : public TraversePST {
-  public:
-    static constexpr std::string_view name = "GridDeleteFFT";
-    using input = void;
-    using output = void;
-    explicit ServiceGridDeleteFFT(PST pst) : TraversePST(pst, name) {}
-
-  protected:
-    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
-};
-
 class ServiceLinearKick : public TraversePST {
   public:
     static constexpr std::string_view name = "LinearKick";

@@ -554,7 +554,7 @@ class pkdContext : public Integerize {
     void ResetCOM(blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
 
     auto TotalMass() -> double;
-    void GridCreateFFT(int nGrid);
+    [[maybe_unused]] auto GridCreateFFT(int nGrid) -> std::tuple<size_t, int, int, int, int>;
     void GridDeleteFFT();
     void SetLinearGrid(double a0, double a, double a1, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase);
     void GenerateLinearGrid(double a, double a_next, double Lbox, int iSeed, int bFixed, float fPhase, int bRho);

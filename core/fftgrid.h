@@ -16,7 +16,7 @@
  */
 #include "TraversePST.h"
 
-class ServiceFftSizes : public TraverseCombinePST {
+class ServiceFftSizes : public TraverseCount<ServiceFftSizes> {
   public:
     static constexpr std::string_view name = "FftSizes";
     struct input {
@@ -26,10 +26,50 @@ class ServiceFftSizes : public TraverseCombinePST {
         uint64_t nMaxLocal;
         int nMaxZ;
         int nMaxY;
+        // Combine by taking maximums
+        auto operator+=(const output& o) {
+            nMaxLocal = std::max(nMaxLocal, o.nMaxLocal);
+            nMaxZ = std::max(nMaxZ, o.nMaxZ);
+            nMaxY = std::max(nMaxY, o.nMaxY);
+            return *this;
+        }
     };
-    explicit ServiceFftSizes(PST pst) : TraverseCombinePST(pst, name, sizeof(input), sizeof(output)) {}
+    explicit ServiceFftSizes(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) override;
-    virtual int Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) override;
+};
+
+class ServiceGridCreateFFT : public TraverseCount<ServiceGridCreateFFT> {
+  public:
+    static constexpr std::string_view name = "GridCreateFFT";
+    struct input {
+        int nGrid;
+    };
+    struct output {
+        size_t nMaxLocal;
+        int nMaxZ;
+        int nMaxY;
+        auto operator+=(const output& o) { // Combine by taking maximums
+            nMaxLocal = std::max(nMaxLocal, o.nMaxLocal);
+            nMaxZ = std::max(nMaxZ, o.nMaxZ);
+            nMaxY = std::max(nMaxY, o.nMaxY);
+            return *this;
+        }
+    };
+    explicit ServiceGridCreateFFT(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceGridDeleteFFT : public TraversePST {
+  public:
+    static constexpr std::string_view name = "GridDeleteFFT";
+    using input = void;
+    using output = void;
+    explicit ServiceGridDeleteFFT(PST pst) : TraversePST(pst, name) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };

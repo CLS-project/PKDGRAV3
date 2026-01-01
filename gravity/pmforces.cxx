@@ -24,32 +24,6 @@
 using namespace gridinfo;
 using namespace blitz;
 
-auto ServiceGridCreateFFT::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto in = reinterpret_cast<const input*>(vin.data());
-    assert(vin.size() == sizeof(input));
-    assert(vout.size() == 0);
-    pst->lcl()->pkd->GridCreateFFT(in->nGrid);
-    return 0;
-}
-
-void pkdContext::GridCreateFFT(int nGrid) {
-    assert(fft == nullptr);
-    fft = mdl->FFTInitialize(nGrid, nGrid, nGrid, 0, 0);
-}
-
-auto ServiceGridDeleteFFT::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    assert(vin.size() == 0);
-    assert(vout.size() == 0);
-    pst->lcl()->pkd->GridDeleteFFT();
-    return 0;
-}
-
-void pkdContext::GridDeleteFFT() {
-    assert(fft != nullptr);
-    mdl->FFTFinish(fft);
-    fft = nullptr;
-}
-
 auto ServiceLinearKick::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     assert(vin.size() == sizeof(input));
