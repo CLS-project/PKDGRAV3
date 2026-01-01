@@ -48,6 +48,7 @@
 #endif
 #include "io/service.h"
 #include "io/restore.h"
+#include "ic/ic.h"
 
 #include "analysis/analysis.h"
 #include "analysis/orbits.h"
@@ -175,6 +176,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceUpdateRung>(pst);
     mdl->AddService<ServiceGridCreateFFT>(pst);
     mdl->AddService<ServiceGridDeleteFFT>(pst);
+    mdl->AddService<ServiceGenerateIC>(pst);
     mdl->AddService<ServiceLinearKick>(pst);
     mdl->AddService<ServiceMeasureLinearPk>(pst);
     mdl->AddService<ServiceAssignMass>(pst);

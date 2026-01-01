@@ -68,6 +68,7 @@
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
+#include "ic/ic.h"
 
 #define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
 
@@ -131,11 +132,8 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_INITIALIZEPSTORE, pst, (fcnService_t*)pstInitializePStore, sizeof(struct inInitializePStore), sizeof(struct outInitializePStore),
                     Legacy::InitializePStore);
 #ifdef MDL_FFTW
-    mdl->AddService(PST_GENERATEIC, pst, (fcnService_t*)pstGenerateIC, sizeof(struct inGenerateIC), sizeof(struct outGenerateIC), Legacy::GenerateIC);
-    mdl->AddService(PLT_GENERATEIC, pst, (fcnService_t*)pltGenerateIC, sizeof(struct inGenerateICthread), sizeof(struct outGenerateIC),
-                    Legacy::LocalGenerateIC);
     mdl->AddService(PLT_MOVEIC, pst, (fcnService_t*)pltMoveIC, sizeof(struct inMoveIC), 0, Legacy::MoveIC);
-    mdl->AddService(PST_MOVEIC, pst, (fcnService_t*)pstMoveIC, sizeof(struct inGenerateIC), 0, Legacy::LocalMoveIC);
+    mdl->AddService(PST_MOVEIC, pst, (fcnService_t*)pstMoveIC, sizeof(struct ServiceGenerateIC::input), 0, Legacy::LocalMoveIC);
 #endif
     mdl->AddService(PST_MEMSTATUS, pst, (fcnService_t*)pstMemStatus, 0, nThreads * sizeof(struct outMemStatus), Legacy::MemStatus);
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);

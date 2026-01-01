@@ -25,7 +25,7 @@
 #include "io/outtype.h"
 
 #include "cosmo.h"
-#include "ic/ic.h"
+// #include "ic/ic.h"
 
 struct LCL {
     PKD pkd;
@@ -207,8 +207,6 @@ enum pst_service {
     PST_GROUP_RELOCATE,
     PST_GROUP_STATS,
     PST_INITIALIZEPSTORE,
-    PST_GENERATEIC,
-    PLT_GENERATEIC,
     PST_MOVEIC,
     PLT_MOVEIC,
     PST_MEMSTATUS,
@@ -574,81 +572,6 @@ struct inAddWriteStart {
     uint64_t nWriteStart;
 };
 int pstAddWriteStart(PST, void*, int, void*, int);
-
-#ifdef MDL_FFTW
-    /* PST_GENERATEIC */
-    #define MAX_TF 4096
-struct inGenerateIC {
-    uint64_t nPerNode;
-    double dBoxSize;
-    double dBoxMass;
-    double dBaryonFraction;
-    double dExpansion;
-    int iSeed;
-    int bFixed;
-    float fPhase;
-    int nGrid;
-    int iLPT;
-    int bICgas;
-    int nBucket;
-    double dInitialT;
-    double dInitialH;
-    double dInitialHe;
-    double dInitialC;
-    double dInitialN;
-    double dInitialO;
-    double dInitialNe;
-    double dInitialMg;
-    double dInitialSi;
-    double dInitialFe;
-    double dInitialMetallicity;
-    double dTuFac;
-    int bComove;
-    int nTf;
-    double k[MAX_TF];
-    double tf[MAX_TF];
-};
-struct outGenerateIC {
-    double dExpansion;
-    uint64_t N;
-    double noiseMean;
-    double noiseCSQ;
-};
-int pstGenerateIC(PST, void*, int, void*, int);
-
-struct inGenerateICthread {
-    struct inGenerateIC* ic;
-};
-int pltGenerateIC(PST, void*, int, void*, int);
-
-/* PLT_MOVEIC */
-struct inMoveIC {
-    overlayedParticle* pBase;
-    uint64_t iStart;
-    uint64_t nMove;
-    float fMass;
-    float fSoft;
-    int nGrid;
-    int bICgas;
-    int nBucket;
-    double dInitialT;
-    double dInitialH;
-    double dInitialHe;
-    double dInitialC;
-    double dInitialN;
-    double dInitialO;
-    double dInitialNe;
-    double dInitialMg;
-    double dInitialSi;
-    double dInitialFe;
-    double dInitialMetallicity;
-    double dExpansion;
-    double dBaryonFraction;
-    double dTuFac;
-};
-int pltMoveIC(PST, void*, int, void*, int);
-int pstMoveIC(PST, void*, int, void*, int);
-#endif
 
 /* PST_MEMSTATUS */
 struct outMemStatus {

@@ -15,11 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
+#include "pkd_config.h"
 #include <math.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_errno.h>
@@ -1078,7 +1074,7 @@ int pltMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
 
 int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto pkd = pst->lcl()->pkd;
-    struct inGenerateIC* in = reinterpret_cast<struct inGenerateIC*>(vin);
+    auto in = reinterpret_cast<ServiceGenerateIC::input*>(vin);
     auto mdl = pst->mdl();
 
     if (pst->OffNode()) {
@@ -1107,12 +1103,12 @@ int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
         assert(fft != NULL);
 
         uint64_t nPerNode = (uint64_t)mdl->Cores() * pkd->FreeStore();
-        uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid * in->nGrid;
+        uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * fft->rgrid->n2 * fft->rgrid->n1;
 
         /* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
         iUnderBeg = iOverBeg = 0;
         for (iProc = 0; iProc < myProc; ++iProc) {
-            uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * in->nGrid * in->nGrid;
+            uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * fft->rgrid->n2 * fft->rgrid->n1;
             if (nOnNode > nPerNode) iOverBeg += nOnNode - nPerNode;
             else iUnderBeg += nPerNode - nOnNode;
         }
@@ -1127,7 +1123,7 @@ int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
             iOverEnd = iOverBeg + nLocal - nPerNode;
             for (iProc = 0; iProc < mdl->Procs(); ++iProc) {
                 rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
-                uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * in->nGrid * in->nGrid;
+                uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * fft->rgrid->n2 * fft->rgrid->n1;
                 if (nOnNode < nPerNode) {
                     iUnderEnd = iUnderBeg + nPerNode - nOnNode;
                     /* The transfer condition */
@@ -1151,7 +1147,7 @@ int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
             iUnderEnd = iUnderBeg + nPerNode - nLocal;
             for (iProc = 0; iProc < mdl->Procs(); ++iProc) {
                 scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
-                uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * in->nGrid * in->nGrid;
+                uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * fft->rgrid->n2 * fft->rgrid->n1;
                 if (nOnNode > nPerNode) {
                     iOverEnd = iOverBeg + nOnNode - nPerNode;
                     if (iOverEnd > iUnderBeg && iOverBeg < iUnderEnd) {
@@ -1209,94 +1205,59 @@ int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
     return 0;
 }
 
-/* NOTE: only called when on-node -- pointers are passed around. */
-int pltGenerateIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
+auto ServiceGenerateIC::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->lcl()->pkd;
-    struct inGenerateICthread* tin = reinterpret_cast<struct inGenerateICthread*>(vin);
-    struct inGenerateIC* in = tin->ic;
-    struct outGenerateIC *out = reinterpret_cast<struct outGenerateIC*>(vout), outUp;
-    auto mdl = pst->mdl();
-    mdlassert(mdl, nIn == sizeof(struct inGenerateICthread));
-    mdlassert(mdl, vout != NULL);
-    assert(pst->OnNode()); /* We pass around pointers! */
 
-    if (pst->NotCore()) {
-        int rID = mdl->ReqService(pst->upper(), PLT_GENERATEIC, vin, nIn);
-        pltGenerateIC(pst->lower(), vin, nIn, vout, nOut);
-        mdl->GetReply(rID, outUp);
-        out->N += outUp.N;
-        out->noiseMean += outUp.noiseMean;
-        out->noiseCSQ += outUp.noiseCSQ;
-    }
-    else {
-        out->N = pkdGenerateIC(pkd, pkd->fft, in->iSeed, in->bFixed, in->fPhase, in->nGrid, in->iLPT, in->dBoxSize, in->dExpansion, in->nTf, in->k, in->tf,
-                               &out->noiseMean, &out->noiseCSQ);
-        out->dExpansion = in->dExpansion;
-    }
-
-    return sizeof(struct outGenerateIC);
+    out->N = pkdGenerateIC(pkd, pkd->fft, in->iSeed, in->bFixed, in->fPhase, in->nGrid, in->iLPT, in->dBoxSize, in->dExpansion, in->nTf, in->k.data(),
+                           in->tf.data(), &out->noiseMean, &out->noiseCSQ);
+    return sizeof(output);
 }
 
-int pstGenerateIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
+auto ServiceGenerateIC::AtNode(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto nBytes = Recurse(pst, vin, vout);
+    auto in = reinterpret_cast<input*>(vin.data());
+    // auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->lcl()->pkd;
-    auto mdl = pst->mdl();
-    struct inGenerateIC* in = reinterpret_cast<struct inGenerateIC*>(vin);
-    struct outGenerateIC *out = reinterpret_cast<struct outGenerateIC*>(vout), outUp;
-    int64_t i;
 
-    assert(nIn == sizeof(struct inGenerateIC));
-    assert(vout != nullptr);
+    int myProc = pst->mdl()->Proc();
+    uint64_t nLocal = (int64_t)pkd->fft->rgrid->rn[myProc] * in->nGrid * in->nGrid;
 
-    if (pst->AmNode()) {
-        struct inGenerateICthread tin;
-        tin.ic = reinterpret_cast<struct inGenerateIC*>(vin);
-        pltGenerateIC(pst, &tin, sizeof(tin), vout, nOut);
-
-        int myProc = pst->mdl()->Proc();
-        uint64_t nLocal = (int64_t)pkd->fft->rgrid->rn[myProc] * in->nGrid * in->nGrid;
-
-        /* Expand the particles by adding an iOrder */
-        assert(sizeof(expandParticle) >= sizeof(basicParticle));
-        overlayedParticle* pbBase = (overlayedParticle*)pkd->particles.Element(0);
-        blitz::TinyVector<int, 3> index(0, 0, pkd->fft->rgrid->rs[myProc] + pkd->fft->rgrid->rn[myProc]);
-        float inGrid = 1.0 / in->nGrid;
-        for (i = nLocal - 1; i >= 0; --i) {
-            basicParticle temp = (&pbBase->b)[i];
-            if (index[0] > 0) --index[0];
+    /* Expand the particles by adding an iOrder */
+    assert(sizeof(expandParticle) >= sizeof(basicParticle));
+    overlayedParticle* pbBase = (overlayedParticle*)pkd->particles.Element(0);
+    blitz::TinyVector<int, 3> index(0, 0, pkd->fft->rgrid->rs[myProc] + pkd->fft->rgrid->rn[myProc]);
+    float inGrid = 1.0 / in->nGrid;
+    for (int64_t i = nLocal - 1; i >= 0; --i) {
+        basicParticle temp = (&pbBase->b)[i];
+        if (index[0] > 0) --index[0];
+        else {
+            index[0] = in->nGrid - 1;
+            if (index[1] > 0) --index[1];
             else {
-                index[0] = in->nGrid - 1;
-                if (index[1] > 0) --index[1];
-                else {
-                    index[1] = in->nGrid - 1;
-                    --index[2];
-                    assert(index[2] >= 0);
-                }
-            }
-            // If we have no particle order convert directly to Integerized positions.
-            // We do this to save space as an "Integer" particle is small.
-            if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
-                integerParticle* p = &pbBase->i + i;
-                p->v = temp.v;
-                p->r = pkd->convert(blitz::TinyVector<double, 3>(temp.dr + (index + 0.5) * inGrid - 0.5));
-            }
-            else {
-                expandParticle* p = &pbBase->e + i;
-                p->v = temp.v;
-                p->dr = temp.dr;
-                p->ix = index[0];
-                p->iy = index[1];
-                p->iz = index[2];
+                index[1] = in->nGrid - 1;
+                --index[2];
+                assert(index[2] >= 0);
             }
         }
-        assert(index[0] == 0 && index[1] == 0 && index[2] == pkd->fft->rgrid->rs[myProc]);
+        // If we have no particle order convert directly to Integerized positions.
+        // We do this to save space as an "Integer" particle is small.
+        if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
+            integerParticle* p = &pbBase->i + i;
+            p->v = temp.v;
+            p->r = pkd->convert(blitz::TinyVector<double, 3>(temp.dr + (index + 0.5) * inGrid - 0.5));
+        }
+        else {
+            expandParticle* p = &pbBase->e + i;
+            p->v = temp.v;
+            p->dr = temp.dr;
+            p->ix = index[0];
+            p->iy = index[1];
+            p->iz = index[2];
+        }
     }
-    else {
-        int rID = mdl->ReqService(pst->upper(), PST_GENERATEIC, in, nIn);
-        pstGenerateIC(pst->lower(), in, nIn, vout, nOut);
-        mdl->GetReply(rID, outUp);
-        out->N += outUp.N;
-        out->noiseMean += outUp.noiseMean;
-        out->noiseCSQ += outUp.noiseCSQ;
-    }
-    return sizeof(struct outGenerateIC);
+    assert(index[0] == 0 && index[1] == 0 && index[2] == pkd->fft->rgrid->rs[myProc]);
+
+    return nBytes;
 }

@@ -17,7 +17,10 @@
 
 #ifndef IC_H
 #define IC_H
+#include "TraversePST.h"
 
+#include <cstddef>
+#include <array>
 #include <stdint.h>
 #include <queue>
 #include <vector>
@@ -72,7 +75,86 @@ struct gridInfoLPT {
 
 gridInfoLPT getGridInfoLPT(int iLPT);
 
-int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid, int iLPT, double dBoxSize, double a, int nTf, double* tk, double* tf,
-                  double* noiseMean, double* noiseCSQ);
 #endif
+
+/* PLT_MOVEIC */
+struct inMoveIC {
+    overlayedParticle* pBase;
+    uint64_t iStart;
+    uint64_t nMove;
+    float fMass;
+    float fSoft;
+    int nGrid;
+    int bICgas;
+    int nBucket;
+    double dInitialT;
+    double dInitialH;
+    double dInitialHe;
+    double dInitialC;
+    double dInitialN;
+    double dInitialO;
+    double dInitialNe;
+    double dInitialMg;
+    double dInitialSi;
+    double dInitialFe;
+    double dInitialMetallicity;
+    double dExpansion;
+    double dBaryonFraction;
+    double dTuFac;
+};
+int pltMoveIC(PST, void*, int, void*, int);
+int pstMoveIC(PST, void*, int, void*, int);
+
+class ServiceGenerateIC : public TraverseCount<ServiceGenerateIC> {
+  public:
+    static constexpr std::string_view name = "GenerateIC";
+    static constexpr size_t max_tf = 4096;
+    struct input {
+        uint64_t nPerNode;
+        double dBoxSize;
+        double dBoxMass;
+        double dBaryonFraction;
+        double dExpansion;
+        int iSeed;
+        int bFixed;
+        float fPhase;
+        int nGrid;
+        int iLPT;
+        int bICgas;
+        int nBucket;
+        double dInitialT;
+        double dInitialH;
+        double dInitialHe;
+        double dInitialC;
+        double dInitialN;
+        double dInitialO;
+        double dInitialNe;
+        double dInitialMg;
+        double dInitialSi;
+        double dInitialFe;
+        double dInitialMetallicity;
+        double dTuFac;
+        int bComove;
+        int nTf;
+        std::array<double, max_tf> k;
+        std::array<double, max_tf> tf;
+    };
+    struct output {
+        uint64_t N;
+        double noiseMean;
+        double noiseCSQ;
+        auto operator+=(const output& o) {
+            N += o.N;
+            noiseMean += o.noiseMean;
+            noiseCSQ += o.noiseCSQ;
+            return *this;
+        }
+    };
+    explicit ServiceGenerateIC(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto AtNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 #endif

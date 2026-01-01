@@ -129,6 +129,7 @@ struct fmt::formatter<DeferFormat> {
 #include "io/restore.h"
 #include "io/output.h"
 #include "io/classes.h"
+#include "ic/ic.h"
 #include "analysis/lightcone.h"
 #ifdef INSTRUMENT_MPI
     #include "core/cachestats.h"
@@ -3644,9 +3645,6 @@ void MSR::GroupStats() {
 
 #ifdef MDL_FFTW
 double MSR::GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm) {
-    auto inptr = std::make_unique<inGenerateIC>(); // This has largish tables
-    auto& in = *inptr;
-    struct outGenerateIC out;
     fioSpeciesList nSpecies;
     double sec, dsec;
     double mean, rms;
@@ -3668,6 +3666,9 @@ double MSR::GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm) {
     parameters.set_dBoxSize(L);
     parameters.set_nGrid(nGrid);
 
+    auto inptr = std::make_unique<ServiceGenerateIC::input>(); // This has largish tables
+    auto& in = *inptr;
+    ServiceGenerateIC::output out;
     in.dBoxSize = L;
     in.iSeed = iSeed;
     in.bFixed = parameters.get_bFixedAmpIC();
@@ -3735,7 +3736,7 @@ double MSR::GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm) {
             Exit(1);
         }
         while (fgets(buffer, sizeof(buffer), fp)) {
-            assert(in.nTf < MAX_TF);
+            assert(in.nTf < ServiceGenerateIC::max_tf);
             if (sscanf(buffer, " %lg %lg\n", &in.k[in.nTf], &in.tf[in.nTf]) == 2) {
                 in.k[in.nTf] = log(in.k[in.nTf]);
                 in.tf[in.nTf] = log(in.tf[in.nTf]);
@@ -3755,7 +3756,7 @@ double MSR::GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm) {
 
     print_detail("IC Generation @ a={a} with seed {seed}\n", "a"_a = in.dExpansion, "seed"_a = iSeed);
     in.nPerNode = gridOut.nMaxLocal;
-    pstGenerateIC(pst, &in, sizeof(in), &out, sizeof(out));
+    mdl->RunService<ServiceGenerateIC>(in, out);
     mean = 2 * out.noiseMean / N;
     rms = sqrt(2 * out.noiseCSQ / N);
 
@@ -3770,7 +3771,7 @@ double MSR::GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm) {
     print_detail("Mean of noise sample is {mean:g}, RMS {rms:g}\n", "mean"_a = mean, "rms"_a = rms);
     ReorderDecorator();
 
-    return getTime(out.dExpansion);
+    return getTime(in.dExpansion);
 }
 #endif
 
