@@ -83,7 +83,7 @@ concept WritableByteBufferLike = ByteBufferLike<C> && !std::is_const_v<std::remo
 static inline std::span<std::byte> as_writable_bytes(std::span<std::byte> s) noexcept {
     return s;
 }
-static inline std::span</*const*/ std::byte> as_bytes(std::span</*const*/ std::byte> s) noexcept {
+static inline std::span<const std::byte> as_bytes(std::span<const std::byte> s) noexcept {
     return s;
 }
 template <WritableByteBufferLike C>
@@ -92,10 +92,9 @@ static inline std::span<std::byte> as_writable_bytes(C& c) {
     return std::as_writable_bytes(std::span<T>{c.data(), c.size()});
 }
 template <ByteBufferLike C>
-static inline std::span</*const*/ std::byte> as_bytes(/*const*/ C& c) {
+static inline std::span<const std::byte> as_bytes(const C& c) {
     using T = std::remove_pointer_t<decltype(c.data())>;
-    return std::as_writable_bytes(std::span</*const*/ T>{c.data(), c.size()});
-    // return std::as_bytes(std::span</*const*/ T>{c.data(), c.size()});
+    return std::as_bytes(std::span<const T>{c.data(), c.size()});
 }
 template <class T>
     requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
@@ -104,8 +103,8 @@ static inline std::span<std::byte> as_writable_bytes(T& obj) noexcept {
 }
 template <class T>
     requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
-static inline std::span</*const*/ std::byte> as_bytes(/*const*/ T& obj) noexcept {
-    return {reinterpret_cast</*const*/ std::byte*>(std::addressof(obj)), sizeof(T)};
+static inline std::span<const std::byte> as_bytes(const T& obj) noexcept {
+    return {reinterpret_cast<const std::byte*>(std::addressof(obj)), sizeof(T)};
 }
 
 // This struct is use to keep track of a variable length buffer for service requests.

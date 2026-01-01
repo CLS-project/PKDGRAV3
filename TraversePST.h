@@ -93,22 +93,22 @@ class TraversePST : public mdl::BasicService {
     template <typename I = std::byte, typename O = std::byte>
         requires(!TraverseService<I>)
     int Traverse(PST pst, std::span<I> in = {}, std::span<O> out = {}) {
-        return Traverse(pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+        return Traverse(pst, mdl::as_writable_bytes(in), mdl::as_writable_bytes(out));
     }
     template <typename I, typename O>
         requires(!TraverseService<I>)
     int Traverse(PST pst, I& in, O& out) {
-        return Traverse(pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+        return Traverse(pst, mdl::as_writable_bytes(in), mdl::as_writable_bytes(out));
     }
     template <typename I, typename O = std::byte>
         requires(!TraverseService<I>)
     int Traverse(PST pst, I& in, std::span<O> out = {}) {
-        return Traverse(pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+        return Traverse(pst, mdl::as_writable_bytes(in), mdl::as_writable_bytes(out));
     }
     template <typename I = std::byte, typename O>
         requires(!TraverseService<I>)
     int Traverse(PST pst, std::span<I> in, O& out) {
-        return Traverse(pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+        return Traverse(pst, mdl::as_writable_bytes(in), mdl::as_writable_bytes(out));
     }
 
   protected:
@@ -117,19 +117,19 @@ class TraversePST : public mdl::BasicService {
     static int Traverse(std::string_view service_name, PST pst, std::span<std::byte> in, std::span<std::byte> out);
     template <TraverseService T, typename I = std::byte, typename O = std::byte>
     static int Traverse(PST pst, std::span<I> in = {}, std::span<O> out = {}) {
-        return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+        return Traverse(T::name, pst, mdl::as_writable_bytes(in), mdl::as_writable_bytes(out));
     }
     template <TraverseService T, typename I, typename O>
     static int Traverse(PST pst, I& in, O& out) {
-        return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+        return Traverse(T::name, pst, mdl::as_writable_bytes(in), mdl::as_writable_bytes(out));
     }
     template <TraverseService T, typename I, typename O = std::byte>
     static int Traverse(PST pst, I& in, std::span<O> out = {}) {
-        return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+        return Traverse(T::name, pst, mdl::as_writable_bytes(in), mdl::as_writable_bytes(out));
     }
     template <TraverseService T, typename I = std::byte, typename O>
     static int Traverse(PST pst, std::span<I> in, O& out) {
-        return Traverse(T::name, pst, mdl::as_bytes(in), mdl::as_writable_bytes(out));
+        return Traverse(T::name, pst, mdl::as_writable_bytes(in), mdl::as_writable_bytes(out));
     }
 };
 

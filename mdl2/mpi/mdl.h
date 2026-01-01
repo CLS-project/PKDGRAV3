@@ -24,6 +24,7 @@
 #include <barrier>
 #include "mdlstubs.h"
 #include "mdlbase.h"
+#include <cstddef>
 #include <stdio.h>
 #include <assert.h>
 #ifdef HAVE_INTTYPES_H
@@ -438,7 +439,7 @@ class mdlClass : public mdlBASE {
     void FlushCache(int cid);
     void FinishCache(int cid);
 
-    int ReqService(int id, int sid, std::span<std::byte> in = {});
+    int ReqService(int id, int sid, std::span<const std::byte> in = {});
     template <typename I>
     int ReqService(int id, int sid, const I& in) {
         auto bytes = as_bytes(in);
@@ -450,39 +451,31 @@ class mdlClass : public mdlBASE {
         return ReqService(id, sid, bytes);
     }
 
-    int ReqService(int id, std::string_view service_name, std::span<std::byte> in = {});
+    int ReqService(int id, std::string_view service_name, std::span<const std::byte> in = {});
     template <typename I>
     int ReqService(int id, std::string_view service_name, const I& in) {
         auto bytes = as_bytes(in);
         return ReqService(id, service_name, bytes);
     }
     template <typename I>
-    int ReqService(int id, std::string_view service_name, std::span<I> in) {
+    int ReqService(int id, std::string_view service_name, std::span<const I> in) {
         auto bytes = as_bytes(in);
         return ReqService(id, service_name, bytes);
     }
 
-    template <typename S>
-    int ReqService(int id, std::span<std::byte> vin = {}) {
-        return ReqService(id, S::name, vin);
-    }
     template <typename S, typename I>
-    int ReqService(int id, /*const*/ I& in) {
+    int ReqService(int id, const I& in) {
         auto bytes = as_bytes(in);
-        return ReqService<S>(id, bytes);
+        return ReqService(id, S::name, bytes);
     }
-    template <typename S, typename I>
-    int ReqService(int id, std::span<I> in) {
+    template <typename S, typename I = std::byte>
+    int ReqService(int id, std::span<const I> in = {}) {
         auto bytes = as_bytes(in);
-        return ReqService<S>(id, bytes);
+        return ReqService(id, S::name, bytes);
     }
 
     // Deprecated interface
-    int ReqService(int id, int sid, void* vin, int nInBytes);
-    template <typename T>
-    int ReqService(int id, int sid, T& in) {
-        return ReqService(id, sid, &in, sizeof(in));
-    }
+    int ReqService(int id, int sid, const void* vin, int nInBytes);
 
     int GetReply(int rID, std::span<std::byte> vout = {});
     template <typename O>

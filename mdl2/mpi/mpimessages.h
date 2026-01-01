@@ -138,7 +138,7 @@ class mdlMessageSendRequest : public mdlMessageBufferedMPI {
 
   public:
     virtual void action(class mpiClass* mpi) override;
-    explicit mdlMessageSendRequest(int32_t idFrom, int16_t sid, int target, void* buf = 0, int32_t count = 0);
+    explicit mdlMessageSendRequest(int32_t idFrom, int16_t sid, int target, const void* buf = 0, int32_t count = 0);
 };
 
 class mdlMessageSendReply : public mdlMessageMPI {

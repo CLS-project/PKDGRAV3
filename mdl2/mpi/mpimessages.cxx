@@ -89,8 +89,8 @@ mdlMessageReceiveReply::mdlMessageReceiveReply(void* buf, int32_t count, int rID
 }
 mdlMessageReceiveRequest::mdlMessageReceiveRequest(int32_t count) : Buffer(count) {
 }
-mdlMessageSendRequest::mdlMessageSendRequest(int32_t idFrom, int16_t sid, int target, void* buf, int32_t count)
-    : mdlMessageBufferedMPI(buf, count, target, MDL_TAG_REQ) {
+mdlMessageSendRequest::mdlMessageSendRequest(int32_t idFrom, int16_t sid, int target, const void* buf, int32_t count)
+    : mdlMessageBufferedMPI(const_cast<void*>(buf), count, target, MDL_TAG_REQ) {
     header.idFrom = idFrom;
     header.replyTag = -1;
     header.sid = sid;
