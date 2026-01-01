@@ -460,7 +460,6 @@ class MSR {
     void FastGasPhase2(double dTime, double dDelta, int iSmoothType);
     void CoolSetup(double dTime);
     void Cooling(double dTime, double dStep, int bUpdateState, int bUpdateTable, int bInterateDt);
-    void AddDelParticles();
     void InitSph(double dTime, double dDelta, bool bRestart);
     uint64_t CountDistance(double dRadius2Outer, double dRadius2Inner = 0.0);
 

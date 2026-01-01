@@ -135,9 +135,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_STELLAREVOLUTIONINIT, pst, (fcnService_t*)pstStellarEvolutionInit, sizeof(struct inStellarEvolutionInit), 0,
                     Legacy::StellarEvolutionInit);
 #endif
-    mdl->AddService(PST_COLNPARTS, pst, (fcnService_t*)pstColNParts, 0, nThreads * sizeof(struct outColNParts), Legacy::ColNParts);
-    mdl->AddService(PST_NEWORDER, pst, (fcnService_t*)pstNewOrder, nThreads * sizeof(uint64_t), 0, Legacy::NewOrder);
-    mdl->AddService(PST_SETNPARTS, pst, (fcnService_t*)pstSetNParts, sizeof(struct inSetNParts), 0, Legacy::SetNParts);
     mdl->AddService(PST_INITIALIZEPSTORE, pst, (fcnService_t*)pstInitializePStore, sizeof(struct inInitializePStore), sizeof(struct outInitializePStore),
                     Legacy::InitializePStore);
 #ifdef MDL_FFTW
@@ -1281,53 +1278,6 @@ int pstCorrectEnergy(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdCorrectEnergy(plcl->pkd, in->dTuFac, in->z, in->dTime, in->iDirection);
-    }
-    return 0;
-}
-
-int pstColNParts(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto out = static_cast<struct outColNParts*>(vout);
-    auto iUpper = pst->upper() - pst->Self();
-    auto nBytesLower = iUpper * sizeof(*out);
-    struct outColNParts* outUp = out + iUpper;
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_COLNPARTS, vin, nIn);
-        pstColNParts(pst->lower(), vin, nIn, vout, nBytesLower);
-        pst->mdl()->GetReply(rID, nOut - nBytesLower, outUp);
-    }
-    else {
-        pkdColNParts(plcl->pkd, &out->nNew, &out->nDeltaGas, &out->nDeltaDark, &out->nDeltaStar);
-    }
-    return pst->n_total() * sizeof(*out);
-}
-
-int pstNewOrder(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<uint64_t*>(vin);
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_NEWORDER, vin, nIn);
-        pstNewOrder(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdNewOrder(plcl->pkd, in[pst->Self()]);
-    }
-    return 0;
-}
-
-int pstSetNParts(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inSetNParts*>(vin);
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_SETNPARTS, vin, nIn);
-        pstSetNParts(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdSetNParts(pst->lcl()->pkd, in->nGas, in->nDark, in->nStar, in->nBH);
     }
     return 0;
 }

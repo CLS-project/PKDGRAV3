@@ -3401,51 +3401,6 @@ void MSR::CountSpecies() {
     nMaxOrder = out.nMaxOrder;
 }
 
-void MSR::AddDelParticles() {
-    struct inSetNParts in;
-    int i;
-
-    print_detail("Changing Particle number\n");
-
-    std::unique_ptr<struct outColNParts[]> pColNParts{new struct outColNParts[nThreads]};
-    pstColNParts(pst, NULL, 0, pColNParts.get(), nThreads * sizeof(pColNParts[0]));
-    /*
-     * Assign starting numbers for new particles in each processor.
-     */
-    std::unique_ptr<uint64_t[]> pNewOrder{new uint64_t[nThreads]};
-    for (i = 0; i < nThreads; i++) {
-        /*
-         * Detect any changes in particle number, and force a tree
-         * build.
-         */
-        if (pColNParts[i].nNew != 0 || pColNParts[i].nDeltaGas != 0 || pColNParts[i].nDeltaDark != 0 || pColNParts[i].nDeltaStar != 0) {
-            /*print("Particle assignments have changed!\n");
-              print("need to rebuild tree, code in msrAddDelParticles()\n");
-              print("needs to be updated. Bailing out for now...\n");
-              exit(-1); */
-            pNewOrder[i] = nMaxOrder + 1; /* JW: +1 was missing for some reason */
-            nMaxOrder += pColNParts[i].nNew;
-            nGas += pColNParts[i].nDeltaGas;
-            nDark += pColNParts[i].nDeltaDark;
-            nStar += pColNParts[i].nDeltaStar;
-            nBH += pColNParts[i].nDeltaBH;
-        }
-    }
-    N = nGas + nDark + nStar + nBH;
-
-    /*nMaxOrderDark = nMaxOrder;*/
-
-    pstNewOrder(pst, pNewOrder.get(), (int)sizeof(pNewOrder[0]) * nThreads, NULL, 0);
-
-    print_detail("New numbers of particles: {} gas {} dark {} star\n", nGas, nDark, nStar);
-
-    in.nGas = nGas;
-    in.nDark = nDark;
-    in.nStar = nStar;
-    in.nBH = nBH;
-    pstSetNParts(pst, &in, sizeof(in), NULL, 0);
-}
-
 /* Gas routines */
 void MSR::InitSph(double dTime, double dDelta, bool bRestart) {
     if (MeshlessHydro()) {

@@ -890,10 +890,6 @@ int pkdIsGas(PKD, PARTICLE*);
 int pkdIsDark(PKD, PARTICLE*);
 int pkdIsStar(PKD, PARTICLE*);
 int pkdIsBH(PKD, PARTICLE*);
-void pkdColNParts(PKD pkd, int* pnNew, int* nDeltaGas, int* nDeltaDark, int* nDeltaStar);
-void pkdNewOrder(PKD pkd, int nStart);
-
-void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double* r, float* fPot);
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVector<double, 3>& dCenter, const double* dRadii, int nBins,

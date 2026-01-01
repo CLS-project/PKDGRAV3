@@ -148,9 +148,6 @@ inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
 inline constexpr std::string_view SetWriteStart = "SetWriteStart";
 inline constexpr std::string_view AddWriteStart = "AddWriteStart";
-inline constexpr std::string_view ColNParts = "ColNParts";
-inline constexpr std::string_view NewOrder = "NewOrder";
-inline constexpr std::string_view SetNParts = "SetNParts";
 inline constexpr std::string_view HopLink = "HopLink";
 inline constexpr std::string_view HopJoin = "HopJoin";
 inline constexpr std::string_view HopFinishUp = "HopFinishUp";
@@ -232,9 +229,6 @@ enum pst_service {
 #endif
     PST_SETWRITESTART,
     PST_ADDWRITESTART,
-    PST_COLNPARTS,
-    PST_NEWORDER,
-    PST_SETNPARTS,
     PST_HOP_LINK,
     PST_HOP_JOIN,
     PST_HOP_FINISH_UP,
@@ -692,28 +686,6 @@ struct inAddWriteStart {
     uint64_t nWriteStart;
 };
 int pstAddWriteStart(PST, void*, int, void*, int);
-
-/* PST_COLNPARTS */
-struct outColNParts {
-    int nNew;
-    int nDeltaGas;
-    int nDeltaDark;
-    int nDeltaStar;
-    int nDeltaBH;
-};
-int pstColNParts(PST, void*, int, void*, int);
-
-/* PST_NEWORDER */
-int pstNewOrder(PST, void*, int, void*, int);
-
-/* PST_SETNPARTS */
-struct inSetNParts {
-    uint64_t nGas;
-    uint64_t nDark;
-    uint64_t nStar;
-    uint64_t nBH;
-};
-int pstSetNParts(PST, void*, int, void*, int);
 
 #ifdef MDL_FFTW
     /* PST_GENERATEIC */
