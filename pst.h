@@ -143,7 +143,6 @@ inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
 inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
 inline constexpr std::string_view AddWriteStart = "AddWriteStart";
-inline constexpr std::string_view GroupRelocate = "GroupRelocate";
 inline constexpr std::string_view GroupStats = "GroupStats";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
 inline constexpr std::string_view GenerateIC = "GenerateIC";
@@ -200,7 +199,6 @@ enum pst_service {
     PST_STELLAREVOLUTIONINIT,
 #endif
     PST_ADDWRITESTART,
-    PST_GROUP_RELOCATE,
     PST_GROUP_STATS,
     PST_INITIALIZEPSTORE,
     PST_MOVEIC,
@@ -322,9 +320,6 @@ int pstCheckpoint(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
-
-/* PST_GROUP_RELOCATE */
-int pstGroupRelocate(PST, void*, int, void*, int);
 
 /* PST_GROUP_STATS */
 struct inGroupStats {

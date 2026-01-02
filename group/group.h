@@ -35,7 +35,6 @@ struct smGroupArray {
 };
 
 int pkdGroupCombineDuplicateIds(PKD pkd, int nGroups, struct smGroupArray* ga, int bIndexIsGID);
-int pkdGroupRelocate(PKD pkd, int nGroups, struct smGroupArray* ga);
 int pkdPurgeSmallGroups(PKD pkd, int nGroups, struct smGroupArray* ga, int nMinGroupSize);
 int pkdGroupCounts(PKD pkd, int nGroups, struct smGroupArray* ga);
 #endif

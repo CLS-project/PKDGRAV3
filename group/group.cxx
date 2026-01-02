@@ -162,53 +162,6 @@ class HelperMaxnGroup : public mdl::arrayCACHEhelper {
     explicit HelperMaxnGroup(smGroupArray* pArray, uint32_t nArray) : arrayCACHEhelper(pArray, nArray, true) {}
 };
 
-/*
-** For each group, find the processor that has the most particles
-** and make that processor that master for that group.
-*/
-int pkdGroupRelocate(PKD pkd, int nGroups, struct smGroupArray* ga) {
-    auto mdl = pkd->mdl;
-    int i, gid, nLocalGroups;
-
-    /* Count local members of all groups */
-    nLocalGroups = 0;
-    for (i = 0; i < pkd->nGroups; ++i) {
-        if (ga[i].id.iPid == pkd->Self() && i) ++nLocalGroups;
-        ga[i].nTotal = 0;
-    }
-    for (i = 0; i < pkd->Local(); ++i) {
-        auto p = pkd->particles[i];
-        gid = p.group();
-        ++ga[gid].nTotal;
-    }
-    /* Now find the real processor with the most particles for each group */
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperMaxnGroup>(ga, nGroups));
-    for (i = 1 + nLocalGroups; i < nGroups; ++i) {
-        assert(ga[i].id.iPid != pkd->Self());
-        auto g = mdl->VirtualFetch<smGroupArray>(CID_GROUP, ga[i].id.iIndex, ga[i].id.iPid);
-        g->id.iPid = pkd->Self();
-        g->id.iIndex = i;
-        g->nTotal = ga[i].nTotal;
-    }
-    mdl->FinishCache(CID_GROUP);
-    /*
-    ** Now the local groups are not at the start of the table!
-    */
-    /* Now update the new group location */
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(ga, pkd->nGroups));
-    for (i = 1 + nLocalGroups; i < nGroups; ++i) {
-        auto g = mdl->Fetch<smGroupArray>(CID_GROUP, ga[i].id.iIndex, ga[i].id.iPid);
-        ga[i].id.iPid = g->id.iPid;
-        ga[i].id.iIndex = g->id.iIndex;
-    }
-    mdl->FinishCache(CID_GROUP);
-    /*
-    ** Get local groups back at the begining of the table.
-    */
-    nGroups = pkdGroupCombineDuplicateIds(pkd, nGroups, ga, 1);
-    return (nGroups);
-}
-
 class HelperTotalnGroup : public mdl::arrayCACHEhelper {
   protected:
     virtual void init(void* v) override final {

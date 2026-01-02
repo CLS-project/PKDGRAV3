@@ -92,7 +92,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
-    mdl->AddService(PST_GROUP_RELOCATE, pst, (fcnService_t*)pstGroupRelocate, 0, 0, Legacy::GroupRelocate);
     mdl->AddService(PST_GROUP_STATS, pst, (fcnService_t*)pstGroupStats, sizeof(struct inGroupStats), 0, Legacy::GroupStats);
     mdl->AddService(PST_SMOOTH, pst, (fcnService_t*)pstSmooth, sizeof(struct inSmooth), 0, Legacy::Smooth);
     mdl->AddService(PST_GRAVITY, pst, (fcnService_t*)pstGravity, sizeof(struct inGravity), sizeof(struct outGravityReduct), Legacy::Gravity);
@@ -534,20 +533,6 @@ int pstPhysicalSoft(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdPhysicalSoft(plcl->pkd, in->dSoftMax, in->dFac, in->bSoftMaxMul);
-    }
-    return 0;
-}
-
-int pstGroupRelocate(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GROUP_RELOCATE, NULL, 0);
-        pstGroupRelocate(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        PKD pkd = plcl->pkd;
-        pkdGroupRelocate(pkd, pkd->nGroups, pkd->ga);
     }
     return 0;
 }
