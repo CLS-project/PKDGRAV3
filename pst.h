@@ -104,7 +104,6 @@ using PST = pstNode*;
 
 namespace Legacy {
 inline constexpr std::string_view ReadFile = "ReadFile";
-inline constexpr std::string_view SendParticles = "SendParticles";
 inline constexpr std::string_view SendArray = "SendArray";
 inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
@@ -141,7 +140,6 @@ inline constexpr std::string_view BHAccretion = "BHAccretion";
 enum pst_service {
     PST_SRV_STOP = 0, /* service 0 is always STOP and handled by MDL */
     PST_READFILE,
-    PST_SENDPARTICLES,
     PST_SENDARRAY,
     PST_WRITE,
     PST_OUTPUT,
@@ -255,9 +253,6 @@ struct inWrite {
     char achOutFile[PATH_MAX];
 };
 int pstWrite(PST, void*, int, void*, int);
-
-/* PST_SENDPARTICLES */
-int pstSendParticles(PST, void*, int, void*, int);
 
 /* PST_SENDARRAY */
 struct inSendArray {

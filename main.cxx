@@ -217,6 +217,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceDensityStep>(pst);
     mdl->AddService<ServiceAddWriteStart>(pst);
     mdl->AddService<ServiceCompressASCII>(pst);
+    mdl->AddService<ServiceSendParticles>(pst);
 #ifdef HAVE_ROCKSTAR
     mdl->AddService<ServiceRsHaloCount>(pst);
     mdl->AddService<ServiceRsHaloLoadIds>(pst);

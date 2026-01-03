@@ -80,7 +80,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_READFILE, pst, (fcnService_t*)pstReadFile, sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), 0,
                     Legacy::ReadFile);
     mdl->AddService(PST_WRITE, pst, (fcnService_t*)pstWrite, sizeof(struct inWrite), 0, Legacy::Write);
-    mdl->AddService(PST_SENDPARTICLES, pst, (fcnService_t*)pstSendParticles, sizeof(int), 0, Legacy::SendParticles);
     mdl->AddService(PST_SENDARRAY, pst, (fcnService_t*)pstSendArray, sizeof(struct inSendArray), 0, Legacy::SendArray);
     mdl->AddService(PST_CHECKPOINT, pst, (fcnService_t*)pstCheckpoint, sizeof(struct inWrite), 0, Legacy::Checkpoint);
     mdl->AddService(PST_OUTPUT, pst, (fcnService_t*)pstOutput, sizeof(struct inOutput), 0, Legacy::Output);
@@ -343,12 +342,6 @@ int pstCheckpoint(PST pst, void* vin, int nIn, void* vout, int nOut) {
     return 0;
 }
 
-int pstSendParticles(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    int iTo = *(int*)vin;
-    pkdWriteViaNode(pst->lcl()->pkd, iTo);
-    return 0;
-}
-
 int pstSendArray(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto in = static_cast<struct inSendArray*>(vin);
     pkdSendArray(pst->lcl()->pkd, in->iTo, in->field, in->iUnitSize, in->dvFac, in->bMarked);
@@ -423,7 +416,7 @@ int pstWrite(PST pst, void* vin, int nIn, void* vout, int nOut) {
             pkdWriteFIO(plcl->pkd, fio, in->dvFac, in->dTuFac, in->bnd, nThisFile);
             for (i = in->iLower + 1; i < in->iUpper; ++i) {
                 auto me = pst->Self();
-                int rID = pst->mdl()->ReqService(i, PST_SENDPARTICLES, me);
+                auto rID = pst->mdl()->ReqService<ServiceSendParticles>(i, me);
                 pkdWriteFromNode(plcl->pkd, i, fio, in->dvFac, in->dTuFac, in->bnd, nThisFile);
                 pst->mdl()->GetReply(rID);
             }

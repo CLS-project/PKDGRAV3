@@ -59,4 +59,18 @@ class ServiceSaveGroupStats : public ServiceOutput {
     virtual void Write(PST pst, std::span<std::byte> vin, int iGroup, const std::string& filename, int iSegment, int nSegment) override;
 };
 
+class ServiceSendParticles : public TraversePST {
+  public:
+    static constexpr std::string_view name = "SendParticles";
+    using input = int32_t;
+    using output = void;
+
+    explicit ServiceSendParticles(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    // This service is special: this is a point-to-point send, so we immediately invoke the service.
+    auto Traverse(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override { return Service(pst, in, out); }
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 #endif
