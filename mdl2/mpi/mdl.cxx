@@ -2336,45 +2336,6 @@ void* mdlClass::WorkerThread() {
 }
 
 /*
-** This function will transfer a block of data using a pack function.
-** The corresponding node must call mdlRecv.
-*/
-
-#define SEND_BUFFER_SIZE (1 * 1024 * 1024)
-
-void mdlClass::Send(int id, mdlPack pack, void* ctx) {
-    size_t nBuff;
-    char* vOut;
-
-    vOut = new char[SEND_BUFFER_SIZE];
-
-    do {
-        nBuff = (*pack)(ctx, &id, SEND_BUFFER_SIZE, vOut);
-        mdl_MPI_Ssend(vOut, nBuff, id, MDL_TAG_SEND);
-    } while (nBuff != 0);
-    delete[] vOut;
-}
-
-void mdlClass::Recv(int id, mdlPack unpack, void* ctx) {
-    char* vIn;
-    size_t nUnpack;
-    int nBytes;
-    int inid;
-
-    if (id < 0) id = MPI_ANY_SOURCE;
-
-    vIn = new char[SEND_BUFFER_SIZE];
-
-    do {
-        mdl_MPI_Recv(vIn, SEND_BUFFER_SIZE, id, MDL_TAG_SEND, &nBytes);
-        inid = id; // status.MPI_SOURCE;
-        nUnpack = (*unpack)(ctx, &inid, nBytes, vIn);
-    } while (nUnpack > 0 && nBytes > 0);
-
-    delete[] vIn;
-}
-
-/*
  ** This is a tricky function. It initiates a bilateral transfer between
  ** two threads. Both threads MUST be expecting this transfer. The transfer
  ** occurs between idSelf <---> 'id' or 'id' <---> idSelf as seen from the

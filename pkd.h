@@ -849,7 +849,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, fioS
 uint32_t pkdWriteFIO(PKD pkd, FIO fio, double dvFac, double dTuFac, Bound bnd, fioSpeciesList nWritten);
 void pkdWriteFromNode(PKD pkd, int iNode, FIO fio, double dvFac, double dTuFac, Bound bnd, fioSpeciesList nWritten);
 void pkdWriteViaNode(PKD pkd, int iNode);
-char* pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked);
+auto pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) -> std::byte*;
 void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked);
 void* pkdRecvArray(PKD pkd, int iNode, void* pDest, int iUnitSize);
 void pkdGravAll(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconeParameters* lc, struct pkdTimestepParameters* ts, double dTime, int nReps,

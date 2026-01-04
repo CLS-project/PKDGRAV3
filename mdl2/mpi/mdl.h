@@ -492,9 +492,28 @@ class mdlClass : public mdlBASE {
     // Deprecated interface
     int GetReply(int rID, int nMaxBytes, void* vout);
 
-    void Send(int id, mdlPack pack, void* ctx);
-    void Recv(int id, mdlPack unpack, void* ctx);
     int Swap(int id, size_t nBufBytes, void* vBuf, size_t nOutBytes, size_t* pnSndBytes, size_t* pnRcvBytes, size_t nSkipBytes = 0);
+
+    static constexpr size_t send_buffer_size = 128 * 1024;
+    template <typename Pack>
+    void Send(int id, Pack&& pack) {
+        std::array<std::byte, send_buffer_size> buffer;
+        size_t nBuff;
+        do {
+            nBuff = pack(std::span(buffer.data(), buffer.size()));
+            mdl_MPI_Ssend(buffer.data(), nBuff, id, MDL_TAG_SEND);
+        } while (nBuff != 0);
+    }
+    template <typename Unpack>
+    void Recv(int id, Unpack&& unpack) {
+        std::array<std::byte, send_buffer_size> buffer;
+        size_t nUnpack;
+        int nBytes;
+        do {
+            mdl_MPI_Recv(buffer.data(), send_buffer_size, id, MDL_TAG_SEND, &nBytes);
+            nUnpack = unpack(std::span(buffer.data(), nBytes));
+        } while (nUnpack > 0 && nBytes > 0);
+    }
 
     void CacheCheck();
     int CacheStatus(int cid);

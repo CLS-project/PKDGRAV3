@@ -1548,113 +1548,89 @@ static void writeParticle(PKD pkd, FIO fio, double dvFac, double dvFacGas, Bound
     }
 }
 
-struct packWriteCtx {
-    PKD pkd;
-    FIO fio;
-    Bound bnd;
-    double dvFac;
-    double dTuFac;
-    fioSpeciesList nWritten;
-    int iIndex;
-    int iDecoratorIndex;
-};
-
-static int unpackWrite(void* vctx, int* id, size_t nSize, void* vBuff) {
-    struct packWriteCtx* ctx = (struct packWriteCtx*)vctx;
-    int i;
-    PKD pkd = ctx->pkd;
-    if (nSize == 0) return 0;
-    double dvFacGas = sqrt(ctx->dvFac);
-
-    // Retrieve number of particles/decorators
-    auto nPart = static_cast<uint64_t*>(vBuff)[0];
-    auto nDecorator = static_cast<uint64_t*>(vBuff)[1];
-    // Position of the particle buffer
-    auto pStart = &static_cast<uint64_t*>(vBuff)[2];
-    // Position of the decorator buffer
-    decorators::FIELDS* dStart = reinterpret_cast<decorators::FIELDS*>(reinterpret_cast<char*>(pStart) + nPart * pkd->particles.ParticleSize());
-
-    auto p = &pkd->particles[reinterpret_cast<PARTICLE*>(pStart)];
-    auto d = &pkd->decorators[reinterpret_cast<decorators::FIELDS*>(dStart)];
-    assert(nPart * pkd->particles.ParticleSize() + nDecorator * pkd->decorators.DecoratorSize() + 2 * sizeof(uint64_t) == nSize);
-
-    for (i = 0; i < nPart; ++i, ++p) {
-        particleStore::Particle& P = *p;
-        if (P.have_decorator()) {
-            P.set_decorator(d);
-            d++;
-        }
-        writeParticle(pkd, ctx->fio, ctx->dvFac, dvFacGas, ctx->bnd, P);
-        ++ctx->nWritten[p->species()];
-    }
-    return 1;
-}
-
 void pkdWriteFromNode(PKD pkd, int iNode, FIO fio, double dvFac, double dTuFac, Bound bnd, fioSpeciesList nWritten) {
-    struct packWriteCtx ctx;
-    ctx.pkd = pkd;
-    ctx.fio = fio;
-    ctx.bnd = bnd;
-    ctx.dvFac = dvFac;
-    ctx.dTuFac = dTuFac;
-    for (auto i = 0; i <= FIO_SPECIES_LAST; ++i) ctx.nWritten[i] = 0;
-    ctx.iIndex = 0;
-    ctx.iDecoratorIndex = 0;
 #ifdef MPI_VERSION
-    pkd->mdl->Recv(iNode, unpackWrite, &ctx);
+    double dvFacGas = std::sqrt(dvFac);
+
+    pkd->mdl->Recv(iNode, [&](std::span<std::byte> buffer) -> size_t {
+        if (buffer.empty()) return 0;
+
+        auto* header = reinterpret_cast<uint64_t*>(buffer.data());
+
+        uint64_t nPart = header[0];
+        uint64_t nDecorator = header[1];
+
+        std::byte* pStart = reinterpret_cast<std::byte*>(header + 2);
+        std::byte* dStart = pStart + nPart * pkd->particles.ParticleSize();
+        assert(2 * sizeof(uint64_t) + nPart * pkd->particles.ParticleSize() + nDecorator * pkd->decorators.DecoratorSize() == buffer.size());
+
+        auto p = &pkd->particles[reinterpret_cast<PARTICLE*>(pStart)];
+        auto d = &pkd->decorators[reinterpret_cast<decorators::FIELDS*>(dStart)];
+
+        for (uint64_t i = 0; i < nPart; ++i, ++p) {
+            particleStore::Particle& P = *p;
+
+            if (P.have_decorator()) {
+                P.set_decorator(d);
+                ++d;
+            }
+
+            writeParticle(pkd, fio, dvFac, dvFacGas, bnd, P);
+
+            ++nWritten[p->species()];
+        }
+
+        return 1;
+    });
 #endif
-    for (auto i = 0; i <= FIO_SPECIES_LAST; ++i) nWritten[i] += ctx.nWritten[i];
 }
 
 /*****************************************************************************\
 * Send particles to be written
 \*****************************************************************************/
 
-static int packWrite(void* vctx, int* id, size_t nSize, void* vBuff) {
-    struct packWriteCtx* ctx = (struct packWriteCtx*)vctx;
-    PKD pkd = ctx->pkd;
-    int nDecorator = 0, nPart = 0;
-    int i = ctx->iIndex;
-    // Decorator count information sent at the start of the buffer
-    // indicating number of particles and decorators
-    auto n = 2 * sizeof(uint64_t);
-
-    auto pSize = pkd->particles.ParticleSize();
-    auto dSize = pkd->decorators.DecoratorSize();
-    while (n < nSize - (pSize + dSize) && i < pkd->Local()) {
-        n += pSize;
-        if (pkd->particles[i].have_decorator()) {
-            n += dSize;
-            nDecorator++;
-        }
-        nPart++;
-        i++;
-    }
-    auto nPartSize = nPart * pSize;
-    auto nDecoratorSize = nDecorator * dSize;
-
-    auto nBuff = static_cast<uint64_t*>(vBuff);
-    nBuff[0] = nPart;
-    nBuff[1] = nDecorator;
-    memcpy(static_cast<char*>(vBuff) + 2 * sizeof(uint64_t), pkd->Particle(ctx->iIndex), nPartSize);
-    memcpy(static_cast<char*>(vBuff) + 2 * sizeof(uint64_t) + nPartSize, pkd->Decorator(ctx->iDecoratorIndex), nDecoratorSize);
-
-    ctx->iIndex += nPart;
-    ctx->iDecoratorIndex += nDecorator;
-    if (nPart) return n;
-    else return 0;
-}
-
-/* Send all particled data to the specified node for writing */
 void pkdWriteViaNode(PKD pkd, int iNode) {
-    struct packWriteCtx ctx;
-    ctx.pkd = pkd;
-    ctx.fio = NULL;
-    ctx.dvFac = 1.0;
-    ctx.iIndex = 0;
-    ctx.iDecoratorIndex = 0;
 #ifdef MPI_VERSION
-    pkd->mdl->Send(iNode, packWrite, &ctx);
+    size_t iIndex = 0;
+    size_t iDecoratorIndex = 0;
+
+    pkd->mdl->Send(iNode, [&](std::span<std::byte> buffer) -> size_t {
+        int nDecorator = 0;
+        int nPart = 0;
+        size_t i = iIndex;
+
+        // Header: [nPart, nDecorator]
+        size_t n = 2 * sizeof(uint64_t);
+
+        const size_t pSize = pkd->particles.ParticleSize();
+        const size_t dSize = pkd->decorators.DecoratorSize();
+
+        while (n < buffer.size() - (pSize + dSize) && i < pkd->Local()) {
+            n += pSize;
+            if (pkd->particles[i].have_decorator()) {
+                n += dSize;
+                ++nDecorator;
+            }
+            ++nPart;
+            ++i;
+        }
+
+        if (nPart == 0) return size_t{0};
+
+        const size_t nPartSize = nPart * pSize;
+        const size_t nDecoratorSize = nDecorator * dSize;
+
+        auto* header = reinterpret_cast<uint64_t*>(buffer.data());
+        header[0] = static_cast<uint64_t>(nPart);
+        header[1] = static_cast<uint64_t>(nDecorator);
+        std::memcpy(buffer.data() + 2 * sizeof(uint64_t), pkd->Particle(iIndex), nPartSize);
+        std::memcpy(buffer.data() + 2 * sizeof(uint64_t) + nPartSize, pkd->Decorator(iDecoratorIndex), nDecoratorSize);
+
+        iIndex += nPart;
+        iDecoratorIndex += nDecorator;
+
+        return n;
+    });
 #endif
 }
 
@@ -1746,17 +1722,8 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, fioS
 /*****************************************************************************\
 * Send an array/vector to the specified node
 \*****************************************************************************/
-struct packArrayCtx {
-    PKD pkd;
-    double dvFac;
-    PKD_FIELD field;
-    int iIndex;
-    int iUnitSize;
-    int bMarked;
-};
-
-char* pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) {
-    auto pBuff = static_cast<char*>(vBuff);
+auto pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) -> std::byte* {
+    auto pBuff = static_cast<std::byte*>(vBuff);
     int iIndex = *piIndex;
 
     while (iIndex < n && iSize >= iUnitSize) {
@@ -1771,7 +1738,7 @@ char* pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIE
             V = pkd->particles.velocity(p) * dvFac;
         }
         else {
-            const char& src = pkd->particles.get<char>(p, field);
+            const auto& src = pkd->particles.get<std::byte>(p, field);
             memcpy(pBuff, &src, iUnitSize);
         }
         pBuff += iUnitSize;
@@ -1781,25 +1748,14 @@ char* pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIE
     return pBuff;
 }
 
-static int packArray(void* vctx, int* id, size_t nSize, void* vBuff) {
-    struct packArrayCtx* ctx = (struct packArrayCtx*)vctx;
-    PKD pkd = ctx->pkd;
-    char* pBuff = (char*)vBuff;
-    char* pEnd = pkdPackArray(pkd, nSize, pBuff, &ctx->iIndex, pkd->Local(), ctx->field, ctx->iUnitSize, ctx->dvFac, ctx->bMarked);
-    return pEnd - pBuff;
-}
-
-/* Send all particled data to the specified node for writing */
 void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) {
-    struct packArrayCtx ctx;
-    ctx.pkd = pkd;
-    ctx.dvFac = dvFac;
-    ctx.field = field;
-    ctx.iUnitSize = iUnitSize;
-    ctx.iIndex = 0;
-    ctx.bMarked = bMarked;
 #ifdef MPI_VERSION
-    pkd->mdl->Send(iNode, packArray, &ctx);
+    int iIndex = 0;
+    pkd->mdl->Send(iNode, [&](std::span<std::byte> buffer) -> size_t {
+        auto pStart = buffer.data();
+        auto pEnd = pkdPackArray(pkd, buffer.size(), pStart, &iIndex, pkd->Local(), field, iUnitSize, dvFac, bMarked);
+        return static_cast<size_t>(pEnd - pStart);
+    });
 #endif
 }
 
@@ -1807,24 +1763,19 @@ void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize, double dvF
 * Receive an array/vector from a specified node
 \*****************************************************************************/
 
-struct unpackArrayCtx {
-    char* pDest;
-};
-
-static int unpackArray(void* vctx, int* id, size_t nSize, void* vBuff) {
-    struct unpackArrayCtx* ctx = (struct unpackArrayCtx*)vctx;
-    memcpy(ctx->pDest, vBuff, nSize);
-    ctx->pDest += nSize;
-    return 1;
-}
-
-void* pkdRecvArray(PKD pkd, int iNode, void* pDest, int iUnitSize) {
-    struct unpackArrayCtx ctx;
-    ctx.pDest = static_cast<char*>(pDest);
+auto pkdRecvArray(PKD pkd, int iNode, void* pDest, int /*iUnitSize*/) -> void* {
 #ifdef MPI_VERSION
-    pkd->mdl->Recv(iNode, unpackArray, &ctx);
+    auto* pOut = static_cast<std::byte*>(pDest);
+    pkd->mdl->Recv(iNode, [&](std::span<std::byte> buffer) -> size_t {
+        if (buffer.empty()) return 0;
+        std::memcpy(pOut, buffer.data(), buffer.size());
+        pOut += buffer.size();
+        return 1;
+    });
+    return pOut;
+#else
+    return pDest;
 #endif
-    return ctx.pDest;
 }
 
 /*****************************************************************************\

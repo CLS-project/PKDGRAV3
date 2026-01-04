@@ -20,6 +20,7 @@
 #include "io/iochunk.h"
 #include "pst.h"
 #include <complex>
+#include <cstddef>
 #define COMPLEX std::complex<float>
 
 #include "fmt/format.h"
@@ -34,92 +35,58 @@ void pkdContext::GroupStatsSave(int iGroup, const std::string& filename, int iSe
     io_chunk_write(filename.c_str(), tinyGroupTable + 1, nBytes, iSegment > 0);
 }
 
-/* Generic context: all things/stuff from iIndex (starts at zero) */
-struct packCtx {
-    PKD pkd;
-    size_t iIndex;
-    int iGrid;
-};
-
-static int unpackWrite(void* vctx, int* id, size_t nSize, void* vBuff) {
-    auto info = reinterpret_cast<asyncFileInfo*>(vctx);
-    io_write(info, vBuff, nSize);
-    return 1;
-}
-
-/*
-** Tiny Group statistics
-*/
-static int packGroupStats(void* vctx, int* id, size_t nSize, void* vBuff) {
-    struct packCtx* ctx = (struct packCtx*)vctx;
-    int nLeft = ctx->pkd->nLocalGroups - ctx->iIndex;
-    int n = nSize / sizeof(TinyGroupTable);
-    if (n > nLeft) n = nLeft;
-    memcpy(vBuff, ctx->pkd->tinyGroupTable + 1 + ctx->iIndex, n * sizeof(TinyGroupTable));
-    ctx->iIndex += n;
-    return n * sizeof(TinyGroupTable);
-}
-
-static int packGridK(void* vctx, int* id, size_t nSize, void* vBuff) {
-    struct packCtx* ctx = (struct packCtx*)vctx;
-    PKD pkd = ctx->pkd;
-    if (pkd->mdl->Core() == 0) {
-        auto fftData = pkd->Ephemeral<COMPLEX>() + ctx->iGrid * pkd->fft->kgrid->nLocal;
-        size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
-        size_t nLeft = nLocal - ctx->iIndex;
-        size_t n = nSize / sizeof(*fftData);
-        if (n > nLeft) n = nLeft;
-        memcpy(vBuff, fftData + ctx->iIndex, n * sizeof(*fftData));
-        ctx->iIndex += n;
-        return n * sizeof(*fftData);
-    }
-    else return 0;
-}
-
-static int packGridR(void* vctx, int* id, size_t nSize, void* vBuff) {
-    struct packCtx* ctx = (struct packCtx*)vctx;
-    PKD pkd = ctx->pkd;
-    if (pkd->mdl->Core() == 0) {
-        auto fftData = pkd->Ephemeral<float>() + ctx->iGrid * pkd->fft->rgrid->nLocal;
-        auto pOutput = static_cast<float*>(vBuff);
-        size_t nLocal = 1ul * pkd->fft->rgrid->a1 * pkd->fft->rgrid->n2 * pkd->fft->rgrid->nSlab;
-        size_t n = nSize / sizeof(*fftData);
-        size_t iOutput = 0;
-        while (ctx->iIndex < nLocal && iOutput + pkd->fft->rgrid->n1 <= n) {
-            memcpy(pOutput + iOutput, fftData + ctx->iIndex, pkd->fft->rgrid->n1 * sizeof(*fftData));
-            iOutput += pkd->fft->rgrid->n1;
-            ctx->iIndex += pkd->fft->rgrid->a1;
-        }
-        return iOutput * sizeof(*fftData);
-    }
-    else return 0;
-}
-
 /*
 ** We do not do the write, rather we send to another thread.
 */
 
+template <typename F>
+auto pack_grid(PKD pkd, MDLGRID grid, int iGrid, std::span<std::byte> buffer, size_t& iIndex) -> size_t {
+    auto fftData = pkd->Ephemeral<F>() + iGrid * grid->nLocal; // Start of the grid data
+    auto pOutput = reinterpret_cast<F*>(buffer.data());        // Output pointer
+    size_t nLocal = 1ul * grid->a1 * grid->n2 * grid->nSlab;   // Total local size (including padding)
+    size_t n = buffer.size() / sizeof(F);                      // Number of elements that fit in buffer
+    size_t iOutput = 0;
+    while (iIndex < nLocal && iOutput + grid->n1 <= n) {
+        memcpy(pOutput + iOutput, fftData + iIndex, grid->n1 * sizeof(*fftData));
+        iOutput += grid->n1;
+        iIndex += grid->a1;
+    }
+    return iOutput * sizeof(F);
+}
+
 void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner, int iGrid) {
-    struct packCtx ctx;
-    mdlPack pack;
-    ctx.pkd = pkd;
-    ctx.iIndex = 0;
-    ctx.iGrid = iGrid;
+    size_t iIndex = 0;
     switch (eOutputType) {
     case OUT_TINY_GROUP:
-        pack = packGroupStats;
+        pkd->mdl->Send(iPartner, [&](std::span<std::byte> buffer) -> size_t {
+            auto nLeft = pkd->nLocalGroups - iIndex;
+            auto n = buffer.size() / sizeof(TinyGroupTable);
+            if (n > nLeft) n = nLeft;
+            memcpy(buffer.data(), pkd->tinyGroupTable + 1 + iIndex, n * sizeof(TinyGroupTable));
+            iIndex += n;
+            return n * sizeof(TinyGroupTable);
+        });
         break;
     case OUT_KGRID:
-        pack = packGridK;
+        pkd->mdl->Send(iPartner, [&](std::span<std::byte> buffer) -> size_t {
+            if (pkd->mdl->Core() == 0) {
+                return pack_grid<COMPLEX>(pkd, pkd->fft->kgrid, iGrid, buffer, iIndex);
+            }
+            else return 0;
+        });
         break;
     case OUT_RGRID:
-        pack = packGridR;
+        pkd->mdl->Send(iPartner, [&](std::span<std::byte> buffer) -> size_t {
+            if (pkd->mdl->Core() == 0) {
+                return pack_grid<float>(pkd, pkd->fft->rgrid, iGrid, buffer, iIndex);
+            }
+            else return 0;
+        });
         break;
     default:
         fprintf(stderr, "ERROR: invalid output type %d\n", eOutputType);
         abort();
     }
-    pkd->mdl->Send(iPartner, pack, &ctx);
 }
 
 int pstOutputSend(PST pst, void* vin, int nIn, void* vout, int nOut) {
@@ -132,23 +99,18 @@ int pstOutputSend(PST pst, void* vin, int nIn, void* vout, int nOut) {
 ** We are the writer. We may need to receive as well.
 */
 
-static void localWrite(PKD pkd, mdlPack unpack, void* info, mdlPack pack, int iGrid) {
-    const size_t SEND_BUFFER_SIZE = 1 * 1024 * 1024;
-    packCtx ctx;
-    ctx.pkd = pkd;
-    ctx.iIndex = 0;
-    ctx.iGrid = iGrid;
-    int id = 0;
-
+template <typename F>
+static void localWrite(PKD pkd, asyncFileInfo* info, MDLGRID grid, int iGrid) {
+    const size_t SEND_BUFFER_SIZE = 64 * 1024;
+    size_t iIndex = 0;
     auto vOut = new char[SEND_BUFFER_SIZE];
-    while (auto n = (*pack)(&ctx, &id, SEND_BUFFER_SIZE, vOut)) {
-        (*unpack)(info, &id, n, vOut);
+    while (auto n = pack_grid<F>(pkd, grid, iGrid, std::span<std::byte>(reinterpret_cast<std::byte*>(vOut), SEND_BUFFER_SIZE), iIndex)) {
+        io_write(info, vOut, n);
     }
     delete[] vOut;
 }
 
 void pkdOutput(PKD pkd, outType eOutputType, int iProcessor, int nProcessor, int iPartner, int nPartner, const char* fname, int iGrid) {
-    mdlPack unpack;
     asyncFileInfo info;
     auto achOutFile = fmt::format(fname, "i"_a = iProcessor);
     io_init(&info, 4, 1024 * 1024, IO_AIO | IO_LIBAIO);
@@ -160,18 +122,14 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor, int nProcessor, int
     switch (eOutputType) {
     case OUT_TINY_GROUP:
         io_write(&info, pkd->tinyGroupTable + 1, sizeof(TinyGroupTable) * pkd->nLocalGroups);
-        unpack = unpackWrite;
         break;
     case OUT_KGRID:
-        localWrite(pkd, unpackWrite, &info, packGridK, iGrid);
-        unpack = unpackWrite;
+        localWrite<COMPLEX>(pkd, &info, pkd->fft->kgrid, iGrid);
         break;
     case OUT_RGRID:
-        localWrite(pkd, unpackWrite, &info, packGridR, iGrid);
-        unpack = unpackWrite;
+        localWrite<float>(pkd, &info, pkd->fft->rgrid, iGrid);
         break;
     default:
-        unpack = NULL;
         fprintf(stderr, "ERROR: invalid output type %d\n", eOutputType);
         abort();
     }
@@ -182,7 +140,12 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor, int nProcessor, int
         send.iGrid = iGrid;
         ++iPartner;
         int rID = pkd->mdl->ReqService(iPartner, PST_OUTPUT_SEND, &send, sizeof(send));
-        pkd->mdl->Recv(iPartner, unpack, &info);
+        pkd->mdl->Recv(iPartner, [&](std::span<std::byte> buffer) -> size_t {
+            if (buffer.empty()) return 0;
+            io_write(&info, buffer.data(), buffer.size());
+            return 1;
+        });
+
         pkd->mdl->GetReply(rID);
     }
     io_close(&info);
