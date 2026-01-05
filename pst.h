@@ -135,7 +135,6 @@ inline constexpr std::string_view ParticleCacheFinish = "ParticleCacheFinish";
 inline constexpr std::string_view Kick = "Kick";
 inline constexpr std::string_view KickTree = "KickTree";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
-inline constexpr std::string_view SetTotal = "SetTotal";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view AccelStep = "AccelStep";
 inline constexpr std::string_view DensityStep = "DensityStep";
@@ -143,7 +142,6 @@ inline constexpr std::string_view ReSmooth = "ReSmooth";
 inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
 inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
-inline constexpr std::string_view SetWriteStart = "SetWriteStart";
 inline constexpr std::string_view AddWriteStart = "AddWriteStart";
 inline constexpr std::string_view GroupRelocate = "GroupRelocate";
 inline constexpr std::string_view GroupStats = "GroupStats";
@@ -188,7 +186,6 @@ enum pst_service {
     PST_KICK,
     PST_KICKTREE,
     PST_PHYSICALSOFT,
-    PST_SETTOTAL,
     PST_ONENODEREADINIT,
     PST_ACCELSTEP,
     PST_DENSITYSTEP,
@@ -202,7 +199,6 @@ enum pst_service {
 #ifdef STELLAR_EVOLUTION
     PST_STELLAREVOLUTIONINIT,
 #endif
-    PST_SETWRITESTART,
     PST_ADDWRITESTART,
     PST_GROUP_RELOCATE,
     PST_GROUP_STATS,
@@ -512,12 +508,6 @@ struct inPhysicalSoft {
 };
 int pstPhysicalSoft(PST, void*, int, void*, int);
 
-/* PST_SETTOTAL */
-struct outSetTotal {
-    uint64_t nTotal;
-};
-int pstSetTotal(PST, void*, int, void*, int);
-
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut);
 
@@ -560,12 +550,6 @@ struct inDensityStep {
     uint8_t uRungHi;
 };
 int pstDensityStep(PST, void*, int, void*, int);
-
-/* PST_SETWRITESTART */
-struct inSetWriteStart {
-    uint64_t nWriteStart;
-};
-int pstSetWriteStart(PST, void*, int, void*, int);
 
 /* PST_ADDWRITESTART */
 struct inAddWriteStart {

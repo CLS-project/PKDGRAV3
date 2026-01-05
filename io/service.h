@@ -128,4 +128,27 @@ class ServiceOutput : public ServiceIO {
     virtual void Write(PST pst, std::span<std::byte> in, int iGroup, const std::string& filename, int iSegment, int nSegment) = 0;
 };
 
+class ServiceSetTotal : public TraverseCombinePST {
+  public:
+    static constexpr std::string_view name = "SetTotal";
+    using input = void;
+    using output = uint64_t;
+    explicit ServiceSetTotal(PST pst) : TraverseCombinePST(pst, name, 0, sizeof(output)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) -> int override;
+};
+
+class ServiceSetWriteStart : public TraversePST {
+  public:
+    static constexpr std::string_view name = "SetWriteStart";
+    using input = uint64_t;
+    using output = void;
+    explicit ServiceSetWriteStart(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
 #endif /* SERVICE_H */

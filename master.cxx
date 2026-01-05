@@ -18,6 +18,7 @@
 #include "analysis/orbits.h"
 #include "blitz/tinyvec2.h"
 #include "core/partclass.h"
+#include "io/service.h"
 #include "pkd_config.h"
 
 #include <cstddef>
@@ -1314,15 +1315,18 @@ void MSR::AllNodeWrite(std::string_view FileName, double dTime, double dvFac, in
     pstWrite(pst, &in, sizeof(in), NULL, 0);
 }
 
-uint64_t MSR::CalcWriteStart() {
-    struct outSetTotal out;
-    struct inSetWriteStart in;
+auto MSR::SetTotal() -> uint64_t {
+    ServiceSetTotal::output out;
+    mdl->RunService<ServiceSetTotal>({}, out);
+    return out;
+}
 
-    pstSetTotal(pst, NULL, 0, &out, sizeof(out));
-    assert(out.nTotal <= N);
-    in.nWriteStart = 0;
-    pstSetWriteStart(pst, &in, sizeof(in), NULL, 0);
-    return out.nTotal;
+auto MSR::CalcWriteStart() -> uint64_t {
+    auto nTotal = SetTotal();
+    assert(nTotal <= N);
+    ServiceSetWriteStart::input nWriteStart = 0;
+    mdl->RunService<ServiceSetWriteStart>(nWriteStart);
+    return nTotal;
 }
 
 void MSR::Write(std::string_view FileName, double dTime, int bCheckpoint) {
@@ -1818,7 +1822,6 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
     ServiceSwapAll::input inswap;
     PKDOUT pkdout;
     const char* arrayOrVector;
-    struct outSetTotal total;
     int rID;
 
     switch (nDims) {
@@ -1833,7 +1836,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
         assert(nDims == 1 || nDims == 3);
     }
 
-    pstSetTotal(pst, NULL, 0, &total, sizeof(total));
+    auto total = SetTotal();
 
     /*
     ** Add Data Subpath for local and non-local names.
@@ -1871,7 +1874,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
 
         inWrite.nFileOffset = 0;
         for (iDim = 0; iDim < nDims; iDim++) {
-            in.nTotal = total.nTotal;
+            in.nTotal = total;
             in.iFile = iFileType;
             in.iType = iType;
             in.iDim = iDim;
@@ -1888,7 +1891,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
             Exit(1);
         }
 
-        pkdOutHdr(plcl->pkd, pkdout, total.nTotal);
+        pkdOutHdr(plcl->pkd, pkdout, total);
 
         /*
          * First write our own particles.

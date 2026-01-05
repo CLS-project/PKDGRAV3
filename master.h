@@ -412,7 +412,8 @@ class MSR {
     void SwapClasses(int id);
     void OneNodeRead(struct inReadFile* in, FIO fio);
     void AllNodeWrite(std::string_view FileName, double dTime, double dvFac, int bDouble);
-    uint64_t CalcWriteStart();
+    auto SetTotal() -> uint64_t;
+    auto CalcWriteStart() -> uint64_t;
     void SwitchTheta(double);
     double getTheta(double dTime);
     double SwitchDelta(double dTime, int iStep);

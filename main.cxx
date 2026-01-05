@@ -158,6 +158,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceResetCOM>(pst);
     mdl->AddService<ServiceRemoveDeleted>(pst);
     mdl->AddService<ServiceFileSizes>(pst);
+    mdl->AddService<ServiceSetTotal>(pst);
+    mdl->AddService<ServiceSetWriteStart>(pst);
     mdl->AddService<ServiceRestore>(pst);
     mdl->AddService<ServiceRestoreDecorator>(pst);
     mdl->AddService<ServiceBuildTree>(pst);

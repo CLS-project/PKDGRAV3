@@ -180,3 +180,32 @@ void ServiceOutput::IO(PST pst, std::span<std::byte> vin, int iGroup, int iSegme
     auto filename = fmt::format(hdr->io.filename, "i"_a = iGroup);
     Write(pst, vin, iGroup, filename, iSegment, nSegment);
 }
+
+auto ServiceSetTotal::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto out = reinterpret_cast<ServiceSetTotal::output*>(vout.data());
+    *out = pst->nTotal = pst->lcl()->pkd->Local();
+    return sizeof(output);
+}
+
+auto ServiceSetTotal::Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST pst) -> int {
+    auto out1 = reinterpret_cast<ServiceSetTotal::output*>(vout1.data());
+    auto out2 = reinterpret_cast<const ServiceSetTotal::output*>(vout2.data());
+    *out1 += *out2;
+    pst->nTotal = *out1;
+    return sizeof(output);
+}
+
+auto ServiceSetWriteStart::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<ServiceSetWriteStart::input*>(vin.data());
+    auto mdl = pst->mdl();
+    input nWriteStart = *in + pst->lower()->nTotal;
+    auto rID = ReqService(pst, nWriteStart);
+    Traverse(pst->lower(), vin, vout);
+    return mdl->GetReply(rID, vout);
+}
+
+auto ServiceSetWriteStart::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<ServiceSetWriteStart::input*>(vin.data());
+    pst->lcl()->nWriteStart = *in;
+    return 0;
+}

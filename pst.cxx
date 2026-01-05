@@ -110,8 +110,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_KICK, pst, (fcnService_t*)pstKick, sizeof(struct inKick), 0, Legacy::Kick);
     mdl->AddService(PST_KICKTREE, pst, (fcnService_t*)pstKickTree, sizeof(struct inKickTree), 0, Legacy::KickTree);
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
-    mdl->AddService(PST_SETTOTAL, pst, (fcnService_t*)pstSetTotal, 0, sizeof(struct outSetTotal), Legacy::SetTotal);
-    mdl->AddService(PST_SETWRITESTART, pst, (fcnService_t*)pstSetWriteStart, sizeof(struct inSetWriteStart), 0, Legacy::SetWriteStart);
     mdl->AddService(PST_ADDWRITESTART, pst, (fcnService_t*)pstAddWriteStart, sizeof(struct inAddWriteStart), 0, Legacy::AddWriteStart);
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
@@ -1019,47 +1017,6 @@ int pstKickTree(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdKickTree(plcl->pkd, in->dTime, in->dDelta, in->dDeltaVPred, in->dDeltaU, in->dDeltaUPred, in->iRoot);
-    }
-    return 0;
-}
-
-int pstSetTotal(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto out = static_cast<struct outSetTotal*>(vout);
-    struct outSetTotal oute;
-
-    assert(nIn == 0);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_SETTOTAL, NULL, 0);
-        pstSetTotal(pst->lower(), NULL, 0, out, nOut);
-        pst->mdl()->GetReply(rID, oute);
-        out->nTotal += oute.nTotal;
-        pst->nTotal = out->nTotal;
-    }
-    else {
-        /*pst->nTotal = pkdLocal(plcl->pkd);*/
-        pst->nTotal = plcl->pkd->Local();
-        out->nTotal = pst->nTotal;
-    }
-    return sizeof(struct outSetTotal);
-}
-
-int pstSetWriteStart(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inSetWriteStart*>(vin);
-    uint64_t nWriteStart;
-
-    assert(nIn == sizeof(struct inSetWriteStart));
-    nWriteStart = in->nWriteStart;
-    if (pst->NotCore()) {
-        in->nWriteStart = nWriteStart + pst->lower()->nTotal;
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_SETWRITESTART, in, nIn);
-        in->nWriteStart = nWriteStart;
-        pstSetWriteStart(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        plcl->nWriteStart = nWriteStart;
     }
     return 0;
 }
