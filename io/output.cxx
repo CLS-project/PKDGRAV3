@@ -199,6 +199,55 @@ int pstOutput(PST pst, void* vin, int nIn, void* vout, int nOut) {
 
 auto ServiceSendParticles::Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int {
     auto iTo = *reinterpret_cast<const uint32_t*>(in.data());
-    pkdWriteViaNode(pst->lcl()->pkd, iTo);
+    pst->lcl()->pkd->WriteViaNode(iTo);
     return 0;
+}
+
+/*****************************************************************************\
+* Send particles to be written
+\*****************************************************************************/
+
+void pkdContext::WriteViaNode(int iNode) {
+#ifdef MPI_VERSION
+    size_t iIndex = 0;
+    size_t iDecoratorIndex = 0;
+
+    mdl->Send(iNode, [&](std::span<std::byte> buffer) -> size_t {
+        int nDecorator = 0;
+        int nPart = 0;
+        size_t i = iIndex;
+
+        // Header: [nPart, nDecorator]
+        size_t n = 2 * sizeof(uint64_t);
+
+        const size_t pSize = particles.ParticleSize();
+        const size_t dSize = decorators.DecoratorSize();
+
+        while (n < buffer.size() - (pSize + dSize) && i < Local()) {
+            n += pSize;
+            if (particles[i].have_decorator()) {
+                n += dSize;
+                ++nDecorator;
+            }
+            ++nPart;
+            ++i;
+        }
+
+        if (nPart == 0) return size_t{0};
+
+        const size_t nPartSize = nPart * pSize;
+        const size_t nDecoratorSize = nDecorator * dSize;
+
+        auto* header = reinterpret_cast<uint64_t*>(buffer.data());
+        header[0] = static_cast<uint64_t>(nPart);
+        header[1] = static_cast<uint64_t>(nDecorator);
+        std::memcpy(buffer.data() + 2 * sizeof(uint64_t), Particle(iIndex), nPartSize);
+        std::memcpy(buffer.data() + 2 * sizeof(uint64_t) + nPartSize, Decorator(iDecoratorIndex), nDecoratorSize);
+
+        iIndex += nPart;
+        iDecoratorIndex += nDecorator;
+
+        return n;
+    });
+#endif
 }

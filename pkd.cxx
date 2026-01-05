@@ -1585,55 +1585,6 @@ void pkdWriteFromNode(PKD pkd, int iNode, FIO fio, double dvFac, double dTuFac, 
 #endif
 }
 
-/*****************************************************************************\
-* Send particles to be written
-\*****************************************************************************/
-
-void pkdWriteViaNode(PKD pkd, int iNode) {
-#ifdef MPI_VERSION
-    size_t iIndex = 0;
-    size_t iDecoratorIndex = 0;
-
-    pkd->mdl->Send(iNode, [&](std::span<std::byte> buffer) -> size_t {
-        int nDecorator = 0;
-        int nPart = 0;
-        size_t i = iIndex;
-
-        // Header: [nPart, nDecorator]
-        size_t n = 2 * sizeof(uint64_t);
-
-        const size_t pSize = pkd->particles.ParticleSize();
-        const size_t dSize = pkd->decorators.DecoratorSize();
-
-        while (n < buffer.size() - (pSize + dSize) && i < pkd->Local()) {
-            n += pSize;
-            if (pkd->particles[i].have_decorator()) {
-                n += dSize;
-                ++nDecorator;
-            }
-            ++nPart;
-            ++i;
-        }
-
-        if (nPart == 0) return size_t{0};
-
-        const size_t nPartSize = nPart * pSize;
-        const size_t nDecoratorSize = nDecorator * dSize;
-
-        auto* header = reinterpret_cast<uint64_t*>(buffer.data());
-        header[0] = static_cast<uint64_t>(nPart);
-        header[1] = static_cast<uint64_t>(nDecorator);
-        std::memcpy(buffer.data() + 2 * sizeof(uint64_t), pkd->Particle(iIndex), nPartSize);
-        std::memcpy(buffer.data() + 2 * sizeof(uint64_t) + nPartSize, pkd->Decorator(iDecoratorIndex), nDecoratorSize);
-
-        iIndex += nPart;
-        iDecoratorIndex += nDecorator;
-
-        return n;
-    });
-#endif
-}
-
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, fioSpeciesList nTotal, fioSpeciesList nThisFile, double dBoxSize, double h,
                        int nProcessors, UNITS units) {
     char version[] = PACKAGE_VERSION;

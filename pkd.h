@@ -586,6 +586,7 @@ class pkdContext : public Integerize {
     void DensityStep(uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac);
     void AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dDelta, int iMaxRung, double dEta, double dVelFac, double dAccFac, int bDoGravity, int bEpsAcc,
                    double dhMinOverSoft);
+    void WriteViaNode(int iNode);
 
     void swap_classes(int id);
 
@@ -848,7 +849,6 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, fioS
                        int nProcessors, UNITS units);
 uint32_t pkdWriteFIO(PKD pkd, FIO fio, double dvFac, double dTuFac, Bound bnd, fioSpeciesList nWritten);
 void pkdWriteFromNode(PKD pkd, int iNode, FIO fio, double dvFac, double dTuFac, Bound bnd, fioSpeciesList nWritten);
-void pkdWriteViaNode(PKD pkd, int iNode);
 auto pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) -> std::byte*;
 void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked);
 void* pkdRecvArray(PKD pkd, int iNode, void* pDest, int iUnitSize);
