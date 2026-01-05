@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "group/groupstats.h"
 #include "pkd_config.h"
 #include "starformation/init.h"
 
@@ -200,6 +201,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceHopTreeBuild>(pst);
     mdl->AddService<ServiceHopGravity>(pst);
     mdl->AddService<ServiceHopUnbind>(pst);
+    mdl->AddService<ServiceGroupStats>(pst);
     mdl->AddService<ServiceProfile>(pst);
     mdl->AddService<ServiceCalcDistance>(pst);
     mdl->AddService<ServiceCalcCOM>(pst);

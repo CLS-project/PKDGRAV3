@@ -156,6 +156,7 @@ namespace rockstar {
 #include "analysis/rsextract.h"
 #include "group/fof.h"
 #include "group/hop.h"
+#include "group/groupstats.h"
 
 #include "domains/buildtree.h"
 #include "domains/calcbound.h"
@@ -3430,7 +3431,6 @@ void MSR::WriteGroupStats(const std::string_view& fname, int nParallel) {
 
 void MSR::Hop(double dTime, double dDelta) {
     struct inSmooth in;
-    struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
     double sec, dsec, ssec;
@@ -3528,6 +3528,7 @@ void MSR::Hop(double dTime, double dDelta) {
     /*
     ** This should be done as a separate msr function.
     */
+    ServiceGroupStats::input inGroupStats;
     inGroupStats.bPeriodic = parameters.get_bPeriodic();
     inGroupStats.dPeriod = parameters.get_dPeriod();
     inGroupStats.rEnvironment[0] = parameters.get_dEnvironment0();
@@ -3538,7 +3539,7 @@ void MSR::Hop(double dTime, double dDelta) {
         inGroupStats.rEnvironment[0] /= dBoxSize;
         inGroupStats.rEnvironment[1] /= dBoxSize;
     }
-    pstGroupStats(pst, &inGroupStats, sizeof(inGroupStats), NULL, 0);
+    mdl->RunService<ServiceSaveGroupStats>(inGroupStats);
 
     dsec = MSR::Time() - ssec;
     if (parameters.get_bVStep()) print("Grasshopper complete, Wallclock: {:.5f} secs\n", dsec);
@@ -3591,11 +3592,9 @@ void MSR::NewFof(double dTau, int nMinMembers) {
 }
 
 void MSR::GroupStats() {
-    struct inGroupStats inGroupStats;
-    double dsec;
-
     if (parameters.get_bVStep()) print("Generating Group statistics\n");
     TimerStart(TIMER_FOF);
+    ServiceGroupStats::input inGroupStats;
     inGroupStats.bPeriodic = parameters.get_bPeriodic();
     inGroupStats.dPeriod = parameters.get_dPeriod();
     inGroupStats.rEnvironment[0] = parameters.get_dEnvironment0();
@@ -3606,9 +3605,9 @@ void MSR::GroupStats() {
         inGroupStats.rEnvironment[0] /= dBoxSize;
         inGroupStats.rEnvironment[1] /= dBoxSize;
     }
-    pstGroupStats(pst, &inGroupStats, sizeof(inGroupStats), NULL, 0);
+    mdl->RunService<ServiceGroupStats>(inGroupStats);
     TimerStop(TIMER_FOF);
-    dsec = TimerGet(TIMER_FOF);
+    auto dsec = TimerGet(TIMER_FOF);
     if (parameters.get_bVStep()) print("Group statistics complete, Wallclock: {:.5f} secs\n", dsec);
 }
 

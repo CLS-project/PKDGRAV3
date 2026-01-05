@@ -397,6 +397,11 @@ class pkdContext : public Integerize {
     virtual ~pkdContext();
     void set_factor(std::uint32_t factor);
 
+  public:
+    mdl::mdlClass* mdl;
+    auto Self() const { return mdl->Self(); }
+    auto Threads() const { return mdl->Threads(); }
+
   protected:                      // Support for memory models
     int NodeAddStruct(int n);     // Add a NODE structure: assume double alignment
     int NodeAddDouble(int n = 1); // Add n doubles to the node structure
@@ -536,6 +541,9 @@ class pkdContext : public Integerize {
     auto FofGatherLocal(std::vector<int>& S, double fBall2, blitz::TinyVector<double, 3> r, uint32_t iGroup, uint32_t iTail, uint32_t* Fifo,
                         int* pbCurrFofContained, const Bound::coord_type fMinFofContained, const Bound::coord_type fMaxFofContained) -> uint32_t;
     auto GetDistance2(particleStore::Particle& p, blitz::TinyVector<double, 3> dCenter, int bPeriodic) -> double;
+    auto GatherMass(remoteID* S, double fBall, blitz::TinyVector<double, 3> r, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) -> double;
+    auto gatherMass(remoteID* S, double fBall2, double ri2, double ro2, blitz::TinyVector<double, 3> r) -> double;
+    auto getCell(int iCell, int id) { return (id == Self()) ? tree[iCell] : tree[mdl->Fetch<KDN>(CID_CELL, iCell, id)]; }
 
   public:
     void TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
@@ -576,6 +584,7 @@ class pkdContext : public Integerize {
     void HopTreeBuild(int nBucket, int nGroup);
     auto HopGravity(double dTime, double dThetaMin, double* pdFlop, double* pdPartSum, double* pdCellSum) -> int;
     auto HopUnbind(double dTime, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) -> int;
+    void CalculateGroupStats(int bPeriodic, blitz::TinyVector<double, 3> dPeriod, std::array<double, 2> rEnvironment, uint64_t iGlobalStart);
     void Profile(uint8_t uRungLo, uint8_t uRungHi, const blitz::TinyVector<double, 3>& dCenter, const double* dRadii, int nBins,
                  const blitz::TinyVector<double, 3>& com, const blitz::TinyVector<double, 3>& vcm, const blitz::TinyVector<double, 3>& L);
     void CalcDistance(blitz::TinyVector<double, 3> dCenter, int bPeriodic);
@@ -592,11 +601,6 @@ class pkdContext : public Integerize {
     void WriteViaNode(int iNode);
 
     void swap_classes(int id);
-
-  public:
-    mdl::mdlClass* mdl;
-    auto Self() const { return mdl->Self(); }
-    auto Threads() const { return mdl->Threads(); }
 
   public:
     int nRejects;

@@ -15,11 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
+#include "pkd_config.h"
 #include <algorithm>
 #include <math.h>
 #include "groupstats.h"
@@ -27,6 +23,22 @@
 
 using blitz::dot;
 using blitz::TinyVector;
+
+auto ServiceGroupStats::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    pkd->CalculateGroupStats(in->bPeriodic, in->dPeriod, in->rEnvironment, in->iGlobalStart);
+    return 0;
+}
+auto ServiceGroupStats::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto mdl = pst->mdl();
+    input inUpper = *in;
+    inUpper.iGlobalStart += pst->nLowerGroups; /* for the upper subset the global id starting point is more by the number of lower groups */
+    auto rID = ReqService(pst, inUpper);
+    Traverse(pst->lower(), vin, vout);
+    return mdl->GetReply(rID, vout);
+}
 
 #if 0
 double illinois(double (*func)(double),double r,double s,double xacc,int *pnIter) {
@@ -149,11 +161,11 @@ class HelperTinyRmax : public mdl::arrayCACHEhelper {
     HelperTinyRmax(TinyGroupTable* pArray, uint32_t nArray) : arrayCACHEhelper(pArray, nArray, true) {}
 };
 
-typedef struct {
+struct ShrinkStruct {
     double fMass;
     TinyVector<double, 3> rcom;
     int nEnclosed;
-} ShrinkStruct;
+};
 
 class HelperShrink : public mdl::arrayCACHEhelper {
   protected:
@@ -200,7 +212,8 @@ class HelperAngular : public mdl::arrayCACHEhelper {
 struct MassRadius {
     float fMass;
     float dr;
-    bool operator<(const MassRadius& other) const { return dr < other.dr; }
+    auto operator==(const MassRadius& other) const { return dr == other.dr; }
+    auto operator<=>(const MassRadius& other) const { return dr <=> other.dr; }
 };
 
 class HelperRoot : public mdl::arrayCACHEhelper {
@@ -219,12 +232,7 @@ class HelperRoot : public mdl::arrayCACHEhelper {
     HelperRoot(MassRadius* pArray, uint32_t nArray) : arrayCACHEhelper(pArray, nArray, true) {}
 };
 
-static auto getCell(PKD pkd, int iCell, int id) {
-    return (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL, iCell, id)];
-}
-
-static double gatherMass(PKD pkd, remoteID* S, double fBall2, double ri2, double ro2, TinyVector<double, 3> r) {
-    auto mdl = pkd->mdl;
+auto pkdContext::gatherMass(remoteID* S, double fBall2, double ri2, double ro2, TinyVector<double, 3> r) -> double {
     double min2, max2;
     int iCell, id;
     int sp = 0;
@@ -232,7 +240,7 @@ static double gatherMass(PKD pkd, remoteID* S, double fBall2, double ri2, double
     int pj, pEnd;
     double fMass = 0;
 
-    auto kdn = getCell(pkd, iCell = pkd->iTopTree[ROOT], id = pkd->Self());
+    auto kdn = getCell(iCell = iTopTree[ROOT], id = Self());
     while (1) {
         Bound bnd = kdn->bound();
         min2 = bnd.mindist(r);
@@ -248,17 +256,17 @@ static double gatherMass(PKD pkd, remoteID* S, double fBall2, double ri2, double
         if (kdn->is_cell()) {
             int idUpper, iUpper;
             std::tie(iCell, id, iUpper, idUpper) = kdn->get_child_cells(id);
-            kdn = getCell(pkd, iCell, id);
+            kdn = getCell(iCell, id);
             S[sp].iPid = idUpper;
             S[sp].iIndex = iUpper;
             ++sp;
             continue;
         }
         else {
-            if (id == pkd->Self()) {
+            if (id == Self()) {
                 pEnd = kdn->upper();
                 for (pj = kdn->lower(); pj <= pEnd; ++pj) {
-                    auto p = pkd->particles[pj];
+                    auto p = particles[pj];
                     auto p_r = p.position();
                     dx = r[0] - p_r[0];
                     dy = r[1] - p_r[1];
@@ -272,7 +280,7 @@ static double gatherMass(PKD pkd, remoteID* S, double fBall2, double ri2, double
             else {
                 pEnd = kdn->upper();
                 for (pj = kdn->lower(); pj <= pEnd; ++pj) {
-                    auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE, pj, id)];
+                    auto p = particles[mdl->Fetch<PARTICLE>(CID_PARTICLE, pj, id)];
                     auto p_r = p.position();
                     dx = r[0] - p_r[0];
                     dy = r[1] - p_r[1];
@@ -289,7 +297,7 @@ static double gatherMass(PKD pkd, remoteID* S, double fBall2, double ri2, double
             --sp;
             id = S[sp].iPid;
             iCell = S[sp].iIndex;
-            kdn = getCell(pkd, iCell, id);
+            kdn = getCell(iCell, id);
         }
         else break;
     }
@@ -342,14 +350,14 @@ NoIntersect:
 }
 #endif
 
-double pkdGatherMass(PKD pkd, remoteID* S, double fBall, TinyVector<double, 3> r, int bPeriodic, TinyVector<double, 3> dPeriod) {
+auto pkdContext::GatherMass(remoteID* S, double fBall, TinyVector<double, 3> r, int bPeriodic, TinyVector<double, 3> dPeriod) -> double {
     TinyVector<double, 3> rp;
     int ix, iy, iz, nReps;
     double fMass = 0;
     double fBall2 = fBall * fBall;
     double ri, ri2, ro2;
 
-    assert(pkd->tree.present(KDN_FIELD::oNodeMom));
+    assert(tree.present(KDN_FIELD::oNodeMom));
     ri = 0.9 * fBall; /* we use an approximate radius but make sure it is unbiased by volume */
     ri2 = ri * ri;
     ro2 = pow(2 * fBall2 * fBall - ri2 * ri, 2.0 / 3.0);
@@ -361,28 +369,26 @@ double pkdGatherMass(PKD pkd, remoteID* S, double fBall, TinyVector<double, 3> r
             rp[1] = r[1] + iy * dPeriod[1];
             for (iz = -nReps; iz <= nReps; ++iz) {
                 rp[2] = r[2] + iz * dPeriod[2];
-                fMass += gatherMass(pkd, S, fBall2, ri2, ro2, rp);
+                fMass += gatherMass(S, fBall2, ri2, ro2, rp);
             }
         }
     }
     return (fMass);
 }
 
-typedef struct {
+struct RootFindingTable {
     float a;
     float b;
     int bConverged;
     int iter; /* this is only used for a diagnostic */
     int gid;
-} RootFindingTable;
+};
 
-void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPeriod, double rEnvironment[2], uint64_t iGlobalStart) {
+void pkdContext::CalculateGroupStats(int bPeriodic, TinyVector<double, 3> dPeriod, std::array<double, 2> rEnvironment, uint64_t iGlobalStart) {
     const int bDoShrinkingSphere = 0;
-    auto mdl = pkd->mdl;
     double fMass;
     TinyVector<double, 3> r;
     double v2;
-    TinyVector<double, 3> dHalf;
     double diVol0, diVol1;
     float r2, rMax;
     int i, j, gid, n;
@@ -399,9 +405,9 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     double f2;
     int bLocal; /* a flip-flop which toggles when the first remote group is encountered, used as a consistency check only */
 
-    assert(pkd->nGroups * (sizeof(*pkd->ga) + sizeof(*pkd->tinyGroupTable) + sizeof(ShrinkStruct)) < 1ul * pkd->EphemeralElementBytes() * pkd->FreeStore());
-    pkd->tinyGroupTable = (TinyGroupTable*)(&pkd->ga[pkd->nGroups]);
-    dAccumulate = (double*)(&pkd->tinyGroupTable[pkd->nGroups]);
+    assert(nGroups * (sizeof(*ga) + sizeof(*tinyGroupTable) + sizeof(ShrinkStruct)) < 1ul * EphemeralElementBytes() * FreeStore());
+    tinyGroupTable = (TinyGroupTable*)(&ga[nGroups]);
+    dAccumulate = (double*)(&tinyGroupTable[nGroups]);
     /*
     ** Initialize the table.
     */
@@ -409,12 +415,12 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     /*
     ** Global id of ungrouped particles is always 0!
     */
-    pkd->tinyGroupTable[0].iGlobalGid = 0;
+    tinyGroupTable[0].iGlobalGid = 0;
     bLocal = 1;
-    for (gid = 0; gid < pkd->nGroups; ++gid) {
-        if (pkd->ga[gid].id.iPid == pkd->Self() && gid) {
+    for (gid = 0; gid < nGroups; ++gid) {
+        if (ga[gid].id.iPid == Self() && gid) {
             assert(bLocal == 1); /* make sure all the local groups come first in the ga array!!! */
-            pkd->tinyGroupTable[gid].iGlobalGid = iGlobalStart + nLocalGroups++;
+            tinyGroupTable[gid].iGlobalGid = iGlobalStart + nLocalGroups++;
         }
         else if (gid) {
             bLocal = 0; /* at this point should follow all remote groups */
@@ -424,19 +430,19 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
         ** gravity so that we have filled in the minimum potential particle
         ** for each group.
         */
-        pkd->tinyGroupTable[gid].minPot = pkd->ga[gid].minPot;
+        tinyGroupTable[gid].minPot = ga[gid].minPot;
         if (gid) {
-            assert(pkd->ga[gid].minPot < FLOAT_MAXVAL);
-            assert(pkd->ga[gid].iMinPart < pkd->Local());
-            auto p = pkd->particles[pkd->ga[gid].iMinPart];
-            pkd->tinyGroupTable[gid].rPot = p.position();
-            pkd->tinyGroupTable[gid].rcen = 0.0; /* relative to rPot */
+            assert(ga[gid].minPot < FLOAT_MAXVAL);
+            assert(ga[gid].iMinPart < Local());
+            auto p = particles[ga[gid].iMinPart];
+            tinyGroupTable[gid].rPot = p.position();
+            tinyGroupTable[gid].rcen = 0.0; /* relative to rPot */
         }
-        pkd->tinyGroupTable[gid].rMax = 0;
-        pkd->tinyGroupTable[gid].nBH = 0;
-        pkd->tinyGroupTable[gid].nDM = 0;
-        pkd->tinyGroupTable[gid].nGas = 0;
-        pkd->tinyGroupTable[gid].nStar = 0;
+        tinyGroupTable[gid].rMax = 0;
+        tinyGroupTable[gid].nBH = 0;
+        tinyGroupTable[gid].nDM = 0;
+        tinyGroupTable[gid].nGas = 0;
+        tinyGroupTable[gid].nStar = 0;
         dAccumulate[4 * gid] = 0;
         dAccumulate[4 * gid + 1] = 0;
         dAccumulate[4 * gid + 2] = 0;
@@ -445,14 +451,14 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     /*
     ** Make sure we got a consistent number of local groups from after FofFinishUp().
     */
-    assert(nLocalGroups == pkd->nLocalGroups);
+    assert(this->nLocalGroups == nLocalGroups);
     /*
     ** First determine the minimum potential particle for each group.
     ** This will be the reference position for the group as well.
     ** In this first pass we also sum up the v2 and vcom locally.
     */
-    for (i = 0; i < pkd->Local(); ++i) {
-        auto p = pkd->particles[i];
+    for (i = 0; i < Local(); ++i) {
+        auto p = particles[i];
         gid = p.group();
         fMass = p.mass();
         if (!gid) continue;
@@ -464,12 +470,12 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
         }
         dAccumulate[4 * gid + 3] += fMass * v2;
     }
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
+    for (gid = 1; gid < nGroups; ++gid) {
         for (j = 0; j < 3; ++j) {
-            pkd->tinyGroupTable[gid].vcom[j] = dAccumulate[4 * gid + j];
+            tinyGroupTable[gid].vcom[j] = dAccumulate[4 * gid + j];
             dAccumulate[4 * gid + j] = 0;
         }
-        pkd->tinyGroupTable[gid].sigma = dAccumulate[4 * gid + 3];
+        tinyGroupTable[gid].sigma = dAccumulate[4 * gid + 3];
         dAccumulate[4 * gid + 3] = 0;
     }
     /*
@@ -477,76 +483,78 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     ** Note that we only expose the local groups to the cache! This allows us
     ** to make any desired update to the remote group entries of the table.
     */
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<MinPotHelper>(pkd->tinyGroupTable, nLocalGroups + 1));
-    for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
-        assert(pkd->ga[gid].id.iPid != pkd->Self());
-        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<MinPotHelper>(tinyGroupTable, nLocalGroups + 1));
+    for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+        assert(ga[gid].id.iPid != Self());
+        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
         /*
         ** We update the remote center, the combiner makes sure the minimum minPot is set.
         ** We don't have to check the virtual fetch value in this case since we fetch each
         ** remote group only once (there cannot be more than one reference) otherwise we
         ** would have to check the fetched value.
         */
-        g->minPot = pkd->tinyGroupTable[gid].minPot;
+        g->minPot = tinyGroupTable[gid].minPot;
         for (j = 0; j < 3; ++j) {
-            g->rPot[j] = pkd->tinyGroupTable[gid].rPot[j];
+            g->rPot[j] = tinyGroupTable[gid].rPot[j];
         }
     }
     mdl->FinishCache(CID_GROUP);
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(pkd->tinyGroupTable, nLocalGroups + 1));
-    for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
-        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(tinyGroupTable, nLocalGroups + 1));
+    for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
         /*
         ** We update the local version of the remote center, here we can just copy it.
         */
-        pkd->tinyGroupTable[gid].minPot = g->minPot;
+        tinyGroupTable[gid].minPot = g->minPot;
         for (j = 0; j < 3; ++j) {
-            pkd->tinyGroupTable[gid].rPot[j] = g->rPot[j];
+            tinyGroupTable[gid].rPot[j] = g->rPot[j];
         }
         /*
         ** Read the remote group's global id.
         */
-        pkd->tinyGroupTable[gid].iGlobalGid = g->iGlobalGid;
+        tinyGroupTable[gid].iGlobalGid = g->iGlobalGid;
     }
     mdl->FinishCache(CID_GROUP);
     /*
     ** Now we can set the GlobalGid of every particle (if this field is present)!
     */
-    if (pkd->particles.present(PKD_FIELD::oGlobalGid)) {
-        for (i = 0; i < pkd->Local(); ++i) {
-            auto p = pkd->particles[i];
+    if (particles.present(PKD_FIELD::oGlobalGid)) {
+        for (i = 0; i < Local(); ++i) {
+            auto p = particles[i];
             gid = p.group();
-            p.global_gid() = pkd->tinyGroupTable[gid].iGlobalGid;
+            p.global_gid() = tinyGroupTable[gid].iGlobalGid;
         }
     }
     /*
     ** Now find rcom and rMax and total mass locally.
     */
-    for (j = 0; j < 3; ++j) dHalf[j] = bPeriodic ? 0.5 * dPeriod[j] : FLOAT_MAXVAL;
-    for (i = 0; i < pkd->Local(); ++i) {
-        auto p = pkd->particles[i];
+    TinyVector<double, 3> dHalf;
+    if (bPeriodic) dHalf = 0.5 * dPeriod;
+    else dHalf = std::numeric_limits<double>::max();
+    for (i = 0; i < Local(); ++i) {
+        auto p = particles[i];
         gid = p.group();
         fMass = p.mass();
         int pSpecies = p.species();
         switch (pSpecies) {
         case FIO_SPECIES_BH:
-            pkd->tinyGroupTable[gid].nBH++;
+            tinyGroupTable[gid].nBH++;
             break;
         case FIO_SPECIES_DARK:
-            pkd->tinyGroupTable[gid].nDM++;
+            tinyGroupTable[gid].nDM++;
             break;
         case FIO_SPECIES_SPH:
-            pkd->tinyGroupTable[gid].nGas++;
+            tinyGroupTable[gid].nGas++;
             break;
         case FIO_SPECIES_STAR:
-            pkd->tinyGroupTable[gid].nStar++;
+            tinyGroupTable[gid].nStar++;
             break;
         default: // Maybe a deleted particle, skip it
             continue;
         }
         dAccumulate[4 * gid + 3] += fMass;
         if (gid > 0) {
-            r = p.position() - pkd->tinyGroupTable[gid].rPot;
+            r = p.position() - tinyGroupTable[gid].rPot;
             r2 = 0.0;
             for (j = 0; j < 3; ++j) {
                 if (r[j] < -dHalf[j]) r[j] += dPeriod[j];
@@ -555,90 +563,89 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
                 r2 += r[j] * r[j];
             }
             rMax = sqrtf(r2);
-            if (rMax > pkd->tinyGroupTable[gid].rMax) pkd->tinyGroupTable[gid].rMax = rMax;
+            if (rMax > tinyGroupTable[gid].rMax) tinyGroupTable[gid].rMax = rMax;
         }
     }
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
+    for (gid = 1; gid < nGroups; ++gid) {
         for (j = 0; j < 3; ++j) {
-            pkd->tinyGroupTable[gid].rcom[j] = dAccumulate[4 * gid + j] / dAccumulate[4 * gid + 3];
-            pkd->tinyGroupTable[gid].vcom[j] /= dAccumulate[4 * gid + 3];
+            tinyGroupTable[gid].rcom[j] = dAccumulate[4 * gid + j] / dAccumulate[4 * gid + 3];
+            tinyGroupTable[gid].vcom[j] /= dAccumulate[4 * gid + 3];
             dAccumulate[4 * gid + j] = 0;
         }
-        pkd->tinyGroupTable[gid].sigma /= dAccumulate[4 * gid + 3]; /* "sigma" is actually still v^2 */
-        pkd->tinyGroupTable[gid].fMass = dAccumulate[4 * gid + 3];
+        tinyGroupTable[gid].sigma /= dAccumulate[4 * gid + 3]; /* "sigma" is actually still v^2 */
+        tinyGroupTable[gid].fMass = dAccumulate[4 * gid + 3];
         dAccumulate[4 * gid + 3] = 0; /* if we still need masses later we should not clear this field */
     }
     /*
     ** Now accumulate totals globally
     */
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperTinyGroup>(pkd->tinyGroupTable, nLocalGroups + 1));
-    for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
-        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
-        g->fMass += pkd->tinyGroupTable[gid].fMass;
-        g->nBH += pkd->tinyGroupTable[gid].nBH;
-        g->nDM += pkd->tinyGroupTable[gid].nDM;
-        g->nGas += pkd->tinyGroupTable[gid].nGas;
-        g->nStar += pkd->tinyGroupTable[gid].nStar;
-        // printf("g->nBH %d \t pkd %d \n", g->nBH, pkd->tinyGroupTable[gid].nBH);
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperTinyGroup>(tinyGroupTable, nLocalGroups + 1));
+    for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
+        g->fMass += tinyGroupTable[gid].fMass;
+        g->nBH += tinyGroupTable[gid].nBH;
+        g->nDM += tinyGroupTable[gid].nDM;
+        g->nGas += tinyGroupTable[gid].nGas;
+        g->nStar += tinyGroupTable[gid].nStar;
         for (j = 0; j < 3; j++) {
-            g->rcom[j] += pkd->tinyGroupTable[gid].rcom[j];
-            g->vcom[j] += pkd->tinyGroupTable[gid].vcom[j];
-            g->sigma += pkd->tinyGroupTable[gid].sigma;
+            g->rcom[j] += tinyGroupTable[gid].rcom[j];
+            g->vcom[j] += tinyGroupTable[gid].vcom[j];
+            g->sigma += tinyGroupTable[gid].sigma;
         }
-        if (pkd->tinyGroupTable[gid].rMax > g->rMax) g->rMax = pkd->tinyGroupTable[gid].rMax;
+        if (tinyGroupTable[gid].rMax > g->rMax) g->rMax = tinyGroupTable[gid].rMax;
     }
     mdl->FinishCache(CID_GROUP);
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(pkd->tinyGroupTable, nLocalGroups + 1));
-    for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
-        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
-        pkd->tinyGroupTable[gid].fMass = g->fMass;
-        pkd->tinyGroupTable[gid].nBH = g->nBH;
-        pkd->tinyGroupTable[gid].nDM = g->nDM;
-        pkd->tinyGroupTable[gid].nGas = g->nGas;
-        pkd->tinyGroupTable[gid].nStar = g->nStar;
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(tinyGroupTable, nLocalGroups + 1));
+    for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
+        tinyGroupTable[gid].fMass = g->fMass;
+        tinyGroupTable[gid].nBH = g->nBH;
+        tinyGroupTable[gid].nDM = g->nDM;
+        tinyGroupTable[gid].nGas = g->nGas;
+        tinyGroupTable[gid].nStar = g->nStar;
         for (j = 0; j < 3; j++) {
-            pkd->tinyGroupTable[gid].rcom[j] = g->rcom[j];
-            pkd->tinyGroupTable[gid].vcom[j] = g->vcom[j];
-            pkd->tinyGroupTable[gid].sigma = g->sigma;
+            tinyGroupTable[gid].rcom[j] = g->rcom[j];
+            tinyGroupTable[gid].vcom[j] = g->vcom[j];
+            tinyGroupTable[gid].sigma = g->sigma;
         }
-        pkd->tinyGroupTable[gid].rMax = g->rMax;
+        tinyGroupTable[gid].rMax = g->rMax;
     }
     mdl->FinishCache(CID_GROUP);
 
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
+    for (gid = 1; gid < nGroups; ++gid) {
         v2 = 0;
         for (j = 0; j < 3; j++) {
             /*
             ** If we want absolute rcom instead of relative to the minimum potential then we
             ** need to uncomment the line below.
-            ** pkd->tinyGroupTable[gid].rcom[j] += pkd->tinyGroupTable[gid].rPot[j];
+            ** tinyGroupTable[gid].rcom[j] += tinyGroupTable[gid].rPot[j];
             */
-            v2 += pkd->tinyGroupTable[gid].vcom[j] * pkd->tinyGroupTable[gid].vcom[j];
+            v2 += tinyGroupTable[gid].vcom[j] * tinyGroupTable[gid].vcom[j];
         }
         /*
         ** Now convert from mass weighted average v2 to sigma.
         */
-        pkd->tinyGroupTable[gid].sigma -= v2;
-        pkd->tinyGroupTable[gid].sigma = sqrtf(pkd->tinyGroupTable[gid].sigma);
+        tinyGroupTable[gid].sigma -= v2;
+        tinyGroupTable[gid].sigma = sqrtf(tinyGroupTable[gid].sigma);
     }
     if (bDoShrinkingSphere) {
         /*
         ** Set the center of each group to be the center of mass, at least initially...
         */
-        for (gid = 1; gid < pkd->nGroups; ++gid) {
+        for (gid = 1; gid < nGroups; ++gid) {
             for (j = 0; j < 3; ++j) {
-                pkd->tinyGroupTable[gid].rcen[j] = pkd->tinyGroupTable[gid].rcom[j];
+                tinyGroupTable[gid].rcen[j] = tinyGroupTable[gid].rcom[j];
             }
-            pkd->tinyGroupTable[gid].rMax = 0; /* reset this here since we will recalculate it about the new center */
+            tinyGroupTable[gid].rMax = 0; /* reset this here since we will recalculate it about the new center */
         }
         /*
         ** Now find rMax about the center (which is currently the center of mass).
         */
-        for (i = 0; i < pkd->Local(); ++i) {
-            auto p = pkd->particles[i];
+        for (i = 0; i < Local(); ++i) {
+            auto p = particles[i];
             gid = p.group();
             if (gid > 0) {
-                r = p.position() - pkd->tinyGroupTable[gid].rPot;
+                r = p.position() - tinyGroupTable[gid].rPot;
                 for (j = 0; j < 3; ++j) {
                     if (r[j] < -dHalf[j]) r[j] += dPeriod[j];
                     else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
@@ -647,30 +654,30 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
                     ** This starts as being the center of mass of the entire group.
                     */
                 }
-                r -= pkd->tinyGroupTable[gid].rcen;
+                r -= tinyGroupTable[gid].rcen;
                 r2 = dot(r, r);
                 rMax = sqrtf(r2);
-                if (rMax > pkd->tinyGroupTable[gid].rMax) pkd->tinyGroupTable[gid].rMax = rMax;
+                if (rMax > tinyGroupTable[gid].rMax) tinyGroupTable[gid].rMax = rMax;
             }
         }
         /*
         ** Now find the largest rmax for the local groups globally.
         */
-        mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperTinyRmax>(pkd->tinyGroupTable, nLocalGroups + 1));
-        for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
-            auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
-            g->rMax = pkd->tinyGroupTable[gid].rMax;
+        mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperTinyRmax>(tinyGroupTable, nLocalGroups + 1));
+        for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+            auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
+            g->rMax = tinyGroupTable[gid].rMax;
         }
         mdl->FinishCache(CID_GROUP);
-        mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(pkd->tinyGroupTable, nLocalGroups + 1));
-        for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
-            auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
-            pkd->tinyGroupTable[gid].rMax = g->rMax;
+        mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(tinyGroupTable, nLocalGroups + 1));
+        for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+            auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
+            tinyGroupTable[gid].rMax = g->rMax;
         }
         mdl->FinishCache(CID_GROUP);
 
-        shrink = (ShrinkStruct*)dAccumulate;                                                  /* overlay the shrink structure on the accumulators */
-        for (gid = 0; gid < pkd->nGroups; ++gid) shrink[gid].nEnclosed = pkd->ga[gid].nTotal; /* all particles in the group */
+        shrink = (ShrinkStruct*)dAccumulate;                                        /* overlay the shrink structure on the accumulators */
+        for (gid = 0; gid < nGroups; ++gid) shrink[gid].nEnclosed = ga[gid].nTotal; /* all particles in the group */
 
         /*
         ** We also may want the "shrinking sphere" center for many applications.
@@ -688,7 +695,7 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
             /*
             ** Clear the sphere totals
             */
-            for (gid = 0; gid < pkd->nGroups; ++gid) {
+            for (gid = 0; gid < nGroups; ++gid) {
                 for (j = 0; j < 3; ++j) shrink[gid].rcom[j] = 0.0;
                 shrink[gid].fMass = 0.0;
                 if (shrink[gid].nEnclosed > 1000) {
@@ -702,37 +709,37 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
             shrink[0].nEnclosed = -1; /* make sure ungrouped particles (gid==0) are not involved */
             if (!bShrink) break;      /* exits the main shrinking iteration...we are done */
             f2 *= 0.975 * 0.975;      /* make the shrink factor 2.5 % smaller */
-            for (i = 0; i < pkd->Local(); ++i) {
-                auto p = pkd->particles[i];
+            for (i = 0; i < Local(); ++i) {
+                auto p = particles[i];
                 gid = p.group();
                 if (shrink[gid].nEnclosed < 0) continue; /* skip this particle */
-                r = p.position() - pkd->tinyGroupTable[gid].rPot;
+                r = p.position() - tinyGroupTable[gid].rPot;
                 for (j = 0; j < 3; ++j) {
                     if (r[j] < -dHalf[j]) r[j] += dPeriod[j];
                     else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
                 }
-                r -= pkd->tinyGroupTable[gid].rcen;
+                r -= tinyGroupTable[gid].rcen;
                 r2 = dot(r, r);
                 /*
                 ** If the particle lies within the shrinking sphere, then add use it to calculate the center of mass.
                 */
-                if (r2 < f2 * pkd->tinyGroupTable[gid].rMax * pkd->tinyGroupTable[gid].rMax) {
+                if (r2 < f2 * tinyGroupTable[gid].rMax * tinyGroupTable[gid].rMax) {
                     fMass = p.mass();
-                    for (j = 0; j < 3; ++j) shrink[gid].rcom[j] += fMass * (r[j] + pkd->tinyGroupTable[gid].rcen[j]);
+                    for (j = 0; j < 3; ++j) shrink[gid].rcom[j] += fMass * (r[j] + tinyGroupTable[gid].rcen[j]);
                     shrink[gid].fMass += fMass;
                     shrink[gid].nEnclosed += 1; /* count number of particles inside rmax */
                 }
             }
-            for (gid = 1; gid < pkd->nGroups; ++gid) {
+            for (gid = 1; gid < nGroups; ++gid) {
                 for (j = 0; j < 3; ++j) shrink[gid].rcom[j] /= shrink[gid].fMass;
             }
             /*
             ** Now accumulate totals globally, we just sum the 5 fields for each group.
             */
             mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperShrink>(shrink, nLocalGroups + 1));
-            for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
+            for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
                 if (shrink[gid].nEnclosed < 0) continue;
-                auto g = mdl->VirtualFetch<ShrinkStruct>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
+                auto g = mdl->VirtualFetch<ShrinkStruct>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
                 for (j = 0; j < 3; j++) {
                     g->rcom[j] = shrink[gid].rcom[j];
                 }
@@ -741,9 +748,9 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
             }
             mdl->FinishCache(CID_GROUP);
             mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(shrink, nLocalGroups + 1));
-            for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
+            for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
                 if (shrink[gid].nEnclosed < 0) continue;
-                auto g = mdl->Fetch<ShrinkStruct>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
+                auto g = mdl->Fetch<ShrinkStruct>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
                 for (j = 0; j < 3; j++) {
                     shrink[gid].rcom[j] = g->rcom[j];
                 }
@@ -751,11 +758,11 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
                 shrink[gid].nEnclosed = g->nEnclosed;
             }
             mdl->FinishCache(CID_GROUP);
-            for (gid = 1; gid < pkd->nGroups; ++gid) {
+            for (gid = 1; gid < nGroups; ++gid) {
                 if (shrink[gid].nEnclosed > 0) {
                     assert(shrink[gid].fMass > 0.0);
                     for (j = 0; j < 3; ++j) {
-                        pkd->tinyGroupTable[gid].rcen[j] = shrink[gid].rcom[j];
+                        tinyGroupTable[gid].rcen[j] = shrink[gid].rcom[j];
                     }
                 }
             }
@@ -765,87 +772,87 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     /*
     ** Calculate angular momentum about the center of the group.
     */
-    for (i = 0; i < pkd->Local(); ++i) {
-        auto p = pkd->particles[i];
+    for (i = 0; i < Local(); ++i) {
+        auto p = particles[i];
         gid = p.group();
         if (gid > 0) {
             fMass = p.mass();
             auto v = p.velocity();
-            r = p.position() - pkd->tinyGroupTable[gid].rPot;
+            r = p.position() - tinyGroupTable[gid].rPot;
             for (j = 0; j < 3; ++j) {
                 if (r[j] < -dHalf[j]) r[j] += dPeriod[j];
                 else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
             }
-            r -= pkd->tinyGroupTable[gid].rcen;
+            r -= tinyGroupTable[gid].rcen;
             dAccumulate[4 * gid + 0] += fMass * (r[1] * v[2] - r[2] * v[1]);
             dAccumulate[4 * gid + 1] += fMass * (r[2] * v[0] - r[0] * v[2]);
             dAccumulate[4 * gid + 2] += fMass * (r[0] * v[1] - r[1] * v[0]);
         }
     }
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
+    for (gid = 1; gid < nGroups; ++gid) {
         for (j = 0; j < 3; ++j) {
-            pkd->tinyGroupTable[gid].angular[j] = dAccumulate[4 * gid + j];
+            tinyGroupTable[gid].angular[j] = dAccumulate[4 * gid + j];
             dAccumulate[4 * gid + j] = 0;
         }
     }
     /*
     ** Calculate the moment of inertia (we do this in 2 stages to save accumulator memory.
     */
-    for (i = 0; i < pkd->Local(); ++i) {
-        auto p = pkd->particles[i];
+    for (i = 0; i < Local(); ++i) {
+        auto p = particles[i];
         gid = p.group();
         if (gid > 0) {
             fMass = p.mass();
-            r = p.position() - pkd->tinyGroupTable[gid].rPot;
+            r = p.position() - tinyGroupTable[gid].rPot;
             for (j = 0; j < 3; ++j) {
                 if (r[j] < -dHalf[j]) r[j] += dPeriod[j];
                 else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
             }
-            r -= pkd->tinyGroupTable[gid].rcen;
+            r -= tinyGroupTable[gid].rcen;
             dAccumulate[4 * gid + 0] += fMass * r[0] * r[0];
             dAccumulate[4 * gid + 1] += fMass * r[0] * r[1];
             dAccumulate[4 * gid + 2] += fMass * r[0] * r[2];
         }
     }
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
+    for (gid = 1; gid < nGroups; ++gid) {
         for (j = 0; j < 3; ++j) {
-            pkd->tinyGroupTable[gid].inertia[j] = dAccumulate[4 * gid + j];
+            tinyGroupTable[gid].inertia[j] = dAccumulate[4 * gid + j];
             dAccumulate[4 * gid + j] = 0;
         }
     }
-    for (i = 0; i < pkd->Local(); ++i) {
-        auto p = pkd->particles[i];
+    for (i = 0; i < Local(); ++i) {
+        auto p = particles[i];
         gid = p.group();
         if (gid > 0) {
             fMass = p.mass();
             for (j = 1; j < 3; ++j) { /* careful, this loop skips r[0]! */
-                r[j] = p.position(j) - pkd->tinyGroupTable[gid].rPot[j];
+                r[j] = p.position(j) - tinyGroupTable[gid].rPot[j];
                 if (r[j] < -dHalf[j]) r[j] += dPeriod[j];
                 else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
-                r[j] -= pkd->tinyGroupTable[gid].rcen[j];
+                r[j] -= tinyGroupTable[gid].rcen[j];
             }
             dAccumulate[4 * gid + 0] += fMass * r[1] * r[1];
             dAccumulate[4 * gid + 1] += fMass * r[1] * r[2];
             dAccumulate[4 * gid + 2] += fMass * r[2] * r[2];
         }
     }
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
+    for (gid = 1; gid < nGroups; ++gid) {
         for (j = 0; j < 3; ++j) {
-            pkd->tinyGroupTable[gid].inertia[j + 3] = dAccumulate[4 * gid + j];
+            tinyGroupTable[gid].inertia[j + 3] = dAccumulate[4 * gid + j];
             dAccumulate[4 * gid + j] = 0;
         }
     }
     /*
     ** Now accumulate angular momentum globally
     */
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperAngular>(pkd->tinyGroupTable, nLocalGroups + 1));
-    for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
-        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperAngular>(tinyGroupTable, nLocalGroups + 1));
+    for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+        auto g = mdl->VirtualFetch<TinyGroupTable>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
         for (j = 0; j < 3; j++) {
-            g->angular[j] += pkd->tinyGroupTable[gid].angular[j];
+            g->angular[j] += tinyGroupTable[gid].angular[j];
         }
         for (j = 0; j < 6; ++j) {
-            g->inertia[j] += pkd->tinyGroupTable[gid].inertia[j];
+            g->inertia[j] += tinyGroupTable[gid].inertia[j];
         }
     }
     mdl->FinishCache(CID_GROUP);
@@ -854,41 +861,41 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     ** At the very least we need to have masses in the cells, either as part of the FMOMR structure
     ** or a seperate mass field!
     */
-    S = (remoteID*)(&pkd->tinyGroupTable[pkd->nGroups]);
-    mdl->CacheInitialize(CID_PARTICLE, std::make_shared<particleCACHEhelper>(pkd));
+    S = (remoteID*)(&tinyGroupTable[nGroups]);
+    mdl->CacheInitialize(CID_PARTICLE, std::make_shared<particleCACHEhelper>(this));
     diVol0 = 3.0 / 4.0 * M_1_PI * pow(rEnvironment[0], -3);
     diVol1 = 3.0 / 4.0 * M_1_PI * pow(rEnvironment[1], -3);
     for (gid = 1; gid <= nLocalGroups; ++gid) {
-        for (j = 0; j < 3; ++j) r[j] = pkd->tinyGroupTable[gid].rPot[j];
+        for (j = 0; j < 3; ++j) r[j] = tinyGroupTable[gid].rPot[j];
         if (rEnvironment[0] > 0.0) {
-            pkd->tinyGroupTable[gid].fEnvironDensity0 = pkdGatherMass(pkd, S, rEnvironment[0], r, bPeriodic, dPeriod) * diVol0;
+            tinyGroupTable[gid].fEnvironDensity0 = GatherMass(S, rEnvironment[0], r, bPeriodic, dPeriod) * diVol0;
         }
-        else pkd->tinyGroupTable[gid].fEnvironDensity0 = 0.0;
+        else tinyGroupTable[gid].fEnvironDensity0 = 0.0;
         if (rEnvironment[1] > 0.0) {
-            pkd->tinyGroupTable[gid].fEnvironDensity1 = pkdGatherMass(pkd, S, rEnvironment[1], r, bPeriodic, dPeriod) * diVol1;
+            tinyGroupTable[gid].fEnvironDensity1 = GatherMass(S, rEnvironment[1], r, bPeriodic, dPeriod) * diVol1;
         }
-        else pkd->tinyGroupTable[gid].fEnvironDensity1 = 0.0;
+        else tinyGroupTable[gid].fEnvironDensity1 = 0.0;
     }
     mdl->FinishCache(CID_PARTICLE);
     /*
     ** Fetch remote group properties (we probably only need rMax to be fetched here).
     */
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(pkd->tinyGroupTable, nLocalGroups + 1));
-    for (gid = 1 + nLocalGroups; gid < pkd->nGroups; ++gid) {
-        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
-        pkd->tinyGroupTable[gid].fMass = g->fMass;
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(tinyGroupTable, nLocalGroups + 1));
+    for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+        auto g = mdl->Fetch<TinyGroupTable>(CID_GROUP, ga[gid].id.iIndex, ga[gid].id.iPid);
+        tinyGroupTable[gid].fMass = g->fMass;
         for (j = 0; j < 3; ++j) {
-            pkd->tinyGroupTable[gid].rcom[j] = g->rcom[j];
-            pkd->tinyGroupTable[gid].vcom[j] = g->vcom[j];
-            pkd->tinyGroupTable[gid].angular[j] = g->angular[j];
+            tinyGroupTable[gid].rcom[j] = g->rcom[j];
+            tinyGroupTable[gid].vcom[j] = g->vcom[j];
+            tinyGroupTable[gid].angular[j] = g->angular[j];
         }
         for (j = 0; j < 6; ++j) {
-            pkd->tinyGroupTable[gid].inertia[j] = g->inertia[j];
+            tinyGroupTable[gid].inertia[j] = g->inertia[j];
         }
-        pkd->tinyGroupTable[gid].sigma = g->sigma;
-        pkd->tinyGroupTable[gid].rMax = g->rMax;
-        pkd->tinyGroupTable[gid].fEnvironDensity0 = g->fEnvironDensity0;
-        pkd->tinyGroupTable[gid].fEnvironDensity1 = g->fEnvironDensity1;
+        tinyGroupTable[gid].sigma = g->sigma;
+        tinyGroupTable[gid].rMax = g->rMax;
+        tinyGroupTable[gid].fEnvironDensity0 = g->fEnvironDensity0;
+        tinyGroupTable[gid].fEnvironDensity1 = g->fEnvironDensity1;
     }
     mdl->FinishCache(CID_GROUP);
     /*
@@ -897,11 +904,11 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     ** Note that we must not access tree cells until the next tree build!
     */
     mdl->FinishCache(CID_CELL);
-    iGrpOffset = (uint32_t*)(&pkd->tinyGroupTable[pkd->nGroups]);
-    mrIndex = (int*)(&iGrpOffset[2 * pkd->nGroups]); /* this stores the ending index of each group in the mr below */
-    mr = (MassRadius*)(&mrIndex[pkd->nGroups]);      /* we must be careful how much of this we use! */
-    pkd->GroupOrder(iGrpOffset);
-    iGrpEnd = &iGrpOffset[pkd->nGroups];
+    iGrpOffset = (uint32_t*)(&tinyGroupTable[nGroups]);
+    mrIndex = (int*)(&iGrpOffset[2 * nGroups]); /* this stores the ending index of each group in the mr below */
+    mr = (MassRadius*)(&mrIndex[nGroups]);      /* we must be careful how much of this we use! */
+    GroupOrder(iGrpOffset);
+    iGrpEnd = &iGrpOffset[nGroups];
     iGrpEnd[0] = 0;
     /*
     ** First do all purely local groups. We can do these one at a time without
@@ -912,18 +919,18 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     nRootFind = 0;
     mrIndex[0] = 0;
     for (gid = 1; gid <= nLocalGroups; ++gid) {
-        rMax = std::min(pkd->tinyGroupTable[gid].rMax,
-                        static_cast<float>(blitz::min(pkd->bndInterior.apothem() - blitz::abs(pkd->bndInterior.center() - pkd->tinyGroupTable[gid].rPot))));
+        rMax = std::min(tinyGroupTable[gid].rMax,
+                        static_cast<float>(blitz::min(bndInterior.apothem() - blitz::abs(bndInterior.center() - tinyGroupTable[gid].rPot))));
         n = 0;
         for (i = iGrpEnd[gid - 1]; i < iGrpEnd[gid]; ++i, ++n) {
-            auto p = pkd->particles[i];
+            auto p = particles[i];
             assert(gid == p.group()); /* make sure it is really in group order */
-            r = p.position() - pkd->tinyGroupTable[gid].rPot;
+            r = p.position() - tinyGroupTable[gid].rPot;
             for (j = 0; j < 3; ++j) {
                 if (r[j] < -dHalf[j]) r[j] += dPeriod[j];
                 else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
             }
-            r -= pkd->tinyGroupTable[gid].rcen;
+            r -= tinyGroupTable[gid].rcen;
             r2 = dot(r, r);
             mrFree[n].fMass = p.mass();
             mrFree[n].dr = sqrtf(r2);
@@ -944,9 +951,9 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
                 bIncomplete = 1;
                 break;
             }
-            else if (mrFree[i].fMass > 0.5 * pkd->tinyGroupTable[gid].fMass) break;
+            else if (mrFree[i].fMass > 0.5 * tinyGroupTable[gid].fMass) break;
         }
-        pkd->tinyGroupTable[gid].rHalf = (i > 0) ? mrFree[--i].dr : 0;
+        tinyGroupTable[gid].rHalf = (i > 0) ? mrFree[--i].dr : 0;
         if (bIncomplete) {
             /*
             ** Compact the mrFree array.
@@ -968,17 +975,17 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
             mrIndex[gid] = mrFree - mr;
         }
     }
-    for (gid = nLocalGroups + 1; gid < pkd->nGroups; ++gid) {
+    for (gid = nLocalGroups + 1; gid < nGroups; ++gid) {
         n = 0;
         for (i = iGrpEnd[gid - 1]; i < iGrpEnd[gid]; ++i, ++n) {
-            auto p = pkd->particles[i];
+            auto p = particles[i];
             assert(gid == p.group()); /* make sure it is really in group order */
-            r = p.position() - pkd->tinyGroupTable[gid].rPot;
+            r = p.position() - tinyGroupTable[gid].rPot;
             for (j = 0; j < 3; ++j) {
                 if (r[j] < -dHalf[j]) r[j] += dPeriod[j];
                 else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
             }
-            r -= pkd->tinyGroupTable[gid].rcen;
+            r -= tinyGroupTable[gid].rcen;
             r2 = dot(r, r);
             mrFree[n].fMass = p.mass();
             mrFree[n].dr = sqrtf(r2);
@@ -1005,15 +1012,15 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
     iRoot = 0;
     rootFunction = mrFree;
     bRemoteDone = (int*)(&rootFunction[nLocalGroups + 1]);
-    for (gid = nLocalGroups + 1; gid < pkd->nGroups; ++gid) bRemoteDone[gid - (nLocalGroups + 1)] = 0;
-    rootFindingTable = (RootFindingTable*)(&bRemoteDone[pkd->nGroups - (nLocalGroups + 1)]);
+    for (gid = nLocalGroups + 1; gid < nGroups; ++gid) bRemoteDone[gid - (nLocalGroups + 1)] = 0;
+    rootFindingTable = (RootFindingTable*)(&bRemoteDone[nGroups - (nLocalGroups + 1)]);
     for (gid = 0; gid <= nLocalGroups; ++gid) {
         if (mrIndex[gid] > mrIndex[gid - 1]) {
             rootFindingTable[iRoot].bConverged = 0;
             rootFindingTable[iRoot].gid = gid;
             rootFindingTable[iRoot].iter = 65536;
-            rootFindingTable[iRoot].a = pkd->tinyGroupTable[gid].rHalf;
-            rootFindingTable[iRoot].b = pkd->tinyGroupTable[gid].rMax;
+            rootFindingTable[iRoot].a = tinyGroupTable[gid].rHalf;
+            rootFindingTable[iRoot].b = tinyGroupTable[gid].rMax;
             ++iRoot;
         }
         else {
@@ -1055,9 +1062,9 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
         ** Now scatter the enclosed local mass to remote groups at their trial dr.
         */
         mdl->CacheInitialize(CID_RM, std::make_shared<HelperRoot>(rootFunction, nLocalGroups + 1));
-        for (gid = nLocalGroups + 1; gid < pkd->nGroups; ++gid) {
+        for (gid = nLocalGroups + 1; gid < nGroups; ++gid) {
             if (bRemoteDone[gid - (nLocalGroups + 1)]) continue;
-            auto pmr = mdl->Acquire<MassRadius>(CID_RM, pkd->ga[gid].id.iIndex, pkd->ga[gid].id.iPid);
+            auto pmr = mdl->Acquire<MassRadius>(CID_RM, ga[gid].id.iIndex, ga[gid].id.iPid);
             if (pmr->dr > 0) {
                 /*
                 ** Binary search for pmr->dr!
@@ -1084,48 +1091,38 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, TinyVector<double, 3> dPerio
         for (iRoot = 0; iRoot < nRootFind; ++iRoot) {
             if (!rootFindingTable[iRoot].bConverged) {
                 gid = rootFindingTable[iRoot].gid;
-                if (rootFunction[gid].fMass > (0.5 + 0.6 / pkd->ga[gid].nTotal) * pkd->tinyGroupTable[gid].fMass)
-                    rootFindingTable[iRoot].b = rootFunction[gid].dr;
-                else if (rootFunction[gid].fMass < (0.5 - 0.6 / pkd->ga[gid].nTotal) * pkd->tinyGroupTable[gid].fMass)
-                    rootFindingTable[iRoot].a = rootFunction[gid].dr;
+                if (rootFunction[gid].fMass > (0.5 + 0.6 / ga[gid].nTotal) * tinyGroupTable[gid].fMass) rootFindingTable[iRoot].b = rootFunction[gid].dr;
+                else if (rootFunction[gid].fMass < (0.5 - 0.6 / ga[gid].nTotal) * tinyGroupTable[gid].fMass) rootFindingTable[iRoot].a = rootFunction[gid].dr;
                 else {
                     rootFindingTable[iRoot].bConverged = 1;
-                    pkd->tinyGroupTable[gid].rHalf = rootFunction[gid].dr;
+                    tinyGroupTable[gid].rHalf = rootFunction[gid].dr;
                     rootFindingTable[iRoot].iter = iter;
                 }
             }
         }
     }
     /*
-        for (iRoot=0;iRoot<nRootFind;++iRoot) {
-        gid = rootFindingTable[iRoot].gid;
-        printf("%d: iter:%d gid:%d MassRatio:%g rHalf:%g\n",pkd->Self(),rootFindingTable[iRoot].iter,gid,
-            rootFunction[gid].fMass/pkd->tinyGroupTable[gid].fMass,
-            pkd->tinyGroupTable[gid].rHalf);
-        }
-    */
-    /*
     ** Important to really make sure pkd->nLocalGroups is set correctly before output!
     */
-    pkd->nLocalGroups = nLocalGroups;
+    this->nLocalGroups = nLocalGroups;
 
     /*
     ** IA: We copy part of the stats to a even smaller structure that will survive later in memory
     **  such that it can be used for planting the BH seeds
     */
-    if (pkd->veryTinyGroupTable != NULL) free(pkd->veryTinyGroupTable);
-    pkd->veryTinyGroupTable = (VeryTinyGroupTable*)malloc((1 + nLocalGroups) * sizeof(VeryTinyGroupTable));
+    if (veryTinyGroupTable != NULL) free(veryTinyGroupTable);
+    veryTinyGroupTable = (VeryTinyGroupTable*)malloc((1 + nLocalGroups) * sizeof(VeryTinyGroupTable));
     for (gid = 1; gid <= nLocalGroups; gid++) {
-        pkd->veryTinyGroupTable[gid].rPot[0] = pkd->tinyGroupTable[gid].rPot[0];
-        pkd->veryTinyGroupTable[gid].rPot[1] = pkd->tinyGroupTable[gid].rPot[1];
-        pkd->veryTinyGroupTable[gid].rPot[2] = pkd->tinyGroupTable[gid].rPot[2];
-        pkd->veryTinyGroupTable[gid].fMass = pkd->tinyGroupTable[gid].fMass;
-        pkd->veryTinyGroupTable[gid].nBH = pkd->tinyGroupTable[gid].nBH;
+        veryTinyGroupTable[gid].rPot[0] = tinyGroupTable[gid].rPot[0];
+        veryTinyGroupTable[gid].rPot[1] = tinyGroupTable[gid].rPot[1];
+        veryTinyGroupTable[gid].rPot[2] = tinyGroupTable[gid].rPot[2];
+        veryTinyGroupTable[gid].fMass = tinyGroupTable[gid].fMass;
+        veryTinyGroupTable[gid].nBH = tinyGroupTable[gid].nBH;
     }
 
     /*
-    ** Clear pkd->ga so that later gravity calculations don't set the minimum potential again.
+    ** Clear ga so that later gravity calculations don't set the minimum potential again.
     ** This means we cannot directly output ga and could use this space for something else.
     */
-    pkd->ga = NULL;
+    ga = NULL;
 }

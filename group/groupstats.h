@@ -17,9 +17,24 @@
 
 #ifndef GROUPSTATS_INCLUDED
 #define GROUPSTATS_INCLUDED
-#include "pkd.h"
+#include "TraversePST.h"
+#include <array>
 
-void pkdHopSendStats(PKD pkd);
-void pkdCalculateGroupStats(PKD pkd, int bPeriodic, blitz::TinyVector<double, 3> dPeriod, double rEnvironment[2], uint64_t iGlobalStart);
+class ServiceGroupStats : public TraversePST {
+  public:
+    static constexpr std::string_view name = "GroupStats";
+    struct input {
+        int bPeriodic;
+        blitz::TinyVector<double, 3> dPeriod;
+        uint64_t iGlobalStart; /* initially set to 1 at the master level */
+        std::array<double, 2> rEnvironment;
+    };
+    using output = void;
+    explicit ServiceGroupStats(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
 
 #endif

@@ -88,7 +88,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
-    mdl->AddService(PST_GROUP_STATS, pst, (fcnService_t*)pstGroupStats, sizeof(struct inGroupStats), 0, Legacy::GroupStats);
     mdl->AddService(PST_SMOOTH, pst, (fcnService_t*)pstSmooth, sizeof(struct inSmooth), 0, Legacy::Smooth);
     mdl->AddService(PST_GRAVITY, pst, (fcnService_t*)pstGravity, sizeof(struct inGravity), sizeof(struct outGravityReduct), Legacy::Gravity);
     mdl->AddService(PST_CALCEANDL, pst, (fcnService_t*)pstCalcEandL, 0, sizeof(struct outCalcEandL), Legacy::CalcEandL);
@@ -440,23 +439,6 @@ int pstPhysicalSoft(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdPhysicalSoft(plcl->pkd, in->dSoftMax, in->dFac, in->bSoftMaxMul);
-    }
-    return 0;
-}
-
-int pstGroupStats(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inGroupStats*>(vin);
-    assert(nIn == sizeof(struct inGroupStats));
-    if (pst->NotCore()) {
-        in->iGlobalStart += pst->nLowerGroups; /* for the upper subset the global id starting point is more by the number of lower groups */
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GROUP_STATS, vin, nIn);
-        in->iGlobalStart -= pst->nLowerGroups; /* set the value back for the lower subset traversal */
-        pstGroupStats(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        pkdCalculateGroupStats(plcl->pkd, in->bPeriodic, in->dPeriod, in->rEnvironment, in->iGlobalStart);
     }
     return 0;
 }

@@ -120,7 +120,6 @@ inline constexpr std::string_view ReSmooth = "ReSmooth";
 inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
 inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
-inline constexpr std::string_view GroupStats = "GroupStats";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
@@ -165,7 +164,6 @@ enum pst_service {
 #ifdef STELLAR_EVOLUTION
     PST_STELLAREVOLUTIONINIT,
 #endif
-    PST_GROUP_STATS,
     PST_INITIALIZEPSTORE,
     PST_MOVEIC,
     PLT_MOVEIC,
@@ -263,15 +261,6 @@ int pstCheckpoint(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
-
-/* PST_GROUP_STATS */
-struct inGroupStats {
-    int bPeriodic;
-    blitz::TinyVector<double, 3> dPeriod;
-    uint64_t iGlobalStart; /* initially set to 1 at the master level */
-    double rEnvironment[2];
-};
-int pstGroupStats(PST, void*, int, void*, int);
 
 /* PST_SMOOTH */
 struct inSmooth {
