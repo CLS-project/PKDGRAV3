@@ -2209,21 +2209,6 @@ void pkdKick(PKD pkd, double dTime, double dDelta, int bDoGas, double dDeltaVPre
     mdlDiag(pkd->mdl, "Done pkdkick\n");
 }
 
-/* Kick the tree at iRoot. */
-void pkdKickTree(PKD pkd, double dTime, double dDelta, double dDeltaVPred, double dDeltaU, double dDeltaUPred, int iRoot) {
-    /* Skip to local tree */
-    auto c = pkd->tree[iRoot];
-    while (c->is_remote()) c = pkd->tree[iRoot = c->lchild()];
-
-    /* Now just kick all of the particles in the tree */
-    for (auto& p : *c) {
-        auto& v = p.velocity();
-        auto& a = p.acceleration();
-        v += a * dDelta;
-        a = 0.0;
-    }
-}
-
 void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo) {
     /*
     ** Need to be careful to correctly copy the cosmo

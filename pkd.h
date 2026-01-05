@@ -871,7 +871,6 @@ void pkdReorderWithinNodes(PKD pkd);
 void pkdKickKDKOpen(PKD pkd, double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi);
 void pkdKickKDKClose(PKD pkd, double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi);
 void pkdKick(PKD pkd, double dTime, double dDelta, int bDoGas, double, double, double, uint8_t uRungLo, uint8_t uRungHi);
-void pkdKickTree(PKD pkd, double dTime, double dDelta, double, double, double, int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo);
 void pkdInitLightcone(PKD pkd, int bBowtie, int bLightConeParticles, double dBoxSize, double dRedshiftLCP, double alphaLCP, blitz::TinyVector<double, 3> hLCP,

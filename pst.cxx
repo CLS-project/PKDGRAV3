@@ -103,7 +103,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_BH_ACCRETION, pst, (fcnService_t*)pstBHAccretion, sizeof(struct inBHAccretion), 0, Legacy::BHAccretion);
     //
     mdl->AddService(PST_KICK, pst, (fcnService_t*)pstKick, sizeof(struct inKick), 0, Legacy::Kick);
-    mdl->AddService(PST_KICKTREE, pst, (fcnService_t*)pstKickTree, sizeof(struct inKickTree), 0, Legacy::KickTree);
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
@@ -895,23 +894,6 @@ int pstKick(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdKick(plcl->pkd, in->dTime, in->dDelta, in->bDoGas, in->dDeltaVPred, in->dDeltaU, in->dDeltaUPred, in->uRungLo, in->uRungHi);
-    }
-    return 0;
-}
-
-int pstKickTree(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inKickTree*>(vin);
-
-    assert(nIn == sizeof(struct inKick));
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_KICKTREE, in, nIn);
-        pstKickTree(pst->lower(), in, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdKickTree(plcl->pkd, in->dTime, in->dDelta, in->dDeltaVPred, in->dDeltaU, in->dDeltaUPred, in->iRoot);
     }
     return 0;
 }

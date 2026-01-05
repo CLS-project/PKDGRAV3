@@ -116,7 +116,6 @@ inline constexpr std::string_view Drift = "Drift";
 inline constexpr std::string_view GrackleInit = "GrackleInit";
 inline constexpr std::string_view ChemCompInit = "ChemCompInit";
 inline constexpr std::string_view Kick = "Kick";
-inline constexpr std::string_view KickTree = "KickTree";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view ReSmooth = "ReSmooth";
@@ -158,7 +157,6 @@ enum pst_service {
     PST_BH_INIT,
     PST_BH_ACCRETION,
     PST_KICK,
-    PST_KICKTREE,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
     PST_RESMOOTH,
@@ -432,17 +430,6 @@ struct inKick {
     uint8_t uRungHi;
 };
 int pstKick(PST, void*, int, void*, int);
-
-/* PST_KICKTREE */
-struct inKickTree {
-    double dTime;
-    double dDelta;
-    double dDeltaVPred;
-    double dDeltaU;
-    double dDeltaUPred;
-    int iRoot;
-};
-int pstKickTree(PST, void*, int, void*, int);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {
