@@ -104,10 +104,8 @@ using PST = pstNode*;
 
 namespace Legacy {
 inline constexpr std::string_view ReadFile = "ReadFile";
-inline constexpr std::string_view CompressASCII = "CompressASCII";
 inline constexpr std::string_view SendParticles = "SendParticles";
 inline constexpr std::string_view SendArray = "SendArray";
-inline constexpr std::string_view WriteASCII = "WriteASCII";
 inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
@@ -142,7 +140,6 @@ inline constexpr std::string_view ReSmooth = "ReSmooth";
 inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
 inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
-inline constexpr std::string_view AddWriteStart = "AddWriteStart";
 inline constexpr std::string_view GroupStats = "GroupStats";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
 inline constexpr std::string_view GenerateIC = "GenerateIC";
@@ -162,10 +159,8 @@ inline constexpr std::string_view BHAccretion = "BHAccretion";
 enum pst_service {
     PST_SRV_STOP = 0, /* service 0 is always STOP and handled by MDL */
     PST_READFILE,
-    PST_COMPRESSASCII,
     PST_SENDPARTICLES,
     PST_SENDARRAY,
-    PST_WRITEASCII,
     PST_WRITE,
     PST_OUTPUT,
     PST_OUTPUT_SEND,
@@ -198,7 +193,6 @@ enum pst_service {
 #ifdef STELLAR_EVOLUTION
     PST_STELLAREVOLUTIONINIT,
 #endif
-    PST_ADDWRITESTART,
     PST_GROUP_STATS,
     PST_INITIALIZEPSTORE,
     PST_MOVEIC,
@@ -252,25 +246,6 @@ struct inReadFile {
 };
 typedef char inReadFileFilename[PATH_MAX];
 int pstReadFile(PST, void*, int, void*, int);
-
-/* PST_COMPRESSASCII */
-struct inCompressASCII {
-    uint64_t nTotal;
-    int iFile;
-    int iType;
-    int iDim;
-};
-struct outCompressASCII {
-    uint64_t nBytes;
-};
-int pstCompressASCII(PST, void*, int, void*, int);
-
-/* PST_WRITEASCII */
-struct inWriteASCII {
-    uint64_t nFileOffset;
-    char achOutFile[PATH_MAX];
-};
-int pstWriteASCII(PST, void*, int, void*, int);
 
 /* PST_WRITE */
 struct inWrite {
@@ -545,12 +520,6 @@ struct inDensityStep {
     uint8_t uRungHi;
 };
 int pstDensityStep(PST, void*, int, void*, int);
-
-/* PST_ADDWRITESTART */
-struct inAddWriteStart {
-    uint64_t nWriteStart;
-};
-int pstAddWriteStart(PST, void*, int, void*, int);
 
 /* PST_MEMSTATUS */
 struct outMemStatus {

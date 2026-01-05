@@ -79,9 +79,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
 
     mdl->AddService(PST_READFILE, pst, (fcnService_t*)pstReadFile, sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), 0,
                     Legacy::ReadFile);
-    mdl->AddService(PST_COMPRESSASCII, pst, (fcnService_t*)pstCompressASCII, sizeof(struct inCompressASCII), sizeof(struct outCompressASCII),
-                    Legacy::CompressASCII);
-    mdl->AddService(PST_WRITEASCII, pst, (fcnService_t*)pstWriteASCII, sizeof(struct inWriteASCII), 0, Legacy::WriteASCII);
     mdl->AddService(PST_WRITE, pst, (fcnService_t*)pstWrite, sizeof(struct inWrite), 0, Legacy::Write);
     mdl->AddService(PST_SENDPARTICLES, pst, (fcnService_t*)pstSendParticles, sizeof(int), 0, Legacy::SendParticles);
     mdl->AddService(PST_SENDARRAY, pst, (fcnService_t*)pstSendArray, sizeof(struct inSendArray), 0, Legacy::SendArray);
@@ -109,7 +106,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_KICK, pst, (fcnService_t*)pstKick, sizeof(struct inKick), 0, Legacy::Kick);
     mdl->AddService(PST_KICKTREE, pst, (fcnService_t*)pstKickTree, sizeof(struct inKickTree), 0, Legacy::KickTree);
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
-    mdl->AddService(PST_ADDWRITESTART, pst, (fcnService_t*)pstAddWriteStart, sizeof(struct inAddWriteStart), 0, Legacy::AddWriteStart);
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
@@ -309,83 +305,6 @@ int pstReadFile(PST pst, void* vin, int nIn, void* vout, int nOut) {
         }
         delete[] nSpeciesParts;
         fioClose(fio);
-    }
-    return 0;
-}
-
-int pstAddWriteStart(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto plcl = pst->lcl();
-    auto in = static_cast<struct inAddWriteStart*>(vin);
-
-    assert(nIn == sizeof(struct inAddWriteStart));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_ADDWRITESTART, in, nIn);
-        pstAddWriteStart(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        plcl->nWriteStart += in->nWriteStart;
-    }
-    return 0;
-}
-
-int pstCompressASCII(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inCompressASCII*>(vin);
-    auto out = static_cast<struct outCompressASCII*>(vout);
-    struct outCompressASCII outUp;
-    struct inAddWriteStart inAdd;
-    int rID;
-
-    assert(nIn == sizeof(struct inCompressASCII));
-    if (pst->NotCore()) {
-        /* Instruct all processors to compress their data, and count it */
-        rID = pst->mdl()->ReqService(pst->upper(), PST_COMPRESSASCII, in, nIn);
-        pstCompressASCII(pst->lower(), in, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID, outUp);
-        /* Add the new offset from the left children to the right children */
-        inAdd.nWriteStart = out->nBytes;
-        rID = pst->mdl()->ReqService(pst->upper(), PST_ADDWRITESTART, &inAdd, sizeof(inAdd));
-        pst->mdl()->GetReply(rID);
-        out->nBytes += outUp.nBytes;
-    }
-    else {
-        plcl->pkdout = pkdStartOutASCII(plcl->pkd, in->iFile, in->iType);
-        if (pst->Self() == 0 && in->iDim == 0) {
-            pkdOutHdr(plcl->pkd, plcl->pkdout, in->nTotal);
-        }
-        pkdOutASCII(plcl->pkd, plcl->pkdout, in->iType, in->iDim);
-        pkdFinishOutASCII(plcl->pkd, plcl->pkdout);
-        out->nBytes = pkdCountOutASCII(plcl->pkd, plcl->pkdout);
-        plcl->nWriteStart = 0;
-    }
-    return sizeof(struct outCompressASCII);
-}
-
-int pstWriteASCII(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inWriteASCII*>(vin);
-
-    assert(nIn == sizeof(struct inWriteASCII));
-    if (pst->NotCore()) {
-        /* Instruct all processors to compress their data, and count it */
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_WRITEASCII, in, nIn);
-        pstWriteASCII(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        FILE* fp = fopen(in->achOutFile, "r+");
-
-        mdlassert(plcl->pkd->mdl, fp != NULL);
-        setvbuf(fp, NULL, _IOFBF, PKDOUT_BUFFER_SIZE);
-#ifdef HAVE_FSEEKO
-        fseeko(fp, in->nFileOffset + plcl->nWriteStart, SEEK_SET);
-#else
-        assert(0);
-#endif
-        pkdDumpOutASCII(plcl->pkd, plcl->pkdout, fp);
-        pkdFreeOutASCII(plcl->pkd, plcl->pkdout);
-        fclose(fp);
     }
     return 0;
 }

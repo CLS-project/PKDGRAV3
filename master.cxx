@@ -130,6 +130,7 @@ struct fmt::formatter<DeferFormat> {
 #include "io/restore.h"
 #include "io/output.h"
 #include "io/classes.h"
+#include "io/ascii.h"
 #include "ic/ic.h"
 #include "analysis/lightcone.h"
 #ifdef INSTRUMENT_MPI
@@ -1860,9 +1861,6 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
     print_detail("Writing {name} to {file}\n", "name"_a = arrayOrVector, "file"_a = achOutFile);
 
     if (parallel_write_count() > 1 && iFileType > 1) {
-        struct inCompressASCII in;
-        struct outCompressASCII out;
-        struct inWriteASCII inWrite;
         FILE* fp;
 
         fp = fopen(achOutFile.c_str(), "wb");
@@ -1872,16 +1870,13 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
         }
         fclose(fp);
 
-        inWrite.nFileOffset = 0;
         for (iDim = 0; iDim < nDims; iDim++) {
-            in.nTotal = total;
-            in.iFile = iFileType;
-            in.iType = iType;
-            in.iDim = iDim;
-            pstCompressASCII(pst, &in, sizeof(in), &out, sizeof(out));
+            ServiceCompressASCII::input in{.nTotal = total, .iFile = iFileType, .iType = iType, .iDim = iDim};
+            ServiceCompressASCII::output out;
+            mdl->RunService<ServiceCompressASCII>(in, out);
+            ServiceWriteASCII::input inWrite;
             marshal_string(inWrite.achOutFile, achOutFile);
-            pstWriteASCII(pst, &inWrite, sizeof(inWrite), NULL, 0);
-            inWrite.nFileOffset += out.nBytes;
+            mdl->RunService<ServiceWriteASCII>(inWrite);
         }
     }
     else {

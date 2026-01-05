@@ -70,6 +70,7 @@
 
 #include "io/output.h"
 #include "io/classes.h"
+#include "io/ascii.h"
 
 #include "domains/buildtree.h"
 #include "domains/calcbound.h"
@@ -212,6 +213,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSetClasses>(pst);
     mdl->AddService<ServiceMaxRung>(pst);
     mdl->AddService<ServiceSetGlobalRung>(pst);
+    mdl->AddService<ServiceAddWriteStart>(pst);
+    mdl->AddService<ServiceCompressASCII>(pst);
 #ifdef HAVE_ROCKSTAR
     mdl->AddService<ServiceRsHaloCount>(pst);
     mdl->AddService<ServiceRsHaloLoadIds>(pst);
