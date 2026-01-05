@@ -131,8 +131,10 @@ cdef extern from "master.h":
         # MSR() except +
         void testv(vector[PARTCLASS] &v)
         #tuple[double,double,int64_t,int64_t,int64_t,int64_t]
-        int64_t parallel_count(bool bParallel,int64_t nParallel)
-        int64_t parallel_count(bool bParallel)
+        int64_t parallel_count(int64_t nParallel,bool bParallel)
+        int64_t parallel_count(int64_t nParallel)
+        int64_t parallel_read_count()
+        int64_t parallel_write_count()
         void *ReadCheckpoint(const char *filename, object kwargs,
                  object species, object classes, object step, object steps,
                  object time, object delta, object E, object U, object Utime)

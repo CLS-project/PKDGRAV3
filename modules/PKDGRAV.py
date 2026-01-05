@@ -328,7 +328,14 @@ def write_group_stats(filename,*,parallel=None):
     :param str filename: the name of the file
     :param integer parallel: number of parallel files to write
     """
-    parallel = 1 if parallel is None else msr0.parallel_count(parallel)
+    if parallel is None:    # use default parallelism
+        parallel = msr0.parallel_write_count()
+    elif parallel == 0:     # write serially
+        parallel = 1
+    elif parallel == 1:     # write in parallel using all threads
+        parallel = msr0.parallel_count(0,True)
+    else:                   # write in parallel using specified number of threads
+        parallel = msr0.parallel_count(parallel,True)
     msr0.WriteGroupStats(filename.encode('UTF-8'),parallel)
 
 def smooth(type,n=32,time=1.0,delta=0.0,symmetric=False,resmooth=False):
