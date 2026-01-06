@@ -31,6 +31,7 @@ COPY euclid_flagship_500.hdf5 \
      b0-final-np-asym-k1.acc.npy \
      b0-final-p0.10-asym-k1.acc.npy \
      b0-final-ref.grp.npy \
+     b0-final.fofstats.npy \
      ./
 
 COPY sph-data ./sph-data

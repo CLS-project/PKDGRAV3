@@ -311,7 +311,7 @@ def bispectrum_calculate(grid_index0,grid_index1,grid_index2):
     """
     return msr0.BispectrumCalculate(grid_index0,grid_index1,grid_index2)
 
-def fof(tau,minmembers=10):
+def fof(tau,minmembers=10,statistics=True):
     """
     Friends of friends (fof) group finding
 
@@ -319,7 +319,15 @@ def fof(tau,minmembers=10):
     :param integer minmembers: minimum group size (in particles)
     """
     msr0.NewFof(tau,minmembers)
+    if statistics:
+        msr0.GroupStats()
+
+def group_stats():
+    """
+    Calculate group statistics
+    """
     msr0.GroupStats()
+
 
 def write_group_stats(filename,*,parallel=None):
     """
