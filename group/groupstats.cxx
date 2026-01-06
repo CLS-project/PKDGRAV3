@@ -590,8 +590,8 @@ void pkdContext::CalculateGroupStats(int bPeriodic, TinyVector<double, 3> dPerio
         for (j = 0; j < 3; j++) {
             g->rcom[j] += tinyGroupTable[gid].rcom[j];
             g->vcom[j] += tinyGroupTable[gid].vcom[j];
-            g->sigma += tinyGroupTable[gid].sigma;
         }
+        g->sigma += tinyGroupTable[gid].sigma;
         if (tinyGroupTable[gid].rMax > g->rMax) g->rMax = tinyGroupTable[gid].rMax;
     }
     mdl->FinishCache(CID_GROUP);
