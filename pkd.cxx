@@ -1304,6 +1304,8 @@ void pkdSwapAll(PKD pkd, int idSwap) {
     /*
     ** Repeat for decorator.
     */
+    if (pkd->decorators.DecoratorSize() == 0) return;
+
     iBuf = pkdSwapDecoratorSpace(pkd);
     for (i = pkd->DecoratorLocal() - 1; i >= 0; --i) pkd->CopyDecorator(pkd->Decorator(iBuf + i), pkd->Decorator(i));
     nBuf = pkd->FreeDecoratorStore() * pkd->decorators.DecoratorSize();

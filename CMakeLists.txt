@@ -50,7 +50,7 @@ if(ENABLE_CLANG_TIDY)
   endif()
 endif()
 
-project(pkdgrav3 VERSION 3.5)
+project(pkdgrav3 VERSION 3.5.1)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
