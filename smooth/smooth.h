@@ -81,8 +81,7 @@ struct smContext {
 };
 using SMX = smContext*;
 
-int smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType, bool bMakeCache = true);
-int smInitializeRO(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int iSmoothType);
+auto smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType, bool bMakeCache = true) -> int;
 void smFinish(SMX, SMF*);
 void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
@@ -92,7 +91,7 @@ auto smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, do
 uint64_t smReSmooth(SMX, SMF*, int);
 #ifdef OPTIM_SMOOTH_NODE
 uint64_t smReSmoothNode(SMX, SMF*, int);
-void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
+void buildInteractionList(SMX smx, KDN* node, Bound bnd_node, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
 #endif
 
 void smGather(SMX smx, double fBall2, blitz::TinyVector<double, 3> r);

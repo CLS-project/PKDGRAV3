@@ -240,7 +240,7 @@ smContext::~smContext() {
     free(pSentinel);
 }
 
-static int smInitializeBasic(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType, int bMakeCache) {
+auto smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType, bool bMakeCache) -> int {
     SMX smx;
     /*
     ** Initialize the context for compressed nearest neighbor lists.
@@ -334,14 +334,6 @@ static int smInitializeBasic(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPer
     smx->iSmoothType = iSmoothType;
     *psmx = smx;
     return (1);
-}
-
-int smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType, bool bMakeCache) {
-    return smInitializeBasic(psmx, pkd, smf, nSmooth, bPeriodic, bSymmetric, iSmoothType, bMakeCache);
-}
-
-int smInitializeRO(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int iSmoothType) {
-    return smInitializeBasic(psmx, pkd, smf, nSmooth, bPeriodic, 0, iSmoothType, false);
 }
 
 void smFinish(SMX smx, SMF* smf) {
@@ -965,13 +957,13 @@ uint64_t smReSmoothNode(SMX smx, SMF* smf, int iSmoothType) {
                         r[1] = bnd_node.center(1) - iy * pkd->fPeriod[1];
                         for (int iz = iStart[2]; iz <= iEnd[2]; ++iz) {
                             r[2] = bnd_node.center(2) - iz * pkd->fPeriod[2];
-                            buildInteractionList(smx, smf, node, bnd_node, r, ix, iy, iz);
+                            buildInteractionList(smx, node, bnd_node, r, ix, iy, iz);
                         }
                     }
                 }
             }
             else {
-                buildInteractionList(smx, smf, node, bnd_node, r, 0, 0, 0);
+                buildInteractionList(smx, node, bnd_node, r, 0, 0, 0);
             }
 
             // IA: Now we should have inside nnList all the particles in the
@@ -1058,7 +1050,7 @@ uint64_t smReSmoothNode(SMX smx, SMF* smf, int iSmoothType) {
     return nSmoothed;
 }
 
-void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, TinyVector<double, 3> r, int ix, int iy, int iz) {
+void buildInteractionList(SMX smx, KDN* node, Bound bnd_node, TinyVector<double, 3> r, int ix, int iy, int iz) {
     PKD pkd = smx->pkd;
     auto mdl = pkd->mdl;
     int id, sp, iCell;
