@@ -21,7 +21,6 @@
 #include <memory>
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
-#include "hydro/hydro.h"
 #include "group/group.h"
 #include "blitz/array.h"
 
@@ -85,12 +84,12 @@ auto smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int 
 void smFinish(SMX, SMF*);
 void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
-float smSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, int iRoot1, int iRoot2);
+auto smSmoothSingle(SMX smx, particleStore::ParticleReference& p, int iRoot1 = ROOT, int iRoot2 = 0) -> float;
 void smSmooth(SMX, SMF*);
-auto smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, double fBall) -> bool;
-uint64_t smReSmooth(SMX, SMF*, int);
+auto smReSmoothSingle(SMX smx, particleStore::ParticleReference& p, double fBall) -> bool;
+auto smReSmooth(SMX, int) -> uint64_t;
 #ifdef OPTIM_SMOOTH_NODE
-uint64_t smReSmoothNode(SMX, SMF*, int);
+auto smReSmoothNode(SMX, SMF*, int) -> uint64_t;
 void buildInteractionList(SMX smx, KDN* node, Bound bnd_node, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
 #endif
 

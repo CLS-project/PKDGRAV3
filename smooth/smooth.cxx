@@ -509,7 +509,7 @@ void smSmoothFinish(SMX smx) {
     }
 }
 
-float smSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, int iRoot1, int iRoot2) {
+auto smSmoothSingle(SMX smx, particleStore::ParticleReference& p, int iRoot1, int iRoot2) -> float {
     if (!smx->function->shouldSmooth(p)) return 0.0f; // No smoothing needed for this particle
     PKD pkd = smx->pkd;
     int ix, iy, iz;
@@ -591,14 +591,13 @@ void smSmooth(SMX smx, SMF* smf) {
     */
     for (auto& p : pkd->particles) p.set_marked(true);
     smSmoothInitialize(smx);
-    smf->pfDensity = NULL;
     switch (smx->iSmoothType) {
     case SMX_BH_EVOLVE:
     case SMX_BH_STEP:
     case SMX_BH_GASPIN:
         for (auto& p : pkd->particles) {
             if (p.is_bh()) {
-                smSmoothSingle(smx, smf, p, ROOT, 0);
+                smSmoothSingle(smx, p);
             }
         }
         break;
@@ -608,11 +607,11 @@ void smSmooth(SMX smx, SMF* smf) {
                 auto& star = p.star();
 
                 if (!star.bCCSNFBDone && ((smf->dTime - star.fTimer) > smf->dCCSNFBDelay)) {
-                    smSmoothSingle(smx, smf, p, ROOT, 0);
+                    smSmoothSingle(smx, p);
                 }
 
                 if (!star.bSNIaFBDone && ((smf->dTime - star.fTimer) > smf->dSNIaFBDelay)) {
-                    smSmoothSingle(smx, smf, p, ROOT, 0);
+                    smSmoothSingle(smx, p);
                 }
             }
         }
@@ -623,7 +622,7 @@ void smSmooth(SMX smx, SMF* smf) {
             if (p.is_star()) {
                 auto& star = p.star();
                 if (smf->dTime > star.fNextEnrichTime) {
-                    smSmoothSingle(smx, smf, p, ROOT, 0);
+                    smSmoothSingle(smx, p);
                 }
             }
         }
@@ -632,12 +631,12 @@ void smSmooth(SMX smx, SMF* smf) {
     default:
         for (auto& p : pkd->particles) {
             if (!smf->bMeshlessHydro) {
-                smSmoothSingle(smx, smf, p, ROOT, 0);
-                // p.set_ball(smSmoothSingle(smx,smf,p,ROOT,0));
+                smSmoothSingle(smx, p);
+                // p.set_ball(smSmoothSingle(smx,p));
             }
             else {
                 if (p.is_active()) {
-                    fBall = smSmoothSingle(smx, smf, p, ROOT, 0);
+                    fBall = smSmoothSingle(smx, p);
                     if (smf->bUpdateBall) {
                         p.set_ball(fBall);
                     }
@@ -753,7 +752,7 @@ void smDoGatherLocal(SMX smx, double fBall2, TinyVector<double, 3> r, void (*Do)
     }
 }
 
-auto smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, double fBall) -> bool {
+auto smReSmoothSingle(SMX smx, particleStore::ParticleReference& p, double fBall) -> bool {
     if (!smx->function->shouldSmooth(p)) return false; // No smoothing needed for this particle
     PKD pkd = smx->pkd;
     TinyVector<double, 3> r;
@@ -798,16 +797,15 @@ auto smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, do
     return true;
 }
 
-uint64_t smReSmooth(SMX smx, SMF* smf, int iSmoothType) {
+uint64_t smReSmooth(SMX smx, int iSmoothType) {
     PKD pkd = smx->pkd;
     uint64_t nSmoothed = 0;
 
-    smf->pfDensity = NULL;
     switch (iSmoothType) {
     case SMX_HYDRO_DENSITY:
         for (auto& p : pkd->particles) {
             if (p.is_active() && p.marked() && p.is_gas()) {
-                smReSmoothSingle(smx, smf, p, p.ball());
+                smReSmoothSingle(smx, p, p.ball());
                 nSmoothed++;
             }
         }
@@ -817,7 +815,7 @@ uint64_t smReSmooth(SMX smx, SMF* smf, int iSmoothType) {
         for (auto& p : pkd->particles) {
             if (p.is_gas()) {
                 if (p.is_active()) {
-                    smReSmoothSingle(smx, smf, p, p.ball());
+                    smReSmoothSingle(smx, p, p.ball());
                     nSmoothed++;
                 }
             }
@@ -835,7 +833,7 @@ uint64_t smReSmooth(SMX smx, SMF* smf, int iSmoothType) {
     default:
         for (auto& p : pkd->particles) {
             if (p.is_active() && p.is_gas()) {
-                smReSmoothSingle(smx, smf, p, p.ball());
+                smReSmoothSingle(smx, p, p.ball());
                 nSmoothed++;
             }
         }

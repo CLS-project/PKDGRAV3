@@ -943,7 +943,7 @@ int pkdGravInteract(PKD pkd, struct pkdKickParameters* kick, struct pkdLightcone
                 ** Calculate local density using smooth; this is fast because the particles are
                 ** likely to be cached already because they will be on the P-P list.
                 */
-                fBall = smSmoothSingle(smx, nullptr, p, iRoot1, iRoot2);
+                fBall = smSmoothSingle(smx, p, iRoot1, iRoot2);
                 wp->pInfoIn[nP].fSmooth2 = fBall * fBall;
                 wp->pInfoIn[nP].fDensity = helper->density();
             }

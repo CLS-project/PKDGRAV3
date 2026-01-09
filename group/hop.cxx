@@ -160,7 +160,7 @@ static int smHopLink(SMX smx, std::shared_ptr<SmoothHelperGradientM3> helper) {
             p.set_group(nGroups);
             /* Need: fDensity and fBall but pl[iParticle] is not yet used */
             /* fDensity MUST persist but fBall could be stashed into pl[] */
-            smReSmoothSingle(smx, nullptr, p, p.ball());
+            smReSmoothSingle(smx, p, p.ball());
             /* Done: fBall */
             auto link = helper->link();
             ga[nGroups].id = link;
@@ -409,7 +409,7 @@ static int smHopJoin(SMX smx, double dHopTau, int* nLocal) {
         assert(p.marked());
         float fBall = (dHopTau < 0.0) ? -dHopTau * p.soft() : dHopTau;
         fBall = std::max(fBall, p.ball() * 0.5f);
-        smReSmoothSingle(smx, nullptr, p, fBall);
+        smReSmoothSingle(smx, p, fBall);
     }
     mdl->FinishCache(CID_GROUP);
 

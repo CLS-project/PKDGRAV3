@@ -45,7 +45,6 @@ struct smfParameters {
     double dEtaCourant;
     PKD pkd; /* useful for diagnostics, etc. */
     int bDone;
-    float* pfDensity;
     /* IA: Meshless hydro */
     int bMeshlessHydro;
     int bIterativeSmoothingLength;

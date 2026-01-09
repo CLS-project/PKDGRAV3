@@ -540,7 +540,7 @@ int pstReSmooth(PST pst, void* vin, int nIn, void* vout, int nOut) {
         SMX smx;
 
         smInitialize(&smx, plcl->pkd, &in->smf, in->nSmooth, in->bPeriodic, in->bSymmetric, in->iSmoothType);
-        out->nSmoothed = smReSmooth(smx, &in->smf, in->iSmoothType);
+        out->nSmoothed = smReSmooth(smx, in->iSmoothType);
         smFinish(smx, &in->smf);
     }
     return sizeof(struct outSmooth);
