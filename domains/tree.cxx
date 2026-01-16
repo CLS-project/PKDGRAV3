@@ -437,7 +437,7 @@ void pkdContext::Create(int iRoot, double ddHonHLimit) {
         dih2 = fSoft;
         auto r = p.position();
 
-        if (particles.present(PKD_FIELD::oBall)) {
+        if (pkdn->have_BOB() && particles.present(PKD_FIELD::oBall)) {
             /* initialize ball or box of balls */
             float limitedBallSize = std::min(SPHoptions.ballSizeLimit, SPHoptions.fBallFactor * p.ball());
             fBoB = SPHBOB(r, limitedBallSize);
@@ -461,7 +461,7 @@ void pkdContext::Create(int iRoot, double ddHonHLimit) {
             if (fSoft > dih2) dih2 = fSoft;
             auto ft = p.position();
 
-            if (particles.present(PKD_FIELD::oBall)) {
+            if (pkdn->have_BOB() && particles.present(PKD_FIELD::oBall)) {
                 float limitedBallSize = std::min(SPHoptions.ballSizeLimit, SPHoptions.fBallFactor * p.ball());
                 fBoB = fBoB.combine(ft, limitedBallSize);
             }
