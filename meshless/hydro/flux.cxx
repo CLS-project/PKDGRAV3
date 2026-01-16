@@ -531,12 +531,12 @@ class MeshlessHydroSolver {
         dtype pH = P.ball();
         dtype plast = psph.lastUpdateTime;
         dtype pDt = dDelta / (1 << P.rung());
-        dtype pBXX = psph.B[XX];
-        dtype pBXY = psph.B[XY];
-        dtype pBXZ = psph.B[XZ];
-        dtype pBYY = psph.B[YY];
-        dtype pBYZ = psph.B[YZ];
-        dtype pBZZ = psph.B[ZZ];
+        dtype pBXX = psph.B[+MOI::XX];
+        dtype pBXY = psph.B[+MOI::XY];
+        dtype pBXZ = psph.B[+MOI::XZ];
+        dtype pBYY = psph.B[+MOI::YY];
+        dtype pBYZ = psph.B[+MOI::YZ];
+        dtype pBZZ = psph.B[+MOI::ZZ];
         dtype pDens = P.density();
         dtype pVpredx = P.velocity()[0];
         dtype pVpredy = P.velocity()[1];
@@ -742,18 +742,17 @@ void hydroFluxFillBuffer(PKD pkd, EnumArray<T, E>& bi, const NN& nn, int i, doub
     bi(IFLD::lastAccX, i) = qsph.lastAcc[0];
     bi(IFLD::lastAccY, i) = qsph.lastAcc[1];
     bi(IFLD::lastAccZ, i) = qsph.lastAcc[2];
-    bi(IFLD::B_XX, i) = qsph.B[XX];
-    bi(IFLD::B_YY, i) = qsph.B[YY];
-    bi(IFLD::B_ZZ, i) = qsph.B[ZZ];
-    bi(IFLD::B_XY, i) = qsph.B[XY];
-    bi(IFLD::B_XZ, i) = qsph.B[XZ];
-    bi(IFLD::B_YZ, i) = qsph.B[YZ];
+    bi(IFLD::B_XX, i) = qsph.B[+MOI::XX];
+    bi(IFLD::B_YY, i) = qsph.B[+MOI::YY];
+    bi(IFLD::B_ZZ, i) = qsph.B[+MOI::ZZ];
+    bi(IFLD::B_XY, i) = qsph.B[+MOI::XY];
+    bi(IFLD::B_XZ, i) = qsph.B[+MOI::XZ];
+    bi(IFLD::B_YZ, i) = qsph.B[+MOI::YZ];
     bi(IFLD::omega, i) = qsph.omega;
     bi(IFLD::spheom, i) = qsph.spheom;
 }
 
 template <typename T, typename E>
-// void hydroFluxFillBuffer(PKD pkd, EnumArray<T, E>& bi, const NN& nn, int i, double dDelta) {
 void hydroFluxUpdateFromBuffer(PKD pkd, PARTICLE* pIn, EnumArray<T, E>& bo, const NN& nn, int i, double dDelta, double aFac) {
     auto qIn = nn.pPart;
     auto dr = nn.dr;
@@ -851,11 +850,6 @@ void hydroFluxUpdateFromBuffer(PKD pkd, PARTICLE* pIn, EnumArray<T, E>& bo, cons
     } // q marked/active
 }
 
-void hydroFluxGetBufferInfo(int* in, int* out) {
-    *in = static_cast<int>(IFLD::last);
-    *out = static_cast<int>(OFLD::last);
-}
-
 #endif // OPTIM_FLUX_VEC
 
 void SmoothHelperHydroFluxes::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
@@ -892,17 +886,4 @@ void SmoothHelperHydroFluxes::Smooth(particleStore::ParticleReference& p, float 
     for (auto i = 0; i < nnList.size(); i++) {
         hydroFluxUpdateFromBuffer(pkd, &p, oa, nnList[i], i, dDelta, a_);
     }
-}
-
-void hydroRiemann_wrapper(PARTICLE* p, float fBall, int nSmooth, int nBuff, meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
-                          SMF* smf) {
-    PKD pkd = smf->pkd;
-    auto P = pkd->particles[p];
-
-#if defined(USE_SIMD_FLUX)
-    MeshlessHydroSolver<dvec, dmask> solver(P.have_mfv());
-#else
-        MeshlessHydroSolver<vec<double, double>, mmask<bool>> solver(P.have_mfv());
-#endif
-    // solver.hydroRiemann(p, fBall, nSmooth, nBuff, input_buffer, output_buffer, smf);
 }

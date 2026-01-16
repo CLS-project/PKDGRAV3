@@ -23,48 +23,48 @@ using blitz::TinyVector;
 void inverseMatrix(double* E, double* B) {
     double det;
 
-    det = E[XX] * E[YY] * E[ZZ] + 2.0 * E[XY] * E[YZ] * E[XZ] //+ E[XZ]*E[XY]*E[YZ]
-          - E[XX] * E[YZ] * E[YZ] - E[ZZ] * E[XY] * E[XY] - E[YY] * E[XZ] * E[XZ];
+    det = E[+MOI::XX] * E[+MOI::YY] * E[+MOI::ZZ] + 2.0 * E[+MOI::XY] * E[+MOI::YZ] * E[+MOI::XZ] //+ E[XZ]*E[XY]*E[YZ]
+          - E[+MOI::XX] * E[+MOI::YZ] * E[+MOI::YZ] - E[+MOI::ZZ] * E[+MOI::XY] * E[+MOI::XY] - E[+MOI::YY] * E[+MOI::XZ] * E[+MOI::XZ];
 
     if (det == 0) {
         printf("Singular matrix!\n");
-        printf("XX %e \nXY %e \t YY %e \nXZ %e \t YZ %e \t ZZ %e \n", E[XX], E[XY], E[YY], E[XZ], E[YZ], E[ZZ]);
+        printf("XX %e \nXY %e \t YY %e \nXZ %e \t YZ %e \t ZZ %e \n", E[+MOI::XX], E[+MOI::XY], E[+MOI::YY], E[+MOI::XZ], E[+MOI::YZ], E[+MOI::ZZ]);
         abort();
-        B[XX] = 0.;
-        B[YY] = 0.;
-        B[ZZ] = 0.;
-        B[XY] = 0.;
-        B[XZ] = 0.;
-        B[YZ] = 0.;
+        B[+MOI::XX] = 0.;
+        B[+MOI::YY] = 0.;
+        B[+MOI::ZZ] = 0.;
+        B[+MOI::XY] = 0.;
+        B[+MOI::XZ] = 0.;
+        B[+MOI::YZ] = 0.;
     }
 
     det = 1. / det;
 
-    B[XX] = (E[YY] * E[ZZ] - E[YZ] * E[YZ]) * det;
-    B[YY] = (E[XX] * E[ZZ] - E[XZ] * E[XZ]) * det;
-    B[ZZ] = (E[YY] * E[XX] - E[XY] * E[XY]) * det;
+    B[+MOI::XX] = (E[+MOI::YY] * E[+MOI::ZZ] - E[+MOI::YZ] * E[+MOI::YZ]) * det;
+    B[+MOI::YY] = (E[+MOI::XX] * E[+MOI::ZZ] - E[+MOI::XZ] * E[+MOI::XZ]) * det;
+    B[+MOI::ZZ] = (E[+MOI::YY] * E[+MOI::XX] - E[+MOI::XY] * E[+MOI::XY]) * det;
 
-    B[XY] = -(E[XY] * E[ZZ] - E[YZ] * E[XZ]) * det;
-    B[XZ] = (E[XY] * E[YZ] - E[YY] * E[XZ]) * det;
-    B[YZ] = -(E[XX] * E[YZ] - E[XY] * E[XZ]) * det;
+    B[+MOI::XY] = -(E[+MOI::XY] * E[+MOI::ZZ] - E[+MOI::YZ] * E[+MOI::XZ]) * det;
+    B[+MOI::XZ] = (E[+MOI::XY] * E[+MOI::YZ] - E[+MOI::YY] * E[+MOI::XZ]) * det;
+    B[+MOI::YZ] = -(E[+MOI::XX] * E[+MOI::YZ] - E[+MOI::XY] * E[+MOI::XZ]) * det;
 }
 
 double conditionNumber(double* E, double* B) {
     double modE = 0.;
-    modE += E[XX] * E[XX];
-    modE += E[YY] * E[YY];
-    modE += E[ZZ] * E[ZZ];
-    modE += 2. * E[XY] * E[XY];
-    modE += 2. * E[XZ] * E[XZ];
-    modE += 2. * E[YZ] * E[YZ];
+    modE += E[+MOI::XX] * E[+MOI::XX];
+    modE += E[+MOI::YY] * E[+MOI::YY];
+    modE += E[+MOI::ZZ] * E[+MOI::ZZ];
+    modE += 2. * E[+MOI::XY] * E[+MOI::XY];
+    modE += 2. * E[+MOI::XZ] * E[+MOI::XZ];
+    modE += 2. * E[+MOI::YZ] * E[+MOI::YZ];
 
     double modB = 0.;
-    modB += B[XX] * B[XX];
-    modB += B[YY] * B[YY];
-    modB += B[ZZ] * B[ZZ];
-    modB += 2. * B[XY] * B[XY];
-    modB += 2. * B[XZ] * B[XZ];
-    modB += 2. * B[YZ] * B[YZ];
+    modB += B[+MOI::XX] * B[+MOI::XX];
+    modB += B[+MOI::YY] * B[+MOI::YY];
+    modB += B[+MOI::ZZ] * B[+MOI::ZZ];
+    modB += 2. * B[+MOI::XY] * B[+MOI::XY];
+    modB += 2. * B[+MOI::XZ] * B[+MOI::XZ];
+    modB += 2. * B[+MOI::YZ] * B[+MOI::YZ];
 
     return sqrt(modB * modE) / 3.;
 }

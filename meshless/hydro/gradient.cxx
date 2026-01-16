@@ -57,23 +57,19 @@ void SmoothHelperHydroGradients::Smooth(particleStore::ParticleReference& p, flo
 
         const double Wpq = cubicSplineKernel(rpq, Hpq);
         const auto& dr = nn.dr;
-        E[XX] += dr[0] * dr[0] * Wpq;
-        E[YY] += dr[1] * dr[1] * Wpq;
-        E[ZZ] += dr[2] * dr[2] * Wpq;
+        E[+MOI::XX] += dr[0] * dr[0] * Wpq;
+        E[+MOI::YY] += dr[1] * dr[1] * Wpq;
+        E[+MOI::ZZ] += dr[2] * dr[2] * Wpq;
 
-        E[XY] += dr[1] * dr[0] * Wpq;
-        E[XZ] += dr[2] * dr[0] * Wpq;
-        E[YZ] += dr[1] * dr[2] * Wpq;
+        E[+MOI::XY] += dr[1] * dr[0] * Wpq;
+        E[+MOI::XZ] += dr[2] * dr[0] * Wpq;
+        E[+MOI::YZ] += dr[1] * dr[2] * Wpq;
     }
 
     /* Normalize the matrix */
     E /= psph.omega;
 
     /* END of E matrix computation */
-    // printf("nSmooth %d fBall %e E_q [XX] %e \t [XY] %e \t [XZ] %e \n
-    //                        \t \t \t [YY] %e \t [YZ] %e \n
-    //                 \t\t\t \t \t \t [ZZ] %e \n",
-    //  nSmooth, fBall, E[XX], E[XY], E[XZ], E[YY], E[YZ], E[ZZ]);
 
     /* Now, we need to do the inverse */
     inverseMatrix(E.data(), psph.B.data());
@@ -83,13 +79,12 @@ void SmoothHelperHydroGradients::Smooth(particleStore::ParticleReference& p, flo
     /*
     double *B = psph.B.data();
     double unityXX, unityYY, unityZZ, unityXY, unityXZ, unityYZ;
-    unityXX = E[XX]*B[XX] + E[XY]*B[XY] + E[XZ]*B[XZ];
-    unityYY = E[XY]*B[XY] + E[YY]*B[YY] + E[YZ]*B[YZ];
-    unityZZ = E[XZ]*B[XZ] + E[YZ]*B[YZ] + E[ZZ]*B[ZZ];
-
-    unityXY = E[XX]*B[XY] + E[XY]*B[YY] + E[XZ]*B[YZ];
-    unityXZ = E[XX]*B[XZ] + E[XY]*B[YZ] + E[XZ]*B[ZZ];
-    unityYZ = E[XY]*B[XZ] + E[YY]*B[YZ] + E[YZ]*B[ZZ];
+    unityXX = E[+MOI::XX]*B[+MOI::XX] + E[+MOI::XY]*B[+MOI::XY] + E[+MOI::XZ]*B[+MOI::XZ];
+    unityYY = E[+MOI::XY]*B[+MOI::XY] + E[+MOI::YY]*B[+MOI::YY] + E[+MOI::YZ]*B[+MOI::YZ];
+    unityZZ = E[+MOI::XZ]*B[+MOI::XZ] + E[+MOI::YZ]*B[+MOI::YZ] + E[+MOI::ZZ]*B[+MOI::ZZ];
+    unityXY = E[+MOI::XX]*B[+MOI::XY] + E[+MOI::XY]*B[+MOI::YY] + E[+MOI::XZ]*B[+MOI::YZ];
+    unityXZ = E[+MOI::XX]*B[+MOI::XZ] + E[+MOI::XY]*B[+MOI::YZ] + E[+MOI::XZ]*B[+MOI::ZZ];
+    unityYZ = E[+MOI::XY]*B[+MOI::XZ] + E[+MOI::YY]*B[+MOI::YZ] + E[+MOI::YZ]*B[+MOI::ZZ];
 
     printf("XX %e \t YY %e \t ZZ %e \n", unityXX, unityYY, unityZZ);
     printf("XY %e \t XZ %e \t YZ %e \n", unityXY, unityXZ, unityYZ);
@@ -130,9 +125,9 @@ void SmoothHelperHydroGradients::Smooth(particleStore::ParticleReference& p, flo
         const double psi = Wpq / psph.omega;
 
         TinyVector<double, 3> psiTilde_p;
-        psiTilde_p[0] = dot(dr, TinyVector<double, 3>{psph.B[XX], psph.B[XY], psph.B[XZ]}) * psi;
-        psiTilde_p[1] = dot(dr, TinyVector<double, 3>{psph.B[XY], psph.B[YY], psph.B[YZ]}) * psi;
-        psiTilde_p[2] = dot(dr, TinyVector<double, 3>{psph.B[XZ], psph.B[YZ], psph.B[ZZ]}) * psi;
+        psiTilde_p[0] = dot(dr, TinyVector<double, 3>{psph.B[+MOI::XX], psph.B[+MOI::XY], psph.B[+MOI::XZ]}) * psi;
+        psiTilde_p[1] = dot(dr, TinyVector<double, 3>{psph.B[+MOI::XY], psph.B[+MOI::YY], psph.B[+MOI::YZ]}) * psi;
+        psiTilde_p[2] = dot(dr, TinyVector<double, 3>{psph.B[+MOI::XZ], psph.B[+MOI::YZ], psph.B[+MOI::ZZ]}) * psi;
 
         psph.gradRho += psiTilde_p * (q.density() - p.density());
         psph.gradVx += psiTilde_p * (qv[0] - pv[0]);

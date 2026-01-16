@@ -61,13 +61,11 @@ EnumArray(T const*, Enum, int) -> EnumArray<const T, Enum>;
 template <typename T, typename Enum>
 EnumArray(T*, Enum, int) -> EnumArray<T, Enum>;
 
-#define XX 0
-#define YY 3
-#define ZZ 5
-#define XY 1
-#define XZ 2
-#define YZ 4
-
+// Field orders for moment of inertia. Operator+ is overloaded to convert enum to size_t
+enum class MOI : int { XX = 0, XY = 1, XZ = 2, YY = 3, YZ = 4, ZZ = 5 };
+constexpr auto operator+(MOI m) noexcept -> std::size_t {
+    return static_cast<std::size_t>(m);
+}
 namespace meshless {
 using myreal = double;
 } // namespace meshless
@@ -312,14 +310,6 @@ struct hydroFluxesFlush {
     blitz::TinyVector<double, 3> drDotFrho;
     float fMass;
 };
-
-void hydroRiemann(PARTICLE* p, float fBall, int nSmooth, int nBuff, const meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
-                  SMF* smf);
-void hydroRiemann_wrapper(PARTICLE* p, float fBall, int nSmooth, int nBuff, meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
-                          SMF* smf);
-void hydroFluxFillBuffer(meshless::myreal* input_buffer, PARTICLE* q, int i, int nBuff, double dr2, blitz::TinyVector<double, 3> dr, SMF*);
-void hydroFluxUpdateFromBuffer(meshless::myreal* output_buffer, const meshless::myreal* input_buffer, PARTICLE* p, PARTICLE* q, int i, int nBuff, SMF*);
-void hydroFluxGetBufferInfo(int* in, int* out);
 
 class SmoothHelperHydroFluxes : public SmoothHelperPacked<hydroFluxesPack, hydroFluxesFlush> {
     EnumArray<meshless::myreal, meshless::FLUX::IFLD> ia;

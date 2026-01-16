@@ -24,13 +24,13 @@ static inline void densNodeOmegaE(NN* nnList, float pH, TinyVector<double, 3> dr
             sphfac += rpq * dWpq;
             *omega += Wpq;
 
-            E[XX] += dr[0] * dr[0] * Wpq;
-            E[YY] += dr[1] * dr[1] * Wpq;
-            E[ZZ] += dr[2] * dr[2] * Wpq;
+            E[+MOI::XX] += dr[0] * dr[0] * Wpq;
+            E[+MOI::YY] += dr[1] * dr[1] * Wpq;
+            E[+MOI::ZZ] += dr[2] * dr[2] * Wpq;
 
-            E[XY] += dr[1] * dr[0] * Wpq;
-            E[XZ] += dr[2] * dr[0] * Wpq;
-            E[YZ] += dr[1] * dr[2] * Wpq;
+            E[+MOI::XY] += dr[1] * dr[0] * Wpq;
+            E[+MOI::XZ] += dr[2] * dr[0] * Wpq;
+            E[+MOI::YZ] += dr[1] * dr[2] * Wpq;
 
             nSmooth += 1;
         }
@@ -113,13 +113,13 @@ void SmoothHelperHydroDensityFinal::Smooth(particleStore::ParticleReference& p, 
 
             const auto& dr = nn.dr;
 
-            E[XX] += dr[0] * dr[0] * Wpq;
-            E[YY] += dr[1] * dr[1] * Wpq;
-            E[ZZ] += dr[2] * dr[2] * Wpq;
+            E[+MOI::XX] += dr[0] * dr[0] * Wpq;
+            E[+MOI::YY] += dr[1] * dr[1] * Wpq;
+            E[+MOI::ZZ] += dr[2] * dr[2] * Wpq;
 
-            E[XY] += dr[1] * dr[0] * Wpq;
-            E[XZ] += dr[2] * dr[0] * Wpq;
-            E[YZ] += dr[1] * dr[2] * Wpq;
+            E[+MOI::XY] += dr[1] * dr[0] * Wpq;
+            E[+MOI::XZ] += dr[2] * dr[0] * Wpq;
+            E[+MOI::YZ] += dr[1] * dr[2] * Wpq;
         }
 
         /* Normalize the matrix */
