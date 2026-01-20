@@ -11,67 +11,36 @@ using blitz::floor;
 using blitz::max;
 using blitz::TinyVector;
 
-// This should probably not be a template specialisation; combine with the generic version
-template <>
-auto smContext::ReSmoothNode<SmoothOnlyBH>(SmoothOnlyBH) -> uint64_t {
-    uint64_t nSmoothed = 0;
-    std::vector<NN> nnList_p;
-    nnList_p.reserve(NNLIST_INCREMENT);
-    nnList.clear();
-
-    // Here we store the pointers to the particles whose interaction need
-    // to be computed
-    std::vector<PARTICLE*> sinks;
-    sinks.reserve(64); // At most, the size of the bucket
-
-    for (int i = NRESERVED_NODES; i < pkd->Nodes() - 1; ++i) {
-        auto node = pkd->tree[i];
-        bool bBHinBucket;
+struct SmoothOnlyBH : SmoothEverything {
 #ifdef OPTIM_REORDER_IN_NODES
-        bBHinBucket = node->is_bucket() && node->Nbh() > 0;
-#else
-        bBHinBucket = node->is_bucket() && std::any_of(node->begin(), node->end(), [](auto& p) { return p.is_bh(); });
-#endif
-        if (bBHinBucket) { // We are in a bucket containing a BH
-            auto bnd_node = getNodeSinks<SmoothOnlyBH>(node, sinks);
-            buildInteractionList<SmoothOnlyBH>(bnd_node);
-
-            // IA: Now we should have inside nnList all the particles in the bucket (sinks) and those of which can
-            //  interact with them from other buckets (smx->nnList)
-            //
-
-            for (auto& P : sinks) {
-                auto partj = pkd->particles[P];
-                // We need to double check this, as the particle may have
-                // been marked for deletion just before this
-                if (partj.is_marked()) {
-                    const double fBall2_p = 4. * partj.soft() * partj.soft();
-                    TinyVector<double, 3> dr_node{bnd_node.center() - partj.position()};
-                    nnList_p.clear();
-                    for (auto& pk : nnList) {
-                        if (P == pk.pPart) continue;
-                        TinyVector<double, 3> dr{pk.dr - dr_node};
-                        const auto fDist2 = dot(dr, dr);
-                        if (fDist2 < fBall2_p) {
-                            nnList_p.push_back({.pPart = pk.pPart, .fDist2 = fDist2, .dr = dr, .iIndex = pk.iIndex, .iPid = pk.iPid});
-                        }
-                    }
-
-                    function->Smooth(partj, partj.soft(), nnList_p);
-                }
-            }
-
-            nSmoothed += sinks.size();
-
-            for (auto& pk : nnList) {
-                if (pk.iPid != pkd->Self()) {
-                    pkd->mdl->Release(CID_PARTICLE, pk.pPart);
-                }
-            }
-        }
+    static inline auto range(treeStore::NodePointer node) {
+        auto start = node->lower();
+        start += node->Ngas();
+        if (node->have_Nstar()) start += node->Nstar();
+        auto end = start + node->Nbh();
+        return std::pair{start, end};
     }
-    return nSmoothed;
-}
+    static inline auto range_neighbour(treeStore::NodePointer node) { return range(node); }
+    static inline auto may_have_active(treeStore::NodePointer& node) -> bool {
+    #ifdef OPTIM_REORDER_IN_NODES
+        return node->Nbh() > 0;
+    #else
+        return std::any_of(node->begin(), node->end(), [](auto& p) { return p.is_bh(); });
+    #endif
+    }
+    // The raange() method filters particles, so is_active() will always check only BH particles
+    static inline auto is_bh(particleStore::ParticleReference& p) -> bool { return true; }
+#else
+    static inline auto is_bh(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
+#endif
+    // DP: It looks like blackholes have to be marked and get unmarked during smoothing
+    //     for example when there is a merger and one of them is deleted.
+    static inline auto is_active(particleStore::ParticleReference& p) -> bool { return is_bh(p) && p.marked(); }
+    static inline auto accept_neighbour(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
+    static inline auto accept_sink(particleStore::ParticleReference& p) -> bool { return p.marked(); }
+    // Use twice the softening length for BHs
+    static constexpr auto ball2_sink(particleStore::ParticleReference& p) -> float { return 4 * p.soft() * p.soft(); }
+};
 
 auto ServiceHydroMergerBH::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());

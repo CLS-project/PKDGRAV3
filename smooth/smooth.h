@@ -66,6 +66,10 @@ struct SmoothEverything {
     static constexpr double fBall_factor = 1.0;
     // True if the ball should be updated
     static constexpr bool update_ball = false;
+    // When evaluating sinks in ReSmoothNode we need a cutoff based on ball^2 (normally)
+    static constexpr auto ball2_sink(particleStore::ParticleReference& p) -> float { return p.ball() * p.ball(); }
+    // In resmoothSinks we may need to filter neighbors based on distance and other criteria
+    static auto inline accept_ball(PKD pkd, PARTICLE* P, double fDist2, blitz::TinyVector<double, 3> dr_node, const NN& nn) -> bool { return true; }
 };
 
 struct SmoothOnlyActive : SmoothEverything {
@@ -104,35 +108,6 @@ struct SmoothOnlyGasOptimised : SmoothOnlyGasActive {
 #endif
 };
 
-struct SmoothOnlyBH : SmoothEverything {
-#ifdef OPTIM_REORDER_IN_NODES
-    static inline auto range(treeStore::NodePointer node) {
-        auto start = node->lower();
-        start += node->Ngas();
-        if (node->have_Nstar()) start += node->Nstar();
-        auto end = start + node->Nbh();
-        return std::pair{start, end};
-    }
-    static inline auto range_neighbour(treeStore::NodePointer node) { return range(node); }
-    static inline auto may_have_active(treeStore::NodePointer& node) -> bool {
-    #ifdef OPTIM_REORDER_IN_NODES
-        return node->Nbh() > 0;
-    #else
-        return std::any_of(node->begin(), node->end(), [](auto& p) { return p.is_bh(); });
-    #endif
-    }
-    // The raange() method filters particles, so is_active() will always check only BH particles
-    static inline auto is_bh(particleStore::ParticleReference& p) -> bool { return true; }
-#else
-    static inline auto is_bh(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
-#endif
-    // DP: It looks like blackholes have to be marked and get unmarked during smoothing
-    //     for example when there is a merger and one of them is deleted.
-    static inline auto is_active(particleStore::ParticleReference& p) -> bool { return is_bh(p) && p.marked(); }
-    static inline auto accept_neighbour(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
-    static inline auto accept_sink(particleStore::ParticleReference& p) -> bool { return p.marked(); }
-};
-
 struct smContext {
     PKD pkd;
     PARTICLE* pSentinel = nullptr;
@@ -168,6 +143,7 @@ struct smContext {
     auto pqSearch(PQ* pq, blitz::TinyVector<double, 3> r, int iRoot) -> PQ*;
     void Gather(double fBall2, blitz::TinyVector<double, 3> r);
     auto getCell(int iCell, int id) { return (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL, iCell, id)]; }
+    void Release(std::span<NN> list);
 
     // for node-based smoothing
 #ifdef OPTIM_SMOOTH_NODE
@@ -175,10 +151,7 @@ struct smContext {
     auto getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, RangePolicy info = {}) -> Bound;
 
     template <class RangePolicy>
-    void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, RangePolicy info) {
-        resmoothSinks(sinks, bnd_node);
-    }
-    virtual void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node);
+    void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, RangePolicy info = {});
     template <class RangePolicy>
     void buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, RangePolicy info = {});
     template <class RangePolicy>
@@ -373,6 +346,54 @@ void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3
         else break;
     }
 }
+
+// IA: Now we should have inside nnList all the particles in the
+//  bucket (sinks) and those of which can interact with them
+//  from other buckets (smx->nnList)
+//
+// We just have to proceed to compute the correct dx, dy, dz and
+// pass that nnList to the smoothfcn routine
+//
+// However, we have different options to do so:
+// 1) Naive: we pass the whole nnList
+//
+// 2) Sorting: we could follow Gonnet, 2007 (10.1002/jcc.20563) to
+// reduce the number of distance computations, but this is troublesome
+// in our case because:
+//      a) we need to compute the distance anyway for sorting
+//      b) we could sort relative to the cell, but this is suboptimal
+//      c) we are not computing cell-cell interactions, so there is
+//            no well-defined axis that could be used for projection
+//
+template <class RangePolicy>
+void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, RangePolicy) {
+    std::vector<NN> nnList_p;
+    nnList_p.reserve(nnList.size());
+
+    for (auto& P : sinks) {
+        auto partj = pkd->particles[P];
+        if (!RangePolicy::accept_sink(partj)) continue;
+        const float pBall2 = RangePolicy::ball2_sink(partj);
+        const blitz::TinyVector<double, 3> dr_node{bnd_node.center() - partj.position()};
+
+        nnList_p.clear();
+        for (auto& nn : nnList) {
+            if (P == nn.pPart) continue;
+            const blitz::TinyVector<double, 3> dr{nn.dr - dr_node};
+            const double fDist2 = dot(dr, dr);
+            if (fDist2 < pBall2 && RangePolicy::accept_ball(pkd, P, fDist2, dr_node, nn)) {
+                nnList_p.push_back({.pPart = (nn.iPid == pkd->Self()) ? nn.pPart : pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE, nn.iIndex, nn.iPid),
+                                    .fDist2 = fDist2,
+                                    .dr = dr,
+                                    .iIndex = nn.iIndex,
+                                    .iPid = nn.iPid});
+            }
+        }
+        function->Smooth(partj, partj.ball(), nnList_p);
+        Release(nnList_p);
+    }
+}
+
 #endif // OPTIM_SMOOTH_NODE
 using SMX = smContext*;
 void smSmooth(SMX, SMF*);

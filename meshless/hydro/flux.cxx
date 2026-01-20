@@ -1,8 +1,11 @@
 #include <new>
+#include "blitz/tinyvec2.h"
 #include "hydro/hydro.h"
 #include "eEOS/eEOS.h"
 #include "hydro/limiters.h"
 #include "riemann.h"
+#include "smooth/smooth.h"
+#include "smooth/smoothfcn.h"
 using blitz::dot;
 using blitz::TinyVector;
 
@@ -851,6 +854,40 @@ void hydroFluxUpdateFromBuffer(PKD pkd, PARTICLE* pIn, EnumArray<T, E>& bo, cons
 }
 
 #endif // OPTIM_FLUX_VEC
+
+struct SmoothOnlyGasOptimisedFluxes : SmoothOnlyGasOptimised {
+    static auto inline accept_ball(PKD pkd, PARTICLE* P, double fDist2, TinyVector<double, 3> dr_node, const NN& nn) -> bool {
+#ifndef OPTIM_AVOID_IS_ACTIVE
+        abort(); // not supported
+#endif
+        const auto& qBall = nn.fBall;
+        if (qBall * qBall < fDist2) return false;
+#ifdef OPTIM_NO_REDUNDANT_FLUXES
+        if (nn.bMarked) { // OPTIM_AVOID_IS_ACTIVE
+            if (pkd->Self() == nn.iPid) {
+                if (P < nn.pPart) return false;
+            }
+            else if (pkd->Self() < nn.iPid) return false;
+        }
+#endif
+        return true;
+    }
+};
+
+auto ServiceHydroFluxes::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto pkd = pst->lcl()->pkd;
+    assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
+    auto helper = std::make_shared<SmoothHelperHydroFluxes>(pkd, in->dTime, in->dDelta, in->a, in->H, in->dConstGamma, in->eEOS);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
+#ifdef OPTIM_SMOOTH_NODE
+    *out = smx.ReSmoothNode<SmoothOnlyGasOptimisedFluxes>();
+#else
+        *out = smx.ReSmooth<SmoothOnlyGasOptimisedFluxes>();
+#endif
+    return sizeof(output);
+}
 
 void SmoothHelperHydroFluxes::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
 #if defined(USE_SIMD_FLUX)

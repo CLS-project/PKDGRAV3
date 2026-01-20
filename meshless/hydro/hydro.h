@@ -52,6 +52,26 @@ class ServiceHydroMergerBH : public TraverseCount<ServiceHydroMergerBH> {
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
+class ServiceHydroFluxes : public TraverseCount<ServiceHydroFluxes> {
+  public:
+    static constexpr std::string_view name = "HydroFluxes";
+    struct input {
+        int nSmooth;
+        bool bPeriodic;
+        double dTime;
+        double dDelta;
+        double a;
+        double H;
+        double dConstGamma;
+        struct eEOSparam eEOS;
+    };
+    using output = uint64_t;
+    explicit ServiceHydroFluxes(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 template <typename T, typename Enum>
 class EnumArray {
     static_assert(std::is_enum_v<Enum>, "EnumArray requires an enum type");

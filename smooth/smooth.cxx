@@ -115,11 +115,6 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
     case SMX_HYDRO_GRADIENT:
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
         return std::make_shared<SmoothHelperHydroGradients>(pkd, smf->bConditionedBarthJespersen, smf->bStricterSlopeLimiter);
-#ifdef OPTIM_FLUX_VEC
-    case SMX_HYDRO_FLUX_VEC:
-        assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
-        return std::make_shared<SmoothHelperHydroFluxes>(pkd, smf->dTime, smf->dDelta, smf->a, smf->H, smf->dConstGamma, smf->eEOS);
-#endif
     case SMX_HYDRO_STEP:
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
         return std::make_shared<SmoothHelperHydroStep>(pkd, smf->dEtaCourant, smf->a, smf->dCFLacc, smf->dDelta, smf->bDoGravity);
@@ -142,6 +137,14 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
         return std::make_shared<SmoothHelperBallSmooth>(pkd);
     }
     return nullptr;
+}
+
+void smContext::Release(std::span<NN> list) {
+    for (auto& nn : list) {
+        if (nn.iPid != pkd->Self()) {
+            pkd->mdl->Release(CID_PARTICLE, nn.pPart);
+        }
+    }
 }
 
 auto smContext::pqSearch(PQ* pq, TinyVector<double, 3> r, int iRoot) -> PQ* {
@@ -541,11 +544,7 @@ auto smContext::ReSmoothSingle(particleStore::ParticleReference& p, double fBall
     /*
     ** Release acquired pointers.
     */
-    for (auto& nn : nnList) {
-        if (nn.iPid != pkd->Self()) {
-            pkd->mdl->Release(CID_PARTICLE, nn.pPart);
-        }
-    }
+    Release(nnList);
     return true;
 }
 
@@ -584,79 +583,3 @@ uint64_t smReSmooth(SMX smx, int iSmoothType) {
 
     return nSmoothed;
 }
-
-#ifdef OPTIM_SMOOTH_NODE
-
-// IA: Now we should have inside nnList all the particles in the
-//  bucket (sinks) and those of which can interact with them
-//  from other buckets (smx->nnList)
-//
-// We just have to proceed to compute the correct dx, dy, dz and
-// pass that nnList to the smoothfcn routine
-//
-// However, we have different options to do so:
-// 1) Naive: we pass the whole nnList
-//
-// 2) Sorting: we could follow Gonnet, 2007 (10.1002/jcc.20563) to
-// reduce the number of distance computations, but this is troublesome
-// in our case because:
-//      a) we need to compute the distance anyway for sorting
-//      b) we could sort relative to the cell, but this is suboptimal
-//      c) we are not computing cell-cell interactions, so there is
-//            no well-defined axis that could be used for projection
-//
-void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node) {
-    std::vector<NN> nnList_p;
-    nnList_p.reserve(nnList.size());
-
-    for (auto& P : sinks) {
-        assert(P);
-        auto partj = pkd->particles[P];
-        const float pBall2 = partj.ball() * partj.ball();
-        const TinyVector<double, 3> dr_node{bnd_node.center() - partj.position()};
-
-        nnList_p.clear();
-        for (auto& nn : nnList) {
-            if (P == nn.pPart) continue;
-            const TinyVector<double, 3> dr{nn.dr - dr_node};
-            const double fDist2 = dot(dr, dr);
-            if (fDist2 < pBall2) {
-
-                // Reasons not to compute this interaction
-                if (iSmoothType == SMX_HYDRO_FLUX || iSmoothType == SMX_HYDRO_FLUX_VEC) {
-
-                    const auto& qBall = nn.fBall;
-                    if (qBall * qBall < fDist2) continue;
-
-    #ifdef OPTIM_AVOID_IS_ACTIVE
-                    int qIsActive = nn.bMarked;
-    #else
-                    abort(); // not supported
-    #endif
-
-    #ifdef OPTIM_NO_REDUNDANT_FLUXES
-                    if (qIsActive) {
-                        if (pkd->Self() == nn.iPid) {
-                            if (P < nn.pPart) continue;
-                        }
-                        else if (pkd->Self() < nn.iPid) continue;
-                    }
-    #endif
-                }
-
-                nnList_p.push_back({.pPart = (nn.iPid == pkd->Self()) ? nn.pPart : pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE, nn.iIndex, nn.iPid),
-                                    .fDist2 = fDist2,
-                                    .dr = dr,
-                                    .iIndex = nn.iIndex,
-                                    .iPid = nn.iPid});
-            }
-        }
-        function->Smooth(partj, partj.ball(), nnList_p);
-        for (auto& nn : nnList_p) {
-            if (nn.iPid != pkd->Self()) {
-                pkd->mdl->Release(CID_PARTICLE, nn.pPart);
-            }
-        }
-    }
-}
-#endif // OPTIM_SMOOTH_NODE

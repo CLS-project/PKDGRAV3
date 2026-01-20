@@ -22,6 +22,7 @@
 #include "pkd_config.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5200,18 +5201,21 @@ void MSR::MeshlessFluxes(double dTime, double dDelta) {
     double dsec;
     printf("Computing fluxes... ");
     TimerStart(TIMER_FLUXES);
-#ifdef OPTIM_SMOOTH_NODE
-    #ifdef OPTIM_AVOID_IS_ACTIVE
+#ifdef OPTIM_AVOID_IS_ACTIVE
     SelActives();
-    #endif
-    #ifdef OPTIM_FLUX_VEC
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX_VEC, 1);
-    #else
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX, 1);
-    #endif
-#else // no OPTIM_SMOOTH_NODE
-    ReSmooth(dTime, dDelta, SMX_HYDRO_FLUX, 1);
 #endif
+    ServiceHydroFluxes::input in{
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()),
+        .bPeriodic = parameters.get_bPeriodic(),
+        .dTime = dTime,
+        .dDelta = dDelta,
+        .a = Comove() ? csmTime2Exp(csm, dTime) : 1.0,
+        .H = Comove() ? csmTime2Hub(csm, dTime) : 0.0,
+        .dConstGamma = parameters.get_dConstGamma(),
+        .eEOS = get_eEOS(),
+    };
+    uint64_t nSmoothed;
+    mdl->RunService<ServiceHydroFluxes>(in, nSmoothed);
 
     TimerStop(TIMER_FLUXES);
     dsec = TimerGet(TIMER_FLUXES);
