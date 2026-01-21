@@ -392,6 +392,6 @@ auto ServiceHydroDensity::Service(PST pst, std::span<std::byte> vin, std::span<s
         *out = smx.ReSmooth<smooth::policy::OnlyGasOptimised>();
 #endif
     }
-    else smx.Smooth<smooth::policy::OnlyGasActive, true>();
+    else *out = smx.Smooth<smooth::policy::OnlyGasActive, true>();
     return sizeof(output);
 }

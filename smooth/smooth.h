@@ -222,7 +222,7 @@ struct smContext {
     auto ReSmoothSingle(particleStore::ParticleReference& p, double fBall) -> bool;
 
     template <RangePolicy TargetPolicy = smooth::policy::Everything, bool UpdateBall = false>
-    void Smooth(TargetPolicy target = {});
+    auto Smooth(TargetPolicy target = {}) -> uint64_t;
     template <RangePolicy TargetPolicy = smooth::policy::Everything>
     auto ReSmooth(TargetPolicy target = {}) -> uint64_t;
 #ifdef OPTIM_SMOOTH_NODE
@@ -241,16 +241,19 @@ struct smContext {
 };
 
 template <RangePolicy TargetPolicy, bool UpdateBall>
-void smContext::Smooth(TargetPolicy target) {
+auto smContext::Smooth(TargetPolicy target) -> uint64_t {
+    uint64_t nSmoothed = 0;
     create();
     for (auto& p : pkd->particles) {
         if (target.active(p)) {
+            ++nSmoothed;
             auto fBall = SmoothSingle(p);
             if constexpr (UpdateBall) p.set_ball(fBall);
             pkd->mdl->CacheCheck();
         }
     }
     finish();
+    return nSmoothed;
 }
 
 template <RangePolicy TargetPolicy>

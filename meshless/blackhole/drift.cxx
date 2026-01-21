@@ -8,11 +8,12 @@ using blitz::TinyVector;
 
 auto ServiceBHGasPin::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->lcl()->pkd;
     auto helper = std::make_shared<SmoothHelperBHGasPin>(pkd, in->a);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
-    smx.Smooth<smooth::policy::OnlyBH>();
-    return 0;
+    *out = smx.Smooth<smooth::policy::OnlyBH>();
+    return sizeof(output);
 }
 
 void SmoothHelperBHGasPin::pack(void* dst, const void* src) {

@@ -72,7 +72,7 @@ class ServiceHydroFluxes : public TraverseCount<ServiceHydroFluxes> {
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-class ServiceBHGasPin : public TraversePST {
+class ServiceBHGasPin : public TraverseCount<ServiceBHGasPin> {
   public:
     static constexpr std::string_view name = "BHGasPin";
     struct input {
@@ -80,22 +80,22 @@ class ServiceBHGasPin : public TraversePST {
         bool bPeriodic;
         double a;
     };
-    using output = void;
-    explicit ServiceBHGasPin(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+    using output = uint64_t;
+    explicit ServiceBHGasPin(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-class ServiceBHStep : public TraversePST {
+class ServiceBHStep : public TraverseCount<ServiceBHStep> {
   public:
     static constexpr std::string_view name = "BHStep";
     struct input {
         int nSmooth;
         bool bPeriodic;
     };
-    using output = void;
-    explicit ServiceBHStep(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+    using output = uint64_t;
+    explicit ServiceBHStep(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
@@ -136,7 +136,7 @@ class ServiceHydroStep : public TraverseCount<ServiceHydroStep> {
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-class ServiceSNFeedback : public TraversePST {
+class ServiceSNFeedback : public TraverseCount<ServiceSNFeedback> {
   public:
     static constexpr std::string_view name = "SNFeedback";
     struct input {
@@ -150,14 +150,14 @@ class ServiceSNFeedback : public TraversePST {
         double dSNIaFBSpecEnergy;
         double dConstGamma;
     };
-    using output = void;
-    explicit ServiceSNFeedback(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+    using output = uint64_t;
+    explicit ServiceSNFeedback(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-class ServiceChemEnrich : public TraversePST {
+class ServiceChemEnrich : public TraverseCount<ServiceChemEnrich> {
   public:
     static constexpr std::string_view name = "ChemEnrich";
     struct input {
@@ -169,14 +169,14 @@ class ServiceChemEnrich : public TraversePST {
         double dSNIaNorm;
         double dSNIaScale;
     };
-    using output = void;
-    explicit ServiceChemEnrich(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+    using output = uint64_t;
+    explicit ServiceChemEnrich(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-class ServiceBHEvolve : public TraversePST {
+class ServiceBHEvolve : public TraverseCount<ServiceBHEvolve> {
   public:
     static constexpr std::string_view name = "BHEvolve";
     struct input {
@@ -192,8 +192,8 @@ class ServiceBHEvolve : public TraversePST {
         bool bBHAccretion;
         bool bBHFeedback;
     };
-    using output = void;
-    explicit ServiceBHEvolve(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+    using output = uint64_t;
+    explicit ServiceBHEvolve(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
