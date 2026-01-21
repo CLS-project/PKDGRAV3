@@ -143,6 +143,9 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceHydroGradients>(pst);
     mdl->AddService<ServiceHydroStep>(pst);
     mdl->AddService<ServiceSNFeedback>(pst);
+#ifdef STELLAR_EVOLUTION
+    mdl->AddService<ServiceChemEnrich>(pst);
+#endif
     mdl->AddService<ServiceBHMerger>(pst);
     mdl->AddService<ServiceBHGasPin>(pst);
     mdl->AddService<ServiceBHEvolve>(pst);

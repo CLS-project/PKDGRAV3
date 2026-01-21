@@ -2898,7 +2898,7 @@ int MSR::CheckForOutput(int iStep, int nSteps, double dTime, int* pbDoCheckpoint
     return *pbDoOutput || *pbDoCheckpoint;
 }
 
-auto MSR::StellarFeedback(double dTime) -> uint64_t {
+void MSR::StellarFeedback(double dTime) {
     ServiceSNFeedback::input in{.nSmooth = static_cast<int>(parameters.get_nSmooth()),
                                 .bPeriodic = parameters.get_bPeriodic(),
                                 .dTime = dTime,
@@ -2908,9 +2908,12 @@ auto MSR::StellarFeedback(double dTime) -> uint64_t {
                                 .dCCSNFBSpecEnergy = calc.dCCSNFBSpecEnergy,
                                 .dSNIaFBSpecEnergy = calc.dSNIaFBSpecEnergy,
                                 .dConstGamma = parameters.get_dConstGamma()};
-    uint64_t nSmoothed = 0;
-    mdl->RunService<ServiceSNFeedback>(in, nSmoothed);
-    return nSmoothed;
+    mdl->RunService<ServiceSNFeedback>(in);
+}
+
+void MSR::ChemEnrich(double dTime) {
+    ServiceChemEnrich::input in{.nSmooth = static_cast<int>(parameters.get_nSmooth()), .bPeriodic = parameters.get_bPeriodic(), .dTime = dTime};
+    mdl->RunService<ServiceChemEnrich>(in);
 }
 
 int MSR::NewTopStepKDK(double& dTime,                                           /* MODIFIED: Current simulation time */
@@ -3165,7 +3168,7 @@ int MSR::NewTopStepKDK(double& dTime,                                           
         }
 #ifdef STELLAR_EVOLUTION
         if (parameters.get_bChemEnrich()) {
-            Smooth(dTime, dDelta, SMX_CHEM_ENRICHMENT, 1, parameters.get_nSmooth());
+            ChemEnrich(dTime);
         }
 #endif
     }
@@ -3337,7 +3340,7 @@ void MSR::TopStepKDK(double dStep,             /* Current step */
             print("Computing stellar evolution... ");
             TimerStart(TIMER_STEV);
             if (parameters.get_bChemEnrich()) {
-                Smooth(dTime, dDeltaStep, SMX_CHEM_ENRICHMENT, 1, parameters.get_nSmooth());
+                ChemEnrich(dTime);
             }
             TimerStop(TIMER_STEV);
             dsec = TimerGet(TIMER_STEV);

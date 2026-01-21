@@ -157,6 +157,25 @@ class ServiceSNFeedback : public TraversePST {
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
+class ServiceChemEnrich : public TraversePST {
+  public:
+    static constexpr std::string_view name = "ChemEnrich";
+    struct input {
+        int nSmooth;
+        bool bPeriodic;
+        double dTime;
+        double dWindSpecificEkin;
+        double dCCSNMinMass;
+        double dSNIaNorm;
+        double dSNIaScale;
+    };
+    using output = void;
+    explicit ServiceChemEnrich(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 class ServiceBHEvolve : public TraversePST {
   public:
     static constexpr std::string_view name = "BHEvolve";

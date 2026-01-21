@@ -1,13 +1,32 @@
-#ifdef STELLAR_EVOLUTION
 
-    #include <hdf5.h>
+#include <hdf5.h>
 
-    #include "stellarevolution.h"
-    #include "master.h"
-    #include "imf.h"
-    #include "hydro/hydro.h"
+#include "stellarevolution.h"
+#include "master.h"
+#include "imf.h"
+#include "hydro/hydro.h"
 
-using blitz::TinyVector;
+struct SmoothChemEnrich : smooth::policy::OnlyGas {
+    double dTime;
+    inline auto active(particleStore::ParticleReference& p) -> bool {
+        if (p.is_star()) {
+            auto& star = p.star();
+            return dTime > star.fNextEnrichTime;
+        }
+        return false;
+    }
+};
+
+auto ServiceChemEnrich::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    auto helper = std::make_shared<SmoothHelperChemEnrich>(pkd, in->dTime, in->dWindSpecificEkin, in->dCCSNMinMass, in->dSNIaNorm, in->dSNIaScale);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
+    smx.Smooth<SmoothChemEnrich>({
+        .dTime = in->dTime,
+    });
+    return 0;
+}
 
 void MSR::SetStellarEvolutionParam() {
     const double dYrToTime = SECONDSPERYEAR / units.dSecUnit;
@@ -189,9 +208,9 @@ void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference& p, decorator
     const double dDeltaUint = sph.fReceivedE - (dNewEkin - dOldEkin);
     if (dDeltaUint > 0.0) {
         sph.Uint += dDeltaUint;
-    #ifdef ENTROPY_SWITCH
+#ifdef ENTROPY_SWITCH
         sph.S += dDeltaUint * (dConstGamma - 1.0) * pow(p.density(), 1.0 - dConstGamma);
-    #endif
+#endif
     }
 
     sph.ReceivedMom = 0.0f;
@@ -303,7 +322,7 @@ void SmoothHelperChemEnrich::Smooth(particleStore::ParticleReference& p, float f
        Since this multiplication must always be made, it is done once and for all in
        the function stevStarParticleInit. */
 
-    TinyVector<float, ELEMENT_COUNT> ElemMass{0.0f};
+    blitz::TinyVector<float, ELEMENT_COUNT> ElemMass{0.0f};
     float fMetalMass{0.0f};
 
     const float fTransMass = dCCSNMinMass;
@@ -379,15 +398,15 @@ void SmoothHelperChemEnrich::Smooth(particleStore::ParticleReference& p, float f
     }
 }
 
-    #define H5FIELD_MASS "Masses"
-    #define H5FIELD_METALLICITY "Metallicities"
-    #define H5FIELD_SPECNAME "Species_names"
-    #define H5FIELD_TABLEZNAME "Yield_names"
-    #define H5FIELD_TABLE "Yields"
-    #define H5FIELD_YIELD "Yield"
-    #define H5FIELD_METALYIELD "Total_Metals"
-    #define H5FIELD_EJMASS "Ejected_mass"
-    #define H5FIELD_LIFETIME "Lifetimes"
+#define H5FIELD_MASS "Masses"
+#define H5FIELD_METALLICITY "Metallicities"
+#define H5FIELD_SPECNAME "Species_names"
+#define H5FIELD_TABLEZNAME "Yield_names"
+#define H5FIELD_TABLE "Yields"
+#define H5FIELD_YIELD "Yield"
+#define H5FIELD_METALYIELD "Total_Metals"
+#define H5FIELD_EJMASS "Ejected_mass"
+#define H5FIELD_LIFETIME "Lifetimes"
 
 STEV_RAWDATA* stevReadTable(char* pszPath) {
     hid_t fileID, datatype, dataspace;
@@ -681,5 +700,3 @@ float stevPowerlawNumSNIa(double dSNIaNorm, double dSNIaScale, decorators::STAR&
 
     return (float)dSNIaNorm * (powf(fFinalTime, (float)dSNIaScale + 1.0f) - powf(fInitialTime, (float)dSNIaScale + 1.0f));
 }
-
-#endif /* STELLAR_EVOLUTION */

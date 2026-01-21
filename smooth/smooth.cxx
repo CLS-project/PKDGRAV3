@@ -112,10 +112,6 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
         return std::make_shared<SmoothHelperHopChains>(pkd);
     case SMX_PRINTNN:
         return std::make_shared<SmoothHelperPrintNN>(pkd);
-#ifdef STELLAR_EVOLUTION
-    case SMX_CHEM_ENRICHMENT:
-        return std::make_shared<SmoothHelperChemEnrich>(pkd, smf->dTime, smf->dWindSpecificEkin, smf->dCCSNMinMass, smf->dSNIaNorm, smf->dSNIaScale);
-#endif
     case SMX_BALL:
         assert(pkd->particles.present(PKD_FIELD::oBall));
         return std::make_shared<SmoothHelperBallSmooth>(pkd);
@@ -334,38 +330,23 @@ void smSmooth(SMX smx, SMF* smf) {
     */
     for (auto& p : pkd->particles) p.set_marked(true);
     smx->create();
-    switch (smx->iSmoothType) {
-#ifdef STELLAR_EVOLUTION
-    case SMX_CHEM_ENRICHMENT:
-        for (auto& p : pkd->particles) {
-            if (p.is_star()) {
-                auto& star = p.star();
-                if (smf->dTime > star.fNextEnrichTime) {
-                    smx->SmoothSingle(p);
+    for (auto& p : pkd->particles) {
+        if (!smf->bMeshlessHydro) {
+            smx->SmoothSingle(p);
+            // p.set_ball(smx->SmoothSingle(p));
+        }
+        else {
+            if (p.is_active()) {
+                fBall = smx->SmoothSingle(p);
+                if (smf->bUpdateBall) {
+                    p.set_ball(fBall);
                 }
             }
         }
-        break;
-#endif
-    default:
-        for (auto& p : pkd->particles) {
-            if (!smf->bMeshlessHydro) {
-                smx->SmoothSingle(p);
-                // p.set_ball(smx->SmoothSingle(p));
-            }
-            else {
-                if (p.is_active()) {
-                    fBall = smx->SmoothSingle(p);
-                    if (smf->bUpdateBall) {
-                        p.set_ball(fBall);
-                    }
-                }
-            }
-            /*
-            ** Call mdlCacheCheck to make sure we are making progress!
-            */
-            pkd->mdl->CacheCheck();
-        }
+        /*
+        ** Call mdlCacheCheck to make sure we are making progress!
+        */
+        pkd->mdl->CacheCheck();
     }
     smx->finish();
 }
@@ -512,18 +493,10 @@ uint64_t smReSmooth(SMX smx, int iSmoothType) {
     PKD pkd = smx->pkd;
     uint64_t nSmoothed = 0;
 
-    switch (iSmoothType) {
-
-    case SMX_CHEM_ENRICHMENT:
-        assert(0);
-        break;
-
-    default:
-        for (auto& p : pkd->particles) {
-            if (p.is_active() && p.is_gas()) {
-                smx->ReSmoothSingle(p, p.ball());
-                nSmoothed++;
-            }
+    for (auto& p : pkd->particles) {
+        if (p.is_active() && p.is_gas()) {
+            smx->ReSmoothSingle(p, p.ball());
+            nSmoothed++;
         }
     }
 

@@ -172,7 +172,6 @@ enum SMOOTH_TYPE {
     SMX_HOP_LINK,
     SMX_BALL,
     SMX_PRINTNN,
-    SMX_CHEM_ENRICHMENT,
 };
 
 extern void init_shared_gas_decorator(PKD pkd, void* dst);

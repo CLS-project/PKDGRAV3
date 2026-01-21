@@ -386,7 +386,9 @@ class MSR {
     }
     int MeshlessHydro() const { return MeshlessFiniteMass() || MeshlessFiniteVolume(); }
     int DoStellarFeedback() const { return parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback(); }
-    auto StellarFeedback(double dTime) -> uint64_t;
+    void StellarFeedback(double dTime);
+    void ChemEnrich(double dTime);
+
     int DoGravity() const { return parameters.get_bDoGravity(); }
     double Eta() const { return parameters.get_dEta(); }
     int MaxRung() const { return parameters.get_iMaxRung(); }
