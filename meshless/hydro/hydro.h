@@ -38,15 +38,15 @@ class ServiceHydroDensityFinal : public TraverseCount<ServiceHydroDensityFinal> 
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-class ServiceHydroMergerBH : public TraverseCount<ServiceHydroMergerBH> {
+class ServiceBHMerger : public TraverseCount<ServiceBHMerger> {
   public:
-    static constexpr std::string_view name = "HydroMergerBH";
+    static constexpr std::string_view name = "BHMerger";
     struct input {
         int nSmooth;
         bool bPeriodic;
     };
     using output = uint64_t;
-    explicit ServiceHydroMergerBH(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+    explicit ServiceBHMerger(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
@@ -67,6 +67,63 @@ class ServiceHydroFluxes : public TraverseCount<ServiceHydroFluxes> {
     };
     using output = uint64_t;
     explicit ServiceHydroFluxes(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+// This selects only blackhole particles for smoothing with gas.
+struct SmoothOnlyBH : SmoothEverything {
+    static inline auto is_active(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
+};
+
+class ServiceBHGasPin : public TraversePST {
+  public:
+    static constexpr std::string_view name = "BHGasPin";
+    struct input {
+        int nSmooth;
+        bool bPeriodic;
+        double a;
+    };
+    using output = void;
+    explicit ServiceBHGasPin(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceBHStep : public TraversePST {
+  public:
+    static constexpr std::string_view name = "BHStep";
+    struct input {
+        int nSmooth;
+        bool bPeriodic;
+    };
+    using output = void;
+    explicit ServiceBHStep(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceBHEvolve : public TraversePST {
+  public:
+    static constexpr std::string_view name = "BHEvolve";
+    struct input {
+        int nSmooth;
+        bool bPeriodic;
+        double a;
+        double dBHAccretionAlpha;
+        double dBHAccretionCvisc;
+        double dBHAccretionEddFac;
+        double dConstGamma;
+        double dBHFBEff;
+        double dBHFBEcrit;
+        bool bBHAccretion;
+        bool bBHFeedback;
+    };
+    using output = void;
+    explicit ServiceBHEvolve(PST pst) : TraversePST(pst, name, sizeof(input)) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;

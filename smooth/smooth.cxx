@@ -121,13 +121,6 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
     case SMX_SN_FEEDBACK:
         return std::make_shared<SmoothHelperSNFeedback>(pkd, smf->dTime, smf->dCCSNFBDelay, smf->dSNIaFBDelay, smf->dSNFBDu, smf->dCCSNFBSpecEnergy,
                                                         smf->dSNIaFBSpecEnergy, smf->dConstGamma);
-    case SMX_BH_STEP:
-        return std::make_shared<SmoothHelperBHstep>(pkd);
-    case SMX_BH_EVOLVE:
-        return std::make_shared<SmoothHelperBHEvolve>(pkd, smf->a, smf->dBHAccretionAlpha, smf->dBHAccretionCvisc, smf->dBHAccretionEddFac, smf->dConstGamma,
-                                                      smf->dBHFBEff, smf->dBHFBEcrit, smf->bBHAccretion, smf->bBHFeedback);
-    case SMX_BH_GASPIN:
-        return std::make_shared<SmoothHelperBHGasPin>(pkd, smf->a);
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
         return std::make_shared<SmoothHelperChemEnrich>(pkd, smf->dTime, smf->dWindSpecificEkin, smf->dCCSNMinMass, smf->dSNIaNorm, smf->dSNIaScale);
@@ -351,15 +344,6 @@ void smSmooth(SMX smx, SMF* smf) {
     for (auto& p : pkd->particles) p.set_marked(true);
     smx->create();
     switch (smx->iSmoothType) {
-    case SMX_BH_EVOLVE:
-    case SMX_BH_STEP:
-    case SMX_BH_GASPIN:
-        for (auto& p : pkd->particles) {
-            if (p.is_bh()) {
-                smx->SmoothSingle(p);
-            }
-        }
-        break;
     case SMX_SN_FEEDBACK:
         for (auto& p : pkd->particles) {
             if (p.is_star()) {
@@ -566,9 +550,6 @@ uint64_t smReSmooth(SMX smx, int iSmoothType) {
 
     case SMX_SN_FEEDBACK:
     case SMX_CHEM_ENRICHMENT:
-    case SMX_BH_EVOLVE:
-    case SMX_BH_STEP:
-    case SMX_BH_GASPIN:
         assert(0);
         break;
 

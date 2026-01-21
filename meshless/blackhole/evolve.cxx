@@ -3,6 +3,16 @@
 using blitz::dot;
 using blitz::TinyVector;
 
+auto ServiceBHEvolve::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    auto helper = std::make_shared<SmoothHelperBHEvolve>(pkd, in->a, in->dBHAccretionAlpha, in->dBHAccretionCvisc, in->dBHAccretionEddFac, in->dConstGamma,
+                                                         in->dBHFBEff, in->dBHFBEcrit, in->bBHAccretion, in->bBHFeedback);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
+    smx.Smooth<SmoothOnlyBH>();
+    return 0;
+}
+
 static inline int bhAccretion(PKD pkd, std::span<NN> nnList, particleStore::ParticleReference& p, decorators::BLACKHOLE& bh, float pH, float pMass,
                               double pDensity, double dScaleFactor) {
     const double prob_factor = (bh.dInternalMass - pMass) / pDensity;

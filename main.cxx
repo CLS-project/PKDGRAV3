@@ -139,7 +139,10 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceEndTimestepIntegration>(pst);
     mdl->AddService<ServiceHydroDensity>(pst);
     mdl->AddService<ServiceHydroDensityFinal>(pst);
-    mdl->AddService<ServiceHydroMergerBH>(pst);
+    mdl->AddService<ServiceBHMerger>(pst);
+    mdl->AddService<ServiceBHGasPin>(pst);
+    mdl->AddService<ServiceBHEvolve>(pst);
+    mdl->AddService<ServiceBHStep>(pst);
     mdl->AddService<ServiceHydroFluxes>(pst);
     mdl->AddService<ServiceSetAdd>(pst);
     mdl->AddService<ServiceSwapAll>(pst);

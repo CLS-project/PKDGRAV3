@@ -5035,7 +5035,12 @@ void MSR::BHAccretion(double dTime) {
 }
 
 void MSR::BHGasPin(double dTime, double dDelta) {
-    Smooth(dTime, dDelta, SMX_BH_GASPIN, 0, parameters.get_nSmooth());
+    ServiceBHGasPin::input in{
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()),
+        .bPeriodic = parameters.get_bPeriodic(),
+        .a = csmTime2Exp(csm, dTime),
+    };
+    mdl->RunService<ServiceBHGasPin>(in);
 }
 
 void MSR::BHReposition() {
@@ -5043,7 +5048,20 @@ void MSR::BHReposition() {
 }
 
 void MSR::BHEvolve(double dTime, double dDelta) {
-    Smooth(dTime, dDelta, SMX_BH_EVOLVE, 1, parameters.get_nSmooth());
+    ServiceBHEvolve::input in{
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()),
+        .bPeriodic = parameters.get_bPeriodic(),
+        .a = csmTime2Exp(csm, dTime),
+        .dBHAccretionAlpha = parameters.get_dBHAccretionAlpha(),
+        .dBHAccretionCvisc = parameters.get_dBHAccretionCvisc(),
+        .dBHAccretionEddFac = calc.dBHAccretionEddFac,
+        .dConstGamma = parameters.get_dConstGamma(),
+        .dBHFBEff = calc.dBHFBEff,
+        .dBHFBEcrit = calc.dBHFBEcrit,
+        .bBHAccretion = parameters.get_bBHAccretion(),
+        .bBHFeedback = parameters.get_bBHFeedback(),
+    };
+    mdl->RunService<ServiceBHEvolve>(in);
 }
 
 void MSR::SetBlackholeParam() {
@@ -5143,18 +5161,22 @@ void MSR::BHMerger(double dTime) {
     ReorderWithinNodes();
 #endif
 
-    ServiceHydroMergerBH::input inBHMerger{
+    ServiceBHMerger::input inBHMerger{
         .nSmooth = static_cast<int>(parameters.get_nSmooth()),
         .bPeriodic = parameters.get_bPeriodic(),
     };
-    ServiceHydroMergerBH::output outBHMerger;
-    mdl->RunService<ServiceHydroMergerBH>(inBHMerger, outBHMerger);
+    ServiceBHMerger::output outBHMerger;
+    mdl->RunService<ServiceBHMerger>(inBHMerger, outBHMerger);
     TimerStop(TIMER_BHS);
 }
 
 void MSR::BHStep(double dTime, double dDelta) {
 #ifndef DEBUG_BH_ONLY
-    Smooth(dTime, dDelta, SMX_BH_STEP, 0, parameters.get_nSmooth());
+    ServiceBHStep::input in{
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()),
+        .bPeriodic = parameters.get_bPeriodic(),
+    };
+    mdl->RunService<ServiceBHStep>(in);
 #endif
 }
 

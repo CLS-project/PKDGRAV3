@@ -202,7 +202,7 @@ template <class RangePolicy>
 auto smContext::ReSmooth() -> uint64_t {
     uint64_t nSmoothed = 0;
     for (auto& p : pkd->particles) {
-        if (RangePolicy::is_active(p) && RangePolicy::accept_sink(p)) {
+        if (RangePolicy::is_active(p)) {
             ReSmoothSingle(p, p.ball());
             ++nSmoothed;
             pkd->mdl->CacheCheck();

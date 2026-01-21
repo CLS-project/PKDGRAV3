@@ -11,7 +11,7 @@ using blitz::floor;
 using blitz::max;
 using blitz::TinyVector;
 
-struct SmoothOnlyBH : SmoothEverything {
+struct SmoothOnlyBHBH : SmoothEverything {
 #ifdef OPTIM_REORDER_IN_NODES
     static inline auto range(treeStore::NodePointer node) {
         auto start = node->lower();
@@ -42,13 +42,13 @@ struct SmoothOnlyBH : SmoothEverything {
     static constexpr auto ball2_sink(particleStore::ParticleReference& p) -> float { return 4 * p.soft() * p.soft(); }
 };
 
-auto ServiceHydroMergerBH::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+auto ServiceBHMerger::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto pkd = pst->lcl()->pkd;
     auto helper = std::make_shared<SmoothHelperBHmerger>(pkd);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
-    *out = smx.ReSmoothNode<SmoothOnlyBH>();
+    *out = smx.ReSmoothNode<SmoothOnlyBHBH>();
     return sizeof(output);
 }
 

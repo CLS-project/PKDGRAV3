@@ -1,9 +1,19 @@
 #include "blackhole/drift.h"
+#include "hydro/hydro.h"
 
 #define NOT_PINNED -1
 
 using blitz::dot;
 using blitz::TinyVector;
+
+auto ServiceBHGasPin::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    auto helper = std::make_shared<SmoothHelperBHGasPin>(pkd, in->a);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
+    smx.Smooth<SmoothOnlyBH>();
+    return 0;
+}
 
 void SmoothHelperBHGasPin::pack(void* dst, const void* src) {
     auto p1 = static_cast<pack_type*>(dst);
