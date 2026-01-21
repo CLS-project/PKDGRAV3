@@ -5249,14 +5249,17 @@ void MSR::MeshlessGradients(double dTime, double dDelta) {
     printf("Computing gradients... ");
 
     TimerStart(TIMER_GRADIENTS);
-#ifdef OPTIM_SMOOTH_NODE
-    #ifdef OPTIM_AVOID_IS_ACTIVE
+#ifdef OPTIM_AVOID_IS_ACTIVE
     SelActives();
-    #endif
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_GRADIENT, 0);
-#else
-    ReSmooth(dTime, dDelta, SMX_HYDRO_GRADIENT, 0);
 #endif
+    ServiceHydroGradients::input in{
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()),
+        .bPeriodic = parameters.get_bPeriodic(),
+        .bConditionedBarthJespersen = parameters.get_bConditionedBarthJespersen(),
+        .bStricterSlopeLimiter = parameters.get_bStricterSlopeLimiter(),
+    };
+    uint64_t nSmoothed;
+    mdl->RunService<ServiceHydroGradients>(in, nSmoothed);
 
     TimerStop(TIMER_GRADIENTS);
     dsec = TimerGet(TIMER_GRADIENTS);

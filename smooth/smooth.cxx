@@ -112,9 +112,6 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
         return std::make_shared<SmoothHelperHopChains>(pkd);
     case SMX_PRINTNN:
         return std::make_shared<SmoothHelperPrintNN>(pkd);
-    case SMX_HYDRO_GRADIENT:
-        assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
-        return std::make_shared<SmoothHelperHydroGradients>(pkd, smf->bConditionedBarthJespersen, smf->bStricterSlopeLimiter);
     case SMX_HYDRO_STEP:
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
         return std::make_shared<SmoothHelperHydroStep>(pkd, smf->dEtaCourant, smf->a, smf->dCFLacc, smf->dDelta, smf->bDoGravity);
