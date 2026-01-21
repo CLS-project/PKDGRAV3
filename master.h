@@ -452,7 +452,6 @@ class MSR {
     void Drift(double dTime, double dDelta, int iRoot);
 
     auto get_eEOS() -> eEOSparam;
-    void SmoothSetSMF(SMF* smf, double dTime, double dDelta, int nSmooth);
     void ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung);
     void KickKDKOpen(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi);
     void KickKDKClose(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi);

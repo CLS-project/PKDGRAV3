@@ -181,7 +181,7 @@ struct smContext {
     std::vector<stStack> ST;
 
     int iSmoothType = 0;
-    static auto makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -> std::shared_ptr<SmoothHelper>;
+    static auto makeHelper(PKD pkd, int bSymmetric, int iSmoothType) -> std::shared_ptr<SmoothHelper>;
 
     void create();
     void finish();
@@ -204,7 +204,7 @@ struct smContext {
     void buildInteractionList(Bound bnd_node, SourcePolicy info = {});
 #endif
   public:
-    smContext(PKD pkdIn, int iSmoothType, SMF* smf, bool bSymmetric, int nSmooth, bool bPeriodic);
+    smContext(PKD pkdIn, int iSmoothType, bool bSymmetric, int nSmooth, bool bPeriodic);
     smContext(PKD pkdIn, std::shared_ptr<SmoothFunction> helper, int nSmooth, bool bPeriodic);
 
     template <class T>
@@ -451,7 +451,5 @@ void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, Target
 
 #endif // OPTIM_SMOOTH_NODE
 using SMX = smContext*;
-void smSmooth(SMX, SMF*);
-auto smReSmooth(SMX, int) -> uint64_t;
 
 #endif

@@ -8,4 +8,3 @@ class SmoothHelperBHmerger : public SmoothHelper {
   public:
     SmoothHelperBHmerger(pkdContext* pkd) : SmoothHelper(pkd, true) {}
 };
-uint64_t smReSmoothBHNode(SMX smx, SMF* smf, int iSmoothType);

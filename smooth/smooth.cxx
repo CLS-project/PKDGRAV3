@@ -47,8 +47,8 @@ using blitz::floor;
 using blitz::TinyVector;
 
 // This delegating constructor will go away once we convert the functions
-smContext::smContext(PKD pkdIn, int iSmoothType, SMF* smf, bool bSymmetric, int nSmooth, bool bPeriodic)
-    : smContext(pkdIn, makeHelper(pkdIn, smf, bSymmetric, iSmoothType), nSmooth, bPeriodic) {
+smContext::smContext(PKD pkdIn, int iSmoothType, bool bSymmetric, int nSmooth, bool bPeriodic)
+    : smContext(pkdIn, makeHelper(pkdIn, bSymmetric, iSmoothType), nSmooth, bPeriodic) {
     this->iSmoothType = iSmoothType;
 }
 
@@ -90,7 +90,7 @@ smContext::~smContext() {
 }
 
 // This function should go away once we convert the functions
-auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -> std::shared_ptr<SmoothHelper> {
+auto smContext::makeHelper(PKD pkd, int bSymmetric, int iSmoothType) -> std::shared_ptr<SmoothHelper> {
     switch (iSmoothType) {
     case SMX_NULL:
         return std::make_shared<SmoothHelperNull>(pkd);
@@ -321,36 +321,6 @@ auto smContext::SmoothSingle(particleStore::ParticleReference& p, int iRoot1, in
     return fBall;
 }
 
-void smSmooth(SMX smx, SMF* smf) {
-    PKD pkd = smx->pkd;
-    float fBall;
-
-    /*
-    ** Initialize the bInactive flags for all local particles.
-    */
-    for (auto& p : pkd->particles) p.set_marked(true);
-    smx->create();
-    for (auto& p : pkd->particles) {
-        if (!smf->bMeshlessHydro) {
-            smx->SmoothSingle(p);
-            // p.set_ball(smx->SmoothSingle(p));
-        }
-        else {
-            if (p.is_active()) {
-                fBall = smx->SmoothSingle(p);
-                if (smf->bUpdateBall) {
-                    p.set_ball(fBall);
-                }
-            }
-        }
-        /*
-        ** Call mdlCacheCheck to make sure we are making progress!
-        */
-        pkd->mdl->CacheCheck();
-    }
-    smx->finish();
-}
-
 void smContext::Gather(double fBall2, TinyVector<double, 3> r) {
     auto mdl = pkd->mdl;
     int idSelf = pkd->Self();
@@ -487,18 +457,4 @@ auto smContext::ReSmoothSingle(particleStore::ParticleReference& p, double fBall
     */
     Release(nnList);
     return true;
-}
-
-uint64_t smReSmooth(SMX smx, int iSmoothType) {
-    PKD pkd = smx->pkd;
-    uint64_t nSmoothed = 0;
-
-    for (auto& p : pkd->particles) {
-        if (p.is_active() && p.is_gas()) {
-            smx->ReSmoothSingle(p, p.ball());
-            nSmoothed++;
-        }
-    }
-
-    return nSmoothed;
 }

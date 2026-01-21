@@ -377,9 +377,9 @@ class MeshlessHydroSolver {
         /*
         #ifdef EEOS_JEANS
         const double pLjeans =
-            jeansPressureFloor(L_rho, pH, smf->dConstGamma, smf->dEOSNJeans);
+            jeansPressureFloor(L_rho, pH, dConstGamma, dEOSNJeans);
         const double pRjeans =
-            jeansPressureFloor(R_rho, bi(IFLD::ball,i), smf->dConstGamma, smf->dEOSNJeans);
+            jeansPressureFloor(R_rho, bi(IFLD::ball,i), dConstGamma, dEOSNJeans);
         L_p = max(L_p, pLjeans);
         R_p = max(R_p, pRjeans);
         #endif

@@ -514,7 +514,7 @@ int pstSmooth(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         auto pkd = pst->lcl()->pkd;
-        smContext smx(pkd, in->iSmoothType, &in->smf, in->bSymmetric, in->nSmooth, in->bPeriodic);
+        smContext smx(pkd, in->iSmoothType, in->bSymmetric, in->nSmooth, in->bPeriodic);
         smx.Smooth();
     }
     return 0;
@@ -535,7 +535,7 @@ int pstReSmooth(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         auto pkd = pst->lcl()->pkd;
-        smContext smx(pkd, in->iSmoothType, &in->smf, in->bSymmetric, in->nSmooth, in->bPeriodic);
+        smContext smx(pkd, in->iSmoothType, in->bSymmetric, in->nSmooth, in->bPeriodic);
         out->nSmoothed = smx.ReSmooth();
     }
     return sizeof(struct outSmooth);
@@ -567,7 +567,7 @@ int pstReSmoothNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         auto pkd = pst->lcl()->pkd;
-        smContext smx(pkd, in->iSmoothType, &in->smf, in->bSymmetric, in->nSmooth, in->bPeriodic);
+        smContext smx(pkd, in->iSmoothType, in->bSymmetric, in->nSmooth, in->bPeriodic);
         out->nSmoothed = smx.ReSmoothNode<smooth::policy::OnlyGasOptimised, smooth::policy::OnlyGas>();
     #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
         if (out->nSmoothed) {

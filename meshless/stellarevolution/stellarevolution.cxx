@@ -299,7 +299,7 @@ void SmoothHelperChemEnrich::combine(void* dst, const void* src, const void* key
    compared and/or operated directly with the times in the simulation, they must all be in
    code units.
    Hence, here all the masses from the tables (pkd->StelEvolData) and the relevant parameters
-   in smf are in Msol. Conversely, star.fInitialMass and p.mass() are in code units.
+   are in Msol. Conversely, star.fInitialMass and p.mass() are in code units.
    Furthermore, all times are in code units.
 */
 void SmoothHelperChemEnrich::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {

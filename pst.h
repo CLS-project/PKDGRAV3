@@ -268,7 +268,6 @@ struct inSmooth {
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
-    SMF smf;
 };
 struct outSmooth {
     uint64_t nSmoothed;

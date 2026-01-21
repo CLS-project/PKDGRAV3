@@ -1389,7 +1389,7 @@ void MSR::SetSoft(double dSoft) {
     mdl->RunService<ServiceSetSoft>(in);
 }
 
-// Use the smSmooth routine with an empty smooth function to initialize fBall
+// Use the Smooth routine with an empty smooth function to initialize fBall
 void MSR::InitBall() {
     print("Computing a first guess for the smoothing length\n");
 
@@ -1951,56 +1951,6 @@ auto MSR::get_eEOS() -> eEOSparam {
                      .bDoEOS = parameters.get_bDoEOS()};
 }
 
-void MSR::SmoothSetSMF(SMF* smf, double dTime, double dDelta, int nSmooth) {
-    smf->nSmooth = nSmooth;
-    smf->dTime = dTime;
-    smf->bDoGravity = parameters.get_bDoGravity();
-    smf->iMaxRung = parameters.get_iMaxRung();
-    smf->units = units;
-    if (Comove()) {
-        smf->bComove = 1;
-        smf->H = csmTime2Hub(csm, dTime);
-        smf->a = csmTime2Exp(csm, dTime);
-    }
-    else {
-        smf->bComove = 0;
-        smf->H = 0.0;
-        smf->a = 1.0;
-    }
-    smf->gamma = parameters.get_dConstGamma();
-    smf->dDelta = dDelta;
-    smf->dEtaCourant = parameters.get_dEtaCourant();
-    smf->bMeshlessHydro = MeshlessHydro();
-    smf->bIterativeSmoothingLength = parameters.get_bIterativeSmoothingLength();
-    smf->bConditionedBarthJespersen = parameters.get_bConditionedBarthJespersen();
-    smf->bStricterSlopeLimiter = parameters.get_bStricterSlopeLimiter();
-    smf->bUpdateBall = bUpdateBall;
-    smf->nBucket = parameters.get_nBucket();
-    smf->dCFLacc = parameters.get_dCFLacc();
-    smf->dConstGamma = parameters.get_dConstGamma();
-    smf->dhMinOverSoft = parameters.get_dhMinOverSoft();
-    smf->dNeighborsStd = parameters.get_dNeighborsStd();
-    smf->eEOS = get_eEOS();
-    smf->dSNFBDu = calc.dSNFBDu;
-    smf->dCCSNFBDelay = calc.dCCSNFBDelay;
-    smf->dCCSNFBSpecEnergy = calc.dCCSNFBSpecEnergy;
-    smf->dSNIaFBDelay = calc.dSNIaFBDelay;
-    smf->dSNIaFBSpecEnergy = calc.dSNIaFBSpecEnergy;
-    smf->dBHFBEff = calc.dBHFBEff;
-    smf->dBHFBEcrit = calc.dBHFBEcrit;
-    smf->dBHAccretionEddFac = calc.dBHAccretionEddFac;
-    smf->dBHAccretionAlpha = parameters.get_dBHAccretionAlpha();
-    smf->dBHAccretionCvisc = parameters.get_dBHAccretionCvisc();
-    smf->bBHFeedback = parameters.get_bBHFeedback();
-    smf->bBHAccretion = parameters.get_bBHAccretion();
-#ifdef STELLAR_EVOLUTION
-    smf->dWindSpecificEkin = calc.dWindSpecificEkin;
-    smf->dSNIaNorm = calc.dSNIaNorm;
-    smf->dSNIaScale = calc.dSNIaScale;
-    smf->dCCSNMinMass = parameters.get_dCCSNMinMass();
-#endif
-}
-
 void MSR::Smooth(double dTime, double dDelta, int iSmoothType, int bSymmetric, int nSmooth) {
     struct inSmooth in;
 
@@ -2008,7 +1958,6 @@ void MSR::Smooth(double dTime, double dDelta, int iSmoothType, int bSymmetric, i
     in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime, dDelta, nSmooth);
     if (parameters.get_bVStep()) {
         double sec, dsec;
         print("Smoothing...\n");
@@ -2030,7 +1979,6 @@ uint64_t MSR::ReSmooth(double dTime, double dDelta, int iSmoothType, int bSymmet
     in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime, dDelta, parameters.get_nSmooth());
     if (parameters.get_bVStep()) {
         double sec, dsec;
         print("ReSmoothing...\n");
@@ -2054,7 +2002,6 @@ uint64_t MSR::ReSmoothNode(double dTime, double dDelta, int iSmoothType, int bSy
     in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime, dDelta, parameters.get_nSmooth());
 
     pstReSmoothNode(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
 

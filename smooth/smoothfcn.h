@@ -20,64 +20,6 @@
 
 #include "pkd.h"
 
-struct smfParameters {
-    int nSmooth;
-    int iMaxRung;
-    int bComove;
-    int bDoGravity;
-    UNITS units;
-    double dTime;
-    double H;
-    double a;
-    double dDeltaT;
-    double dTau2;
-    double dVTau2;
-    int bTauAbs;
-    int nMinMembers;
-    int nBins;
-    int iCenterType;
-    int bLogBins;
-    double binFactor;
-    double fMinRadius;
-    /* Gas */
-    double gamma;
-    double dDelta;
-    double dEtaCourant;
-    PKD pkd; /* useful for diagnostics, etc. */
-    int bDone;
-    /* IA: Meshless hydro */
-    int bMeshlessHydro;
-    int bIterativeSmoothingLength;
-    int bConditionedBarthJespersen;
-    int bStricterSlopeLimiter;
-    int bUpdateBall;
-    int nBucket;
-    double dCFLacc;
-    double dConstGamma;
-    double dhMinOverSoft;
-    double dNeighborsStd;
-    struct eEOSparam eEOS;
-    double dSNFBDu;
-    double dCCSNFBDelay;
-    double dCCSNFBSpecEnergy;
-    double dSNIaFBDelay;
-    double dSNIaFBSpecEnergy;
-    double dBHFBEff;
-    double dBHFBEcrit;
-    double dBHAccretionEddFac;
-    double dBHAccretionAlpha;
-    double dBHAccretionCvisc;
-    int bBHFeedback;
-    int bBHAccretion;
-#ifdef STELLAR_EVOLUTION
-    double dWindSpecificEkin;
-    double dSNIaNorm;
-    double dSNIaScale;
-    double dCCSNMinMass;
-#endif
-};
-using SMF = struct smfParameters;
-
 typedef struct pqNode {
     struct pqNode* pqLoser;
     struct pqNode* pqFromInt;

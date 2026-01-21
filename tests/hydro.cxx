@@ -15,7 +15,6 @@ class RiemannTest : public ::testing::Test {
 
     int width() { return dtype::width(); }
 
-    SMF smf;
     std::vector<double> n_unit{1., 0., 0.};
     dtype vn_unit[3] = {1., 0., 0.};
     dtype zero = 0.;
