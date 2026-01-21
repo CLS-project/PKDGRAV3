@@ -109,15 +109,12 @@ inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view Checkpoint = "Checkpoint";
-inline constexpr std::string_view Smooth = "Smooth";
 inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view CalcEandL = "CalcEandL";
 inline constexpr std::string_view GrackleInit = "GrackleInit";
 inline constexpr std::string_view ChemCompInit = "ChemCompInit";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-inline constexpr std::string_view ReSmooth = "ReSmooth";
-inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
 inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
@@ -141,7 +138,6 @@ enum pst_service {
     PST_OUTPUT,
     PST_OUTPUT_SEND,
     PST_CHECKPOINT,
-    PST_SMOOTH,
     PST_GRAVITY,
     PST_CALCEANDL,
 #ifdef GRACKLE
@@ -154,10 +150,6 @@ enum pst_service {
     PST_BH_ACCRETION,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
-    PST_RESMOOTH,
-#ifdef OPTIM_SMOOTH_NODE
-    PST_RESMOOTHNODE,
-#endif
 #ifdef OPTIM_REORDER_IN_NODES
     PST_REORDERINNODES,
 #endif
@@ -262,18 +254,6 @@ int pstCheckpoint(PST, void*, int, void*, int);
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
 
-/* PST_SMOOTH */
-struct inSmooth {
-    int nSmooth;
-    int bPeriodic;
-    int bSymmetric;
-    int iSmoothType;
-};
-struct outSmooth {
-    uint64_t nSmoothed;
-};
-int pstSmooth(PST, void*, int, void*, int);
-
 #ifdef GRACKLE
 struct inGrackleInit {
     char achCoolingTable[PATH_MAX];
@@ -304,11 +284,6 @@ struct inBHAccretion {
 };
 int pstBHAccretion(PST, void*, int, void*, int);
 
-/* PST_RESMOOTH */
-int pstReSmooth(PST, void*, int, void*, int);
-#ifdef OPTIM_SMOOTH_NODE
-int pstReSmoothNode(PST, void*, int, void*, int);
-#endif
 #ifdef OPTIM_REORDER_IN_NODES
 int pstReorderWithinNodes(PST, void*, int, void*, int);
 #endif

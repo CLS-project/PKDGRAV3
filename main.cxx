@@ -33,6 +33,7 @@
 #include "io/outtype.h"
 #include "smooth/smoothfcn.h"
 
+#include "services/smooth.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -129,6 +130,8 @@ void* worker_init(MDL vmdl) {
     plcl->pkd = NULL;
     auto pst = new pstNode(mdl, plcl);
     pstAddServices(pst, mdl);
+    mdl->AddService<ServiceSmooth>(pst);
+    mdl->AddService<ServiceReSmooth>(pst);
     mdl->AddService<ServiceStarFormInit>(pst);
     mdl->AddService<ServiceStarForm>(pst);
     mdl->AddService<ServiceCoolingInit>(pst);

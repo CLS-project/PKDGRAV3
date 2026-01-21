@@ -117,6 +117,7 @@ struct fmt::formatter<DeferFormat> {
 #include "io/fio.h"
 #include "SPH/SPHOptions.h"
 
+#include "services/smooth.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -1952,74 +1953,28 @@ auto MSR::get_eEOS() -> eEOSparam {
 }
 
 void MSR::Smooth(double dTime, double dDelta, int iSmoothType, int bSymmetric, int nSmooth) {
-    struct inSmooth in;
-
-    in.nSmooth = nSmooth;
-    in.bPeriodic = parameters.get_bPeriodic();
-    in.bSymmetric = bSymmetric;
-    in.iSmoothType = iSmoothType;
-    if (parameters.get_bVStep()) {
-        double sec, dsec;
-        print("Smoothing...\n");
-        sec = MSR::Time();
-        pstSmooth(pst, &in, sizeof(in), NULL, 0);
-        dsec = MSR::Time() - sec;
-        print("Smooth Calculated, Wallclock: {:.5} secs\n\n", dsec);
-    }
-    else {
-        pstSmooth(pst, &in, sizeof(in), NULL, 0);
-    }
+    ServiceSmooth::input in{.nSmooth = nSmooth, .bPeriodic = parameters.get_bPeriodic(), .bSymmetric = bSymmetric, .iSmoothType = iSmoothType};
+    uint64_t nSmoothed;
+    double sec, dsec;
+    if (parameters.get_bVStep()) print("Smoothing...\n");
+    sec = MSR::Time();
+    mdl->RunService<ServiceSmooth>(in, nSmoothed);
+    dsec = MSR::Time() - sec;
+    if (parameters.get_bVStep()) print("Smooth Calculated, Wallclock: {:.5} secs\n\n", dsec);
 }
 
 uint64_t MSR::ReSmooth(double dTime, double dDelta, int iSmoothType, int bSymmetric) {
-    struct inSmooth in;
-    struct outSmooth out;
-
-    in.nSmooth = parameters.get_nSmooth();
-    in.bPeriodic = parameters.get_bPeriodic();
-    in.bSymmetric = bSymmetric;
-    in.iSmoothType = iSmoothType;
-    if (parameters.get_bVStep()) {
-        double sec, dsec;
-        print("ReSmoothing...\n");
-        sec = MSR::Time();
-        pstReSmooth(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
-        dsec = MSR::Time() - sec;
-        print("ReSmooth Calculated, Wallclock: {:.5} secs\n\n", dsec);
-    }
-    else {
-        pstReSmooth(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
-    }
-    return out.nSmoothed;
+    ServiceReSmooth::input in{
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()), .bPeriodic = parameters.get_bPeriodic(), .bSymmetric = bSymmetric, .iSmoothType = iSmoothType};
+    ServiceReSmooth::output out;
+    double sec, dsec;
+    if (parameters.get_bVStep()) print("ReSmoothing...\n");
+    sec = MSR::Time();
+    mdl->RunService<ServiceReSmooth>(in, out);
+    dsec = MSR::Time() - sec;
+    if (parameters.get_bVStep()) print("ReSmooth Calculated, Wallclock: {:.5} secs\n\n", dsec);
+    return out;
 }
-
-#ifdef OPTIM_SMOOTH_NODE
-uint64_t MSR::ReSmoothNode(double dTime, double dDelta, int iSmoothType, int bSymmetric) {
-    struct inSmooth in;
-    struct outSmooth out;
-
-    in.nSmooth = parameters.get_nSmooth();
-    in.bPeriodic = parameters.get_bPeriodic();
-    in.bSymmetric = bSymmetric;
-    in.iSmoothType = iSmoothType;
-
-    pstReSmoothNode(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
-
-    #if defined(INSTRUMENT) && defined(DEBUG_FLUX_INFO)
-    if (iSmoothType == SMX_THIRDHYDROLOOP) {
-        print("  (cache access statistics are given per active particle)\n");
-        PrintStat(out.sPartNumAccess, "  P-cache access:", 1);
-        PrintStat(out.sCellNumAccess, "  C-cache access:", 1);
-        PrintStat(out.sPartMissRatio, "  P-cache miss %:", 2);
-        PrintStat(out.sCellMissRatio, "  C-cache miss %:", 2);
-        PrintStat(out.sComputing, "     % computing:", 3);
-        PrintStat(out.sWaiting, "     %   waiting:", 3);
-        PrintStat(out.sSynchronizing, "     %   syncing:", 3);
-    }
-    #endif
-    return out.nSmoothed;
-}
-#endif
 
 void MSR::ReorderDecorator() {
     printf("Reordering decorator...\n");
@@ -3413,7 +3368,6 @@ void MSR::WriteGroupStats(const std::string_view& fname, int nParallel) {
 }
 
 void MSR::Hop(double dTime, double dDelta) {
-    struct inSmooth in;
     int i;
     double sec, dsec, ssec;
 
@@ -3422,18 +3376,15 @@ void MSR::Hop(double dTime, double dDelta) {
     ServiceHopLink::input il{.nSmooth = 80, .bPeriodic = parameters.get_bPeriodic()};
     ServiceHopJoin::input ij{.dHopTau = parameters.get_dHopTau(), .nSmooth = 80, .bPeriodic = parameters.get_bPeriodic()};
 
-    in.nSmooth = 80;
-    in.bPeriodic = parameters.get_bPeriodic();
-    in.bSymmetric = 0;
-
     if (parameters.get_bVStep()) {
         if (ij.dHopTau < 0.0) print("Running Grasshopper with adaptive linking length ({:g} times softening)\n", -ij.dHopTau);
         else print("Running Grasshopper with fixed linking length {:g}\n", ij.dHopTau);
     }
 
-    in.iSmoothType = SMX_DENSITY_M3;
     sec = MSR::Time();
-    pstSmooth(pst, &in, sizeof(in), NULL, 0);
+    ServiceSmooth::input in{.nSmooth = 80, .bPeriodic = parameters.get_bPeriodic(), .bSymmetric = false, .iSmoothType = SMX_DENSITY_M3};
+    uint64_t mSmoothed;
+    mdl->RunService<ServiceSmooth>(in, mSmoothed);
     dsec = MSR::Time() - sec;
     if (parameters.get_bVStep()) print("Density calculation complete in {:.5f} secs, finding chains...\n", dsec);
 

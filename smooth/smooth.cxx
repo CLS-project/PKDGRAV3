@@ -28,6 +28,7 @@
 #include <assert.h>
 #include "smooth.h"
 #include "pkd.h"
+#include "services/smooth.h"
 #include "hydro/hydro.h"
 #include "starformation/feedback.h"
 #include "blackhole/merger.h"
@@ -45,6 +46,23 @@ using blitz::any;
 using blitz::dot;
 using blitz::floor;
 using blitz::TinyVector;
+
+auto ServiceSmooth::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto pkd = pst->lcl()->pkd;
+    smContext smx(pkd, in->iSmoothType, in->bSymmetric, in->nSmooth, in->bPeriodic);
+    *out = smx.Smooth();
+    return sizeof(output);
+}
+auto ServiceReSmooth::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto pkd = pst->lcl()->pkd;
+    smContext smx(pkd, in->iSmoothType, in->bSymmetric, in->nSmooth, in->bPeriodic);
+    *out = smx.ReSmooth();
+    return sizeof(output);
+}
 
 // This delegating constructor will go away once we convert the functions
 smContext::smContext(PKD pkdIn, int iSmoothType, bool bSymmetric, int nSmooth, bool bPeriodic)

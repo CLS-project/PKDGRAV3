@@ -89,7 +89,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
-    mdl->AddService(PST_SMOOTH, pst, (fcnService_t*)pstSmooth, sizeof(struct inSmooth), 0, Legacy::Smooth);
     mdl->AddService(PST_GRAVITY, pst, (fcnService_t*)pstGravity, sizeof(struct inGravity), sizeof(struct outGravityReduct), Legacy::Gravity);
     mdl->AddService(PST_CALCEANDL, pst, (fcnService_t*)pstCalcEandL, 0, sizeof(struct outCalcEandL), Legacy::CalcEandL);
 #ifdef GRACKLE
@@ -105,10 +104,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
-    mdl->AddService(PST_RESMOOTH, pst, (fcnService_t*)pstReSmooth, sizeof(struct inSmooth), sizeof(struct outSmooth), Legacy::ReSmooth);
-#ifdef OPTIM_SMOOTH_NODE
-    mdl->AddService(PST_RESMOOTHNODE, pst, (fcnService_t*)pstReSmoothNode, sizeof(struct inSmooth), sizeof(struct outSmooth), Legacy::ReSmoothNode);
-#endif
 #ifdef OPTIM_REORDER_IN_NODES
     mdl->AddService(PST_REORDERINNODES, pst, (fcnService_t*)pstReorderWithinNodes, 0, 0, Legacy::ReorderInNodes);
 #endif
@@ -502,99 +497,6 @@ int pstBHAccretion(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     return 0;
 }
-
-int pstSmooth(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inSmooth*>(vin);
-
-    assert(nIn == sizeof(struct inSmooth));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_SMOOTH, in, nIn);
-        pstSmooth(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        auto pkd = pst->lcl()->pkd;
-        smContext smx(pkd, in->iSmoothType, in->bSymmetric, in->nSmooth, in->bPeriodic);
-        smx.Smooth();
-    }
-    return 0;
-}
-
-int pstReSmooth(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inSmooth*>(vin);
-    auto out = static_cast<struct outSmooth*>(vout);
-    struct outSmooth outUpper;
-
-    //    assert(nIn == sizeof(struct inSmooth));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_RESMOOTH, in, nIn);
-        pstReSmooth(pst->lower(), vin, nIn, vout, nOut);
-        nOut = pst->mdl()->GetReply(rID, outUpper);
-        assert(nOut == sizeof(struct outSmooth));
-        out->nSmoothed += outUpper.nSmoothed;
-    }
-    else {
-        auto pkd = pst->lcl()->pkd;
-        smContext smx(pkd, in->iSmoothType, in->bSymmetric, in->nSmooth, in->bPeriodic);
-        out->nSmoothed = smx.ReSmooth();
-    }
-    return sizeof(struct outSmooth);
-}
-
-#ifdef OPTIM_SMOOTH_NODE
-int pstReSmoothNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inSmooth*>(vin);
-    auto out = static_cast<struct outSmooth*>(vout);
-    struct outSmooth outUpper;
-
-    //    assert(nIn == sizeof(struct inSmooth));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_RESMOOTHNODE, in, nIn);
-        pstReSmoothNode(pst->lower(), vin, nIn, vout, nOut);
-        nOut = pst->mdl()->GetReply(rID, outUpper);
-        assert(nOut == sizeof(struct outSmooth));
-        out->nSmoothed += outUpper.nSmoothed;
-    #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
-        struct outSmooth tmp = *out;
-        pstCombStat(&out->sComputing, &tmp.sComputing);
-        pstCombStat(&out->sWaiting, &tmp.sWaiting);
-        pstCombStat(&out->sSynchronizing, &tmp.sSynchronizing);
-        pstCombStat(&out->sPartNumAccess, &tmp.sPartNumAccess);
-        pstCombStat(&out->sPartMissRatio, &tmp.sPartMissRatio);
-        pstCombStat(&out->sCellNumAccess, &tmp.sCellNumAccess);
-        pstCombStat(&out->sCellMissRatio, &tmp.sCellMissRatio);
-    #endif
-    }
-    else {
-        auto pkd = pst->lcl()->pkd;
-        smContext smx(pkd, in->iSmoothType, in->bSymmetric, in->nSmooth, in->bPeriodic);
-        out->nSmoothed = smx.ReSmoothNode<smooth::policy::OnlyGasOptimised, smooth::policy::OnlyGas>();
-    #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
-        if (out->nSmoothed) {
-            out->sCellNumAccess.dSum = mdlNumAccess(pst->mdl(), CID_CELL) / out->nSmoothed;
-            out->sPartNumAccess.dSum = mdlNumAccess(pst->mdl(), CID_PARTICLE) / out->nSmoothed;
-        }
-        else {
-            out->sCellNumAccess.dSum = 0;
-            out->sPartNumAccess.dSum = 0;
-        }
-        out->sCellMissRatio.dSum = 100.0 * mdlMissRatio(pst->mdl(), CID_CELL);     /* as a percentage */
-        out->sPartMissRatio.dSum = 100.0 * mdlMissRatio(pst->mdl(), CID_PARTICLE); /* as a percentage */
-        out->sComputing.dSum = pst->mdl()->TimeComputing();
-        out->sWaiting.dSum = pst->mdl()->TimeWaiting();
-        out->sSynchronizing.dSum = pst->mdl()->TimeSynchronizing();
-        pstInitStat(&out->sComputing, pst->Self());
-        pstInitStat(&out->sWaiting, pst->Self());
-        pstInitStat(&out->sSynchronizing, pst->Self());
-        pstInitStat(&out->sPartNumAccess, pst->Self());
-        pstInitStat(&out->sPartMissRatio, pst->Self());
-        pstInitStat(&out->sCellNumAccess, pst->Self());
-        pstInitStat(&out->sCellMissRatio, pst->Self());
-    #endif
-    }
-    return sizeof(struct outSmooth);
-}
-#endif
 
 void pstInitStat(STAT* ps, int id) {
     ps->idMax = id;
