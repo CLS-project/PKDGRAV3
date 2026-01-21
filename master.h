@@ -174,7 +174,7 @@ class MSR {
     void BuildTreeMarked(int bNeedEwald = 0);
     void ReorderDecorator();
 #ifdef OPTIM_REORDER_IN_NODES
-    void ReorderWithinNodes();
+    void ReorderInNodes();
 #endif
 
     // Gravity

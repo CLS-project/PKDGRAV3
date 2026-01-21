@@ -115,7 +115,6 @@ inline constexpr std::string_view GrackleInit = "GrackleInit";
 inline constexpr std::string_view ChemCompInit = "ChemCompInit";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
 inline constexpr std::string_view MoveIC = "MoveIC";
@@ -150,9 +149,6 @@ enum pst_service {
     PST_BH_ACCRETION,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
-#ifdef OPTIM_REORDER_IN_NODES
-    PST_REORDERINNODES,
-#endif
 #ifdef STELLAR_EVOLUTION
     PST_STELLAREVOLUTIONINIT,
 #endif
@@ -283,10 +279,6 @@ struct inBHAccretion {
     double dScaleFactor;
 };
 int pstBHAccretion(PST, void*, int, void*, int);
-
-#ifdef OPTIM_REORDER_IN_NODES
-int pstReorderWithinNodes(PST, void*, int, void*, int);
-#endif
 
 /* PST_GRAVITY */
 struct inGravity {

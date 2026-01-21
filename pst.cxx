@@ -104,9 +104,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
-#ifdef OPTIM_REORDER_IN_NODES
-    mdl->AddService(PST_REORDERINNODES, pst, (fcnService_t*)pstReorderWithinNodes, 0, 0, Legacy::ReorderInNodes);
-#endif
 #ifdef STELLAR_EVOLUTION
     mdl->AddService(PST_STELLAREVOLUTIONINIT, pst, (fcnService_t*)pstStellarEvolutionInit, sizeof(struct inStellarEvolutionInit), 0,
                     Legacy::StellarEvolutionInit);
@@ -683,22 +680,6 @@ int pstCalcEandL(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     return sizeof(struct outCalcEandL);
 }
-
-#ifdef OPTIM_REORDER_IN_NODES
-int pstReorderWithinNodes(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_REORDERINNODES, NULL, 0);
-        pstReorderWithinNodes(pst->lower(), NULL, 0, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        plcl->pkd->ReorderWithinNodes();
-    }
-    return 0;
-}
-#endif
 
 #ifdef GRACKLE
 int pstGrackleInit(PST pst, void* vin, int nIn, void* vout, int nOut) {

@@ -34,6 +34,7 @@
 #include "smooth/smoothfcn.h"
 
 #include "services/smooth.h"
+#include "services/reorderinnodes.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -132,6 +133,9 @@ void* worker_init(MDL vmdl) {
     pstAddServices(pst, mdl);
     mdl->AddService<ServiceSmooth>(pst);
     mdl->AddService<ServiceReSmooth>(pst);
+#ifdef OPTIM_REORDER_IN_NODES
+    mdl->AddService<ServiceReorderInNodes>(pst);
+#endif
     mdl->AddService<ServiceStarFormInit>(pst);
     mdl->AddService<ServiceStarForm>(pst);
     mdl->AddService<ServiceCoolingInit>(pst);

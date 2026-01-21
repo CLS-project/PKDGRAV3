@@ -118,6 +118,7 @@ struct fmt::formatter<DeferFormat> {
 #include "SPH/SPHOptions.h"
 
 #include "services/smooth.h"
+#include "services/reorderinnodes.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -1691,7 +1692,7 @@ void MSR::BuildTree(int bNeedEwald) {
     }
 #ifdef OPTIM_REORDER_IN_NODES
     if (MeshlessHydro()) {
-        ReorderWithinNodes();
+        ReorderInNodes();
     }
 #endif
 }
@@ -1982,10 +1983,10 @@ void MSR::ReorderDecorator() {
 }
 
 #ifdef OPTIM_REORDER_IN_NODES
-void MSR::ReorderWithinNodes() {
+void MSR::ReorderInNodes() {
     double dsec;
     TimerStart(TIMER_TREE);
-    pstReorderWithinNodes(pst, NULL, 0, NULL, 0);
+    mdl->RunService<ServiceReorderInNodes>();
 
     TimerStop(TIMER_TREE);
     dsec = TimerGet(TIMER_TREE);
@@ -3207,7 +3208,7 @@ void MSR::TopStepKDK(double dStep,             /* Current step */
         if (parameters.get_bDoStarFormation()) StarForm(dTime, dDeltaStep, iKickRung);
 
 #ifdef OPTIM_REORDER_IN_NODES
-        if (parameters.get_bStars() || parameters.get_bBlackholes()) ReorderWithinNodes();
+        if (parameters.get_bStars() || parameters.get_bBlackholes()) ReorderInNodes();
 #endif
 
         if (!iKickRung && parameters.get_bFindGroups()) {
@@ -5065,7 +5066,7 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     printf("Planted %d BH seeds \n", out.nBHs);
 
 #ifdef OPTIM_REORDER_IN_NODES
-    ReorderWithinNodes();
+    ReorderInNodes();
 #endif
 }
 
@@ -5074,7 +5075,7 @@ void MSR::BHMerger(double dTime) {
 
 #ifdef DEBUG_BH_ONLY
     // This was not performed in the main loop because there is no gas
-    ReorderWithinNodes();
+    ReorderInNodes();
 #endif
 
     ServiceBHMerger::input inBHMerger{

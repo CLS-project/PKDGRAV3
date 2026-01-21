@@ -2023,7 +2023,7 @@ void pkdReorderDecorator(PKD pkd) {
 /// @param pkd
 /// After this function is complete, particles in buckets will be in the following order:
 ///     Gas, Star, Blackhole, Dark
-void pkdContext::ReorderWithinNodes() {
+void pkdContext::ReorderInNodes() {
     for (int i = NRESERVED_NODES; i < Nodes(); i++) {
         auto node = tree[i];
         if (node->is_bucket()) { // We are in a bucket

@@ -602,7 +602,7 @@ class pkdContext : public Integerize {
 
     void swap_classes(int id);
 #ifdef OPTIM_REORDER_IN_NODES
-    void ReorderWithinNodes();
+    void ReorderInNodes();
 #endif
 
   public:
