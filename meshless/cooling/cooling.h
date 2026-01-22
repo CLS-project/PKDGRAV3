@@ -19,6 +19,10 @@
 #ifndef SWIFT_COOLING_EAGLE_H
 #define SWIFT_COOLING_EAGLE_H
 
+#include "cooling_struct.h"
+#include "services.h"
+#include "pkd.h"
+
 namespace cooling {
 /* Maximum number of iterations for bisection scheme */
 static const int bisection_max_iterations = 150;
@@ -27,17 +31,14 @@ static const int bisection_max_iterations = 150;
 static const float explicit_tolerance = 0.05;
 static const float bisection_tolerance = 1.0e-6;
 static const double bracket_factor = 1.5;
+
+void get_redshift_index(const float z, int* z_index, float* dz, cooling_function_data* restrict cooling);
 } // namespace cooling
 
 /**
  * @file src/cooling/EAGLE/cooling.h
  * @brief EAGLE cooling function declarations
  */
-
-/* Local includes. */
-#include "cooling_struct.h"
-#include "services.h"
-#include "pkd.h"
 
 #ifdef __cplusplus
 extern "C" {
