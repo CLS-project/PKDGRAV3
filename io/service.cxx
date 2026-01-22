@@ -78,7 +78,7 @@ int ServiceIO::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> v
 
     // We are still trying to launch parallel I/O so split the work
     if (hdr->nSimultaneous > 1) {
-        int nLower = hdr->nSimultaneous * pst->n_lower() / pst->n_total();
+        int nLower = uint64_t(1) * hdr->nSimultaneous * pst->n_lower() / pst->n_total();
         if (nLower == 0) nLower = 1;
         hdr->nSimultaneous -= nLower;
         hdr->iReaderWriter += nLower;
