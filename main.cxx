@@ -103,6 +103,9 @@
 #include "meshless/hydro/endstep.h"
 
 #include "meshless/cooling/services.h"
+#ifdef GRACKLE
+    #include "meshless/cooling_grackle/cooling_grackle.h"
+#endif
 #include "meshless/starformation/init.h"
 #include "meshless/starformation/starformation.h"
 #include "meshless/blackhole/init.h"
@@ -156,6 +159,9 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSNFeedback>(pst);
 #ifdef STELLAR_EVOLUTION
     mdl->AddService<ServiceChemEnrich>(pst);
+#endif
+#ifdef GRACKLE
+    mdl->AddService<ServiceGrackleInit>(pst);
 #endif
     mdl->AddService<ServiceBHMerger>(pst);
     mdl->AddService<ServiceBHGasPin>(pst);

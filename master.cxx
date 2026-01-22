@@ -5227,12 +5227,11 @@ void MSR::SetFeedbackParam() {
 
 #ifdef GRACKLE
 void MSR::GrackleInit(int bComove, double dScaleFactor) {
-    struct inGrackleInit in;
+    ServiceGrackleInit::input in;
     in.bComove = bComove;
     in.dScaleFactor = dScaleFactor;
-    strcpy(in.achCoolingTable, parameters.get_achCoolingTables().data());
+    marshal_string(in.achCoolingTable, parameters.get_achCoolingTables());
     in.units = units;
-
-    pstGrackleInit(pst, &in, sizeof(struct inGrackleInit), NULL, 0);
+    mdl->RunService<ServiceGrackleInit>(in);
 }
 #endif

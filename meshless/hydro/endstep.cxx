@@ -28,7 +28,7 @@ int ServiceEndTimestepIntegration::Service(PST pst, std::span<std::byte> vin, st
         dHubble = 0.0;
     }
 #ifdef GRACKLE
-    pkdGrackleUpdate(pkd, dScaleFactor, in->achCoolingTable, in->units);
+    pkd->GrackleUpdate(dScaleFactor, in->achCoolingTable, in->units);
 #endif
     for (auto& p : pkd->particles) {
         if (p.is_gas() && p.is_active()) {
@@ -64,7 +64,7 @@ int ServiceEndTimestepIntegration::Service(PST pst, std::span<std::byte> vin, st
                 cooling_cool_part(pkd, pkd->cooling, p, &sph, pDelta, in->dTime, delta_redshift, dRedshift);
             }
 #ifdef GRACKLE
-            pkdGrackleCooling(pkd, p, pDelta, in->dTuFac);
+            pkd->GrackleCooling(p, pDelta, in->dTuFac);
 #endif
 
             // ##### Effective Equation Of State

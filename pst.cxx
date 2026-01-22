@@ -57,9 +57,6 @@
 #include "core/swapall.h"
 
 #include "cooling/cooling.h"
-#ifdef GRACKLE
-    #include "cooling_grackle/cooling_grackle.h"
-#endif
 #include "blackhole/merger.h"
 #include "blackhole/evolve.h"
 #include "blackhole/seed.h"
@@ -91,9 +88,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     */
     mdl->AddService(PST_GRAVITY, pst, (fcnService_t*)pstGravity, sizeof(struct inGravity), sizeof(struct outGravityReduct), Legacy::Gravity);
     mdl->AddService(PST_CALCEANDL, pst, (fcnService_t*)pstCalcEandL, 0, sizeof(struct outCalcEandL), Legacy::CalcEandL);
-#ifdef GRACKLE
-    mdl->AddService(PST_GRACKLEINIT, pst, (fcnService_t*)pstGrackleInit, sizeof(struct inGrackleInit), 0, Legacy::GrackleInit);
-#endif
     mdl->AddService(PST_CHEMCOMPINIT, pst, (fcnService_t*)pstChemCompInit, sizeof(struct inChemCompInit), 0, Legacy::ChemCompInit);
     //
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
@@ -617,24 +611,6 @@ int pstCalcEandL(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     return sizeof(struct outCalcEandL);
 }
-
-#ifdef GRACKLE
-int pstGrackleInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-
-    auto in = static_cast<struct inGrackleInit*>(vin);
-    assert(nIn == sizeof(struct inGrackleInit));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GRACKLEINIT, in, nIn);
-        pstGrackleInit(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdGrackleInit(plcl->pkd, in->bComove, in->dScaleFactor, in->achCoolingTable, in->units);
-    }
-    return 0;
-}
-#endif
 
 int pstChemCompInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
     LCL* plcl = pst->lcl();

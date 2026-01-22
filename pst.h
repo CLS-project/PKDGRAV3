@@ -111,7 +111,6 @@ inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view Checkpoint = "Checkpoint";
 inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view CalcEandL = "CalcEandL";
-inline constexpr std::string_view GrackleInit = "GrackleInit";
 inline constexpr std::string_view ChemCompInit = "ChemCompInit";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
@@ -135,9 +134,6 @@ enum pst_service {
     PST_CHECKPOINT,
     PST_GRAVITY,
     PST_CALCEANDL,
-#ifdef GRACKLE
-    PST_GRACKLEINIT,
-#endif
     PST_CHEMCOMPINIT,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
@@ -242,15 +238,6 @@ int pstCheckpoint(PST, void*, int, void*, int);
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
 
-#ifdef GRACKLE
-struct inGrackleInit {
-    char achCoolingTable[PATH_MAX];
-    UNITS units;
-    int bComove;
-    double dScaleFactor;
-};
-int pstGrackleInit(PST, void*, int, void*, int);
-#endif
 int pstChemCompInit(PST, void*, int, void*, int);
 
 /* PST_GRAVITY */

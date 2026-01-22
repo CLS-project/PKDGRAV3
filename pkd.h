@@ -604,6 +604,12 @@ class pkdContext : public Integerize {
     void BHReposition();
     void BHAccretion(double dScaleFactor);
 
+#ifdef GRACKLE
+    void GrackleInit(int bComove, double dScaleFactor, char* achCoolingTable, UNITS units);
+    void GrackleUpdate(double dScaleFactor, char* achCoolingTable, UNITS units);
+    void GrackleCooling(particleStore::ParticleReference& p, double pDelta, double dTuFac);
+#endif
+
     void swap_classes(int id);
 #ifdef OPTIM_REORDER_IN_NODES
     void ReorderInNodes();
