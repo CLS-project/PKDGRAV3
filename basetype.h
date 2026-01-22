@@ -197,19 +197,6 @@ struct pkdLightconeParameters {
     int bLightConeParticles;
 };
 
-struct inChemCompInit {
-    double dInitialH;
-    double dInitialHe;
-    double dInitialC;
-    double dInitialN;
-    double dInitialO;
-    double dInitialNe;
-    double dInitialMg;
-    double dInitialSi;
-    double dInitialFe;
-    double dInitialMetallicity;
-};
-
 /*
 ** Accumulates the work for a set of particles
 */

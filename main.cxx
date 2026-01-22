@@ -35,6 +35,7 @@
 
 #include "services/smooth.h"
 #include "services/reorderinnodes.h"
+#include "services/chemcompinit.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -157,6 +158,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceHydroGradients>(pst);
     mdl->AddService<ServiceHydroStep>(pst);
     mdl->AddService<ServiceSNFeedback>(pst);
+    mdl->AddService<ServiceChemCompInit>(pst);
 #ifdef STELLAR_EVOLUTION
     mdl->AddService<ServiceChemEnrich>(pst);
 #endif

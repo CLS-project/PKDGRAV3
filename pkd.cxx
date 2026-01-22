@@ -2134,26 +2134,25 @@ void pkdZeroNewRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) { 
         if (p.is_active()) p.set_new_rung(0);
     }
 }
+void pkdContext::ChemCompInit(double H, double He, double C, double N, double O, double Ne, double Mg, double Si, double Fe, double Metallicity) {
 
-void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
-
-    for (auto& p : pkd->particles) {
+    for (auto& p : particles) {
         if (p.is_gas()) {
             auto& Sph = p.sph();
             float fMass = p.mass();
 
             if (Sph.ElemMass[ELEMENT_H] < 0.0f) {
-                Sph.ElemMass[ELEMENT_H] = in.dInitialH * fMass;
-                Sph.ElemMass[ELEMENT_He] = in.dInitialHe * fMass;
-                Sph.ElemMass[ELEMENT_C] = in.dInitialC * fMass;
-                Sph.ElemMass[ELEMENT_N] = in.dInitialN * fMass;
-                Sph.ElemMass[ELEMENT_O] = in.dInitialO * fMass;
-                Sph.ElemMass[ELEMENT_Ne] = in.dInitialNe * fMass;
-                Sph.ElemMass[ELEMENT_Mg] = in.dInitialMg * fMass;
-                Sph.ElemMass[ELEMENT_Si] = in.dInitialSi * fMass;
-                Sph.ElemMass[ELEMENT_Fe] = in.dInitialFe * fMass;
+                Sph.ElemMass[ELEMENT_H] = H * fMass;
+                Sph.ElemMass[ELEMENT_He] = He * fMass;
+                Sph.ElemMass[ELEMENT_C] = C * fMass;
+                Sph.ElemMass[ELEMENT_N] = N * fMass;
+                Sph.ElemMass[ELEMENT_O] = O * fMass;
+                Sph.ElemMass[ELEMENT_Ne] = Ne * fMass;
+                Sph.ElemMass[ELEMENT_Mg] = Mg * fMass;
+                Sph.ElemMass[ELEMENT_Si] = Si * fMass;
+                Sph.ElemMass[ELEMENT_Fe] = Fe * fMass;
             }
-            if (Sph.fMetalMass < 0.0f) Sph.fMetalMass = in.dInitialMetallicity * fMass;
+            if (Sph.fMetalMass < 0.0f) Sph.fMetalMass = Metallicity * fMass;
         }
 
 #ifdef STELLAR_EVOLUTION
@@ -2161,17 +2160,17 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
             auto& Star = p.star();
 
             if (Star.ElemAbun[ELEMENT_H] < 0.0f) {
-                Star.ElemAbun[ELEMENT_H] = in.dInitialH;
-                Star.ElemAbun[ELEMENT_He] = in.dInitialHe;
-                Star.ElemAbun[ELEMENT_C] = in.dInitialC;
-                Star.ElemAbun[ELEMENT_N] = in.dInitialN;
-                Star.ElemAbun[ELEMENT_O] = in.dInitialO;
-                Star.ElemAbun[ELEMENT_Ne] = in.dInitialNe;
-                Star.ElemAbun[ELEMENT_Mg] = in.dInitialMg;
-                Star.ElemAbun[ELEMENT_Si] = in.dInitialSi;
-                Star.ElemAbun[ELEMENT_Fe] = in.dInitialFe;
+                Star.ElemAbun[ELEMENT_H] = H;
+                Star.ElemAbun[ELEMENT_He] = He;
+                Star.ElemAbun[ELEMENT_C] = C;
+                Star.ElemAbun[ELEMENT_N] = N;
+                Star.ElemAbun[ELEMENT_O] = O;
+                Star.ElemAbun[ELEMENT_Ne] = Ne;
+                Star.ElemAbun[ELEMENT_Mg] = Mg;
+                Star.ElemAbun[ELEMENT_Si] = Si;
+                Star.ElemAbun[ELEMENT_Fe] = Fe;
             }
-            if (Star.fMetalAbun < 0.0f) Star.fMetalAbun = in.dInitialMetallicity;
+            if (Star.fMetalAbun < 0.0f) Star.fMetalAbun = Metallicity;
         }
 #endif // STELLAR_EVOLUTION
     }

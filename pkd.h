@@ -603,6 +603,7 @@ class pkdContext : public Integerize {
     auto PlaceBHSeed(double dTime, double dScaleFactor, uint8_t uRungMax, double dDenMin, double dBHMhaloMin, double dTau, double dBHSeedMass) -> int;
     void BHReposition();
     void BHAccretion(double dScaleFactor);
+    void ChemCompInit(double H, double He, double C, double N, double O, double Ne, double Mg, double Si, double Fe, double Metallicity);
 
 #ifdef GRACKLE
     void GrackleInit(int bComove, double dScaleFactor, char* achCoolingTable, UNITS units);
@@ -890,7 +891,6 @@ void pkdInitLightcone(PKD pkd, int bBowtie, int bLightConeParticles, double dBox
                       int mOctants);
 void pkdZeroNewRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdCooling(PKD pkd, double, double, int, int, int, int);
-void pkdChemCompInit(PKD pkd, struct inChemCompInit in);
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3

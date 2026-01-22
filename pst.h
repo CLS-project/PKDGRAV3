@@ -111,7 +111,6 @@ inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view Checkpoint = "Checkpoint";
 inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view CalcEandL = "CalcEandL";
-inline constexpr std::string_view ChemCompInit = "ChemCompInit";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
@@ -134,7 +133,6 @@ enum pst_service {
     PST_CHECKPOINT,
     PST_GRAVITY,
     PST_CALCEANDL,
-    PST_CHEMCOMPINIT,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
 #ifdef STELLAR_EVOLUTION
@@ -237,8 +235,6 @@ int pstCheckpoint(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
-
-int pstChemCompInit(PST, void*, int, void*, int);
 
 /* PST_GRAVITY */
 struct inGravity {

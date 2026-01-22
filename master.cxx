@@ -119,6 +119,7 @@ struct fmt::formatter<DeferFormat> {
 
 #include "services/smooth.h"
 #include "services/reorderinnodes.h"
+#include "services/chemcompinit.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -3332,19 +3333,19 @@ void MSR::Cooling(double dTime, double dStep, int bUpdateState, int bUpdateTable
 }
 
 void MSR::ChemCompInit() {
-    struct inChemCompInit in;
-    in.dInitialH = parameters.get_dInitialH();
-    in.dInitialHe = parameters.get_dInitialHe();
-    in.dInitialC = parameters.get_dInitialC();
-    in.dInitialN = parameters.get_dInitialN();
-    in.dInitialO = parameters.get_dInitialO();
-    in.dInitialNe = parameters.get_dInitialNe();
-    in.dInitialMg = parameters.get_dInitialMg();
-    in.dInitialSi = parameters.get_dInitialSi();
-    in.dInitialFe = parameters.get_dInitialFe();
-    in.dInitialMetallicity = parameters.get_dInitialMetallicity();
-
-    pstChemCompInit(pst, &in, sizeof(in), NULL, 0);
+    ServiceChemCompInit::input in{
+        .H = parameters.get_dInitialH(),
+        .He = parameters.get_dInitialHe(),
+        .C = parameters.get_dInitialC(),
+        .N = parameters.get_dInitialN(),
+        .O = parameters.get_dInitialO(),
+        .Ne = parameters.get_dInitialNe(),
+        .Mg = parameters.get_dInitialMg(),
+        .Si = parameters.get_dInitialSi(),
+        .Fe = parameters.get_dInitialFe(),
+        .Metallicity = parameters.get_dInitialMetallicity(),
+    };
+    mdl->RunService<ServiceChemCompInit>(in);
 }
 
 /* END Gas routines */

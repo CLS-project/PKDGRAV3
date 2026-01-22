@@ -88,7 +88,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     */
     mdl->AddService(PST_GRAVITY, pst, (fcnService_t*)pstGravity, sizeof(struct inGravity), sizeof(struct outGravityReduct), Legacy::Gravity);
     mdl->AddService(PST_CALCEANDL, pst, (fcnService_t*)pstCalcEandL, 0, sizeof(struct outCalcEandL), Legacy::CalcEandL);
-    mdl->AddService(PST_CHEMCOMPINIT, pst, (fcnService_t*)pstChemCompInit, sizeof(struct inChemCompInit), 0, Legacy::ChemCompInit);
     //
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
@@ -610,22 +609,6 @@ int pstCalcEandL(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pkdCalcEandL(plcl->pkd, out->T, out->U, out->Eth, out->L, out->F, out->W);
     }
     return sizeof(struct outCalcEandL);
-}
-
-int pstChemCompInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inChemCompInit*>(vin);
-
-    assert(nIn == sizeof(struct inChemCompInit));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_CHEMCOMPINIT, in, nIn);
-        pstChemCompInit(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdChemCompInit(plcl->pkd, *in);
-    }
-    return 0;
 }
 
 int pstMemStatus(PST pst, void* vin, int nIn, void* vout, int nOut) {
