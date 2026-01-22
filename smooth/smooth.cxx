@@ -35,9 +35,6 @@
 #include "blackhole/evolve.h"
 #include "blackhole/step.h"
 #include "blackhole/drift.h"
-#ifdef STELLAR_EVOLUTION
-    #include "stellarevolution/stellarevolution.h"
-#endif
 #include <sys/stat.h>
 
 using blitz::abs;

@@ -160,7 +160,7 @@ class ServiceStarForm : public TraverseCount<ServiceStarForm> {
                     star.fInitialMass = mass;
                     star.fLastEnrichTime = 0.0f;
 
-                    stevStarParticleInit(pkd, star, in.dSNIaMaxMass, in.dCCSNMinMass, in.dCCSNMaxMass);
+                    stev::StarParticleInit(pkd, star, in.dSNIaMaxMass, in.dCCSNMinMass, in.dCCSNMaxMass);
 #endif
 
                     star.bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;

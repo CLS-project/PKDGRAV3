@@ -113,7 +113,6 @@ inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view CalcEandL = "CalcEandL";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
@@ -135,9 +134,6 @@ enum pst_service {
     PST_CALCEANDL,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
-#ifdef STELLAR_EVOLUTION
-    PST_STELLAREVOLUTIONINIT,
-#endif
     PST_INITIALIZEPSTORE,
     PST_MOVEIC,
     PLT_MOVEIC,

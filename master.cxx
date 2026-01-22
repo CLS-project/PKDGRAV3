@@ -5266,29 +5266,29 @@ void MSR::SetStellarEvolutionParam() {
 
 void MSR::StellarEvolutionInit(double dTime) {
     char achPath[280];
-    struct inStellarEvolutionInit in;
+    ServiceStellarEvolutionInit::input in;
     STEV_RAWDATA *CCSNData, *AGBData, *SNIaData, *LifetimeData;
     auto achStelEvolPath = parameters.get_achStelEvolPath();
 
     /* Read the tables */
     snprintf(achPath, sizeof(achPath), "%s/CCSN.hdf5", achStelEvolPath.data());
-    CCSNData = stevReadTable(achPath);
+    CCSNData = stev::ReadTable(achPath);
     assert(CCSNData->nZs == STEV_CCSN_N_METALLICITY);
     assert(CCSNData->nMasses == STEV_CCSN_N_MASS);
     assert(CCSNData->nElems == ELEMENT_COUNT);
 
     snprintf(achPath, sizeof(achPath), "%s/AGB.hdf5", achStelEvolPath.data());
-    AGBData = stevReadTable(achPath);
+    AGBData = stev::ReadTable(achPath);
     assert(AGBData->nZs == STEV_AGB_N_METALLICITY);
     assert(AGBData->nMasses == STEV_AGB_N_MASS);
     assert(AGBData->nElems == ELEMENT_COUNT);
 
     snprintf(achPath, sizeof(achPath), "%s/SNIa.hdf5", achStelEvolPath.data());
-    SNIaData = stevReadSNIaTable(achPath);
+    SNIaData = stev::ReadSNIaTable(achPath);
     assert(SNIaData->nElems == ELEMENT_COUNT);
 
     snprintf(achPath, sizeof(achPath), "%s/Lifetimes.hdf5", achStelEvolPath.data());
-    LifetimeData = stevReadLifetimeTable(achPath);
+    LifetimeData = stev::ReadLifetimeTable(achPath);
     assert(LifetimeData->nZs == STEV_LIFETIME_N_METALLICITY);
     assert(LifetimeData->nMasses == STEV_LIFETIME_N_MASS);
 
@@ -5316,7 +5316,7 @@ void MSR::StellarEvolutionInit(double dTime) {
     for (auto i = 0; i < AGBData->nMasses; ++i) AGBData->pfInitialMass[i] = log10(AGBData->pfInitialMass[i]);
 
     /* Interpolate yields and ejected masses to the initial mass array */
-    stevInterpToIMFSampling(&in.StelEvolData, CCSNData, AGBData, parameters.get_dCCSNMinMass());
+    stev::InterpToIMFSampling(&in.StelEvolData, CCSNData, AGBData, parameters.get_dCCSNMinMass());
 
     for (auto i = 0; i < STEV_CCSN_N_METALLICITY; ++i) {
         if (CCSNData->pfMetallicity[i] > 0.0f) in.StelEvolData.afCCSNMetallicity[i] = log10(CCSNData->pfMetallicity[i]);
@@ -5347,12 +5347,12 @@ void MSR::StellarEvolutionInit(double dTime) {
     in.dCCSNMaxMass = parameters.get_dCCSNMaxMass();
 
     /* Send data and finish */
-    pstStellarEvolutionInit(pst, &in, sizeof(struct inStellarEvolutionInit), NULL, 0);
+    mdl->RunService<ServiceStellarEvolutionInit>(in);
 
-    stevFreeTable(CCSNData);
-    stevFreeTable(AGBData);
-    stevFreeSNIaTable(SNIaData);
-    stevFreeLifetimeTable(LifetimeData);
+    stev::FreeTable(CCSNData);
+    stev::FreeTable(AGBData);
+    stev::FreeSNIaTable(SNIaData);
+    stev::FreeLifetimeTable(LifetimeData);
 }
 #endif
 

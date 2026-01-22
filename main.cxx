@@ -159,6 +159,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSNFeedback>(pst);
     mdl->AddService<ServiceChemCompInit>(pst);
 #ifdef STELLAR_EVOLUTION
+    mdl->AddService<ServiceStellarEvolutionInit>(pst);
     mdl->AddService<ServiceChemEnrich>(pst);
 #endif
 #ifdef GRACKLE

@@ -93,10 +93,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
-#ifdef STELLAR_EVOLUTION
-    mdl->AddService(PST_STELLAREVOLUTIONINIT, pst, (fcnService_t*)pstStellarEvolutionInit, sizeof(struct inStellarEvolutionInit), 0,
-                    Legacy::StellarEvolutionInit);
-#endif
     mdl->AddService(PST_INITIALIZEPSTORE, pst, (fcnService_t*)pstInitializePStore, sizeof(struct inInitializePStore), sizeof(struct outInitializePStore),
                     Legacy::InitializePStore);
 #ifdef MDL_FFTW
