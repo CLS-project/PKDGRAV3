@@ -319,8 +319,9 @@ void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
         }
     }
 
-    double E = 0, T = 0, U = 0, Eth = 0, L[3] = {0, 0, 0}, F[3] = {0, 0, 0}, W = 0;
-    CalcEandL(MSR_INIT_E, dTime, &E, &T, &U, &Eth, L, F, &W);
+    double E = 0, T = 0, U = 0, Eth = 0, W = 0;
+    blitz::TinyVector<double, 3> L(0.0), F(0.0);
+    CalcEandL(MSR_INIT_E, dTime, E, T, U, Eth, L, F, W);
     iSec = time(0) - iSec;
     if (LogInterval()) {
         fmt::print(
@@ -432,7 +433,7 @@ void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
         ** Note: no extra gravity calculation required.
         */
         if (LogInterval() && iStep % LogInterval() == 0) {
-            CalcEandL(MSR_STEP_E, dTime, &E, &T, &U, &Eth, L, F, &W);
+            CalcEandL(MSR_STEP_E, dTime, E, T, U, Eth, L, F, W);
             fmt::print(
                 log,
                 "{time:.10e} {z:.10e} {E:.10e} {T:.10e} {U:.10e} {Eth:.10e} {L0:.10e} {L1:.10e} {L2:.10e} {F0:.10e} {F1:.10e} {F2:.10e} {W:.10e} {elapsed:d}\n",

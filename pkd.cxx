@@ -1956,15 +1956,15 @@ void pkdGravAll(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconePara
 }
 
 /* This became easier; we already calculated these values on the fly */
-void pkdCalcEandL(PKD pkd, double& T, double& U, double& Eth, TinyVector<double, 3>& L, TinyVector<double, 3>& F, double& W) {
-    T = pkd->dEnergyT;
-    U = pkd->dEnergyU;
-    W = pkd->dEnergyW;
-    L = pkd->dEnergyL;
-    F = pkd->dEnergyF;
+void pkdContext::CalcEandL(double& T, double& U, double& Eth, TinyVector<double, 3>& L, TinyVector<double, 3>& F, double& W) {
+    T = dEnergyT;
+    U = dEnergyU;
+    W = dEnergyW;
+    L = dEnergyL;
+    F = dEnergyF;
     Eth = 0.0;
-    if (pkd->particles.present(PKD_FIELD::oSph)) {
-        for (auto& p : pkd->particles) {
+    if (particles.present(PKD_FIELD::oSph)) {
+        for (auto& p : particles) {
             if (p.is_gas()) Eth += p.sph().E;
         }
     }

@@ -122,6 +122,7 @@ struct fmt::formatter<DeferFormat> {
 #include "services/chemcompinit.h"
 #include "services/sendarray.h"
 #include "services/checkpoint.h"
+#include "services/calceandl.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -2366,39 +2367,38 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, d
     return (uRungMax);
 }
 
-void MSR::CalcEandL(int bFirst, double dTime, double* E, double* T, double* U, double* Eth, double* L, double* F, double* W) {
-    struct outCalcEandL out;
-    double a;
-    int k;
+void MSR::CalcEandL(int bFirst, double dTime, double& E, double& T, double& U, double& Eth, blitz::TinyVector<double, 3>& L, blitz::TinyVector<double, 3>& F,
+                    double& W) {
+    ServiceCalcEandL::output out;
 
-    pstCalcEandL(pst, NULL, 0, &out, sizeof(out));
-    *T = out.T;
-    *U = out.U;
-    *Eth = out.Eth;
-    for (k = 0; k < 3; k++) L[k] = out.L[k];
-    for (k = 0; k < 3; k++) F[k] = out.F[k];
-    *W = out.W;
+    mdl->RunService<ServiceCalcEandL>({}, out);
+    T = out.T;
+    U = out.U;
+    Eth = out.Eth;
+    L = out.L;
+    F = out.F;
+    W = out.W;
     /*
     ** Do the comoving coordinates stuff.
     ** Currently L is not adjusted for this. Should it be?
     */
-    a = csmTime2Exp(csm, dTime);
-    if (!csm->val.bComove) *T *= pow(a, 4.0);
+    auto a = csmTime2Exp(csm, dTime);
+    if (!csm->val.bComove) T *= pow(a, 4.0);
     /*
      * Estimate integral (\dot a*U*dt) over the interval.
      * Note that this is equal to integral (W*da) and the latter
      * is more accurate when a is changing rapidly.
      */
     if (csm->val.bComove && !bFirst) {
-        dEcosmo += 0.5 * (a - csmTime2Exp(csm, dTimeOld)) * ((*U) + dUOld);
+        dEcosmo += 0.5 * (a - csmTime2Exp(csm, dTimeOld)) * (U + dUOld);
     }
     else {
         dEcosmo = 0.0;
     }
     dTimeOld = dTime;
-    dUOld = *U;
-    *U *= a;
-    *E = (*T) + (*U) - dEcosmo + a * a * (*Eth);
+    dUOld = U;
+    U *= a;
+    E = T + U - dEcosmo + a * a * Eth;
 }
 
 void MSR::Drift(double dTime, double dDelta, int iRoot) {

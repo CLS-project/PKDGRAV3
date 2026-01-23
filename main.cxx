@@ -37,6 +37,7 @@
 #include "services/chemcompinit.h"
 #include "services/sendarray.h"
 #include "services/checkpoint.h"
+#include "services/calceandl.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -182,6 +183,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceHostname>(pst);
     mdl->AddService<ServiceInitCosmology>(pst);
     mdl->AddService<ServiceInitLightcone>(pst);
+    mdl->AddService<ServiceCalcEandL>(pst);
     mdl->AddService<ServiceCalcRoot>(pst);
     mdl->AddService<ServiceCountSelected>(pst);
     mdl->AddService<ServiceSelBlackholes>(pst);

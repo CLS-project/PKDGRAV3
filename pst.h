@@ -108,7 +108,6 @@ inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view Gravity = "Gravity";
-inline constexpr std::string_view CalcEandL = "CalcEandL";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
@@ -127,7 +126,6 @@ enum pst_service {
     PST_OUTPUT,
     PST_OUTPUT_SEND,
     PST_GRAVITY,
-    PST_CALCEANDL,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
     PST_INITIALIZEPSTORE,
@@ -274,17 +272,6 @@ struct outGravityReduct {
     uint64_t nTilesCPU;
 };
 int pstGravity(PST, void*, int, void*, int);
-
-/* PST_CALCEANDL */
-struct outCalcEandL {
-    double T;
-    double U;
-    double Eth;
-    blitz::TinyVector<double, 3> L;
-    blitz::TinyVector<double, 3> F;
-    double W;
-};
-int pstCalcEandL(PST, void*, int, void*, int);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {

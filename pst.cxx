@@ -85,7 +85,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     ** define the size of the messages.
     */
     mdl->AddService(PST_GRAVITY, pst, (fcnService_t*)pstGravity, sizeof(struct inGravity), sizeof(struct outGravityReduct), Legacy::Gravity);
-    mdl->AddService(PST_CALCEANDL, pst, (fcnService_t*)pstCalcEandL, 0, sizeof(struct outCalcEandL), Legacy::CalcEandL);
     //
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
@@ -541,30 +540,6 @@ int pstGravity(PST pst, void* vin, int nIn, void* vout, int nOut) {
         }
     }
     return sizeof(struct outGravityReduct);
-}
-
-int pstCalcEandL(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto out = static_cast<struct outCalcEandL*>(vout);
-    struct outCalcEandL outLcl;
-    int k;
-
-    assert(nIn == 0);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_CALCEANDL, NULL, 0);
-        pstCalcEandL(pst->lower(), NULL, 0, out, nOut);
-        pst->mdl()->GetReply(rID, outLcl);
-        out->T += outLcl.T;
-        out->U += outLcl.U;
-        out->Eth += outLcl.Eth;
-        for (k = 0; k < 3; k++) out->L[k] += outLcl.L[k];
-        for (k = 0; k < 3; k++) out->F[k] += outLcl.F[k];
-        out->W += outLcl.W;
-    }
-    else {
-        pkdCalcEandL(plcl->pkd, out->T, out->U, out->Eth, out->L, out->F, out->W);
-    }
-    return sizeof(struct outCalcEandL);
 }
 
 int pstMemStatus(PST pst, void* vin, int nIn, void* vout, int nOut) {

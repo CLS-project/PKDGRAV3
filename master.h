@@ -445,7 +445,8 @@ class MSR {
     void TimerHeader();
     void TimerRestart();
     void TimerDump(int iStep);
-    void CalcEandL(int bFirst, double dTime, double* E, double* T, double* U, double* Eth, double* L, double* F, double* W);
+    void CalcEandL(int bFirst, double dTime, double& E, double& T, double& U, double& Eth, blitz::TinyVector<double, 3>& L, blitz::TinyVector<double, 3>& F,
+                   double& W);
     void Drift(double dTime, double dDelta, int iRoot);
 
     auto get_eEOS() -> eEOSparam;
