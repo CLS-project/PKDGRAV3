@@ -45,6 +45,7 @@
 #include "core/calcroot.h"
 #include "core/select.h"
 #include "core/fftgrid.h"
+#include "core/memstatus.h"
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "core/ignoresigbus.h"
@@ -181,6 +182,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSendArray>(pst); // This service is point-to-point
     mdl->AddService<ServiceCheckpoint>(pst);
     mdl->AddService<ServiceHostname>(pst);
+    mdl->AddService<ServiceMemStatus>(pst);
     mdl->AddService<ServiceInitCosmology>(pst);
     mdl->AddService<ServiceInitLightcone>(pst);
     mdl->AddService<ServiceCalcEandL>(pst);

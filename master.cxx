@@ -126,6 +126,7 @@ struct fmt::formatter<DeferFormat> {
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
+#include "core/memstatus.h"
 #include "core/ignoresigbus.h"
 #include "core/initcosmology.h"
 #include "core/calcroot.h"
@@ -2085,8 +2086,8 @@ void MSR::Hostname() {
 
 void MSR::MemStatus() {
     if (parameters.get_bVDetails()) {
-        std::unique_ptr<struct outMemStatus[]> out{new struct outMemStatus[nThreads]};
-        pstMemStatus(pst, 0, 0, out.get(), nThreads * sizeof(struct outMemStatus));
+        auto out = std::make_unique<ServiceMemStatus::output[]>(nThreads);
+        mdl->RunService<ServiceMemStatus>({}, std::span(out.get(), nThreads));
         // Normalize to an appropriate unit
         for (auto i = 0; i < nThreads; ++i) {
             out[i].nBytesTree = out[i].nBytesTree / 1024 / 1024;
@@ -2096,18 +2097,18 @@ void MSR::MemStatus() {
         }
 #ifdef __linux__
         print("Resident (MB):\n");
-        print_grid(8, nThreads, out, &outMemStatus::rss);
+        print_grid(8, nThreads, out, &ServiceMemStatus::output::rss);
         print("Free Memory (MB):\n");
-        print_grid(8, nThreads, out, &outMemStatus::freeMemory);
+        print_grid(8, nThreads, out, &ServiceMemStatus::output::freeMemory);
 #endif
         print("Tree size (MB):\n");
-        print_grid(8, nThreads, out, &outMemStatus::nBytesTree);
+        print_grid(8, nThreads, out, &ServiceMemStatus::output::nBytesTree);
         print("Checklist size (KB):\n");
-        print_grid(8, nThreads, out, &outMemStatus::nBytesCl);
+        print_grid(8, nThreads, out, &ServiceMemStatus::output::nBytesCl);
         print("Particle List size (KB):\n");
-        print_grid(8, nThreads, out, &outMemStatus::nBytesIlp);
+        print_grid(8, nThreads, out, &ServiceMemStatus::output::nBytesIlp);
         print("Cell List size (KB):\n");
-        print_grid(8, nThreads, out, &outMemStatus::nBytesIlc);
+        print_grid(8, nThreads, out, &ServiceMemStatus::output::nBytesIlc);
     }
 }
 

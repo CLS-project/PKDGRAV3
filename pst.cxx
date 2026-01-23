@@ -96,7 +96,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PLT_MOVEIC, pst, (fcnService_t*)pltMoveIC, sizeof(struct inMoveIC), 0, Legacy::MoveIC);
     mdl->AddService(PST_MOVEIC, pst, (fcnService_t*)pstMoveIC, sizeof(struct ServiceGenerateIC::input), 0, Legacy::LocalMoveIC);
 #endif
-    mdl->AddService(PST_MEMSTATUS, pst, (fcnService_t*)pstMemStatus, 0, nThreads * sizeof(struct outMemStatus), Legacy::MemStatus);
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
 }
@@ -540,66 +539,6 @@ int pstGravity(PST pst, void* vin, int nIn, void* vout, int nOut) {
         }
     }
     return sizeof(struct outGravityReduct);
-}
-
-int pstMemStatus(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto out = static_cast<struct outMemStatus*>(vout);
-    auto iUpper = pst->upper() - pst->Self();
-    auto nLower = iUpper * sizeof(struct outMemStatus);
-    struct outMemStatus* outUp = out + iUpper;
-
-    assert(nIn == 0);
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_MEMSTATUS, vin, nIn);
-        pstMemStatus(pst->lower(), vin, nIn, out, nLower);
-        pst->mdl()->GetReply(rID, nOut - nLower, outUp);
-    }
-    else {
-#ifdef __linux__
-        FILE* fp;
-        char buffer[512], *save, *f, *v;
-        int i;
-
-        fp = fopen("/proc/self/stat", "r");
-        if (fp != NULL) {
-            if (fgets(buffer, sizeof(buffer), fp) == NULL) buffer[0] = '\0';
-            fclose(fp);
-            f = strtok_r(buffer, " ", &save);
-            for (i = 0; i <= 36 && f; i++) {
-                switch (i) {
-                case 23:
-    #ifdef HAVE_GETPAGESIZE
-                    out->rss = atol(f) * getpagesize() / 1024 / 1024;
-    #else
-                    out->rss = atol(f) / 1024;
-    #endif
-                    break;
-                default:
-                    break;
-                }
-                f = strtok_r(NULL, " ", &save);
-            }
-        }
-        out->freeMemory = 0;
-        fp = fopen("/proc/meminfo", "r");
-        if (fp != NULL) {
-            while (fgets(buffer, sizeof(buffer), fp)) {
-                f = strtok_r(buffer, ":", &save);
-                v = strtok_r(NULL, " ", &save);
-                if (strcmp(f, "MemFree") == 0 || strcmp(f, "Buffers") == 0 || strcmp(f, "Cached") == 0) {
-                    out->freeMemory += atol(v) / 1024;
-                }
-            }
-            fclose(fp);
-        }
-#endif
-        out->nBytesTree = plcl->pkd->tree.memory();
-        out->nBytesCl = pkdClMemory(plcl->pkd);
-        out->nBytesIlp = pkdIlpMemory(plcl->pkd);
-        out->nBytesIlc = pkdIlcMemory(plcl->pkd);
-    }
-    return pst->n_total() * sizeof(struct outMemStatus);
 }
 
 int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut) {

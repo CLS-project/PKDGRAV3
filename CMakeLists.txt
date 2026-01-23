@@ -270,7 +270,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx domains/buildtree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
 	gravity/timestep.cxx gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/iostaggered.cxx io/restore.cxx
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c core/countspecies.cxx core/removedeleted.cxx
-	core/gridinfo.cxx analysis/assignmass.cxx analysis/measurepk.cxx analysis/bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
+	core/gridinfo.cxx analysis/assignmass.cxx analysis/measurepk.cxx analysis/bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx core/memstatus.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx core/particle.cxx core/memory.cxx core/fftgrid.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx analysis/lightcone.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx

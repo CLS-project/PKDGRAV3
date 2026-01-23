@@ -113,7 +113,6 @@ inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
-inline constexpr std::string_view MemStatus = "MemStatus";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
 } // namespace Legacy
@@ -131,7 +130,6 @@ enum pst_service {
     PST_INITIALIZEPSTORE,
     PST_MOVEIC,
     PLT_MOVEIC,
-    PST_MEMSTATUS,
     PST_SETSPHOPTIONS,
     PST_INITIALIZEEOS,
 };
@@ -283,19 +281,6 @@ int pstPhysicalSoft(PST, void*, int, void*, int);
 
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-/* PST_MEMSTATUS */
-struct outMemStatus {
-#ifdef __linux__
-    uint64_t rss;
-    uint64_t freeMemory;
-#endif
-    uint64_t nBytesTree;
-    uint64_t nBytesCl;
-    uint64_t nBytesIlp;
-    uint64_t nBytesIlc;
-};
-int pstMemStatus(PST, void*, int, void*, int);
 
 /* PST_SETSPHOPTIONS */
 struct inSetSPHoptions {
