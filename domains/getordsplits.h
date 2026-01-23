@@ -16,14 +16,11 @@
  */
 #include "TraversePST.h"
 
-class ServiceGetOrdSplits : public TraverseGatherPST<uint64_t> {
+class ServiceGetOrdSplits : public TraverseGatherPST<ServiceGetOrdSplits> {
   public:
     static constexpr std::string_view name = "GetOrdSplits";
     using input = void;
-    // struct input {
-    //     uint64_t iMinOrder;
-    //     uint64_t iMaxOrder;
-    // };
+    using output = uint64_t;
     explicit ServiceGetOrdSplits(PST pst) : TraverseGatherPST(pst, name, 0, sizeof(output) * pst->mdl()->Threads()) {}
 
   protected:

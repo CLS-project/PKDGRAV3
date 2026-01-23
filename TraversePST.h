@@ -149,16 +149,16 @@ class TraverseCombinePST : public TraversePST {
 
 // This class is for services where the input does not change as the PST is walked,
 // but where a field is gathered from each thread.
-template <typename OUTPUT>
+template <typename Derived>
 class TraverseGatherPST : public TraversePST {
   public:
     explicit TraverseGatherPST(PST node_pst, std::string_view service_name, int nInBytes, int nOutBytes)
         : TraversePST(node_pst, service_name, nInBytes, nOutBytes) {}
     virtual ~TraverseGatherPST() = default;
-    using output = OUTPUT;
 
   protected:
     virtual int Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> vout) final {
+        using output = typename Derived::output;
         int nBytesLower = pst->n_lower() * sizeof(output);
         int nBytesUpper = pst->n_upper() * sizeof(output);
         assert(nBytesLower + nBytesUpper <= vout.size());
