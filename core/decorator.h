@@ -46,8 +46,12 @@ class decoratorStore : public dataStore<decorators::FIELDS, DECORATOR_FIELD> {
   public:
     auto DecoratorSize() const { return ElementSize(); }
     // Given a pointer, return the index in the store
-    uint64_t DecoratorIndex(value_type* d) const { return (reinterpret_cast<char*>(d) - reinterpret_cast<char* const>(pStore)) / ElementSize(); }
-    uint64_t DecoratorIndex(const value_type* d) const { return (reinterpret_cast<const char*>(d) - reinterpret_cast<char* const>(pStore)) / ElementSize(); }
+    uint64_t DecoratorIndex(value_type* d) const {
+        return (reinterpret_cast<const std::byte*>(d) - reinterpret_cast<const std::byte*>(pStore)) / ElementSize();
+    }
+    uint64_t DecoratorIndex(const value_type* d) const {
+        return (reinterpret_cast<const std::byte*>(d) - reinterpret_cast<const std::byte*>(pStore)) / ElementSize();
+    }
     void Add(int i) { append(i); }
     int SetLocal(int n) {
         resize(n);
