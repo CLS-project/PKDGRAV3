@@ -533,6 +533,7 @@ class MSR {
     void CalcDistance(blitz::TinyVector<double, 3> dCenter, double dRadius);
     void CalcCOM(blitz::TinyVector<double, 3> dCenter, double dRadius, blitz::TinyVector<double, 3>& com, blitz::TinyVector<double, 3>& vcm,
                  blitz::TinyVector<double, 3>& L, double& M);
+    auto initializeSPHOptions(double dTime, double dDelta) -> SPHOptions;
     void SetSPHoptions();
     void ResetCOM();
     void InitializeEOS();

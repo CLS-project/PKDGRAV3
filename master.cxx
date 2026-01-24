@@ -124,6 +124,7 @@ struct fmt::formatter<DeferFormat> {
 #include "services/checkpoint.h"
 #include "services/calceandl.h"
 #include "services/physicalsoft.h"
+#include "services/setsphoptions.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -2149,7 +2150,7 @@ void MSR::PrintStat(const WelfordStats<double>& in_seconds, char const* pszPrefi
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, double dTime, double dDelta, double dStep, double dTheta, int bKickClose,
                      int bKickOpen, int bEwald, int bGravStep, int nPartRhoLoc, int iTimeStepCrit) {
-    SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDelta);
+    SPHOptions SPHoptions = initializeSPHOptions(dTime, dDelta);
     SPHoptions.doGravity = parameters.get_bDoGravity();
     SPHoptions.nPredictRung = uRungLo;
     return Gravity(uRungLo, uRungHi, iRoot1, iRoot2, dTime, dDelta, dStep, dTheta, bKickClose, bKickOpen, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit,
@@ -2985,7 +2986,7 @@ int MSR::NewTopStepKDK(double& dTime,                                           
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     if (NewSPH()) {
         SelAll(-1, 1);
-        SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDelta);
+        SPHOptions SPHoptions = initializeSPHOptions(dTime, dDelta);
         uint64_t nParticlesOnRung = 0;
         for (int i = MaxRung(); i >= uRung; i--) {
             nParticlesOnRung += nRung[i];
@@ -3069,7 +3070,7 @@ int MSR::NewTopStepKDK(double& dTime,                                           
             Gravity(uRung, MaxRung(), ROOT, uRoot2, dTime, dDelta, *pdStep, dTheta, 1, bKickOpen, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
     }
     else if (parameters.get_bDoGravity()) {
-        SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDelta);
+        SPHOptions SPHoptions = initializeSPHOptions(dTime, dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         SPHoptions.nPredictRung = uRung;
         *puRungMax =
@@ -3233,7 +3234,7 @@ void MSR::TopStepKDK(double dStep,             /* Current step */
 
         if (DoGravity()) {
             UpdateSoft(dTime);
-            SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, dDeltaStep);
+            SPHOptions SPHoptions = initializeSPHOptions(dTime, dDeltaStep);
             SPHoptions.doGravity = 1;
             Gravity(iKickRung, MAX_RUNG, ROOT, 0, dTime, dDeltaStep, dStep, dTheta, 0, 0, bEwald, bGravStep, nPartRhoLoc, parameters.get_iTimeStepCrit(),
                     SPHoptions);
@@ -3836,7 +3837,7 @@ double MSR::Read(std::string_view achInFile) {
         auto dTheta = set_dynamic(iStartStep, dTime);
 
         // Calculate Density
-        SPHOptions SPHoptions = initializeSPHOptions(parameters, csm, dTime, /*dDelta*/ 0.0);
+        SPHOptions SPHoptions = initializeSPHOptions(dTime, /*dDelta*/ 0.0);
         SPHoptions.doDensity = 1;
         SPHoptions.doUConversion = 1;
         const auto bGravStep = parameters.get_bGravStep();
@@ -4156,10 +4157,92 @@ void MSR::CalcCOM(blitz::TinyVector<double, 3> dCenter, double dRadius, blitz::T
     }
 }
 
+auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
+    UNITS units(parameters, csm->val.h);
+    SPHOptions SPHoptions;
+    SPHoptions.fKernelTarget = parameters.get_nSmooth();
+    SPHoptions.epsilon = 0.01f;
+    SPHoptions.alpha = parameters.get_dConstAlpha();
+    SPHoptions.beta = parameters.get_dConstBeta();
+    SPHoptions.EtaCourant = parameters.get_dEtaCourant();
+    SPHoptions.EtauDot = parameters.get_dEtauDot();
+    SPHoptions.EtaSdot = parameters.get_dEtaSdot();
+    SPHoptions.timeStepSmin = parameters.get_dTimeStepSmin();
+    SPHoptions.gamma = parameters.get_dConstGamma();
+    SPHoptions.TuFac = units.dGasConst / (SPHoptions.gamma - 1) / parameters.get_dMeanMolWeight();
+    SPHoptions.FastGasFraction = parameters.get_dFastGasFraction();
+    SPHoptions.VelocityDamper = 0.0f;
+    auto dVelocityDamper = parameters.get_dVelocityDamper();
+    auto dVelocityDamperEnd = parameters.get_dVelocityDamperEnd();
+    auto dVelocityDamperEndTime = parameters.get_dVelocityDamperEndTime();
+    if (dDelta > 0.0 && dVelocityDamper > 0.0) {
+        if ((dVelocityDamperEnd > 0.0) && (dVelocityDamperEndTime > 0.0)) {
+            if (dTime <= dVelocityDamperEndTime) {
+                SPHoptions.VelocityDamper =
+                    2.0 / dDelta * pow(10.0, log10(dVelocityDamperEnd / dVelocityDamper) / dVelocityDamperEndTime * dTime + log10(dVelocityDamper));
+            }
+        }
+        else {
+            SPHoptions.VelocityDamper = 2.0 / dDelta * dVelocityDamper;
+        }
+        printf("Velocity Damper active, VelocityDamper = %g\n", SPHoptions.VelocityDamper * dDelta * 0.5);
+    }
+    SPHoptions.nSmooth = parameters.get_nSmooth();
+    SPHoptions.ballSizeLimit = parameters.get_dBallSizeLimit();
+    SPHoptions.fBallFactor = 1.1f;
+    SPHoptions.dKpcUnit = units.dKpcUnit;
+    SPHoptions.dMsolUnit = units.dMsolUnit;
+    SPHoptions.dMeanMolWeight = parameters.get_dMeanMolWeight();
+    SPHoptions.nPredictRung = 0;
+    SPHoptions.nRungCorrection = 2;
+    if (csm->val.bComove) {
+        SPHoptions.a = csmTime2Exp(csm, dTime);
+        SPHoptions.H = csmTime2Hub(csm, dTime);
+    }
+    else {
+        SPHoptions.a = 1.0f;
+        SPHoptions.H = 0.0f;
+    }
+    auto externalAcceleration = parameters.get_dExternalAcceleration();
+    SPHoptions.externalAccelerationX = externalAcceleration[0];
+    SPHoptions.externalAccelerationY = externalAcceleration[1];
+    SPHoptions.externalAccelerationZ = externalAcceleration[2];
+    SPHoptions.doGravity = 0;
+    SPHoptions.doDensity = 0;
+    SPHoptions.doDensityCorrection = 0;
+    SPHoptions.doSPHForces = 0;
+    SPHoptions.doUConversion = 0;
+    SPHoptions.doSetDensityFlags = 0;
+    SPHoptions.dofBallFactor = 1;
+    SPHoptions.useIsentropic = parameters.get_bGasIsentropic();
+    SPHoptions.useBuiltinIdeal = parameters.get_bGasBuiltinIdeal();
+    SPHoptions.useDensityFlags = 0;
+    SPHoptions.doOnTheFlyPrediction = parameters.get_bGasOnTheFlyPrediction();
+    SPHoptions.doInterfaceCorrection = parameters.get_bGasInterfaceCorrection();
+    SPHoptions.doSetNNflags = 0;
+    SPHoptions.useNNflags = 0;
+    SPHoptions.doConsistentPrediction = parameters.get_bGasConsistentPrediction();
+    SPHoptions.kernelType = parameters.get_iKernelType();
+    SPHoptions.doCentrifugal = parameters.get_bCentrifugal();
+    SPHoptions.CentrifugalT0 = parameters.get_dCentrifT0();
+    SPHoptions.CentrifugalT1 = parameters.get_dCentrifT1();
+    SPHoptions.CentrifugalOmega0 = parameters.get_dCentrifOmega0();
+    SPHoptions.doExtensiveILPTest = parameters.get_bGasDoExtensiveILPTest();
+    SPHoptions.doShearStrengthModel = parameters.get_bShearStrengthModel();
+    SPHoptions.disableStressAtInterface = parameters.get_bDisableStressAtInterface();
+    SPHoptions.evolveDensity = parameters.get_bGasEvolveDensity();
+    SPHoptions.doExternalAcceleration = parameters.has_dExternalAcceleration();
+    SPHoptions.disableShockHeating = (parameters.get_bDisableShockHeatingWithVelocityDamper() && SPHoptions.VelocityDamper > 0.0);
+    SPHoptions.trackPeakPressure = parameters.get_bTrackPeakPressure();
+    SPHoptions.maxGroupSize = parameters.get_nGroup();
+    SPHoptions.lowerGroupSizeThreshold = parameters.get_iLowerGroupSizeThreshold();
+    SPHoptions.upperGroupSizeThreshold = parameters.get_iUpperGroupSizeThreshold();
+    return SPHoptions;
+}
+
 void MSR::SetSPHoptions() {
-    struct inSetSPHoptions in;
-    in.SPHoptions = initializeSPHOptions(parameters, csm, 0.0, 0.0);
-    pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
+    ServiceSetSPHoptions::input in = initializeSPHOptions(0.0, 0.0);
+    mdl->RunService<ServiceSetSPHoptions>(in);
 }
 
 void MSR::ResetCOM() {

@@ -19,11 +19,6 @@
 #define SPHOPTIONS_HINCLUDED
 #include "blitz/array.h"
 
-#include <stdint.h>
-class pkd_parameters;
-
-#include <assert.h>
-
 struct SPHBOB {
     blitz::TinyVector<float, 3> fBoBCenter; // Ball of Balls center
     float fBoBr;                            // Ball of Balls radius
@@ -82,7 +77,7 @@ struct SPHBOB {
 
 struct pkdKickParameters;
 
-typedef struct {
+struct SPHOptions {
     float fKernelTarget;
     float epsilon;
     float alpha;
@@ -138,9 +133,9 @@ typedef struct {
     uint64_t doExternalAcceleration : 1;
     uint64_t disableShockHeating : 1;
     uint64_t trackPeakPressure : 1;
-} SPHOptions;
+};
 
-typedef struct {
+struct SPHOptionsGPU {
     int kernelType;
     bool doInterfaceCorrection;
     bool useIsentropic;
@@ -152,18 +147,26 @@ typedef struct {
     float EtaCourant;
     float a;
     float H;
-} SPHOptionsGPU;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-SPHOptions initializeSPHOptions(pkd_parameters& parameters, void* vcsm, double dTime, double dDelta);
-void copySPHOptions(SPHOptions* source, SPHOptions* target);
-void copySPHOptionsGPU(SPHOptions* source, SPHOptionsGPU* target);
-float calculateInterfaceCorrectionPrefactor(float nSmooth, int kernelType);
-#ifdef __cplusplus
-}
-#endif
+    SPHOptionsGPU() = default;
+    SPHOptionsGPU(const SPHOptions& other) { *this = other; }
+    auto operator=(const SPHOptions& other) -> SPHOptionsGPU& {
+        kernelType = other.kernelType;
+        doInterfaceCorrection = other.doInterfaceCorrection;
+        useIsentropic = other.useIsentropic;
+        disableStressAtInterface = other.disableStressAtInterface;
+        disableShockHeating = other.disableShockHeating;
+        epsilon = other.epsilon;
+        alpha = other.alpha;
+        beta = other.beta;
+        EtaCourant = other.EtaCourant;
+        a = other.a;
+        H = other.H;
+        return *this;
+    }
+};
+
+auto calculateInterfaceCorrectionPrefactor(float nSmooth, int kernelType) -> float;
 
 /* Definition of the kernel:
  * W(r) = C  * w(r)

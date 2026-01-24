@@ -91,7 +91,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PLT_MOVEIC, pst, (fcnService_t*)pltMoveIC, sizeof(struct inMoveIC), 0, Legacy::MoveIC);
     mdl->AddService(PST_MOVEIC, pst, (fcnService_t*)pstMoveIC, sizeof(struct ServiceGenerateIC::input), 0, Legacy::LocalMoveIC);
 #endif
-    mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
 }
 
@@ -328,22 +327,6 @@ int pstWrite(PST pst, void* vin, int nIn, void* vout, int nOut) {
         }
     }
 
-    return 0;
-}
-
-int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inSetSPHoptions*>(vin);
-
-    assert(nIn == sizeof(struct inSetSPHoptions));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_SETSPHOPTIONS, vin, nIn);
-        pstSetSPHoptions(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        copySPHOptions(&in->SPHoptions, &plcl->pkd->SPHoptions);
-    }
     return 0;
 }
 

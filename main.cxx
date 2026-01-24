@@ -39,6 +39,7 @@
 #include "services/checkpoint.h"
 #include "services/calceandl.h"
 #include "services/physicalsoft.h"
+#include "services/setsphoptions.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -259,6 +260,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSaveGroupStats>(pst);
     mdl->AddService<ServiceCountDistance>(pst);
     mdl->AddService<ServiceGetOrbits>(pst);
+    mdl->AddService<ServiceSetSPHoptions>(pst);
     mdl->AddService<ServiceSwapClasses>(pst);
     mdl->AddService<ServiceGetClasses>(pst);
     mdl->AddService<ServiceSetClasses>(pst);

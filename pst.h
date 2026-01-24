@@ -106,7 +106,6 @@ inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
-inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
 } // namespace Legacy
 
@@ -120,7 +119,6 @@ enum pst_service {
     PST_ONENODEREADINIT,
     PST_MOVEIC,
     PLT_MOVEIC,
-    PST_SETSPHOPTIONS,
     PST_INITIALIZEEOS,
 };
 
@@ -176,11 +174,6 @@ int pstOutputSend(PST, void*, int, void*, int);
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut);
 
-/* PST_SETSPHOPTIONS */
-struct inSetSPHoptions {
-    SPHOptions SPHoptions;
-};
-int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut);
 /* PST_INITIALIZEEOS */
 int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut);
 

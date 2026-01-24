@@ -2347,8 +2347,7 @@ void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU) {
 #ifdef USE_CUDA
         // Only one thread needs to transfer the SPHoptions to the GPU
         if (pkd->mdl->Core() == 0) {
-            SPHOptionsGPU SPHoptionsGPU;
-            copySPHOptionsGPU(SPHoptions, &SPHoptionsGPU);
+            SPHOptionsGPU SPHoptionsGPU = *SPHoptions;
             pkd->cudaClient->setupSPHOptions(&SPHoptionsGPU);
         }
         pkd->mdl->ThreadBarrier();
