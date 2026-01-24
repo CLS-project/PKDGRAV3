@@ -153,13 +153,13 @@ void SmoothHelperHydroDensityFinal::Smooth(particleStore::ParticleReference& p, 
     p.set_density(p.mass() * (*omega));
 }
 
-struct SmoothOnlyHydroDensity : smooth::policy::OnlyGasOptimised {
+struct AcceptOnlyHydroDensity : smooth::policy::AcceptAll {
     double dNeighborsStd;
     double dhMinOverSoft;
 };
 
 template <>
-void smContext::resmoothSinks<SmoothOnlyHydroDensity, smooth::policy::ball>(std::span<PARTICLE*> sinks, Bound bnd_node, SmoothOnlyHydroDensity info) {
+void smContext::resmoothSinks<AcceptOnlyHydroDensity, smooth::policy::ball>(std::span<PARTICLE*> sinks, Bound bnd_node, AcceptOnlyHydroDensity info) {
     for (auto& P : sinks) {
         auto partj = pkd->particles[P];
 #ifdef OPTIM_UNION_EXTRAFIELDS
@@ -309,7 +309,7 @@ void smContext::resmoothSinks<SmoothOnlyHydroDensity, smooth::policy::ball>(std:
 /* This function is now deprecated and may be removed in future versions of
  * the code.
  *
- * The supported density computation is that performed by void smContext::resmoothSinks<SmoothOnlyHydroDensity>.
+ * The supported density computation is that performed by void smContext::resmoothSinks<AcceptOnlyHydroDensity, smooth::policy::ball>.
 
  * which is automatically selected when using the OPTIM_SMOOTH_NODE flag
  */
@@ -387,7 +387,8 @@ auto ServiceHydroDensity::Service(PST pst, std::span<std::byte> vin, std::span<s
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
     if (in->bIterativeSmoothingLength) {
 #ifdef OPTIM_SMOOTH_NODE
-        *out = smx.ReSmoothNode<SmoothOnlyHydroDensity, smooth::policy::OnlyGas, 1.2>({.dNeighborsStd = in->dNeighborsStd, .dhMinOverSoft = in->dhMinOverSoft});
+        *out = smx.ReSmoothNode<smooth::policy::OnlyGasOptimised, smooth::policy::OnlyGas, AcceptOnlyHydroDensity, 1.2>(
+            {}, {}, {.dNeighborsStd = in->dNeighborsStd, .dhMinOverSoft = in->dhMinOverSoft});
 #else
         *out = smx.ReSmooth<smooth::policy::OnlyGasOptimised>();
 #endif

@@ -3,6 +3,11 @@
 #include "hydro/hydro.h"
 #include "smooth/smooth.h"
 
+// In resmoothNodes we need check again if the particles is still marked, otherwise it was deleted in a previous merger.
+struct AcceptMarked {
+    static inline auto accept(particleStore::ParticleReference& p) -> bool { return p.marked(); }
+};
+
 // Select only BH particles
 struct OnlyMarkedBH : smooth::policy::OnlyBH {
     // BH particles must be marked to be accepted (when a merger happens, one is unmarked)
@@ -28,7 +33,7 @@ auto ServiceBHMerger::Service(PST pst, std::span<std::byte> vin, std::span<std::
     auto helper = std::make_shared<SmoothHelperBHmerger>(pkd);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
     // We search for BH sink particles and find BH neighbors within 2*softening length
-    *out = smx.ReSmoothNode<OnlyMarkedBH, OnlyMarkedBH, SmoothBallBH>();
+    *out = smx.ReSmoothNode<OnlyMarkedBH, OnlyMarkedBH, AcceptMarked, SmoothBallBH>();
     return sizeof(output);
 }
 
