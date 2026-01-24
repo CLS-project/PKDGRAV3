@@ -376,6 +376,15 @@ typedef struct {
     float fPotential;
 } healpixData;
 
+namespace base_type {
+using force_t = float;
+using force_vector_t = blitz::TinyVector<force_t, 3>;
+using force_array_t = blitz::Array<force_t, 3>;
+using position_t = double;
+using position_vector_t = blitz::TinyVector<position_t, 3>;
+using shape_vector_t = blitz::TinyVector<int, 3>;
+} // namespace base_type
+
 class pkdContext : public Integerize {
   public:
     explicit pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int nBucket, uint64_t nMinTotalStore, uint64_t nMinEphemeral,
@@ -518,6 +527,8 @@ class pkdContext : public Integerize {
         return pRoot;
     }
 
+    void fetch_forces(int cid, int nGrid, base_type::force_array_t& forces, const base_type::shape_vector_t& lower);
+
   public:
     void TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
     void TreeBuildByGroup(int nBucket, int nGroup);
@@ -534,6 +545,13 @@ class pkdContext : public Integerize {
     void ResetCOM(blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
 
     auto TotalMass() -> double;
+    void GridCreateFFT(int nGrid);
+    void GridDeleteFFT();
+    void SetLinearGrid(double a0, double a, double a1, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase);
+    void GenerateLinearGrid(double a, double a_next, double Lbox, int iSeed, int bFixed, float fPhase, int bRho);
+    void LinearKick(vel_t dtOpen, vel_t dtClose, int iAssignment = 3);
+    void MeasureLinearPk(int nGrid, double dA, double dBoxSize, int nBins, int iSeed, int bFixed, float fPhase, double* fK, double* fPower, uint64_t* nPower);
+    void AddLinearSignal(int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a);
 
   public:
     mdl::mdlClass* mdl;
@@ -877,9 +895,6 @@ void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta, int fold);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
 float getLinAcc(PKD pkd, MDLFFT fft, int cid, double r[3]);
-void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase);
-void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize, int nBins, int iSeed, int bFixed, float fPhase, double* fK, double* fPower,
-                     uint64_t* nPower);
 #endif
 void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType);
 

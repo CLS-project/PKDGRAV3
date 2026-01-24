@@ -177,12 +177,6 @@ inline constexpr std::string_view CalcDistance = "CalcDistance";
 inline constexpr std::string_view CalcCOM = "CalcCOM";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
-inline constexpr std::string_view GridCreateFFT = "GridCreateFFT";
-inline constexpr std::string_view GridDeleteFFT = "GridDeleteFFT";
-inline constexpr std::string_view AddLinearSignal = "AddLinearSignal";
-inline constexpr std::string_view MeasureLinPk = "MeasureLinPk";
-inline constexpr std::string_view SetLinGrid = "SetLinGrid";
-inline constexpr std::string_view LinearKick = "LinearKick";
 inline constexpr std::string_view AssignMass = "AssignMass";
 inline constexpr std::string_view DensityContrast = "DensityContrast";
 inline constexpr std::string_view WindowCorrection = "WindowCorrection";
@@ -276,14 +270,6 @@ enum pst_service {
     PST_CALCCOM,
     PST_SETSPHOPTIONS,
     PST_INITIALIZEEOS,
-#ifdef MDL_FFTW
-    PST_GRID_CREATE_FFT,
-    PST_GRID_DELETE_FFT,
-    PST_ADD_LINEAR_SIGNAL,
-    PST_MEASURELINPK,
-    PST_SETLINGRID,
-    PST_LINEARKICK,
-#endif
     PST_ASSIGN_MASS,
     PST_DENSITY_CONTRAST,
     PST_WINDOW_CORRECTION,
@@ -920,26 +906,7 @@ int pstSetSPHoptions(PST pst, void* vin, int nIn, void* vout, int nOut);
 /* PST_INITIALIZEEOS */
 int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut);
 
-/* PST_GRID_CREATE_FFT */
-struct inGridCreateFFT {
-    int nGrid;
-};
-int pstGridCreateFFT(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-/* PST_GRID_DELETE_FFT */
-int pstGridDeleteFFT(PST pst, void* vin, int nIn, void* vout, int nOut);
-
 #ifdef MDL_FFTW
-/* PST_ADD_LINEAR_SIGNAL */
-struct inAddLinearSignal {
-    int iGrid;
-    int iSeed;
-    int bFixed;
-    float fPhase;
-    double Lbox;
-    double a;
-};
-int pstAddLinearSignal(PST pst, void* vin, int nIn, void* vout, int nOut);
     #define PST_MAX_K_BINS 2500
 /* PST_GRID_BIN_K */
 struct inGridBinK {
@@ -991,40 +958,6 @@ struct inBispectrumCalculate {
     int iGrid1, iGrid2, iGrid3;
 };
 int pstBispectrumCalculate(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_LINEARKICK */
-struct inLinearKick {
-    vel_t dtOpen, dtClose;
-};
-int pstLinearKick(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_SETLINGRID */
-struct inSetLinGrid {
-    double a0;
-    double a;
-    double a1;
-    double dBSize;
-    int nGrid;
-    /* Noise generation */
-    int iSeed;
-    int bFixed;
-    float fPhase;
-};
-int pstSetLinGrid(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_MEASURELINPK */
-struct inMeasureLinPk {
-    double dA;
-    double dBoxSize;
-    int iSeed;
-    int bFixed;
-    float fPhase;
-    int nGrid;
-    int nBins;
-};
-struct outMeasureLinPk {
-    double fK[PST_MAX_K_BINS];
-    double fPower[PST_MAX_K_BINS];
-    uint64_t nPower[PST_MAX_K_BINS];
-};
-int pstMeasureLinPk(PST pst, void* vin, int nIn, void* vout, int nOut);
 #endif
 
 /* PST_GETMINDT */

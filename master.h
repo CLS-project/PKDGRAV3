@@ -431,7 +431,7 @@ class MSR {
     void LightConeClose(int iStep);
     void LightConeVel();
 #ifdef MDL_FFTW
-    void SetLinGrid(double dTime, double dDelta, int nGrid, int bKickClose, int bKickOpen);
+    void SetLinearGrid(double dTime, double dDelta, int nGrid, int bKickClose, int bKickOpen);
     void LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen);
 #endif
 
@@ -510,9 +510,9 @@ class MSR {
     void InitBall();
 
     std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>> // nPk, fK, fPk
-    MeasureLinPk(int nGridLin, double a, double dBoxSize);
+    MeasureLinearPk(int nGridLin, double a, double dBoxSize);
     void OutputPk(int iStep, double dTime);
-    void OutputLinPk(int iStep, double dTime);
+    void OutputLinearPk(int iStep, double dTime);
 
     int NewTopStepKDK(double& dTime,                                           /* MODIFIED: Current simulation time */
                       double dDelta, double dTheta, int nSteps, int bDualTree, /* Should be zero at rung 0! */

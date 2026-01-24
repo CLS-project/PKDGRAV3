@@ -140,6 +140,7 @@ namespace rockstar {
 #endif
 
 #include "analysis/analysis.h"
+#include "analysis/measurepk.h"
 #include "analysis/rsloadids.h"
 #include "analysis/rsreorder.h"
 #include "analysis/rssaveids.h"
@@ -158,6 +159,7 @@ namespace rockstar {
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
+#include "gravity/pmforces.h"
 #include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 
@@ -3053,8 +3055,8 @@ int MSR::NewTopStepKDK(double& dTime,                                           
         auto nGridLin = parameters.get_nGridLin();
         if (csm->val.classData.bClass && parameters.get_achLinSpecies().length() && nGridLin) {
             GridCreateFFT(nGridLin);
-            SetLinGrid(dTime, dDelta, nGridLin, 1, bKickOpen);
-            if (parameters.get_bDoLinPkOutput()) OutputLinPk(*pdStep, dTime);
+            SetLinearGrid(dTime, dDelta, nGridLin, 1, bKickOpen);
+            if (parameters.get_bDoLinPkOutput()) OutputLinearPk(*pdStep, dTime);
             LinearKick(dTime, dDelta, 1, bKickOpen);
             GridDeleteFFT();
         }
@@ -4103,7 +4105,7 @@ void MSR::OutputPk(int iStep, double dTime) {
     }
 }
 
-void MSR::OutputLinPk(int iStep, double dTime) {
+void MSR::OutputLinearPk(int iStep, double dTime) {
     std::string filename;
     double a, vfact, kfact;
     int i;
@@ -4114,7 +4116,7 @@ void MSR::OutputLinPk(int iStep, double dTime) {
 
     a = csmTime2Exp(csm, dTime);
 
-    auto [nPk, fK, fPk] = MeasureLinPk(parameters.get_nGridLin(), a, parameters.get_dBoxSize());
+    auto [nPk, fK, fPk] = MeasureLinearPk(parameters.get_nGridLin(), a, parameters.get_dBoxSize());
 
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm, dTime);
@@ -4744,13 +4746,12 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, double* r, double dMin
 
 #ifdef MDL_FFTW
 void MSR::GridCreateFFT(int nGrid) {
-    struct inGridCreateFFT in;
-    in.nGrid = nGrid;
-    pstGridCreateFFT(pst, &in, sizeof(in), NULL, 0);
+    ServiceGridCreateFFT::input in{.nGrid = nGrid};
+    mdl->RunService<ServiceGridCreateFFT>(in);
 }
 
 void MSR::GridDeleteFFT() {
-    pstGridDeleteFFT(pst, NULL, 0, NULL, 0);
+    mdl->RunService<ServiceGridDeleteFFT>();
 }
 
 /* Important: call msrGridCreateFFT() before, and msrGridDeleteFFT() after */
@@ -4794,25 +4795,54 @@ MSR::MeasurePk(int iAssignment, int bInterlace, int nGrid, double a, int nBins, 
     return {nPk, fK, fPk, fPkAll};
 }
 
+void MSR::AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed, float fPhase) {
+    ServiceAddLinearSignal::input in{.iGrid = iGrid, .iSeed = iSeed, .bFixed = bFixed, .fPhase = fPhase, .Lbox = Lbox, .a = a};
+    mdl->RunService<ServiceAddLinearSignal>(in);
+}
+
 std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>> // nPk, fK, fPk
-MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize) {
-    struct inMeasureLinPk in;
+MSR::GridBinK(int nBins, int iGrid) {
+    std::vector<uint64_t> nPk(nBins);
+    std::vector<float> fK(nBins), fPk(nBins);
+    struct inGridBinK in;
+    auto out = new struct outGridBinK;
+    in.nBins = nBins;
+    in.iGrid = iGrid;
+
+    assert(sizeof(out->nPower) / sizeof(out->nPower[0]) > nBins);
+
+    pstGridBinK(pst, &in, sizeof(in), out, sizeof(*out));
+    for (int i = 0; i < nBins; i++) {
+        if (out->nPower[i] == 0) fK[i] = fPk[i] = 0;
+        else {
+            nPk[i] = out->nPower[i];
+            fK[i] = exp(out->fK[i] / out->nPower[i]);
+            fPk[i] = out->fPower[i] / out->nPower[i];
+        }
+    }
+    delete out;
+
+    /* At this point, dPk[] needs to be corrected by the box size */
+    return {nPk, fK, fPk};
+}
+
+std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>> // nPk, fK, fPk
+MSR::MeasureLinearPk(int nGrid, double dA, double dBoxSize) {
     int i;
     double dsec;
 
     TimerStart(TIMER_NONE);
 
-    in.nGrid = nGrid;
-    in.nBins = nGrid / 2;
-    in.dBoxSize = dBoxSize;
-    in.dA = dA;
-    in.iSeed = parameters.get_iSeed();
-    in.bFixed = parameters.get_bFixedAmpIC();
-    in.fPhase = parameters.get_dFixedAmpPhasePI() * M_PI;
-
-    std::unique_ptr<struct outMeasureLinPk> out{new struct outMeasureLinPk};
+    struct ServiceMeasureLinearPk::input in{.dA = dA,
+                                            .dBoxSize = dBoxSize,
+                                            .fPhase = static_cast<float>(parameters.get_dFixedAmpPhasePI() * M_PI),
+                                            .iSeed = static_cast<int>(parameters.get_iSeed()),
+                                            .nGrid = nGrid,
+                                            .nBins = nGrid / 2,
+                                            .bFixed = parameters.get_bFixedAmpIC()};
+    auto out = std::make_unique<ServiceMeasureLinearPk::output>();
     print("Measuring P_lin(k) with grid size {} ({} bins)...\n", in.nGrid, in.nBins);
-    pstMeasureLinPk(pst, &in, sizeof(in), out.get(), sizeof(*out));
+    mdl->RunService<ServiceMeasureLinearPk>(in, *out);
     std::vector<uint64_t> nPk(nBins);
     std::vector<float> fK(nBins), fPk(nBins);
     for (i = 0; i < in.nBins; i++) {
@@ -4831,12 +4861,12 @@ MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize) {
     return {nPk, fK, fPk};
 }
 
-void MSR::SetLinGrid(double dTime, double dDelta, int nGrid, int bKickClose, int bKickOpen) {
+void MSR::SetLinearGrid(double dTime, double dDelta, int nGrid, int bKickClose, int bKickOpen) {
     print("Setting force grids of linear species with nGridLin = {}\n", nGrid);
     double dsec;
     TimerStart(TIMER_NONE);
 
-    struct inSetLinGrid in;
+    ServiceSetLinearGrid::input in;
     in.nGrid = nGrid;
 
     int do_DeltaRho_lin_avg = 1;
@@ -4851,22 +4881,21 @@ void MSR::SetLinGrid(double dTime, double dDelta, int nGrid, int bKickClose, int
     in.iSeed = parameters.get_iSeed();
     in.bFixed = parameters.get_bFixedAmpIC();
     in.fPhase = parameters.get_dFixedAmpPhasePI() * M_PI;
-    pstSetLinGrid(pst, &in, sizeof(in), NULL, 0);
+    mdl->RunService<ServiceSetLinearGrid>(in);
 
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
     print("Force grids of linear species set, Wallclock: {:.5} secs\n\n", dsec);
 }
 
-/* First call SetLinGrid() to setup the grid */
+/* First call SetLinearGrid() to setup the grid */
 void MSR::LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen) {
-    struct inLinearKick in;
     double dt = 0.5 * dDelta;
     double dsec;
 
     print("Applying Linear Kick...\n");
     TimerStart(TIMER_NONE);
-    in.dtOpen = in.dtClose = 0.0;
+    ServiceLinearKick::input in{.dtOpen = 0.0, .dtClose = 0.0};
     if (csm->val.bComove) {
         if (bKickClose) in.dtClose = csmComoveKickFac(csm, dTime - dt, dt);
         if (bKickOpen) in.dtOpen = csmComoveKickFac(csm, dTime, dt);
@@ -4875,7 +4904,7 @@ void MSR::LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen)
         if (bKickClose) in.dtClose = dt;
         if (bKickOpen) in.dtOpen = dt;
     }
-    pstLinearKick(pst, &in, sizeof(in), NULL, 0);
+    mdl->RunService<ServiceLinearKick>(in);
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
     print("Linear Kick Applied, Wallclock: {:.5} secs\n\n", dsec);

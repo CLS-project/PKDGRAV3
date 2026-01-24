@@ -15,13 +15,48 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "pkd_config.h"
+#include "pmforces.h"
+#include "pkd.h"
 
 #include <vector>
-#include "pst.h"
 #include "core/aweights.hpp"
 #include "ic/whitenoise.hpp"
 using namespace gridinfo;
 using namespace blitz;
+
+auto ServiceGridCreateFFT::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == 0);
+    pst->lcl()->pkd->GridCreateFFT(in->nGrid);
+    return 0;
+}
+
+void pkdContext::GridCreateFFT(int nGrid) {
+    assert(fft == nullptr);
+    fft = mdl->FFTInitialize(nGrid, nGrid, nGrid, 0, 0);
+}
+
+auto ServiceGridDeleteFFT::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    assert(vin.size() == 0);
+    assert(vout.size() == 0);
+    pst->lcl()->pkd->GridDeleteFFT();
+    return 0;
+}
+
+void pkdContext::GridDeleteFFT() {
+    assert(fft != nullptr);
+    mdl->FFTFinish(fft);
+    fft = nullptr;
+}
+
+auto ServiceLinearKick::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == 0);
+    pst->lcl()->pkd->LinearKick(in->dtOpen, in->dtClose);
+    return 0;
+}
 
 // A blitz++ friendly wrap function. returns "ik" given array index
 // Range: (-iNyquist,iNyquist] where iNyquist = m/2
@@ -38,7 +73,7 @@ BZ_DECLARE_ARRAY_ET_BINARY_SCALAR(fwrap, Fn_fwrap, float)
 *
 \********************************************************************************/
 
-void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbox, int iSeed, int bFixed, float fPhase, int bRho) {
+void pkdContext::GenerateLinearGrid(double a, double a_next, double Lbox, int iSeed, int bFixed, float fPhase, int bRho) {
     /* If bRho == 0, we generate the \delta field,
     ** otherwise we generate the \delta\rho field.
     ** If a == a_next, we generate the field at this a.
@@ -47,13 +82,13 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     ** averaging is only implemented for bRho == 1.
     */
     if (!bRho && a != a_next) {
-        fprintf(stderr, "WARNING: In pkdGenerateLinGrid(): Averaging of \\delta fields not implemented\n");
+        fprintf(stderr, "WARNING: In GenerateLinearGrid(): Averaging of \\delta fields not implemented\n");
         abort();
     }
     /* For the sake of performance we precompute the (possibly averaged)
     ** field at the |k|'s at which the perturbations are tabulated.
     */
-    size_t size = pkd->csm->val.classData.perturbations.size_k;
+    size_t size = csm->val.classData.perturbations.size_k;
     double* logk = (double*)malloc(sizeof(double) * size);
     double* field = (double*)malloc(sizeof(double) * size);
     size_t i;
@@ -61,13 +96,13 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     gsl_interp_accel* acc;
     gsl_spline* spline;
     for (i = 0; i < size; i++) {
-        k = pkd->csm->val.classData.perturbations.k[i];
+        k = csm->val.classData.perturbations.k[i];
         logk[i] = log(k);
         if (bRho) /* Use the \delta\rho field, possibly averaged */
-            field[i] = csmDeltaRho_lin(pkd->csm, a, a_next, k);
-        else /* Use the \delta field */ field[i] = csmDelta_lin(pkd->csm, a, k);
+            field[i] = csmDeltaRho_lin(csm, a, a_next, k);
+        else /* Use the \delta field */ field[i] = csmDelta_lin(csm, a, k);
         /* The cubic splining is much better without the analytic zeta */
-        field[i] /= csmZeta(pkd->csm, k);
+        field[i] /= csmZeta(csm, k);
     }
     acc = gsl_interp_accel_alloc();
     spline = gsl_spline_alloc(gsl_interp_cspline, size);
@@ -76,9 +111,9 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     double ix, iy, iz, i2;
     double iLbox = 2 * M_PI / Lbox;
 
-    GridInfo G(pkd->mdl, fft);
+    GridInfo G(mdl, fft);
     complex_array_t K;
-    G.setupArray(pkd->mdl->SetArray(pkd->Ephemeral<FFTW3(real)>()), K);
+    G.setupArray(mdl->SetArray(Ephemeral<FFTW3(real)>()), K);
     NoiseGenerator ng(iSeed, bFixed, fPhase);
     ng.FillNoise(K, fft->rgrid->n3);
     for (auto index = K.begin(); index != K.end(); ++index) {
@@ -89,7 +124,7 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
         i2 = ix * ix + iy * iy + iz * iz;
         if (i2 > 0) {
             k = sqrt((double)i2) * iLbox;
-            *index *= csmZeta(pkd->csm, k) * gsl_spline_eval(spline, log(k), acc);
+            *index *= csmZeta(csm, k) * gsl_spline_eval(spline, log(k), acc);
         }
         else *index = 0.0;
     }
@@ -126,8 +161,15 @@ static double green(int i, int jj, int kk, int nGrid) {
     else return -1.0 / g;
 }
 
-void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase) {
-    MDLFFT fft = pkd->fft;
+auto ServiceSetLinearGrid::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == 0);
+    pst->lcl()->pkd->SetLinearGrid(in->a0, in->a, in->a1, in->dBSize, in->nGrid, in->iSeed, in->bFixed, in->fPhase);
+    return 0;
+}
+
+void pkdContext::SetLinearGrid(double a0, double a, double a1, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase) {
     /* Grid coordinates in real space :      [0, nGrid].[0, nGrid].[0, nGrid] */
     mdlGridCoord rfirst, rlast;
     /* Grid coordinates in Fourier space : [O, Nyquist].[0, nGrid].[0, nGrid] */
@@ -136,22 +178,22 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
     /* Scale factors and normalization */
     const double dNormalization = a * a * a * dBSize;
 
-    mdlGridCoordFirstLast(pkd->mdl, fft->rgrid, &rfirst, &rlast, 1);
-    mdlGridCoordFirstLast(pkd->mdl, fft->kgrid, &kfirst, &klast, 0);
+    mdlGridCoordFirstLast(mdl, fft->rgrid, &rfirst, &rlast, 1);
+    mdlGridCoordFirstLast(mdl, fft->kgrid, &kfirst, &klast, 0);
 
     /* Imprint the density grid of the linear species */
     int bRho = 1; /* Generate the \delta\rho field */
-    pkdGenerateLinGrid(pkd, fft, a0, a1, dBSize, iSeed, bFixed, fPhase, bRho);
+    GenerateLinearGrid(a0, a1, dBSize, iSeed, bFixed, fPhase, bRho);
 
     /*
      * Define the grid arrays : only 3 grids are stored
      * in memory, the other ones are defined in order to
      * have an explicit naming in the code
      */
-    auto cDelta_lin_field = pkd->mdl->SetArray(pkd->Ephemeral<FFTW3(complex)>(), klast.i);
+    auto cDelta_lin_field = mdl->SetArray(Ephemeral<FFTW3(complex)>(), klast.i);
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
-    auto cForceY = pkd->mdl->SetArray(cDelta_lin_field + fft->kgrid->nLocal, klast.i);
-    auto cForceZ = pkd->mdl->SetArray(cForceY + fft->kgrid->nLocal, klast.i);
+    auto cForceY = mdl->SetArray(cDelta_lin_field + fft->kgrid->nLocal, klast.i);
+    auto cForceZ = mdl->SetArray(cForceY + fft->kgrid->nLocal, klast.i);
 
     int idx, i, j, jj, k, kk;
     const int iNyquist = nGrid / 2;
@@ -198,30 +240,12 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
         cDelta_lin_field[idx][0] = dDifferentiate * imPotential;
         cDelta_lin_field[idx][1] = -dDifferentiate * rePotential;
     }
-    pkd->mdl->IFFT(fft, cForceY);
-    pkd->mdl->IFFT(fft, cForceZ);
-    pkd->mdl->IFFT(fft, cDelta_lin_field);
+    mdl->IFFT(fft, cForceY);
+    mdl->IFFT(fft, cForceZ);
+    mdl->IFFT(fft, cDelta_lin_field);
 }
 
-int pstSetLinGrid(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    struct inSetLinGrid* in = reinterpret_cast<struct inSetLinGrid*>(vin);
-    assert(nIn == sizeof(struct inSetLinGrid));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_SETLINGRID, vin, nIn);
-        pstSetLinGrid(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdSetLinGrid(plcl->pkd, in->a0, in->a, in->a1, in->dBSize, in->nGrid, in->iSeed, in->bFixed, in->fPhase);
-    }
-    return 0;
-}
-
-typedef blitz::Array<float, 3> force_array_t;
-typedef blitz::TinyVector<int, 3> shape_t;
-typedef blitz::TinyVector<double, 3> position_t;
-typedef blitz::TinyVector<float, 3> float3_t;
+using float3_t = blitz::TinyVector<float, 3>;
 
 struct tree_node : public KDN {
     bool is_cell() { return iLower != 0; }
@@ -229,7 +253,7 @@ struct tree_node : public KDN {
 };
 
 template <int Order, typename F>
-static float interpolate(force_array_t& forces, const F r[3]) {
+static float interpolate(base_type::force_array_t& forces, const F r[3]) {
     AssignmentWeights<Order, F> Hx(r[0]), Hy(r[1]), Hz(r[2]);
     float force = 0;
     for (int i = 0; i <= Order; ++i) {
@@ -243,7 +267,7 @@ static float interpolate(force_array_t& forces, const F r[3]) {
 }
 
 template <typename F>
-static float force_interpolate(force_array_t& forces, const F r[3], int iAssignment = 3) {
+static float force_interpolate(base_type::force_array_t& forces, const F r[3], int iAssignment = 3) {
     float f;
     switch (iAssignment) {
     case 0:
@@ -267,53 +291,53 @@ static float force_interpolate(force_array_t& forces, const F r[3], int iAssignm
 }
 
 // Fetch all forces into this local grid. Could be optimized by bulk fetches.
-static void fetch_forces(PKD pkd, int cid, int nGrid, force_array_t& forces, const shape_t& lower) {
+
+void pkdContext::fetch_forces(int cid, int nGrid, base_type::force_array_t& forces, const base_type::shape_vector_t& lower) {
     auto wrap = [&nGrid](int i) {
         if (i >= nGrid) i -= nGrid;
         else if (i < 0) i += nGrid;
         return i;
     };
     for (auto i = forces.begin(); i != forces.end(); ++i) {
-        shape_t loc = i.position() + lower;
+        base_type::shape_vector_t loc = i.position() + lower;
         loc[0] = wrap(loc[0]);
         loc[1] = wrap(loc[1]);
         loc[2] = wrap(loc[2]);
-        auto id = mdlFFTrId(pkd->mdl, pkd->fft, loc[0], loc[1], loc[2]);
-        auto idx = mdlFFTrIdx(pkd->mdl, pkd->fft, loc[0], loc[1], loc[2]);
-        auto p = pkd->mdl->Fetch<float>(cid, idx, id);
+        auto id = mdlFFTrId(mdl, fft, loc[0], loc[1], loc[2]);
+        auto idx = mdlFFTrIdx(mdl, fft, loc[0], loc[1], loc[2]);
+        auto p = mdl->Fetch<base_type::force_t>(cid, idx, id);
         *i = *p;
     }
 }
 
-void pkdLinearKick(PKD pkd, vel_t dtOpen, vel_t dtClose, int iAssignment = 3) {
+void pkdContext::LinearKick(vel_t dtOpen, vel_t dtClose, int iAssignment) {
     const std::size_t maxSize = 100000; // We would like this to remain in L2 cache
     std::vector<float> dataX, dataY, dataZ;
     dataX.reserve(maxSize);
     dataY.reserve(maxSize);
     dataZ.reserve(maxSize);
-    shape_t index;
-    position_t fPeriod(pkd->fPeriod), ifPeriod = 1.0 / fPeriod;
-    int nGrid = pkd->fft->rgrid->n1;
+    base_type::shape_vector_t index;
+    base_type::position_vector_t ifPeriod = 1.0 / fPeriod;
+    int nGrid = fft->rgrid->n1;
     assert(iAssignment >= 0 && iAssignment <= 3);
 
-    int iLocal = pkd->mdl->Core() ? 0 : pkd->fft->rgrid->nLocal;
-    auto forceX = pkd->mdl->SetArray(pkd->Ephemeral<FFTW3(real)>(), iLocal);
-    auto forceY = pkd->mdl->SetArray(forceX + pkd->fft->rgrid->nLocal, iLocal);
-    auto forceZ = pkd->mdl->SetArray(forceY + pkd->fft->rgrid->nLocal, iLocal);
-    pkd->mdl->CacheInitialize(CID_GridLinFx, std::make_shared<mdl::arrayCACHEhelper>(forceX, iLocal));
-    pkd->mdl->CacheInitialize(CID_GridLinFy, std::make_shared<mdl::arrayCACHEhelper>(forceY, iLocal));
-    pkd->mdl->CacheInitialize(CID_GridLinFz, std::make_shared<mdl::arrayCACHEhelper>(forceZ, iLocal));
-
+    int iLocal = mdl->Core() ? 0 : fft->rgrid->nLocal;
+    auto forceX = mdl->SetArray(Ephemeral<FFTW3(real)>(), iLocal);
+    auto forceY = mdl->SetArray(forceX + fft->rgrid->nLocal, iLocal);
+    auto forceZ = mdl->SetArray(forceY + fft->rgrid->nLocal, iLocal);
+    mdl->CacheInitialize(CID_GridLinFx, std::make_shared<mdl::arrayCACHEhelper>(forceX, iLocal));
+    mdl->CacheInitialize(CID_GridLinFy, std::make_shared<mdl::arrayCACHEhelper>(forceY, iLocal));
+    mdl->CacheInitialize(CID_GridLinFz, std::make_shared<mdl::arrayCACHEhelper>(forceZ, iLocal));
     auto pad = (iAssignment + 1) / 2;
     std::vector<std::uint32_t> stack;
     stack.push_back(ROOT);
     while (!stack.empty()) {
-        auto kdn = pkd->tree[stack.back()];
+        auto kdn = tree[stack.back()];
         stack.pop_back(); // Go to the next node in the tree
         auto bnd = kdn->bound();
-        shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - pad;
-        shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid)) + pad;
-        shape_t ishape = iupper - ilower + 1;
+        base_type::shape_vector_t ilower = base_type::shape_vector_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - pad;
+        base_type::shape_vector_t iupper = base_type::shape_vector_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid)) + pad;
+        base_type::shape_vector_t ishape = iupper - ilower + 1;
         float3_t flower = ilower;
         std::size_t size = blitz::product(ishape);
 
@@ -326,12 +350,12 @@ void pkdLinearKick(PKD pkd, vel_t dtOpen, vel_t dtClose, int iAssignment = 3) {
             dataX.resize(size); // Hold the right number of masses
             dataY.resize(size); // Hold the right number of masses
             dataZ.resize(size); // Hold the right number of masses
-            force_array_t forcesX(dataX.data(), ishape, blitz::neverDeleteData, blitz::ColumnMajorArray<3>());
-            force_array_t forcesY(dataY.data(), ishape, blitz::neverDeleteData, blitz::ColumnMajorArray<3>());
-            force_array_t forcesZ(dataZ.data(), ishape, blitz::neverDeleteData, blitz::ColumnMajorArray<3>());
-            fetch_forces(pkd, CID_GridLinFx, nGrid, forcesX, ilower);
-            fetch_forces(pkd, CID_GridLinFy, nGrid, forcesY, ilower);
-            fetch_forces(pkd, CID_GridLinFz, nGrid, forcesZ, ilower);
+            base_type::force_array_t forcesX(dataX.data(), ishape, blitz::neverDeleteData, blitz::ColumnMajorArray<3>());
+            base_type::force_array_t forcesY(dataY.data(), ishape, blitz::neverDeleteData, blitz::ColumnMajorArray<3>());
+            base_type::force_array_t forcesZ(dataZ.data(), ishape, blitz::neverDeleteData, blitz::ColumnMajorArray<3>());
+            fetch_forces(CID_GridLinFx, nGrid, forcesX, ilower);
+            fetch_forces(CID_GridLinFy, nGrid, forcesY, ilower);
+            fetch_forces(CID_GridLinFz, nGrid, forcesZ, ilower);
             for (auto& p : *kdn) { // All particles in this tree cell
                 auto& v = p.velocity();
                 float3_t r = p.position();
@@ -342,36 +366,19 @@ void pkdLinearKick(PKD pkd, vel_t dtOpen, vel_t dtClose, int iAssignment = 3) {
             }
         }
     }
-    pkd->mdl->FinishCache(CID_GridLinFx);
-    pkd->mdl->FinishCache(CID_GridLinFy);
-    pkd->mdl->FinishCache(CID_GridLinFz);
+    mdl->FinishCache(CID_GridLinFx);
+    mdl->FinishCache(CID_GridLinFy);
+    mdl->FinishCache(CID_GridLinFz);
 }
 
-int pstLinearKick(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    struct inLinearKick* in = reinterpret_cast<struct inLinearKick*>(vin);
-    assert(nIn == sizeof(struct inLinearKick));
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_LINEARKICK, vin, nIn);
-        pstLinearKick(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdLinearKick(plcl->pkd, in->dtOpen, in->dtClose);
-    }
-    return 0;
-}
-
-void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize, int nBins, int iSeed, int bFixed, float fPhase, double* fK, double* fPower,
-                     uint64_t* nPower) {
-    MDLFFT fft = pkd->fft;
+void pkdContext::MeasureLinearPk(int nGrid, double dA, double dBoxSize, int nBins, int iSeed, int bFixed, float fPhase, double* fK, double* fPower,
+                                 uint64_t* nPower) {
     mdlGridCoord first, last, index;
     double ak;
     int i, j, k, idx, ks;
     int iNyquist = nGrid / 2;
 
-    mdlGridCoordFirstLast(pkd->mdl, fft->rgrid, &first, &last, 1);
+    mdlGridCoordFirstLast(mdl, fft->rgrid, &first, &last, 1);
     /* Generate the grid of the linear species again,
     ** this should not be done this way for performances.
     ** - Well, for the gravity computation what is generated
@@ -382,12 +389,11 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize, int nBins, 
     */
     int bRho = 0;
     double a_next = dA; /* Generate the \delta field at dA (no averaging) */
-    pkdGenerateLinGrid(pkd, fft, dA, a_next, dBoxSize, iSeed, bFixed, fPhase, bRho);
+    GenerateLinearGrid(dA, a_next, dBoxSize, iSeed, bFixed, fPhase, bRho);
 
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
-    mdlGridCoordFirstLast(pkd->mdl, fft->kgrid, &first, &last, 0);
-    auto fftDataK = pkd->mdl->SetArray(pkd->Ephemeral<FFTW3(complex)>(), last.i);
-
+    mdlGridCoordFirstLast(mdl, fft->kgrid, &first, &last, 0);
+    auto fftDataK = mdl->SetArray(Ephemeral<FFTW3(complex)>(), last.i);
     for (i = 0; i < nBins; i++) {
         fK[i] = 0.0;
         fPower[i] = 0.0;
@@ -434,31 +440,25 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize, int nBins, 
     }
 }
 
-int pstMeasureLinPk(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    struct inMeasureLinPk* in = reinterpret_cast<struct inMeasureLinPk*>(vin);
-    struct outMeasureLinPk* out = reinterpret_cast<struct outMeasureLinPk*>(vout);
-    struct outMeasureLinPk* outUpper;
-    int i;
-
-    assert(nIn == sizeof(struct inMeasureLinPk));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_MEASURELINPK, vin, nIn);
-        pstMeasureLinPk(pst->lower(), vin, nIn, vout, nOut);
-        outUpper = reinterpret_cast<struct outMeasureLinPk*>(malloc(sizeof(struct outMeasureLinPk)));
-        assert(outUpper != NULL);
-        nOut = pst->mdl()->GetReply(rID, sizeof(*outUpper), outUpper);
-        assert(nOut == sizeof(struct outMeasureLinPk));
-
-        for (i = 0; i < in->nBins; i++) {
-            out->fK[i] += outUpper->fK[i];
-            out->fPower[i] += outUpper->fPower[i];
-            out->nPower[i] += outUpper->nPower[i];
-        }
-        free(outUpper);
+auto ServiceMeasureLinearPk::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto pkd = pst->lcl()->pkd;
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() >= sizeof(output) * in->nBins);
+    pkd->MeasureLinearPk(in->nGrid, in->dA, in->dBoxSize, in->nBins, in->iSeed, in->bFixed, in->fPhase, out->fK, out->fPower, out->nPower);
+    std::fill(out->fK + in->nBins, out->fK + max_k_bins, 0.0);
+    std::fill(out->fPower + in->nBins, out->fPower + max_k_bins, 0.0);
+    std::fill(out->nPower + in->nBins, out->nPower + max_k_bins, 0);
+    return sizeof(output);
+}
+auto ServiceMeasureLinearPk::Combine(std::span<std::byte> vout, std::span<const std::byte> vin) -> int {
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto in = reinterpret_cast<const output*>(vin.data());
+    for (std::size_t i = 0; i < max_k_bins; i++) {
+        out->fK[i] += in->fK[i];
+        out->fPower[i] += in->fPower[i];
+        out->nPower[i] += in->nPower[i];
     }
-    else {
-        pkdMeasureLinPk(plcl->pkd, in->nGrid, in->dA, in->dBoxSize, in->nBins, in->iSeed, in->bFixed, in->fPhase, out->fK, out->fPower, out->nPower);
-    }
-    return sizeof(struct outMeasureLinPk);
+    return sizeof(output);
 }

@@ -51,6 +51,7 @@
 
 #include "analysis/analysis.h"
 #include "analysis/orbits.h"
+#include "analysis/measurepk.h"
 #ifdef HAVE_ROCKSTAR
     #include "analysis/rshalocount.h"
     #include "analysis/rshaloloadids.h"
@@ -79,6 +80,7 @@
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
+#include "gravity/pmforces.h"
 #include "gravity/updaterung.h"
 #include "gravity/zeronewrung.h"
 
@@ -165,6 +167,12 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceActiveRung>(pst);
     mdl->AddService<ServiceCountRungs>(pst);
     mdl->AddService<ServiceUpdateRung>(pst);
+    mdl->AddService<ServiceGridCreateFFT>(pst);
+    mdl->AddService<ServiceGridDeleteFFT>(pst);
+    mdl->AddService<ServiceLinearKick>(pst);
+    mdl->AddService<ServiceMeasureLinearPk>(pst);
+    mdl->AddService<ServiceSetLinearGrid>(pst);
+    mdl->AddService<ServiceAddLinearSignal>(pst);
     mdl->AddService<ServiceZeroNewRung>(pst);
     mdl->AddService<ServiceGetOrdSplits>(pst);
     mdl->AddService<ServiceSaveGroupStats>(pst);

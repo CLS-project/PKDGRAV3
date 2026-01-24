@@ -163,9 +163,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
 #ifdef MDL_FFTW
-    mdl->AddService(PST_GRID_CREATE_FFT, pst, (fcnService_t*)pstGridCreateFFT, sizeof(struct inGridCreateFFT), 0, Legacy::GridCreateFFT);
-    mdl->AddService(PST_GRID_DELETE_FFT, pst, (fcnService_t*)pstGridDeleteFFT, 0, 0, Legacy::GridDeleteFFT);
-    mdl->AddService(PST_ADD_LINEAR_SIGNAL, pst, (fcnService_t*)pstAddLinearSignal, sizeof(struct inAddLinearSignal), 0, Legacy::AddLinearSignal);
     mdl->AddService(PST_ASSIGN_MASS, pst, (fcnService_t*)pstAssignMass, sizeof(struct inAssignMass), 0, Legacy::AssignMass);
     mdl->AddService(PST_DENSITY_CONTRAST, pst, (fcnService_t*)pstDensityContrast, sizeof(struct inDensityContrast), 0, Legacy::DensityContrast);
     mdl->AddService(PST_WINDOW_CORRECTION, pst, (fcnService_t*)pstWindowCorrection, sizeof(struct inWindowCorrection), 0, Legacy::WindowCorrection);
@@ -174,9 +171,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_BISPECTRUM_SELECT, pst, (fcnService_t*)pstBispectrumSelect, sizeof(struct inBispectrumSelect), 0, Legacy::BispectrumSelect);
     mdl->AddService(PST_BISPECTRUM_CALCULATE, pst, (fcnService_t*)pstBispectrumCalculate, sizeof(struct inBispectrumCalculate), sizeof(double),
                     Legacy::BispectrumCalculate);
-    mdl->AddService(PST_LINEARKICK, pst, (fcnService_t*)pstLinearKick, sizeof(struct inLinearKick), 0, Legacy::LinearKick);
-    mdl->AddService(PST_SETLINGRID, pst, (fcnService_t*)pstSetLinGrid, sizeof(struct inSetLinGrid), 0, Legacy::SetLinGrid);
-    mdl->AddService(PST_MEASURELINPK, pst, (fcnService_t*)pstMeasureLinPk, sizeof(struct inMeasureLinPk), sizeof(struct outMeasureLinPk), Legacy::MeasureLinPk);
 #endif
 }
 
@@ -1684,41 +1678,6 @@ int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     return 0;
 }
-
-#ifdef MDL_FFTW
-int pstGridCreateFFT(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inGridCreateFFT*>(vin);
-    assert(nIn == sizeof(struct inGridCreateFFT));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GRID_CREATE_FFT, vin, nIn);
-        pstGridCreateFFT(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        PKD pkd = plcl->pkd;
-        assert(pkd->fft == NULL);
-        pkd->fft = pst->mdl()->FFTInitialize(in->nGrid, in->nGrid, in->nGrid, 0, 0);
-    }
-    return 0;
-}
-
-int pstGridDeleteFFT(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GRID_DELETE_FFT, vin, nIn);
-        pstGridDeleteFFT(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        PKD pkd = plcl->pkd;
-        assert(pkd->fft != NULL);
-        pst->mdl()->FFTFinish(plcl->pkd->fft);
-        pkd->fft = NULL;
-    }
-    return 0;
-}
-#endif
 
 int pstGetMinDt(PST pst, void* vin, int nIn, void* vout, int nOut) {
     LCL* plcl = pst->lcl();

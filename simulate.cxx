@@ -242,8 +242,8 @@ void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
         auto nGridLin = parameters.get_nGridLin();
         if (csm->val.classData.bClass && parameters.get_achLinSpecies().length() && nGridLin > 0) {
             GridCreateFFT(nGridLin);
-            SetLinGrid(dTime, dDelta, nGridLin, bKickClose, bKickOpen);
-            if (parameters.get_bDoLinPkOutput()) OutputLinPk(iStartStep, dTime);
+            SetLinearGrid(dTime, dDelta, nGridLin, bKickClose, bKickOpen);
+            if (parameters.get_bDoLinPkOutput()) OutputLinearPk(iStartStep, dTime);
             LinearKick(dTime, dDelta, bKickClose, bKickOpen);
             GridDeleteFFT();
         }
@@ -407,8 +407,8 @@ void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
                 auto nGridLin = parameters.get_nGridLin();
                 if (csm->val.classData.bClass && parameters.get_achLinSpecies().length() && nGridLin > 0) {
                     GridCreateFFT(nGridLin);
-                    SetLinGrid(dTime, dDelta, nGridLin, bKickClose, bKickOpen);
-                    if (parameters.get_bDoLinPkOutput()) OutputLinPk(iStartStep, dTime);
+                    SetLinearGrid(dTime, dDelta, nGridLin, bKickClose, bKickOpen);
+                    if (parameters.get_bDoLinPkOutput()) OutputLinearPk(iStartStep, dTime);
                     LinearKick(dTime, dDelta, bKickClose, bKickOpen);
                     GridDeleteFFT();
                 }

@@ -14,13 +14,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
-#include "pst.h"
-#include "master.h"
+#include "pkd_config.h"
+#include "measurepk.h"
 #include "core/gridinfo.hpp"
 #include "ic/whitenoise.hpp"
 using namespace gridinfo;
@@ -77,44 +72,26 @@ void LinearSignal::update(complex_vector_t& pencil, complex_vector_t& noise, int
     }
 }
 
-void pkdAddLinearSignal(PKD pkd, int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a) {
-    assert(pkd->fft != NULL);
-    auto fft = pkd->fft;
-    int nGrid = fft->rgrid->n1;
-    GridInfo G(pkd->mdl, fft);
-
-    complex_array_t K1;
-    auto data1 = pkd->mdl->SetArray(pkd->Ephemeral<real_t>()) + fft->rgrid->nLocal * iGrid;
-    G.setupArray(data1, K1);
-
-    LinearSignal ng(pkd->csm, a, Lbox, iSeed, bFixed, fPhase);
-    ng.FillNoise(K1, nGrid);
-}
-
-int pstAddLinearSignal(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = reinterpret_cast<struct inAddLinearSignal*>(vin);
-    assert(nIn == sizeof(*in));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_ADD_LINEAR_SIGNAL, vin, nIn);
-        pstAddLinearSignal(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdAddLinearSignal(plcl->pkd, in->iGrid, in->iSeed, in->bFixed, in->fPhase, in->Lbox, in->a);
-    }
+auto ServiceAddLinearSignal::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto pkd = pst->lcl()->pkd;
+    auto in = reinterpret_cast<const input*>(vin.data());
+    assert(vin.size() == sizeof(input));
+    assert(vout.size() == 0);
+    pkd->AddLinearSignal(in->iGrid, in->iSeed, in->bFixed, in->fPhase, in->Lbox, in->a);
     return 0;
 }
 
-void MSR::AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed, float fPhase) {
-    struct inAddLinearSignal in;
-    in.iGrid = iGrid;
-    in.iSeed = iSeed;
-    in.bFixed = bFixed;
-    in.fPhase = fPhase;
-    in.Lbox = Lbox;
-    in.a = a;
-    pstAddLinearSignal(pst, &in, sizeof(in), NULL, 0);
+void pkdContext::AddLinearSignal(int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a) {
+    assert(fft != nullptr);
+    int nGrid = fft->rgrid->n1;
+    GridInfo G(mdl, fft);
+
+    complex_array_t K1;
+    auto data1 = mdl->SetArray(Ephemeral<real_t>()) + fft->rgrid->nLocal * iGrid;
+    G.setupArray(data1, K1);
+
+    LinearSignal ng(csm, a, Lbox, iSeed, bFixed, fPhase);
+    ng.FillNoise(K1, nGrid);
 }
 
 void pkdGridBinK(PKD pkd, int nBins, int iGrid, double* fK, double* fPower, uint64_t* nPower) {
@@ -192,30 +169,4 @@ int pstGridBinK(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pkdGridBinK(plcl->pkd, in->nBins, in->iGrid, out->fK, out->fPower, out->nPower);
     }
     return sizeof(struct outGridBinK);
-}
-
-std::tuple<std::vector<uint64_t>, std::vector<float>, std::vector<float>> // nPk, fK, fPk
-MSR::GridBinK(int nBins, int iGrid) {
-    std::vector<uint64_t> nPk(nBins);
-    std::vector<float> fK(nBins), fPk(nBins);
-    struct inGridBinK in;
-    auto out = new struct outGridBinK;
-    in.nBins = nBins;
-    in.iGrid = iGrid;
-
-    assert(sizeof(out->nPower) / sizeof(out->nPower[0]) > nBins);
-
-    pstGridBinK(pst, &in, sizeof(in), out, sizeof(*out));
-    for (int i = 0; i < nBins; i++) {
-        if (out->nPower[i] == 0) fK[i] = fPk[i] = 0;
-        else {
-            nPk[i] = out->nPower[i];
-            fK[i] = exp(out->fK[i] / out->nPower[i]);
-            fPk[i] = out->fPower[i] / out->nPower[i];
-        }
-    }
-    delete out;
-
-    /* At this point, dPk[] needs to be corrected by the box size */
-    return {nPk, fK, fPk};
 }
