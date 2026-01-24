@@ -370,23 +370,23 @@ class MSR {
     int OutInterval() const { return parameters.get_iOutInterval(); }
     int CheckInterval() const { return parameters.get_iCheckInterval(); }
     double Soft() const { return parameters.get_dSoft(); }
-    int DoDensity() const { return parameters.get_bDoDensity(); }
-    int DoGas() const { return parameters.get_hydro_model() != HYDRO_MODEL::NONE; }
-    int NewSPH() const { return parameters.get_hydro_model() == HYDRO_MODEL::SPH; }
-    int MeshlessFiniteMass() const {
+    [[nodiscard]] auto DoDensity() const -> bool { return parameters.get_bDoDensity(); }
+    [[nodiscard]] auto DoGas() const -> bool { return parameters.get_hydro_model() != HYDRO_MODEL::NONE; }
+    [[nodiscard]] auto NewSPH() const -> bool { return parameters.get_hydro_model() == HYDRO_MODEL::SPH; }
+    [[nodiscard]] auto MeshlessFiniteMass() const -> bool {
         auto model = parameters.get_hydro_model();
         return model == HYDRO_MODEL::MFM;
     }
-    int MeshlessFiniteVolume() const {
+    [[nodiscard]] auto MeshlessFiniteVolume() const -> bool {
         auto model = parameters.get_hydro_model();
         return model == HYDRO_MODEL::MFV;
     }
-    int MeshlessHydro() const { return MeshlessFiniteMass() || MeshlessFiniteVolume(); }
-    int DoStellarFeedback() const { return parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback(); }
+    [[nodiscard]] auto MeshlessHydro() const -> bool { return MeshlessFiniteMass() || MeshlessFiniteVolume(); }
+    [[nodiscard]] auto DoStellarFeedback() const -> bool { return parameters.get_bCCSNFeedback() || parameters.get_bSNIaFeedback(); }
     void StellarFeedback(double dTime);
     void ChemEnrich(double dTime);
 
-    int DoGravity() const { return parameters.get_bDoGravity(); }
+    [[nodiscard]] auto DoGravity() const -> bool { return parameters.get_bDoGravity(); }
     double Eta() const { return parameters.get_dEta(); }
     int MaxRung() const { return parameters.get_iMaxRung(); }
     int Comove() const { return csm->val.bComove; }

@@ -17,7 +17,6 @@
 
 #include "group/groupstats.h"
 #include "pkd_config.h"
-#include "starformation/init.h"
 
 #ifdef ENABLE_FE
     #include <fenv.h>

@@ -193,6 +193,8 @@ namespace rockstar {
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
+#include "meshless/starformation/init.h"
+#include "meshless/starformation/starformation.h"
 #include "eEOS/eEOS.h"
 
 #define LOCKFILE ".lockfile"   /* for safety lock */
@@ -2489,7 +2491,7 @@ void MSR::KickKDKOpen(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRun
                           .dDeltaUPred = 0.0,
                           .uRungLo = uRungLo,
                           .uRungHi = uRungHi,
-                          .bDoGas = static_cast<bool>(DoGas())};
+                          .bDoGas = DoGas()};
     mdl->RunService<ServiceKick>(in);
     TimerStop(TIMER_KICKO);
 }
@@ -2507,7 +2509,7 @@ void MSR::KickKDKClose(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRu
                           .dDeltaUPred = dDelta,
                           .uRungLo = uRungLo,
                           .uRungHi = uRungHi,
-                          .bDoGas = static_cast<bool>(DoGas())};
+                          .bDoGas = DoGas()};
     mdl->RunService<ServiceKick>(in);
     TimerStop(TIMER_KICKC);
 }
@@ -2613,7 +2615,7 @@ void MSR::AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelt
                                .iMaxRung = static_cast<int>(parameters.get_iMaxRung()),
                                .uRungLo = uRungLo,
                                .uRungHi = uRungHi,
-                               .bDoGravity = static_cast<bool>(DoGravity()),
+                               .bDoGravity = DoGravity(),
                                .bEpsAcc = parameters.get_bEpsAccStep()};
     mdl->RunService<ServiceAccelStep>(in);
 }
@@ -5056,7 +5058,7 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
 
     nGas -= nBH;
     nBH += nBH;
-    printf("Planted %d BH seeds \n", nBH);
+    printf("Planted %lu BH seeds \n", nBH);
 #ifdef OPTIM_REORDER_IN_NODES
     ReorderInNodes();
 #endif
@@ -5236,3 +5238,210 @@ void MSR::GrackleInit(int bComove, double dScaleFactor) {
     mdl->RunService<ServiceGrackleInit>(in);
 }
 #endif
+
+#ifdef STELLAR_EVOLUTION
+void MSR::SetStellarEvolutionParam() {
+    const double dYrToTime = SECONDSPERYEAR / units.dSecUnit;
+    auto achSNIaDTDType = parameters.get_achSNIaDTDType();
+
+    if (achSNIaDTDType == "exponential") {
+        calc.dSNIaNorm = parameters.get_dSNIaNumPerMass();
+        calc.dSNIaScale = parameters.get_dSNIaExpScale() * dYrToTime;
+    }
+    else if (achSNIaDTDType == "powerlaw") {
+        auto dSNIaPLScale = parameters.get_dSNIaPLScale();
+        calc.dSNIaNorm = parameters.get_dSNIaNumPerMass() / (pow(parameters.get_dSNIaPLFinalTime() * dYrToTime, dSNIaPLScale + 1.0) -
+                                                             pow(parameters.get_dSNIaPLInitTime() * dYrToTime, dSNIaPLScale + 1.0));
+        calc.dSNIaScale = dSNIaPLScale;
+    }
+    else {
+        std::cerr << "ERROR: Undefined SNIa DTD type has been given in " << "achSNIaDTDType parameter: " << achSNIaDTDType << std::endl;
+        Exit(1);
+    }
+
+    calc.dWindSpecificEkin = 0.5 * pow(parameters.get_dStellarWindSpeed() / units.dKmPerSecUnit, 2);
+}
+
+void MSR::StellarEvolutionInit(double dTime) {
+    char achPath[280];
+    struct inStellarEvolutionInit in;
+    STEV_RAWDATA *CCSNData, *AGBData, *SNIaData, *LifetimeData;
+    auto achStelEvolPath = parameters.get_achStelEvolPath();
+
+    /* Read the tables */
+    snprintf(achPath, sizeof(achPath), "%s/CCSN.hdf5", achStelEvolPath.data());
+    CCSNData = stevReadTable(achPath);
+    assert(CCSNData->nZs == STEV_CCSN_N_METALLICITY);
+    assert(CCSNData->nMasses == STEV_CCSN_N_MASS);
+    assert(CCSNData->nElems == ELEMENT_COUNT);
+
+    snprintf(achPath, sizeof(achPath), "%s/AGB.hdf5", achStelEvolPath.data());
+    AGBData = stevReadTable(achPath);
+    assert(AGBData->nZs == STEV_AGB_N_METALLICITY);
+    assert(AGBData->nMasses == STEV_AGB_N_MASS);
+    assert(AGBData->nElems == ELEMENT_COUNT);
+
+    snprintf(achPath, sizeof(achPath), "%s/SNIa.hdf5", achStelEvolPath.data());
+    SNIaData = stevReadSNIaTable(achPath);
+    assert(SNIaData->nElems == ELEMENT_COUNT);
+
+    snprintf(achPath, sizeof(achPath), "%s/Lifetimes.hdf5", achStelEvolPath.data());
+    LifetimeData = stevReadLifetimeTable(achPath);
+    assert(LifetimeData->nZs == STEV_LIFETIME_N_METALLICITY);
+    assert(LifetimeData->nMasses == STEV_LIFETIME_N_MASS);
+
+    /* NOTE: The lowest value of the initial mass array is set to the corresponding value
+       of the Lifetime table that is being used, while its highest value to the maximum
+       stellar mass for a CCSN to occur, as set in dCCSNMaxMass. The IMF is still
+       normalized in the range [dIMFMinMass,dIMFMaxMass] */
+    const double dMinMass = LifetimeData->pfInitialMass[0];
+    const double dMaxMass = parameters.get_dCCSNMaxMass();
+    double adInitialMass[STEV_INTERP_N_MASS], adIMF[STEV_INTERP_N_MASS];
+
+    auto IMF = ChooseIMF(parameters.get_achIMFType().data(), parameters.get_dIMFMinMass(), parameters.get_dIMFMaxMass());
+    IMF->MassWeightedSample(dMinMass, dMaxMass, STEV_INTERP_N_MASS, adInitialMass, adIMF);
+
+    /* Store the data */
+    for (auto i = 0; i < STEV_INTERP_N_MASS; ++i) {
+        in.StelEvolData.afInitialMass[i] = adInitialMass[i];
+        in.StelEvolData.afIMFLogWeight[i] = adIMF[i];
+    }
+    const double dDeltaLog = (log10(dMaxMass) - log10(dMinMass)) / (STEV_INTERP_N_MASS - 1);
+    in.StelEvolData.fDeltaLogMass = dDeltaLog;
+
+    /* Convert CCSN/AGB initial mass arrays to log for interpolation */
+    for (auto i = 0; i < CCSNData->nMasses; ++i) CCSNData->pfInitialMass[i] = log10(CCSNData->pfInitialMass[i]);
+    for (auto i = 0; i < AGBData->nMasses; ++i) AGBData->pfInitialMass[i] = log10(AGBData->pfInitialMass[i]);
+
+    /* Interpolate yields and ejected masses to the initial mass array */
+    stevInterpToIMFSampling(&in.StelEvolData, CCSNData, AGBData, parameters.get_dCCSNMinMass());
+
+    for (auto i = 0; i < STEV_CCSN_N_METALLICITY; ++i) {
+        if (CCSNData->pfMetallicity[i] > 0.0f) in.StelEvolData.afCCSNMetallicity[i] = log10(CCSNData->pfMetallicity[i]);
+        else in.StelEvolData.afCCSNMetallicity[i] = STEV_MIN_LOG_METALLICITY;
+    }
+
+    for (auto i = 0; i < STEV_AGB_N_METALLICITY; ++i) {
+        if (AGBData->pfMetallicity[i] > 0.0f) in.StelEvolData.afAGBMetallicity[i] = log10(AGBData->pfMetallicity[i]);
+        else in.StelEvolData.afAGBMetallicity[i] = STEV_MIN_LOG_METALLICITY;
+    }
+
+    for (auto i = 0; i < ELEMENT_COUNT; ++i) in.StelEvolData.afSNIaEjectedMass[i] = SNIaData->pfEjectedMass[i];
+    in.StelEvolData.fSNIaEjectedMetalMass = *SNIaData->pfMetalYield;
+
+    for (auto i = 0; i < STEV_LIFETIME_N_METALLICITY; ++i) {
+        if (LifetimeData->pfMetallicity[i] > 0.0f) in.StelEvolData.afLifetimeMetallicity[i] = log10(LifetimeData->pfMetallicity[i]);
+        else in.StelEvolData.afLifetimeMetallicity[i] = STEV_MIN_LOG_METALLICITY;
+    }
+    for (auto i = 0; i < STEV_LIFETIME_N_MASS; ++i) in.StelEvolData.afLifetimeInitialMass[i] = log10(LifetimeData->pfInitialMass[i]);
+    for (auto i = 0; i < STEV_LIFETIME_N_METALLICITY * STEV_LIFETIME_N_MASS; ++i) {
+        in.StelEvolData.afLifetime[i] = log10(LifetimeData->pfLifetime[i] * SECONDSPERYEAR / units.dSecUnit);
+    }
+
+    strcpy(in.achSNIaDTDType, parameters.get_achSNIaDTDType().data());
+    in.dTime = dTime;
+    in.dSNIaMaxMass = parameters.get_dSNIaMaxMass();
+    in.dCCSNMinMass = parameters.get_dCCSNMinMass();
+    in.dCCSNMaxMass = parameters.get_dCCSNMaxMass();
+
+    /* Send data and finish */
+    pstStellarEvolutionInit(pst, &in, sizeof(struct inStellarEvolutionInit), NULL, 0);
+
+    stevFreeTable(CCSNData);
+    stevFreeTable(AGBData);
+    stevFreeSNIaTable(SNIaData);
+    stevFreeLifetimeTable(LifetimeData);
+}
+#endif
+
+void MSR::StarFormInit(double dTime) {
+    ServiceStarFormInit::input in{
+        .dTime = dTime,
+        .dCCSNFBDelay = calc.dCCSNFBDelay,
+        .dSNIaFBDelay = calc.dSNIaFBDelay,
+        .bCCSNFeedback = parameters.get_bCCSNFeedback(),
+        .bSNIaFeedback = parameters.get_bSNIaFeedback(),
+        .bFeedback = DoStellarFeedback(),
+    };
+    ServiceStarFormInit::output out;
+    mdl->RunService<ServiceStarFormInit>(in, out);
+
+    printf("%lu star particles are about to explode in this IC\n", out);
+}
+
+void MSR::StarForm(double dTime, double dDelta, int iRung) {
+    struct outStarForm out;
+
+    TimerStart(TIMER_STARFORM);
+
+    const double a = csmTime2Exp(csm, dTime);
+
+    ServiceStarForm::input in{
+        .dHubble = Comove() ? csmTime2Hub(csm, dTime) : 0.0,
+        .dDelta = dDelta,
+        .dTime = dTime,
+        .dScaleFactor = a,
+        .dSFindexKS = parameters.get_dSFindexKS(),
+        .dSFnormalizationKS = calc.dSFnormalizationKS,
+        .dConstGamma = parameters.get_dConstGamma(),
+        .dSFGasFraction = parameters.get_dSFGasFraction(),
+        .dSFThresholdDen = calc.dSFThresholdDen * a * a * a, // Send in comoving units
+        .dSFThresholdOD = calc.dSFThresholdOD,
+        .dSFThresholdu = calc.dSFThresholdu,
+        .dSFEfficiency = parameters.get_dSFEfficiency(),
+        .dSNFBEfficiency = parameters.get_dSNFBEfficiency(),
+        .dSNFBMaxEff = parameters.get_dSNFBMaxEff(),
+        .dSNFBEffIndex = parameters.get_dSNFBEffIndex(),
+        .dSNFBEffnH0 = calc.dSNFBEffnH0,
+#ifdef STELLAR_EVOLUTION
+        .dSNIaMaxMass = parameters.get_dSNIaMaxMass(),
+        .dCCSNMinMass = parameters.get_dCCSNMinMass(),
+        .dCCSNMaxMass = parameters.get_dCCSNMaxMass(),
+#endif
+#ifdef HAVE_METALLICITY
+        .bSFThresholdDenSchaye2004 = parameters.get_bSFThresholdDenSchaye2004(),
+#endif
+        .bCCSNFeedback = parameters.get_bCCSNFeedback(),
+        .bSNIaFeedback = parameters.get_bSNIaFeedback(),
+        .eEOS = get_eEOS(),
+    };
+    if (parameters.get_bVDetails()) printf("Star Form (rung: %d) ... ", iRung);
+
+    ActiveRung(iRung, 1);
+    mdl->RunService<ServiceStarForm>(in, out);
+    if (parameters.get_bVDetails()) printf("%d Stars formed with mass %g, %d gas deleted\n", out.nFormed, out.dMassFormed, out.nDeleted);
+    massFormed += out.dMassFormed;
+    starFormed += out.nFormed;
+
+    nGas -= out.nFormed;
+    nStar += out.nFormed;
+
+    TimerStop(TIMER_STARFORM);
+    auto dsec = TimerGet(TIMER_STARFORM);
+    printf("Star Formation Calculated, Wallclock: %f secs\n\n", dsec);
+}
+
+void MSR::SetStarFormationParam() {
+    calc.dSFThresholdu = parameters.get_dSFThresholdT() * dTuFacPrimNeutral;
+
+    if (csm->val.bComove) {
+        // As usual, in code units the critical density is 1.0
+        calc.dSFThresholdOD = parameters.get_dSFMinOverDensity() * csm->val.dOmegab;
+    }
+    else {
+        calc.dSFThresholdOD = 0.0;
+    }
+
+    const double dnHToRho = MHYDR / parameters.get_dInitialH() / units.dGmPerCcUnit;
+    calc.dSFThresholdDen = parameters.get_dSFThresholdDen() * dnHToRho; // Code physical density now
+    const double Msolpcm2 = 1. / units.dMsolUnit * pow(units.dKpcUnit * 1e3, 2);
+    calc.dSFnormalizationKS = parameters.get_dSFnormalizationKS() / units.dMsolUnit * units.dSecUnit / SECONDSPERYEAR * pow(units.dKpcUnit, 2) *
+                              pow(Msolpcm2, -parameters.get_dSFindexKS());
+}
+
+int MSR::ValidateStarFormationParam() {
+    if (!parameters.get_bDoEOS()) {
+        print_warning("WARNING: Star formation is active but no eEOS is selected!\n");
+    }
+    return 1;
+}

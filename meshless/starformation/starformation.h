@@ -25,46 +25,45 @@ struct outStarForm {
     }
 };
 
-struct inStarForm {
-    int bSFThresholdDenSchaye2004;
-
-    double dHubble;
-    double dDelta;
-    double dTime;
-    double dScaleFactor;
-
-    double dSFindexKS;
-    double dSFnormalizationKS;
-    double dConstGamma;
-    double dSFGasFraction;
-    double dSFThresholdDen;
-    double dSFThresholdOD;
-    double dSFThresholdu;
-    double dSFEfficiency;
-
-    double dEOSPolyFloorIndex;
-    double dEOSPolyFloorDen;
-    double dEOSPolyFlooru;
-
-    int bCCSNFeedback;
-    int bSNIaFeedback;
-    double dSNFBEfficiency;
-    double dSNFBMaxEff;
-    double dSNFBEffIndex;
-    double dSNFBEffnH0;
-
-#ifdef STELLAR_EVOLUTION
-    double dSNIaMaxMass;
-    double dCCSNMinMass;
-    double dCCSNMaxMass;
-#endif
-    struct eEOSparam eEOS;
-};
-
 class ServiceStarForm : public TraverseCount<ServiceStarForm> {
   public:
     static constexpr std::string_view name = "StarForm";
-    using input = struct inStarForm;
+    struct input {
+        double dHubble;
+        double dDelta;
+        double dTime;
+        double dScaleFactor;
+
+        double dSFindexKS;
+        double dSFnormalizationKS;
+        double dConstGamma;
+        double dSFGasFraction;
+        double dSFThresholdDen;
+        double dSFThresholdOD;
+        double dSFThresholdu;
+        double dSFEfficiency;
+
+        // double dEOSPolyFloorIndex;
+        // double dEOSPolyFloorDen;
+        // double dEOSPolyFlooru;
+
+        double dSNFBEfficiency;
+        double dSNFBMaxEff;
+        double dSNFBEffIndex;
+        double dSNFBEffnH0;
+
+#ifdef STELLAR_EVOLUTION
+        double dSNIaMaxMass;
+        double dCCSNMinMass;
+        double dCCSNMaxMass;
+#endif
+#ifdef HAVE_METALLICITY
+        bool bSFThresholdDenSchaye2004;
+#endif
+        bool bCCSNFeedback;
+        bool bSNIaFeedback;
+        struct eEOSparam eEOS;
+    };
     using output = struct outStarForm;
     explicit ServiceStarForm(PST pst, std::string_view service_name = name, int nInBytes = 0) : TraverseCount(pst, service_name, nInBytes) {}
 
@@ -79,9 +78,9 @@ class ServiceStarForm : public TraverseCount<ServiceStarForm> {
     }
 
   private:
-    void pkdStarForm(PKD pkd, struct inStarForm in, int* nFormed, /* number of stars formed */
-                     double* dMassFormed,                         /* mass of stars formed */
-                     int* nDeleted) {                             /* gas particles deleted */
+    void pkdStarForm(PKD pkd, input in, int* nFormed, /* number of stars formed */
+                     double* dMassFormed,             /* mass of stars formed */
+                     int* nDeleted) {                 /* gas particles deleted */
 
         assert(pkd->decorators.present(DECORATOR_FIELD::oStar));
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM));

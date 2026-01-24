@@ -604,7 +604,7 @@ class pkdContext : public Integerize {
     void BHReposition();
     void BHAccretion(double dScaleFactor);
     void ChemCompInit(double H, double He, double C, double N, double O, double Ne, double Mg, double Si, double Fe, double Metallicity);
-
+    auto StarFormInit(double dTime, double dCCSNFBDelay, double dSNIaFBDelay, bool bCCSNFeedback, bool bSNIaFeedback, bool bFeedback) -> int;
 #ifdef GRACKLE
     void GrackleInit(int bComove, double dScaleFactor, char* achCoolingTable, UNITS units);
     void GrackleUpdate(double dScaleFactor, char* achCoolingTable, UNITS units);
