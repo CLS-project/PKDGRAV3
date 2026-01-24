@@ -1,23 +1,6 @@
 #include <numeric>
 #include "feedback.h"
-#include "master.h"
 #include "imf.h"
-
-void MSR::SetFeedbackParam() {
-    calc.dSNFBDu = parameters.get_dSNFBDT() * dTuFacPrimIonised;
-
-    auto IMF = ChooseIMF(parameters.get_achIMFType().data(), parameters.get_dIMFMinMass(), parameters.get_dIMFMaxMass());
-    const double dCCSNNumPerMass = IMF->UnweightedIntegration(parameters.get_dCCSNMinMass(), parameters.get_dCCSNMaxMass());
-    calc.dCCSNFBSpecEnergy = (parameters.get_dCCSNEnergy() / MSOLG) * dCCSNNumPerMass / units.dErgPerGmUnit;
-
-    calc.dSNIaFBSpecEnergy = (parameters.get_dSNIaEnergy() / MSOLG) * parameters.get_dSNIaNumPerMass() / units.dErgPerGmUnit;
-
-    calc.dCCSNFBDelay = parameters.get_dCCSNFBDelay() * SECONDSPERYEAR / units.dSecUnit;
-    calc.dSNIaFBDelay = parameters.get_dSNIaFBDelay() * SECONDSPERYEAR / units.dSecUnit;
-
-    const double dnHToRho = MHYDR / parameters.get_dInitialH() / units.dGmPerCcUnit;
-    calc.dSNFBEffnH0 = parameters.get_dSNFBEffnH0() * dnHToRho;
-}
 
 static inline void snFeedback(PKD pkd, PARTICLE* pIn, std::span<NN> nnList, const float fNgbTotMass, const double dDeltau, const double dStarMass,
                               const double dSpecEnergy, const float fEfficiency, const double dConstGamma);

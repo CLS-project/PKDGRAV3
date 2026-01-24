@@ -1,6 +1,7 @@
 #ifndef EEOS_H
 #define EEOS_H
 #include "eEOS/eEOS_struct.h"
+#include "core/simd.h"
 
 /*
  * General interface to the eEOS module

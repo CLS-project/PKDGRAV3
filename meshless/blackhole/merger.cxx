@@ -1,7 +1,6 @@
 #include <algorithm>
 #include "blackhole/merger.h"
 #include "smooth/smooth.h"
-#include "master.h"
 
 using blitz::abs;
 using blitz::all;
@@ -12,30 +11,6 @@ using blitz::max;
 using blitz::TinyVector;
 
 void buildCandidateMergerList(SMX smx, KDN* node, Bound bnd_node, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
-
-void MSR::BHMerger(double dTime) {
-    struct inSmooth in;
-    struct outSmooth out;
-
-    TimerStart(TIMER_BHS);
-
-#ifdef DEBUG_BH_ONLY
-    // This was not performed in the main loop because there is no gas
-    ReorderWithinNodes();
-#endif
-
-    in.nSmooth = parameters.get_nSmooth();
-    in.bPeriodic = parameters.get_bPeriodic();
-    in.bSymmetric = 0;
-    in.iSmoothType = SMX_BH_MERGER;
-    SmoothSetSMF(&(in.smf), dTime, 0.0, in.nSmooth);
-#ifdef OPTIM_SMOOTH_NODE
-    pstReSmoothNode(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
-#else
-    pstReSmooth(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
-#endif
-    TimerStop(TIMER_BHS);
-}
 
 void SmoothHelperBHmerger::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     for (auto& nn : nnList) {

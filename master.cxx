@@ -178,7 +178,9 @@ namespace rockstar {
 
 #include "SPH/gasvalues.h"
 #include "SPH/resetcom.h"
+#include "imf.h"
 #include "meshless/hydro/endstep.h"
+#include "meshless/hydro/wakeup.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
@@ -1933,6 +1935,20 @@ void MSR::OutVector(std::string_view File, int iType) {
     OutVector(File, iType, parameters.get_iCompress());
 }
 
+auto MSR::get_eEOS() -> eEOSparam {
+    return eEOSparam{.dPolyFloorMinOD = calc.dEOSPolyFloorMinBaryonOD,
+                     .dPolyFloorExponent = calc.dEOSPolyFloorExponent,
+                     .dPolyFloorDen = calc.dEOSPolyFloorDen,
+                     .dPolyFlooru = calc.dEOSPolyFlooru,
+#ifdef EEOS_JEANS
+                     .dNJeans = parameters.get_dEOSNJeans(),
+#endif
+                     .dFlooru = calc.dEOSFlooru,
+                     .dFloorDen = calc.dEOSFloorDen,
+                     .dFloorMinOD = calc.dEOSFloorMinBaryonOD,
+                     .bDoEOS = parameters.get_bDoEOS()};
+}
+
 void MSR::SmoothSetSMF(SMF* smf, double dTime, double dDelta, int nSmooth) {
     smf->nSmooth = nSmooth;
     smf->dTime = dTime;
@@ -1962,7 +1978,7 @@ void MSR::SmoothSetSMF(SMF* smf, double dTime, double dDelta, int nSmooth) {
     smf->dConstGamma = parameters.get_dConstGamma();
     smf->dhMinOverSoft = parameters.get_dhMinOverSoft();
     smf->dNeighborsStd = parameters.get_dNeighborsStd();
-    smf->eEOS = eEOSparam(parameters, calc);
+    smf->eEOS = get_eEOS();
     smf->dSNFBDu = calc.dSNFBDu;
     smf->dCCSNFBDelay = calc.dCCSNFBDelay;
     smf->dCCSNFBSpecEnergy = calc.dCCSNFBSpecEnergy;
@@ -2531,7 +2547,7 @@ void MSR::EndTimestepIntegration(double dTime, double dDelta) {
     in.dConstGamma = parameters.get_dConstGamma();
     in.dTuFac = dTuFacPrimNeutral;
     in.dSFThresholdOD = calc.dSFThresholdOD;
-    in.eEOS = eEOSparam(parameters, calc);
+    in.eEOS = get_eEOS();
     in.dBHRadiativeEff = parameters.get_dBHRadiativeEff();
 #ifdef STELLAR_EVOLUTION
     in.bChemEnrich = parameters.get_bChemEnrich();
@@ -4983,3 +4999,316 @@ void MSR::RsExtract(std::string_view filename_template) {
     auto dsec = TimerGet(TIMER_NONE);
     print("... finished extracting particles, Wallclock: {:.5} secs\n", dsec);
 }
+
+void MSR::SetEOSParam() {
+    const double dHydFrac = parameters.get_dInitialH();
+    const double dnHToRho = MHYDR / dHydFrac / units.dGmPerCcUnit;
+    calc.dEOSFloorDen = parameters.get_dEOSFloornH() * dnHToRho;
+    calc.dEOSFlooru = parameters.get_dEOSFloorTemp() * dTuFacPrimNeutral;
+    if (csm->val.bComove) calc.dEOSFloorMinBaryonOD = parameters.get_dEOSFloorMinOD() * csm->val.dOmegab;
+    else calc.dEOSFloorMinBaryonOD = 0.;
+    calc.dEOSPolyFloorExponent = parameters.get_dEOSPolyFloorIndex() - 1.;
+    calc.dEOSPolyFloorDen = parameters.get_dEOSPolyFloornH() * dnHToRho;
+    calc.dEOSPolyFlooru = parameters.get_dEOSPolyFloorTemp() * dTuFacPrimNeutral;
+    if (csm->val.bComove) calc.dEOSPolyFloorMinBaryonOD = parameters.get_dEOSPolyFloorMinOD() * csm->val.dOmegab;
+    else calc.dEOSPolyFloorMinBaryonOD = 0.;
+}
+
+auto MSR::ValidateEOSParam() -> int {
+    if (!parameters.has_dOmegab() && parameters.has_dEOSFloorMinOD()) {
+        fprintf(stderr, "ERROR: dEOSFloorMinOD is specified but dOmegab is not set\n");
+        return 0;
+    }
+    if (!parameters.has_dOmegab() && parameters.has_dEOSPolyFloorMinOD()) {
+        fprintf(stderr, "ERROR: dEOSPolyFloorMinOD is specified but dOmegab is not set\n");
+        return 0;
+    }
+    return 1;
+}
+
+void MSR::BHAccretion(double dTime) {
+    struct inBHAccretion in;
+    in.dScaleFactor = csmTime2Exp(csm, dTime);
+    pstBHAccretion(pst, &in, sizeof(in), NULL, 0);
+}
+
+void MSR::BHGasPin(double dTime, double dDelta) {
+    Smooth(dTime, dDelta, SMX_BH_GASPIN, 0, parameters.get_nSmooth());
+}
+
+void MSR::BHReposition() {
+    pstBHReposition(pst, NULL, 0, NULL, 0);
+}
+
+void MSR::BHEvolve(double dTime, double dDelta) {
+    Smooth(dTime, dDelta, SMX_BH_EVOLVE, 1, parameters.get_nSmooth());
+}
+
+void MSR::SetBlackholeParam() {
+    calc.dBHAccretionEddFac = parameters.get_dBHAccretionEddFac() * (1e3 / MSOLG / units.dMsolUnit) / pow(100. / KPCCM / units.dKpcUnit, 3) / units.dSecUnit /
+                              parameters.get_dBHRadiativeEff();
+    // We precompute the factor such that we only need to multiply
+    // AccretionRate by this amount to get E_feed
+    calc.dBHFBEff = parameters.get_dBHFBEff() * parameters.get_dBHRadiativeEff() * pow(LIGHTSPEED * 1e-5 / units.dKmPerSecUnit, 2);
+
+    // This, in principle, will not be a parameter
+    double n_heat = 1.0;
+
+    // We convert from Delta T to energy per mass.
+    // This needs to be multiplied by the mass of the gas particle
+    calc.dBHFBEcrit = parameters.get_dBHFBDT() * dTuFacPrimIonised * n_heat;
+}
+
+int MSR::ValidateBlackholeParam() {
+    if (parameters.get_bBHAccretion()) {
+        if (parameters.get_dBHAccretionAlpha() <= 0) {
+            fprintf(stderr, "ERROR: dBHAccretionAlpha should be positive."
+                            "If you want to avoid boosting the Bondi accretion rate,"
+                            "just set dBHAccretionAlpha=1.0\n");
+            return 0;
+        }
+    }
+    if (parameters.get_bBHPlaceSeed() && !parameters.get_bFindGroups()) {
+        parameters.set_bFindGroups(true);
+        fprintf(stderr, "WARNING: Blackhole seeding requires Friends-of-friends group finding. "
+                        "Setting bFindGroups to true\n");
+    }
+    if (!parameters.get_bMemPotential()) {
+        parameters.set_bMemPotential(true);
+        fprintf(stderr, "WARNING: The blackhole module requires bMemPotential. "
+                        "Setting bMemPotential to true\n");
+    }
+    if (!parameters.get_bMemMass()) {
+        parameters.set_bMemMass(true);
+        fprintf(stderr, "WARNING: The blackhole module requires bMemMass. "
+                        "Setting bMemMass to true\n");
+    }
+    if ((parameters.get_bBHMerger() || parameters.get_bBHAccretion()) && !parameters.get_bAddDelete()) {
+        parameters.set_bAddDelete(true);
+        fprintf(stderr, "WARNING: Blackhole mergers and gas accretion require bAddDelete. "
+                        "Setting bAddDelete to true\n");
+    }
+    return 1;
+}
+
+void MSR::BlackholeInit(uint8_t uRungMax) {
+    // We reuse this struct for simplicity
+    struct inPlaceBHSeed in;
+
+    in.uRungMax = uRungMax;
+
+    pstBHInit(pst, &in, sizeof(in), NULL, 0);
+}
+
+void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
+    struct inPlaceBHSeed in;
+    struct outPlaceBHSeed out;
+
+    out.nBHs = 0;
+    in.dTime = dTime;
+    in.uRungMax = uRungMax;
+    in.dScaleFactor = csmTime2Exp(csm, dTime);
+    in.dBHMhaloMin = parameters.get_dBHMhaloMin();
+    in.dTau = parameters.get_dTau();
+    in.dBHSeedMass = parameters.get_dBHSeedMass();
+    if (parameters.get_bDoStarFormation()) {
+        in.dDenMin = calc.dSFThresholdDen * pow(in.dScaleFactor, 3);
+    }
+    else {
+        in.dDenMin = 0.0;
+    }
+
+    printf("Planting seeds...\n");
+    TimerStart(TIMER_BHS);
+    assert(parameters.get_bFindGroups());
+    pstPlaceBHSeed(pst, &in, sizeof(in), &out, sizeof(out));
+    TimerStop(TIMER_BHS);
+
+    nGas -= out.nBHs;
+    nBH += out.nBHs;
+    printf("Planted %d BH seeds \n", out.nBHs);
+
+#ifdef OPTIM_REORDER_IN_NODES
+    ReorderWithinNodes();
+#endif
+}
+
+void MSR::BHMerger(double dTime) {
+    struct inSmooth in;
+    struct outSmooth out;
+
+    TimerStart(TIMER_BHS);
+
+#ifdef DEBUG_BH_ONLY
+    // This was not performed in the main loop because there is no gas
+    ReorderWithinNodes();
+#endif
+
+    in.nSmooth = parameters.get_nSmooth();
+    in.bPeriodic = parameters.get_bPeriodic();
+    in.bSymmetric = 0;
+    in.iSmoothType = SMX_BH_MERGER;
+    SmoothSetSMF(&(in.smf), dTime, 0.0, in.nSmooth);
+#ifdef OPTIM_SMOOTH_NODE
+    pstReSmoothNode(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
+#else
+    pstReSmooth(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
+#endif
+    TimerStop(TIMER_BHS);
+}
+
+void MSR::BHStep(double dTime, double dDelta) {
+#ifndef DEBUG_BH_ONLY
+    Smooth(dTime, dDelta, SMX_BH_STEP, 0, parameters.get_nSmooth());
+#endif
+}
+
+void MSR::ComputeSmoothing(double dTime, double dDelta) {
+    uint64_t nSmoothed = 1;
+    int it = 0, maxit = 100;
+
+    printf("Computing density... \n");
+    TimerStart(TIMER_DENSITY);
+    if (parameters.get_bIterativeSmoothingLength()) {
+#ifdef OPTIM_AVOID_IS_ACTIVE
+        SelActives();
+#else
+        SelAll(); // We set all particles as "not converged"
+#endif
+
+        // Currently implemented but not used/tested
+        // pstPredictSmoothing(msr->pst,&in,sizeof(in),NULL,NULL);
+
+        while (nSmoothed > 0 && it <= maxit) {
+            // I think this is no longer used
+            // msrSetFirstHydroLoop(msr, 1);
+            // 1-> we care if the particle is marked
+            // 0-> we dont
+#ifdef OPTIM_SMOOTH_NODE
+            nSmoothed = ReSmoothNode(dTime, dDelta, SMX_HYDRO_DENSITY, 0);
+#else
+            nSmoothed = ReSmooth(dTime, dDelta, SMX_HYDRO_DENSITY, 0);
+#endif
+            // msrSetFirstHydroLoop(msr, 0);
+            it++;
+        }
+        if (nSmoothed > 0) {
+            // If we can not converge, at least make sure that we update the
+            // density and other variables with the latest fBall
+#ifdef OPTIM_SMOOTH_NODE
+            nSmoothed = ReSmoothNode(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL, 0);
+#else
+            nSmoothed = ReSmooth(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL, 0);
+#endif
+
+            printf("Smoothing length did not converge for %" PRIu64 " particles\n", nSmoothed);
+        }
+
+        TimerStop(TIMER_DENSITY);
+        double dsec = TimerGet(TIMER_DENSITY);
+        printf("Computing h took %d iterations and %.5f seconds \n", it, dsec);
+    }
+    else {
+        bUpdateBall = 1;
+        Smooth(dTime, dDelta, SMX_HYDRO_DENSITY, 0, parameters.get_nSmooth());
+        bUpdateBall = 0;
+    }
+}
+
+void MSR::MeshlessFluxes(double dTime, double dDelta) {
+    double dsec;
+    printf("Computing fluxes... ");
+    TimerStart(TIMER_FLUXES);
+#ifdef OPTIM_SMOOTH_NODE
+    #ifdef OPTIM_AVOID_IS_ACTIVE
+    SelActives();
+    #endif
+    #ifdef OPTIM_FLUX_VEC
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX_VEC, 1);
+    #else
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX, 1);
+    #endif
+#else // no OPTIM_SMOOTH_NODE
+    ReSmooth(dTime, dDelta, SMX_HYDRO_FLUX, 1);
+#endif
+
+    TimerStop(TIMER_FLUXES);
+    dsec = TimerGet(TIMER_FLUXES);
+    printf("took %.5f seconds\n", dsec);
+}
+
+void MSR::MeshlessGradients(double dTime, double dDelta) {
+    double dsec;
+    printf("Computing gradients... ");
+
+    TimerStart(TIMER_GRADIENTS);
+#ifdef OPTIM_SMOOTH_NODE
+    #ifdef OPTIM_AVOID_IS_ACTIVE
+    SelActives();
+    #endif
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_GRADIENT, 0);
+#else
+    ReSmooth(dTime, dDelta, SMX_HYDRO_GRADIENT, 0);
+#endif
+
+    TimerStop(TIMER_GRADIENTS);
+    dsec = TimerGet(TIMER_GRADIENTS);
+    printf("took %.5f seconds\n", dsec);
+}
+
+void MSR::HydroStep(double dTime, double dDelta) {
+    double dsec;
+
+    printf("Computing hydro time step... ");
+
+    TimerStart(TIMER_TIMESTEP);
+#ifdef OPTIM_SMOOTH_NODE
+    #ifdef OPTIM_AVOID_IS_ACTIVE
+    SelActives();
+    #endif
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_STEP, 1);
+#else
+    ReSmooth(dTime, dDelta, SMX_HYDRO_STEP, 1);
+#endif
+
+    if (parameters.get_bGlobalDt()) {
+        SetGlobalRung(GetMaxRung());
+    }
+
+    TimerStop(TIMER_TIMESTEP);
+    dsec = TimerGet(TIMER_TIMESTEP);
+    printf("took %.5f seconds\n", dsec);
+
+    if (parameters.get_bWakeUpParticles()) {
+        ServiceWakeParticles::input in{dTime};
+        mdl->RunService<ServiceWakeParticles>(in);
+    }
+}
+
+void MSR::SetFeedbackParam() {
+    calc.dSNFBDu = parameters.get_dSNFBDT() * dTuFacPrimIonised;
+
+    auto IMF = ChooseIMF(parameters.get_achIMFType().data(), parameters.get_dIMFMinMass(), parameters.get_dIMFMaxMass());
+    const double dCCSNNumPerMass = IMF->UnweightedIntegration(parameters.get_dCCSNMinMass(), parameters.get_dCCSNMaxMass());
+    calc.dCCSNFBSpecEnergy = (parameters.get_dCCSNEnergy() / MSOLG) * dCCSNNumPerMass / units.dErgPerGmUnit;
+
+    calc.dSNIaFBSpecEnergy = (parameters.get_dSNIaEnergy() / MSOLG) * parameters.get_dSNIaNumPerMass() / units.dErgPerGmUnit;
+
+    calc.dCCSNFBDelay = parameters.get_dCCSNFBDelay() * SECONDSPERYEAR / units.dSecUnit;
+    calc.dSNIaFBDelay = parameters.get_dSNIaFBDelay() * SECONDSPERYEAR / units.dSecUnit;
+
+    const double dnHToRho = MHYDR / parameters.get_dInitialH() / units.dGmPerCcUnit;
+    calc.dSNFBEffnH0 = parameters.get_dSNFBEffnH0() * dnHToRho;
+}
+
+#ifdef GRACKLE
+void MSR::GrackleInit(int bComove, double dScaleFactor) {
+    struct inGrackleInit in;
+    in.bComove = bComove;
+    in.dScaleFactor = dScaleFactor;
+    strcpy(in.achCoolingTable, parameters.get_achCoolingTables().data());
+    in.units = units;
+
+    pstGrackleInit(pst, &in, sizeof(struct inGrackleInit), NULL, 0);
+}
+#endif

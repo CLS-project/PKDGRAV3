@@ -1,19 +1,4 @@
-#include "master.h"
 #include "cooling_grackle/cooling_grackle.h"
-
-void MSR::GrackleInit(int bComove, double dScaleFactor) {
-    struct inGrackleInit in;
-    in.bComove = bComove;
-    in.dScaleFactor = dScaleFactor;
-    strcpy(in.achCoolingTable, parameters.get_achCoolingTables().data());
-    in.units = units;
-
-    pstGrackleInit(pst, &in, sizeof(struct inGrackleInit), NULL, 0);
-}
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor, char* achCoolingTable, UNITS units) {
 
@@ -139,7 +124,3 @@ void pkdGrackleCooling(PKD pkd, particleStore::ParticleReference& p, double pDel
     }
     double diff = (fSpecificUint - pkd->grackle_field->internal_energy[0]) / fSpecificUint;
 }
-
-#ifdef __cplusplus
-}
-#endif

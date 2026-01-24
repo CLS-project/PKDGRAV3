@@ -1,14 +1,9 @@
 #include "blackhole/drift.h"
-#include "master.h"
 
 #define NOT_PINNED -1
 
 using blitz::dot;
 using blitz::TinyVector;
-
-void MSR::BHGasPin(double dTime, double dDelta) {
-    Smooth(dTime, dDelta, SMX_BH_GASPIN, 0, parameters.get_nSmooth());
-}
 
 void SmoothHelperBHGasPin::pack(void* dst, const void* src) {
     auto p1 = static_cast<pack_type*>(dst);
@@ -78,10 +73,6 @@ void SmoothHelperBHGasPin::Smooth(particleStore::ParticleReference& p, float fBa
             if (dot(v, v) > stdv2) bh.GasPin.iPid = NOT_PINNED;
         }
     }
-}
-
-void MSR::BHReposition() {
-    pstBHReposition(pst, NULL, 0, NULL, 0);
 }
 
 struct bhRepositionPack {

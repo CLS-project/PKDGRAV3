@@ -1,12 +1,5 @@
-#include "master.h"
 #include "blackhole/evolve.h"
 #include "smooth/smooth.h"
-
-void MSR::BHAccretion(double dTime) {
-    struct inBHAccretion in;
-    in.dScaleFactor = csmTime2Exp(csm, dTime);
-    pstBHAccretion(pst, &in, sizeof(in), NULL, 0);
-}
 
 struct bhAccretionPack {
     uint64_t iOrder;

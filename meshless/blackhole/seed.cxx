@@ -2,41 +2,7 @@
 #include <memory>
 #include "blackhole/seed.h"
 #include "smooth/smooth.h"
-#include "master.h"
 #include "smooth/smoothfcn.h"
-
-void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
-    struct inPlaceBHSeed in;
-    struct outPlaceBHSeed out;
-
-    out.nBHs = 0;
-    in.dTime = dTime;
-    in.uRungMax = uRungMax;
-    in.dScaleFactor = csmTime2Exp(csm, dTime);
-    in.dBHMhaloMin = parameters.get_dBHMhaloMin();
-    in.dTau = parameters.get_dTau();
-    in.dBHSeedMass = parameters.get_dBHSeedMass();
-    if (parameters.get_bDoStarFormation()) {
-        in.dDenMin = calc.dSFThresholdDen * pow(in.dScaleFactor, 3);
-    }
-    else {
-        in.dDenMin = 0.0;
-    }
-
-    printf("Planting seeds...\n");
-    TimerStart(TIMER_BHS);
-    assert(parameters.get_bFindGroups());
-    pstPlaceBHSeed(pst, &in, sizeof(in), &out, sizeof(out));
-    TimerStop(TIMER_BHS);
-
-    nGas -= out.nBHs;
-    nBH += out.nBHs;
-    printf("Planted %d BH seeds \n", out.nBHs);
-
-#ifdef OPTIM_REORDER_IN_NODES
-    ReorderWithinNodes();
-#endif
-}
 
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax, double dDenMin, double dBHMhaloMin, double dTau, double dBHSeedMass) {
     int newBHs = 0;

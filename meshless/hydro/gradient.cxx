@@ -1,28 +1,8 @@
 #include <algorithm>
 #include "hydro/hydro.h"
 #include "hydro/limiters.h"
-#include "master.h"
 using blitz::dot;
 using blitz::TinyVector;
-
-void MSR::MeshlessGradients(double dTime, double dDelta) {
-    double dsec;
-    printf("Computing gradients... ");
-
-    TimerStart(TIMER_GRADIENTS);
-#ifdef OPTIM_SMOOTH_NODE
-    #ifdef OPTIM_AVOID_IS_ACTIVE
-    SelActives();
-    #endif
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_GRADIENT, 0);
-#else
-    ReSmooth(dTime, dDelta, SMX_HYDRO_GRADIENT, 0);
-#endif
-
-    TimerStop(TIMER_GRADIENTS);
-    dsec = TimerGet(TIMER_GRADIENTS);
-    printf("took %.5f seconds\n", dsec);
-}
 
 void SmoothHelperHydroGradients::pack(void* dst, const void* src) {
     auto p1 = static_cast<pack_type*>(dst);

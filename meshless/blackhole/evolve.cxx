@@ -1,12 +1,7 @@
 #include "blackhole/evolve.h"
 #include "hydro/hydro.h"
-#include "master.h"
 using blitz::dot;
 using blitz::TinyVector;
-
-void MSR::BHEvolve(double dTime, double dDelta) {
-    Smooth(dTime, dDelta, SMX_BH_EVOLVE, 1, parameters.get_nSmooth());
-}
 
 static inline int bhAccretion(PKD pkd, std::span<NN> nnList, particleStore::ParticleReference& p, decorators::BLACKHOLE& bh, float pH, float pMass,
                               double pDensity, double dScaleFactor) {

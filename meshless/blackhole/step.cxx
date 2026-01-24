@@ -1,12 +1,5 @@
 #include "blackhole/step.h"
 #include "smooth/smooth.h"
-#include "master.h"
-
-void MSR::BHStep(double dTime, double dDelta) {
-#ifndef DEBUG_BH_ONLY
-    Smooth(dTime, dDelta, SMX_BH_STEP, 0, parameters.get_nSmooth());
-#endif
-}
 
 void SmoothHelperBHstep::pack(void* dst, const void* src) {
     auto p1 = static_cast<pack_type*>(dst);

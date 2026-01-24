@@ -19,6 +19,16 @@
 #ifndef SWIFT_COOLING_EAGLE_H
 #define SWIFT_COOLING_EAGLE_H
 
+namespace cooling {
+/* Maximum number of iterations for bisection scheme */
+static const int bisection_max_iterations = 150;
+
+/* Tolerances for termination criteria. */
+static const float explicit_tolerance = 0.05;
+static const float bisection_tolerance = 1.0e-6;
+static const double bracket_factor = 1.5;
+} // namespace cooling
+
 /**
  * @file src/cooling/EAGLE/cooling.h
  * @brief EAGLE cooling function declarations

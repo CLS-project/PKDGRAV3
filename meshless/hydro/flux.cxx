@@ -1,6 +1,5 @@
 #include <new>
 #include "hydro/hydro.h"
-#include "master.h"
 #include "eEOS/eEOS.h"
 #include "hydro/limiters.h"
 #include "riemann.h"
@@ -8,28 +7,6 @@ using blitz::dot;
 using blitz::TinyVector;
 
 using namespace meshless::FLUX; // IFLD and OFLD
-
-void MSR::MeshlessFluxes(double dTime, double dDelta) {
-    double dsec;
-    printf("Computing fluxes... ");
-    TimerStart(TIMER_FLUXES);
-#ifdef OPTIM_SMOOTH_NODE
-    #ifdef OPTIM_AVOID_IS_ACTIVE
-    SelActives();
-    #endif
-    #ifdef OPTIM_FLUX_VEC
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX_VEC, 1);
-    #else
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX, 1);
-    #endif
-#else // no OPTIM_SMOOTH_NODE
-    ReSmooth(dTime, dDelta, SMX_HYDRO_FLUX, 1);
-#endif
-
-    TimerStop(TIMER_FLUXES);
-    dsec = TimerGet(TIMER_FLUXES);
-    printf("took %.5f seconds\n", dsec);
-}
 
 void SmoothHelperHydroFluxes::pack(void* dst, const void* src) {
     auto p1 = static_cast<pack_type*>(dst);

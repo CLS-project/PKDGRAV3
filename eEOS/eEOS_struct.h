@@ -14,9 +14,5 @@ struct eEOSparam {
     double dFloorDen;   // Minimum physical density at which the floor is active
     double dFloorMinOD; // Minimum baryon overdensity to apply the floor
     bool bDoEOS;
-
-    eEOSparam() = default;
-    eEOSparam(eEOSparam const&) = default;
-    eEOSparam(class pkd_parameters& parameters, struct CALC& calc);
 };
 #endif

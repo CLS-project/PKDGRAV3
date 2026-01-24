@@ -1,40 +1,10 @@
 #include <algorithm>
 #include "hydro/hydro.h"
-#include "master.h"
 #include "potential/potential.h"
 #include "wakeup.h"
 
 using blitz::dot;
 using blitz::TinyVector;
-
-void MSR::HydroStep(double dTime, double dDelta) {
-    double dsec;
-
-    printf("Computing hydro time step... ");
-
-    TimerStart(TIMER_TIMESTEP);
-#ifdef OPTIM_SMOOTH_NODE
-    #ifdef OPTIM_AVOID_IS_ACTIVE
-    SelActives();
-    #endif
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_STEP, 1);
-#else
-    ReSmooth(dTime, dDelta, SMX_HYDRO_STEP, 1);
-#endif
-
-    if (parameters.get_bGlobalDt()) {
-        SetGlobalRung(GetMaxRung());
-    }
-
-    TimerStop(TIMER_TIMESTEP);
-    dsec = TimerGet(TIMER_TIMESTEP);
-    printf("took %.5f seconds\n", dsec);
-
-    if (parameters.get_bWakeUpParticles()) {
-        ServiceWakeParticles::input in{dTime};
-        mdl->RunService<ServiceWakeParticles>(in);
-    }
-}
 
 void SmoothHelperHydroStep::pack(void* dst, const void* src) {
     auto p1 = static_cast<pack_type*>(dst);

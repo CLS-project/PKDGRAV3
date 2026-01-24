@@ -39,13 +39,8 @@
 #include <stdio.h>
 #include <algorithm>
 
-/* Maximum number of iterations for bisection scheme */
-static const int bisection_max_iterations = 150;
+using namespace cooling;
 
-/* Tolerances for termination criteria. */
-static const float explicit_tolerance = 0.05;
-static const float bisection_tolerance = 1.0e-6;
-static const double bracket_factor = 1.5;
 static inline void get_redshift_index(const float z, int* z_index, float* dz, struct cooling_function_data* restrict cooling);
 
 void MSR::SetCoolingParam() {

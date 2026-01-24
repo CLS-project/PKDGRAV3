@@ -2,11 +2,8 @@
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
-#include "eEOS/eEOS.h"
 #include "master.h"
 
-/* MSR layer
- */
 void MSR::SetStarFormationParam() {
     calc.dSFThresholdu = parameters.get_dSFThresholdT() * dTuFacPrimNeutral;
 
@@ -61,7 +58,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dSNFBMaxEff = parameters.get_dSNFBMaxEff();
     in.dSNFBEffIndex = parameters.get_dSNFBEffIndex();
     in.dSNFBEffnH0 = calc.dSNFBEffnH0;
-    in.eEOS = eEOSparam(parameters, calc);
+    in.eEOS = get_eEOS();
 #ifdef STELLAR_EVOLUTION
     in.dSNIaMaxMass = parameters.get_dSNIaMaxMass();
     in.dCCSNMinMass = parameters.get_dCCSNMinMass();
