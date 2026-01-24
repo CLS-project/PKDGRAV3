@@ -20,12 +20,8 @@
 
 #include "pkd.h"
 #include "mdl.h"
-#include "smooth/smoothfcn.h"
-#include "gravity/moments.h"
 #include "io/outtype.h"
-
-#include "cosmo.h"
-// #include "ic/ic.h"
+#include <cstdint>
 
 struct LCL {
     PKD pkd;
@@ -107,7 +103,6 @@ inline constexpr std::string_view ReadFile = "ReadFile";
 inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
-inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
@@ -124,7 +119,6 @@ enum pst_service {
     PST_WRITE,
     PST_OUTPUT,
     PST_OUTPUT_SEND,
-    PST_GRAVITY,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
     PST_INITIALIZEPSTORE,
@@ -210,66 +204,6 @@ int pstWrite(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
-
-/* PST_GRAVITY */
-struct inGravity {
-    double dTime;
-    double dEwCut;
-    double dEwhCut;
-    double dTheta;
-    int nReps;
-    int bPeriodic;
-    int bEwald;
-    int bGPU;
-    int iRoot1;
-    int iRoot2;
-    struct pkdKickParameters kick;
-    struct pkdLightconeParameters lc;
-    struct pkdTimestepParameters ts;
-    SPHOptions SPHoptions;
-};
-
-using STAT = struct StatsCollector {
-    double dSum;
-    double dSum2;
-    double dMax;
-    int idMax;
-    int n;
-};
-
-/*
-** The outGravityReduct structure is at the beginning of the output message,
-** followed by number of threads times the outGravityPerProc structure.
-*/
-struct outGravityReduct {
-    STAT sLocal;
-    STAT sActive;
-    STAT sPart;
-    STAT sPartNumAccess;
-    STAT sPartMissRatio;
-    STAT sCell;
-    STAT sCellNumAccess;
-    STAT sCellMissRatio;
-    STAT sFlop;
-#ifdef INSTRUMENT
-    STAT sComputing;
-    STAT sWaiting;
-    STAT sSynchronizing;
-#endif
-#ifdef __linux__
-    STAT sRSS;
-    STAT sFreeMemory;
-#endif
-    double dFlopSingleCPU;
-    double dFlopDoubleCPU;
-    double dFlopSingleGPU;
-    double dFlopDoubleGPU;
-    uint64_t nActive;
-    uint64_t nRung[IRUNGMAX + 1];
-    uint64_t nTilesTotal;
-    uint64_t nTilesCPU;
-};
-int pstGravity(PST, void*, int, void*, int);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {

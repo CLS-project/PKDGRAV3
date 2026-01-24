@@ -34,6 +34,7 @@
 #include "pkd_parameters.h"
 #include "pkd_enumerations.h"
 #include "cooling/cooling_struct.h"
+#include "gravity/gravity.h"
 #define MSR_INIT_E 1
 #define MSR_STEP_E 0
 

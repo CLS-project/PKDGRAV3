@@ -2166,7 +2166,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, d
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, double dTime, double dDelta, double dStep, double dTheta, int bKickClose,
                      int bKickOpen, int bEwald, int bGravStep, int nPartRhoLoc, int iTimeStepCrit, SPHOptions SPHoptions) {
-    struct inGravity in;
+    ServiceGravity::input in;
     uint64_t nRungSum[IRUNGMAX + 1];
     int i;
     double dsec, dTotFlop, dt, a;
@@ -2265,11 +2265,11 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, d
 
     in.SPHoptions = SPHoptions;
 
-    outGravityReduct outr;
+    ServiceGravity::output outr;
 
     TimerStart(TIMER_GRAVITY);
 
-    pstGravity(pst, &in, sizeof(in), &outr, sizeof(outr));
+    mdl->RunService<ServiceGravity>(in, outr);
 
     TimerStop(TIMER_GRAVITY);
     dsec = TimerGet(TIMER_GRAVITY);

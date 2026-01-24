@@ -877,7 +877,7 @@ void pkdWriteFromNode(PKD pkd, int iNode, FIO fio, double dvFac, double dTuFac, 
 void pkdGravAll(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconeParameters* lc, struct pkdTimestepParameters* ts, double dTime, int nReps,
                 int bPeriodic, int bGPU, int bEwald, int iRoot1, int iRoot2, double fEwCut, double fEwhCut, double dThetaMin, SPHOptions* SPHoptions,
                 uint64_t* pnActive, double* pdPart, double* pdPartNumAccess, double* pdPartMissRatio, double* pdCell, double* pdCellNumAccess,
-                double* pdCellMissRatio, double* pdFlop, uint64_t* pnRung);
+                double* pdCellMissRatio, double* pdFlop, std::span<uint64_t> pnRung);
 void pkdGravEvalPP(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out);
 void pkdDensityEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOptions* SPHoptions);
 void pkdDensityCorrectionEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOptions* SPHoptions);

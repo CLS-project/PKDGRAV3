@@ -267,7 +267,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c io/classes.cxx io/ascii.cxx core/illinois.c core/abort_error.cxx units.cxx
 	pyrameters.cxx ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.h
 	pkd.cxx analysis/analysis.cxx analysis/orbits.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx io/checkpoint.cxx
-	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx domains/buildtree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
+	gravity/gravity.cxx gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx domains/buildtree.cxx
+        gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
 	gravity/timestep.cxx gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/iostaggered.cxx io/restore.cxx
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c core/countspecies.cxx core/removedeleted.cxx
 	core/gridinfo.cxx analysis/assignmass.cxx analysis/measurepk.cxx analysis/bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx core/memstatus.cxx

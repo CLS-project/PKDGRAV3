@@ -1855,7 +1855,7 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters* ts, SPHOptions* 
 void pkdGravAll(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconeParameters* lc, struct pkdTimestepParameters* ts, double dTime, int nReps,
                 int bPeriodic, int bGPU, int bEwald, int iRoot1, int iRoot2, double fEwCut, double fEwhCut, double dThetaMin, SPHOptions* SPHoptions,
                 uint64_t* pnActive, double* pdPart, double* pdPartNumAccess, double* pdPartMissRatio, double* pdCell, double* pdCellNumAccess,
-                double* pdCellMissRatio, double* pdFlop, uint64_t* pnRung) {
+                double* pdCellMissRatio, double* pdFlop, std::span<uint64_t> pnRung) {
 
     double dActive;
     double dPartSum;
@@ -1923,7 +1923,7 @@ void pkdGravAll(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconePara
     }
     else {
         assert(dPartSum == 0 && dCellSum == 0);
-        *pdPart = 0; /* for the statistics we don't count this processor, see pstGravity(). */
+        *pdPart = 0; /* for the statistics we don't count this processor, see ServiceGravity. */
         *pdCell = 0;
     }
     /*
@@ -1948,7 +1948,7 @@ void pkdGravAll(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconePara
     */
     pkd->mdl->FinishCache(CID_PARTICLE);
 
-    for (i = 0; i <= IRUNGMAX; ++i) pnRung[i] = pkd->nRung[i];
+    std::copy_n(pkd->nRung.data(), pnRung.size(), pnRung.data());
 
 #ifdef USE_ITT
     __itt_task_end(domain);

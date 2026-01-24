@@ -260,6 +260,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSetClasses>(pst);
     mdl->AddService<ServiceMaxRung>(pst);
     mdl->AddService<ServiceSetGlobalRung>(pst);
+    mdl->AddService<ServiceGravity>(pst);
     mdl->AddService<ServiceAccelStep>(pst);
     mdl->AddService<ServiceDensityStep>(pst);
     mdl->AddService<ServiceKick>(pst);
