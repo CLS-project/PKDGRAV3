@@ -78,7 +78,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_READFILE, pst, (fcnService_t*)pstReadFile, sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), 0,
                     Legacy::ReadFile);
     mdl->AddService(PST_WRITE, pst, (fcnService_t*)pstWrite, sizeof(struct inWrite), 0, Legacy::Write);
-    mdl->AddService(PST_SENDARRAY, pst, (fcnService_t*)pstSendArray, sizeof(struct inSendArray), 0, Legacy::SendArray);
     mdl->AddService(PST_CHECKPOINT, pst, (fcnService_t*)pstCheckpoint, sizeof(struct inWrite), 0, Legacy::Checkpoint);
     mdl->AddService(PST_OUTPUT, pst, (fcnService_t*)pstOutput, sizeof(struct inOutput), 0, Legacy::Output);
     mdl->AddService(PST_OUTPUT_SEND, pst, (fcnService_t*)pstOutputSend, sizeof(struct inOutputSend), 0, Legacy::OutputSend);
@@ -313,12 +312,6 @@ int pstCheckpoint(PST pst, void* vin, int nIn, void* vout, int nOut) {
         // Need to add prefix as with previous "makeName" implementation
         pkdCheckpoint(pkd, achOutFile.c_str(), achOutDecoratorFile.c_str());
     }
-    return 0;
-}
-
-int pstSendArray(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inSendArray*>(vin);
-    pkdSendArray(pst->lcl()->pkd, in->iTo, in->field, in->iUnitSize, in->dvFac, in->bMarked);
     return 0;
 }
 

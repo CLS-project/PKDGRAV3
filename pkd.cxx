@@ -1673,23 +1673,23 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, fioS
 /*****************************************************************************\
 * Send an array/vector to the specified node
 \*****************************************************************************/
-auto pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) -> std::byte* {
+auto pkdContext::PackArray(int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) -> std::byte* {
     auto pBuff = static_cast<std::byte*>(vBuff);
     int iIndex = *piIndex;
 
     while (iIndex < n && iSize >= iUnitSize) {
-        PARTICLE* p = pkd->Particle(iIndex++);
+        PARTICLE* p = Particle(iIndex++);
         if (bMarked && !p->bMarked) continue;
         if (field == PKD_FIELD::oPosition) {
             auto& d = *reinterpret_cast<TinyVector<double, 3>*>(pBuff);
-            d = pkd->particles.position(p);
+            d = particles.position(p);
         }
         else if (field == PKD_FIELD::oVelocity) {
             auto& V = *reinterpret_cast<TinyVector<float, 3>*>(pBuff);
-            V = pkd->particles.velocity(p) * dvFac;
+            V = particles.velocity(p) * dvFac;
         }
         else {
-            const auto& src = pkd->particles.get<std::byte>(p, field);
+            const auto& src = particles.get<std::byte>(p, field);
             memcpy(pBuff, &src, iUnitSize);
         }
         pBuff += iUnitSize;
@@ -1699,12 +1699,12 @@ auto pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIEL
     return pBuff;
 }
 
-void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) {
+void pkdContext::SendArray(int iNode, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) {
 #ifdef MPI_VERSION
     int iIndex = 0;
-    pkd->mdl->Send(iNode, [&](std::span<std::byte> buffer) -> size_t {
+    mdl->Send(iNode, [&](std::span<std::byte> buffer) -> size_t {
         auto pStart = buffer.data();
-        auto pEnd = pkdPackArray(pkd, buffer.size(), pStart, &iIndex, pkd->Local(), field, iUnitSize, dvFac, bMarked);
+        auto pEnd = PackArray(buffer.size(), pStart, &iIndex, Local(), field, iUnitSize, dvFac, bMarked);
         return static_cast<size_t>(pEnd - pStart);
     });
 #endif
@@ -1714,10 +1714,10 @@ void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize, double dvF
 * Receive an array/vector from a specified node
 \*****************************************************************************/
 
-auto pkdRecvArray(PKD pkd, int iNode, void* pDest, int /*iUnitSize*/) -> void* {
+auto pkdContext::RecvArray(int iNode, void* pDest, int /*iUnitSize*/) -> void* {
 #ifdef MPI_VERSION
     auto* pOut = static_cast<std::byte*>(pDest);
-    pkd->mdl->Recv(iNode, [&](std::span<std::byte> buffer) -> size_t {
+    mdl->Recv(iNode, [&](std::span<std::byte> buffer) -> size_t {
         if (buffer.empty()) return 0;
         std::memcpy(pOut, buffer.data(), buffer.size());
         pOut += buffer.size();

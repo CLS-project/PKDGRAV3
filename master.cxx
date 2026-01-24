@@ -120,6 +120,7 @@ struct fmt::formatter<DeferFormat> {
 #include "services/smooth.h"
 #include "services/reorderinnodes.h"
 #include "services/chemcompinit.h"
+#include "services/sendarray.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -1242,22 +1243,26 @@ double MSR::getVfactor(double dExpansion) {
 
 void MSR::RecvArray(void* vBuffer, PKD_FIELD field, int iUnitSize, double dTime, bool bMarked) {
     PKD pkd = pst->lcl()->pkd;
-    inSendArray in;
-    in.field = field;
-    in.iUnitSize = iUnitSize;
-    in.bMarked = bMarked;
-    if (csm->val.bComove) {
-        auto dExp = csmTime2Exp(csm, dTime);
-        in.dvFac = 1.0 / (dExp * dExp);
-    }
-    else in.dvFac = 1.0;
+    ServiceSendArray::input in{
+        .dvFac =
+            [&] {
+                if (csm->val.bComove) {
+                    auto dExp = csmTime2Exp(csm, dTime);
+                    return 1.0 / (dExp * dExp);
+                }
+                return 1.0;
+            }(),
+        .field = field,
+        .iTo = 0, // Send to thread 0 (this thread)
+        .iUnitSize = iUnitSize,
+        .bMarked = bMarked,
+    };
     int iIndex = 0;
-    vBuffer = pkdPackArray(pkd, iUnitSize * pkd->Local(), vBuffer, &iIndex, pkd->Local(), field, iUnitSize, in.dvFac, in.bMarked);
+    vBuffer = pkd->PackArray(iUnitSize * pkd->Local(), vBuffer, &iIndex, pkd->Local(), field, iUnitSize, in.dvFac, in.bMarked);
     assert(iIndex == pkd->Local());
     for (auto i = 1; i < nThreads; ++i) {
-        in.iTo = 0;
-        auto rID = pkd->mdl->ReqService(i, PST_SENDARRAY, &in, sizeof(in));
-        vBuffer = pkdRecvArray(pkd, i, vBuffer, iUnitSize);
+        auto rID = pkd->mdl->ReqService<ServiceSendArray>(i, in);
+        vBuffer = pkd->RecvArray(i, vBuffer, iUnitSize);
         pkd->mdl->GetReply(rID);
     }
 }

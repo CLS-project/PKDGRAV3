@@ -615,6 +615,9 @@ class pkdContext : public Integerize {
 #ifdef OPTIM_REORDER_IN_NODES
     void ReorderInNodes();
 #endif
+    void SendArray(int iNode, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked);
+    auto PackArray(int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) -> std::byte*;
+    auto RecvArray(int iNode, void* pDest, int iUnitSize) -> void*;
 
   public:
     int nRejects;
@@ -870,9 +873,6 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, fioS
                        int nProcessors, UNITS units);
 uint32_t pkdWriteFIO(PKD pkd, FIO fio, double dvFac, double dTuFac, Bound bnd, fioSpeciesList nWritten);
 void pkdWriteFromNode(PKD pkd, int iNode, FIO fio, double dvFac, double dTuFac, Bound bnd, fioSpeciesList nWritten);
-auto pkdPackArray(PKD pkd, int iSize, void* vBuff, int* piIndex, int n, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked) -> std::byte*;
-void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize, double dvFac, int bMarked);
-void* pkdRecvArray(PKD pkd, int iNode, void* pDest, int iUnitSize);
 void pkdGravAll(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconeParameters* lc, struct pkdTimestepParameters* ts, double dTime, int nReps,
                 int bPeriodic, int bGPU, int bEwald, int iRoot1, int iRoot2, double fEwCut, double fEwhCut, double dThetaMin, SPHOptions* SPHoptions,
                 uint64_t* pnActive, double* pdPart, double* pdPartNumAccess, double* pdPartMissRatio, double* pdCell, double* pdCellNumAccess,

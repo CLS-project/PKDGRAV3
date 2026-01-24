@@ -104,7 +104,6 @@ using PST = pstNode*;
 
 namespace Legacy {
 inline constexpr std::string_view ReadFile = "ReadFile";
-inline constexpr std::string_view SendArray = "SendArray";
 inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
@@ -125,7 +124,6 @@ inline constexpr std::string_view InitializeEOS = "InitializeEOS";
 enum pst_service {
     PST_SRV_STOP = 0, /* service 0 is always STOP and handled by MDL */
     PST_READFILE,
-    PST_SENDARRAY,
     PST_WRITE,
     PST_OUTPUT,
     PST_OUTPUT_SEND,
@@ -216,16 +214,6 @@ struct inWrite {
 };
 int pstWrite(PST, void*, int, void*, int);
 
-/* PST_SENDARRAY */
-struct inSendArray {
-    double dvFac;
-    PKD_FIELD field;
-    int iTo;
-    int iUnitSize;
-    int bMarked;
-};
-int pstSendArray(PST, void*, int, void*, int);
-
 /* PST_CHECKPOINT */
 int pstCheckpoint(PST, void*, int, void*, int);
 
@@ -303,13 +291,6 @@ struct outCalcEandL {
 };
 int pstCalcEandL(PST, void*, int, void*, int);
 
-int pstEndTimestepIntegration(PST, void*, int, void*, int);
-int pstWakeParticles(PST, void*, int, void*, int);
-struct outFluxStats {
-    int nAvoided;
-    int nComputed;
-};
-
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {
     double dSoftMax;
@@ -320,20 +301,6 @@ int pstPhysicalSoft(PST, void*, int, void*, int);
 
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-struct inDensCheck {
-    int iRung;
-    int bGreater;
-    int iMeasure;
-};
-struct outDensCheck {
-    double dMaxDensError;
-    double dAvgDensError;
-    int nError;
-    int nTotal;
-};
-
-void pstDensCheck(PST, void*, int, void*, int*);
 
 /* PST_MEMSTATUS */
 struct outMemStatus {

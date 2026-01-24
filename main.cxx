@@ -35,6 +35,7 @@
 #include "services/smooth.h"
 #include "services/reorderinnodes.h"
 #include "services/chemcompinit.h"
+#include "services/sendarray.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -173,8 +174,9 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServicePlaceBHSeed>(pst);
     mdl->AddService<ServiceBHReposition>(pst);
     mdl->AddService<ServiceBHAccretion>(pst);
-    mdl->AddService<ServiceSetAdd>(pst);
-    mdl->AddService<ServiceSwapAll>(pst);
+    mdl->AddService<ServiceSetAdd>(pst);    // This service constructs the PST
+    mdl->AddService<ServiceSwapAll>(pst);   // This service is point-to-point
+    mdl->AddService<ServiceSendArray>(pst); // This service is point-to-point
     mdl->AddService<ServiceHostname>(pst);
     mdl->AddService<ServiceInitCosmology>(pst);
     mdl->AddService<ServiceInitLightcone>(pst);
