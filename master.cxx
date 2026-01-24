@@ -2461,7 +2461,6 @@ void MSR::CalcEandL(int bFirst, double dTime, double* E, double* T, double* U, d
 }
 
 void MSR::Drift(double dTime, double dDelta, int iRoot) {
-    struct inDrift in;
     double dsec;
 
     if (parameters.get_bBlackholes() && parameters.get_bBHPin()) {
@@ -2472,21 +2471,14 @@ void MSR::Drift(double dTime, double dDelta, int iRoot) {
 
     TimerStart(TIMER_DRIFT);
 
-    if (csm->val.bComove) {
-        in.dDelta = csmComoveDriftFac(csm, dTime, dDelta);
-        in.dDeltaVPred = csmComoveKickFac(csm, dTime, dDelta);
-    }
-    else {
-        in.dDelta = dDelta;
-        in.dDeltaVPred = dDelta;
-    }
-    in.dTime = dTime;
-    in.dDeltaUPred = dDelta;
-    in.bDoGas = DoGas();
-    in.iRoot = iRoot;
-    in.bGasEvolveDensity = parameters.get_bGasEvolveDensity();
-
-    pstDrift(pst, &in, sizeof(in), NULL, 0);
+    ServiceDrift::input in{.dTime = dTime,
+                           .dDelta = csm->val.bComove ? csmComoveDriftFac(csm, dTime, dDelta) : dDelta,
+                           .dDeltaVPred = csm->val.bComove ? csmComoveKickFac(csm, dTime, dDelta) : dDelta,
+                           .dDeltaUPred = dDelta,
+                           .iRoot = iRoot,
+                           .bDoGas = DoGas(),
+                           .bGasEvolveDensity = parameters.get_bGasEvolveDensity()};
+    mdl->RunService<ServiceDrift>(in);
 
     TimerStop(TIMER_DRIFT);
     dsec = TimerGet(TIMER_DRIFT);
@@ -2560,24 +2552,18 @@ void MSR::EndTimestepIntegration(double dTime, double dDelta) {
  * For gas, updates predicted velocities to beginning of timestep.
  */
 void MSR::KickKDKOpen(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi) {
-    struct inKick in;
     TimerStart(TIMER_KICKO);
 
-    in.dTime = dTime;
-    if (csm->val.bComove) {
-        in.dDelta = csmComoveKickFac(csm, dTime, dDelta);
-        in.dDeltaVPred = 0;
-    }
-    else {
-        in.dDelta = dDelta;
-        in.dDeltaVPred = 0;
-    }
-    in.dDeltaU = dDelta;
-    in.dDeltaUPred = 0;
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    in.bDoGas = DoGas();
-    pstKick(pst, &in, sizeof(in), NULL, 0);
+    auto dDeltaKick = csm->val.bComove ? csmComoveKickFac(csm, dTime, dDelta) : dDelta;
+    ServiceKick::input in{.dTime = dTime,
+                          .dDelta = dDeltaKick,
+                          .dDeltaVPred = 0.0,
+                          .dDeltaU = dDelta,
+                          .dDeltaUPred = 0.0,
+                          .uRungLo = uRungLo,
+                          .uRungHi = uRungHi,
+                          .bDoGas = static_cast<bool>(DoGas())};
+    mdl->RunService<ServiceKick>(in);
     TimerStop(TIMER_KICKO);
 }
 
@@ -2585,24 +2571,17 @@ void MSR::KickKDKOpen(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRun
  * For gas, updates predicted velocities to end of timestep.
  */
 void MSR::KickKDKClose(double dTime, double dDelta, uint8_t uRungLo, uint8_t uRungHi) {
-    struct inKick in;
     TimerStart(TIMER_KICKC);
-
-    in.dTime = dTime;
-    if (csm->val.bComove) {
-        in.dDelta = csmComoveKickFac(csm, dTime, dDelta);
-        in.dDeltaVPred = in.dDelta;
-    }
-    else {
-        in.dDelta = dDelta;
-        in.dDeltaVPred = in.dDelta;
-    }
-    in.dDeltaU = dDelta;
-    in.dDeltaUPred = in.dDeltaU;
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    in.bDoGas = DoGas();
-    pstKick(pst, &in, sizeof(in), NULL, 0);
+    auto dDeltaKick = csm->val.bComove ? csmComoveKickFac(csm, dTime, dDelta) : dDelta;
+    ServiceKick::input in{.dTime = dTime,
+                          .dDelta = dDeltaKick,
+                          .dDeltaVPred = dDeltaKick,
+                          .dDeltaU = dDelta,
+                          .dDeltaUPred = dDelta,
+                          .uRungLo = uRungLo,
+                          .uRungHi = uRungHi,
+                          .bDoGas = static_cast<bool>(DoGas())};
+    mdl->RunService<ServiceKick>(in);
     TimerStop(TIMER_KICKC);
 }
 

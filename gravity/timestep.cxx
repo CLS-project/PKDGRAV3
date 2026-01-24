@@ -18,6 +18,7 @@
 #include "timestep.h"
 #include <algorithm>
 #include <numeric>
+using blitz::TinyVector;
 
 auto ServiceMaxRung::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto pkd = pst->lcl()->pkd;
@@ -105,4 +106,140 @@ void pkdContext::DensityStep(uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, dou
             p.set_new_rung(DtToRung(dT, dDelta, iMaxRung));
         }
     }
+}
+
+auto ServiceKick::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    pkd->Kick(in->dTime, in->dDelta, in->bDoGas, in->dDeltaVPred, in->dDeltaU, in->dDeltaUPred, in->uRungLo, in->uRungHi);
+    return 0;
+}
+
+void pkdContext::Kick(double dTime, double dDelta, int bDoGas, double dDeltaVPred, double dDeltaU, double dDeltaUPred, uint8_t uRungLo, uint8_t uRungHi) {
+    assert(particles.present(PKD_FIELD::oVelocity));
+    assert(particles.present(PKD_FIELD::oAcceleration));
+
+    if (bDoGas) { // pkd->param.bMeshlessHydro
+        for (auto& p : particles) {
+            if (!p.is_gas()) {
+                if (p.is_rung_range(uRungLo, uRungHi)) {
+                    auto& a = p.acceleration();
+                    auto& v = p.velocity();
+                    v += a * dDelta;
+                }
+            }
+        }
+    }
+    else {
+        for (auto& p : particles) {
+            if (p.is_rung_range(uRungLo, uRungHi)) {
+                auto& a = p.acceleration();
+                auto& v = p.velocity();
+                v += a * dDelta;
+            }
+        }
+    }
+}
+
+auto ServiceDrift::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    pkd->Drift(in->iRoot, in->dTime, in->dDelta, in->dDeltaVPred, in->dDeltaUPred, in->bDoGas, in->bGasEvolveDensity);
+    return 0;
+}
+
+/*
+** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
+** and those whose destination activity flag is set.
+**
+** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
+** now done by Domain Decomposition only.
+*/
+void pkdContext::Drift(int iRoot, double dTime, double dDelta, double dDeltaVPred, double dDeltaTime, int bDoGas, int bGasEvolveDensity) {
+    int i;
+    TinyVector<double, 3> rfinal, r0, dr;
+    int pLower, pUpper;
+
+    if (iRoot >= 0) {
+        auto pRoot = tree[iRoot];
+        pLower = pRoot->lower();
+        pUpper = pRoot->upper();
+    }
+    else {
+        pLower = 0;
+        pUpper = Local();
+    }
+
+    assert(particles.present(PKD_FIELD::oVelocity));
+    auto dMin = bnd.lower();
+    auto dMax = bnd.upper();
+    /*
+    ** Update particle positions
+    */
+    if (bDoGas) {
+        if (decorators.present(DECORATOR_FIELD::oMFM)) {
+            assert(particles.present(PKD_FIELD::oAcceleration));
+            for (i = pLower; i <= pUpper; ++i) {
+                auto p = particles[i];
+                const auto& v = p.velocity();
+
+                if (p.is_gas()) {
+                    // As for gas particles we use dx/dt = v/a, we must use the
+                    // Kick factor provided by pkdgrav.
+                    // See Stadel 2001, Appendix 3.8
+                    dr = v * dDeltaVPred;
+                }
+                else {
+                    dr = v * dDelta;
+                }
+
+#ifdef FORCE_1D
+                dr[2] = 0.0;
+                dr[1] = 0.0;
+#endif
+#ifdef FORCE_2D
+                dr[2] = 0.0;
+#endif
+                r0 = p.position();
+                p.set_position(rfinal = r0 + dr);
+                assert(isfinite(rfinal[0]));
+                assert(isfinite(rfinal[1]));
+                assert(isfinite(rfinal[2]));
+                dMin = min(dMin, rfinal);
+                dMax = max(dMax, rfinal);
+            }
+        }
+        else {
+            assert(particles.present(PKD_FIELD::oNewSph));
+            for (i = pLower; i <= pUpper; ++i) {
+                auto p = particles[i];
+                const auto& v = p.velocity();
+                if (bGasEvolveDensity && p.is_gas()) {
+                    auto& NewSph = p.newsph();
+                    // float dfBalldt = 1.0f / 3.0f * p.ball() * p.density() * NewSph.divv;
+                    // p.set_ball(p.ball() + dDelta * dfBalldt);
+                    p.set_density(p.density() - dDelta * p.density() * NewSph.divv);
+                }
+
+                r0 = p.position();
+                p.set_position(rfinal = r0 + dDelta * v);
+                assert(isfinite(rfinal[0]));
+                assert(isfinite(rfinal[1]));
+                assert(isfinite(rfinal[2]));
+                dMin = min(dMin, rfinal);
+                dMax = max(dMax, rfinal);
+            }
+        }
+    }
+    else {
+        for (i = pLower; i <= pUpper; ++i) {
+            auto p = particles[i];
+            const auto& v = p.velocity();
+            r0 = p.position();
+            p.set_position(rfinal = r0 + dDelta * v);
+            dMin = min(dMin, rfinal);
+            dMax = max(dMax, rfinal);
+        }
+    }
+    bnd = Bound(dMin, dMax);
 }

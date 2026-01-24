@@ -92,7 +92,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_SMOOTH, pst, (fcnService_t*)pstSmooth, sizeof(struct inSmooth), 0, Legacy::Smooth);
     mdl->AddService(PST_GRAVITY, pst, (fcnService_t*)pstGravity, sizeof(struct inGravity), sizeof(struct outGravityReduct), Legacy::Gravity);
     mdl->AddService(PST_CALCEANDL, pst, (fcnService_t*)pstCalcEandL, 0, sizeof(struct outCalcEandL), Legacy::CalcEandL);
-    mdl->AddService(PST_DRIFT, pst, (fcnService_t*)pstDrift, sizeof(struct inDrift), 0, Legacy::Drift);
 #ifdef GRACKLE
     mdl->AddService(PST_GRACKLEINIT, pst, (fcnService_t*)pstGrackleInit, sizeof(struct inGrackleInit), 0, Legacy::GrackleInit);
 #endif
@@ -102,7 +101,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_BH_REPOSITION, pst, (fcnService_t*)pstBHReposition, 0, 0, Legacy::BHReposition);
     mdl->AddService(PST_BH_ACCRETION, pst, (fcnService_t*)pstBHAccretion, sizeof(struct inBHAccretion), 0, Legacy::BHAccretion);
     //
-    mdl->AddService(PST_KICK, pst, (fcnService_t*)pstKick, sizeof(struct inKick), 0, Legacy::Kick);
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
@@ -815,22 +813,6 @@ int pstCalcEandL(PST pst, void* vin, int nIn, void* vout, int nOut) {
     return sizeof(struct outCalcEandL);
 }
 
-int pstDrift(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inDrift*>(vin);
-
-    assert(nIn == sizeof(struct inDrift));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_DRIFT, in, nIn);
-        pstDrift(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdDrift(plcl->pkd, in->iRoot, in->dTime, in->dDelta, in->dDeltaVPred, in->dDeltaUPred, in->bDoGas, in->bGasEvolveDensity);
-    }
-    return 0;
-}
-
 #ifdef OPTIM_REORDER_IN_NODES
 int pstReorderWithinNodes(PST pst, void* vin, int nIn, void* vout, int nOut) {
     LCL* plcl = pst->lcl();
@@ -877,23 +859,6 @@ int pstChemCompInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdChemCompInit(plcl->pkd, *in);
-    }
-    return 0;
-}
-
-int pstKick(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inKick*>(vin);
-
-    assert(nIn == sizeof(struct inKick));
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_KICK, in, nIn);
-        pstKick(pst->lower(), in, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdKick(plcl->pkd, in->dTime, in->dDelta, in->bDoGas, in->dDeltaVPred, in->dDeltaU, in->dDeltaUPred, in->uRungLo, in->uRungHi);
     }
     return 0;
 }

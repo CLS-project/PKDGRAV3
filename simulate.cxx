@@ -780,7 +780,7 @@ int MSR::ValidateParameters() {
     ** Periodic boundary conditions can be disabled along any of the
     ** x,y,z axes by specifying a period of zero for the given axis.
     ** Internally, the period is set to infinity (Cf. pkdBucketWalk()
-    ** and pkdDrift(); also the INTERSECT() macro in smooth.h).
+    ** and pkd->Drift(); also the INTERSECT() macro in smooth.h).
     */
     auto period = parameters.get_dPeriod();
     if (period[0] == 0) period[0] = FLOAT_MAXVAL;

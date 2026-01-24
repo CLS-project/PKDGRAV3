@@ -112,10 +112,8 @@ inline constexpr std::string_view Checkpoint = "Checkpoint";
 inline constexpr std::string_view Smooth = "Smooth";
 inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view CalcEandL = "CalcEandL";
-inline constexpr std::string_view Drift = "Drift";
 inline constexpr std::string_view GrackleInit = "GrackleInit";
 inline constexpr std::string_view ChemCompInit = "ChemCompInit";
-inline constexpr std::string_view Kick = "Kick";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view ReSmooth = "ReSmooth";
@@ -147,7 +145,6 @@ enum pst_service {
     PST_SMOOTH,
     PST_GRAVITY,
     PST_CALCEANDL,
-    PST_DRIFT,
 #ifdef GRACKLE
     PST_GRACKLEINIT,
 #endif
@@ -156,7 +153,6 @@ enum pst_service {
     PST_BH_REPOSITION,
     PST_BH_INIT,
     PST_BH_ACCRETION,
-    PST_KICK,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
     PST_RESMOOTH,
@@ -400,36 +396,12 @@ struct outCalcEandL {
 };
 int pstCalcEandL(PST, void*, int, void*, int);
 
-/* PST_DRIFT */
-struct inDrift {
-    double dTime;
-    double dDelta;
-    double dDeltaVPred;
-    double dDeltaUPred;
-    int iRoot;
-    int bDoGas;
-    int bGasEvolveDensity;
-};
-int pstDrift(PST, void*, int, void*, int);
 int pstEndTimestepIntegration(PST, void*, int, void*, int);
 int pstWakeParticles(PST, void*, int, void*, int);
 struct outFluxStats {
     int nAvoided;
     int nComputed;
 };
-
-/* PST_KICK */
-struct inKick {
-    double dTime;
-    double dDelta;
-    double dDeltaVPred;
-    double dDeltaU;
-    double dDeltaUPred;
-    int bDoGas;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-};
-int pstKick(PST, void*, int, void*, int);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {

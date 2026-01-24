@@ -85,3 +85,42 @@ class ServiceDensityStep : public TraversePST {
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
+
+class ServiceKick : public TraversePST {
+  public:
+    static constexpr std::string_view name = "Kick";
+    struct input {
+        double dTime;
+        double dDelta;
+        double dDeltaVPred;
+        double dDeltaU;
+        double dDeltaUPred;
+        uint8_t uRungLo;
+        uint8_t uRungHi;
+        bool bDoGas;
+    };
+    using output = void;
+    explicit ServiceKick(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceDrift : public TraversePST {
+  public:
+    static constexpr std::string_view name = "Drift";
+    struct input {
+        double dTime;
+        double dDelta;
+        double dDeltaVPred;
+        double dDeltaUPred;
+        int iRoot;
+        int bDoGas;
+        int bGasEvolveDensity;
+    };
+    using output = void;
+    explicit ServiceDrift(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
