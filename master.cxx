@@ -123,6 +123,7 @@ struct fmt::formatter<DeferFormat> {
 #include "services/sendarray.h"
 #include "services/checkpoint.h"
 #include "services/calceandl.h"
+#include "services/physicalsoft.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -2020,16 +2021,11 @@ void MSR::UpdateSoft(double dTime) {
     const auto dSoft = parameters.get_dSoft();
     const auto dSoftMax = parameters.get_dSoftMax();
     const auto dMaxPhysicalSoft = parameters.get_dMaxPhysicalSoft();
+    const auto bSoftMaxMul = parameters.get_bSoftMaxMul();
     if (parameters.get_bPhysicalSoft()) {
-        struct inPhysicalSoft in;
-
-        in.dFac = 1. / csmTime2Exp(csm, dTime);
-        in.bSoftMaxMul = parameters.get_bSoftMaxMul();
-        in.dSoftMax = dSoftMax;
-
+        ServicePhysicalSoft::input in{.dSoftMax = dSoftMax, .dFac = 1.0 / csmTime2Exp(csm, dTime), .bSoftMaxMul = bSoftMaxMul};
         if (in.bSoftMaxMul && in.dFac > in.dSoftMax) in.dFac = in.dSoftMax;
-
-        pstPhysicalSoft(pst, &in, sizeof(in), NULL, 0);
+        mdl->RunService<ServicePhysicalSoft>(in);
     }
     if (dMaxPhysicalSoft > 0) {
         double dFac = csmTime2Exp(csm, dTime);
@@ -2039,11 +2035,7 @@ void MSR::UpdateSoft(double dTime) {
         }
         else {
             // Individual (either particle or classes) softening are used
-            struct inPhysicalSoft in;
-
-            in.bSoftMaxMul = parameters.get_bSoftMaxMul();
-            in.dSoftMax = dSoftMax;
-
+            ServicePhysicalSoft::input in{.dSoftMax = dSoftMax, .dFac = 1.0, .bSoftMaxMul = bSoftMaxMul};
             if (in.bSoftMaxMul) {
                 const float fPhysFac = dFac; // Factor to convert to physical
                 if (fPhysFac < dMaxPhysicalSoft) {
@@ -2055,8 +2047,7 @@ void MSR::UpdateSoft(double dTime) {
                     in.dFac = dMaxPhysicalSoft / dFac;
                 }
             }
-
-            pstPhysicalSoft(pst, &in, sizeof(in), NULL, 0);
+            mdl->RunService<ServicePhysicalSoft>(in);
         }
     }
 }

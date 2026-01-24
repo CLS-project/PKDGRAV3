@@ -562,6 +562,7 @@ class pkdContext : public Integerize {
     void UpdateGasValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions);
     void ResetCOM(blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
     void CalcEandL(double& T, double& U, double& Eth, blitz::TinyVector<double, 3>& L, blitz::TinyVector<double, 3>& F, double& W);
+    void PhysicalSoft(double dSoftMax, double dFac, bool bSoftMaxMul);
 
     auto TotalMass() -> double;
     [[maybe_unused]] auto GridCreateFFT(int nGrid) -> std::tuple<size_t, int, int, int, int>;
@@ -844,7 +845,6 @@ void pkdSetSoft(PKD pkd, double dSoft);
 void pkdSetSmooth(PKD pkd, double dSmooth);
 void pkdSetCrit(PKD pkd, double dCrit);
 void pkdEnforcePeriodic(PKD, Bound);
-void pkdPhysicalSoft(PKD pkd, double dSoftMax, double dFac, int bSoftMaxMul);
 int pkdWeight(PKD, int, double, int, int, int, int*, int*, double*, double*);
 void pkdCountVA(PKD, int, double, int*, int*);
 int pkdLowerPart(PKD, int, double, int, int);

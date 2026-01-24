@@ -103,7 +103,6 @@ inline constexpr std::string_view ReadFile = "ReadFile";
 inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
-inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
@@ -118,7 +117,6 @@ enum pst_service {
     PST_WRITE,
     PST_OUTPUT,
     PST_OUTPUT_SEND,
-    PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
     PST_MOVEIC,
     PLT_MOVEIC,
@@ -174,14 +172,6 @@ int pstWrite(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
-
-/* PST_PHYSICALSOFT */
-struct inPhysicalSoft {
-    double dSoftMax;
-    double dFac;
-    int bSoftMaxMul;
-};
-int pstPhysicalSoft(PST, void*, int, void*, int);
 
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut);

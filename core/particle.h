@@ -164,7 +164,7 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
     using coord = blitz::TinyVector<double, 3>;
     using icoord = blitz::TinyVector<int32_t, 3>;
     using Integerize::set_factor;
-    void PhysicalSoft(double dSoftMax, double dFac, int bSoftMaxMul) {
+    void PhysicalSoft(double dSoftMax, double dFac, bool bSoftMaxMul) {
         fSoftFac = dFac;
         fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
     }

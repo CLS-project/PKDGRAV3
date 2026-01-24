@@ -1752,8 +1752,8 @@ void pkdSetSmooth(PKD pkd, double dSmooth) {
     }
 }
 
-void pkdPhysicalSoft(PKD pkd, double dSoftMax, double dFac, int bSoftMaxMul) {
-    pkd->particles.PhysicalSoft(dSoftMax, dFac, bSoftMaxMul);
+void pkdContext::PhysicalSoft(double dSoftMax, double dFac, bool bSoftMaxMul) {
+    particles.PhysicalSoft(dSoftMax, dFac, bSoftMaxMul);
 }
 
 class SetMarkedHelper : public particleCACHEhelper {

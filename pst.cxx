@@ -84,7 +84,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
-    mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
@@ -329,22 +328,6 @@ int pstWrite(PST pst, void* vin, int nIn, void* vout, int nOut) {
         }
     }
 
-    return 0;
-}
-
-int pstPhysicalSoft(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inPhysicalSoft*>(vin);
-
-    assert(nIn == sizeof(struct inPhysicalSoft));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_PHYSICALSOFT, in, nIn);
-        pstPhysicalSoft(pst->lower(), in, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdPhysicalSoft(plcl->pkd, in->dSoftMax, in->dFac, in->bSoftMaxMul);
-    }
     return 0;
 }
 

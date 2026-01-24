@@ -38,6 +38,7 @@
 #include "services/sendarray.h"
 #include "services/checkpoint.h"
 #include "services/calceandl.h"
+#include "services/physicalsoft.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -189,6 +190,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceInitLightcone>(pst);
     mdl->AddService<ServiceCalcEandL>(pst);
     mdl->AddService<ServiceCalcRoot>(pst);
+    mdl->AddService<ServicePhysicalSoft>(pst);
     mdl->AddService<ServiceCountSelected>(pst);
     mdl->AddService<ServiceSelBlackholes>(pst);
     mdl->AddService<ServiceSelSpecies>(pst);
