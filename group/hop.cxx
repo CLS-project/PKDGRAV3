@@ -136,7 +136,7 @@ static int smHopLink(SMX smx, std::shared_ptr<SmoothHelperGradientM3> helper) {
         p.set_group(0);     // Ungrouped
         p.set_marked(true); // Used by smooth to determine active particles
     }
-    smSmoothInitialize(smx);
+    smx->initialize();
 
     pkd->nGroups = 0;
     pkd->nLocalGroups = 0;
@@ -160,7 +160,7 @@ static int smHopLink(SMX smx, std::shared_ptr<SmoothHelperGradientM3> helper) {
             p.set_group(nGroups);
             /* Need: fDensity and fBall but pl[iParticle] is not yet used */
             /* fDensity MUST persist but fBall could be stashed into pl[] */
-            smReSmoothSingle(smx, p, p.ball());
+            smx->ReSmoothSingle(p, p.ball());
             /* Done: fBall */
             auto link = helper->link();
             ga[nGroups].id = link;
@@ -200,7 +200,7 @@ static int smHopLink(SMX smx, std::shared_ptr<SmoothHelperGradientM3> helper) {
             /* None of the above? Just keep following the links. */
         }
     }
-    smSmoothFinish(smx);
+    smx->finish();
     /*
     ** All chains now terminate at a specific *particle*, either local or remote.
     ** Spurs were automatically joined, and point to their corresponding "loop".
@@ -409,7 +409,7 @@ static int smHopJoin(SMX smx, double dHopTau, int* nLocal) {
         assert(p.marked());
         float fBall = (dHopTau < 0.0) ? -dHopTau * p.soft() : dHopTau;
         fBall = std::max(fBall, p.ball() * 0.5f);
-        smReSmoothSingle(smx, p, fBall);
+        smx->ReSmoothSingle(p, fBall);
     }
     mdl->FinishCache(CID_GROUP);
 

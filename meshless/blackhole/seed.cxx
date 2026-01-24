@@ -18,7 +18,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax,
             float dTauSearch = dTau * 0.02;
             while (!(smx.nnList.size() > 100 || dTauSearch >= dTau)) {
                 smx.nnList.clear();
-                smGather(&smx, dTauSearch * dTauSearch, pkd->veryTinyGroupTable[gid].rPot);
+                smx.Gather(dTauSearch * dTauSearch, pkd->veryTinyGroupTable[gid].rPot);
                 dTauSearch *= 2.0;
             }
 

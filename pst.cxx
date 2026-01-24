@@ -512,12 +512,9 @@ int pstSmooth(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pst->mdl()->GetReply(rID);
     }
     else {
-        LCL* plcl = pst->lcl();
-        SMX smx;
-
-        smInitialize(&smx, plcl->pkd, &in->smf, in->nSmooth, in->bPeriodic, in->bSymmetric, in->iSmoothType);
-        smSmooth(smx, &in->smf);
-        smFinish(smx, &in->smf);
+        auto pkd = pst->lcl()->pkd;
+        smContext smx(pkd, in->iSmoothType, &in->smf, in->bSymmetric, in->nSmooth, in->bPeriodic);
+        smx.Smooth();
     }
     return 0;
 }
@@ -536,12 +533,9 @@ int pstReSmooth(PST pst, void* vin, int nIn, void* vout, int nOut) {
         out->nSmoothed += outUpper.nSmoothed;
     }
     else {
-        LCL* plcl = pst->lcl();
-        SMX smx;
-
-        smInitialize(&smx, plcl->pkd, &in->smf, in->nSmooth, in->bPeriodic, in->bSymmetric, in->iSmoothType);
-        out->nSmoothed = smReSmooth(smx, in->iSmoothType);
-        smFinish(smx, &in->smf);
+        auto pkd = pst->lcl()->pkd;
+        smContext smx(pkd, in->iSmoothType, &in->smf, in->bSymmetric, in->nSmooth, in->bPeriodic);
+        out->nSmoothed = smx.ReSmooth();
     }
     return sizeof(struct outSmooth);
 }
@@ -571,17 +565,14 @@ int pstReSmoothNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
     #endif
     }
     else {
-        LCL* plcl = pst->lcl();
-        SMX smx;
-
-        smInitialize(&smx, plcl->pkd, &in->smf, in->nSmooth, in->bPeriodic, in->bSymmetric, in->iSmoothType);
+        auto pkd = pst->lcl()->pkd;
+        smContext smx(pkd, in->iSmoothType, &in->smf, in->bSymmetric, in->nSmooth, in->bPeriodic);
         if (in->iSmoothType == SMX_BH_MERGER) {
-            out->nSmoothed = smReSmoothBHNode(smx, &in->smf, in->iSmoothType);
+            out->nSmoothed = smReSmoothBHNode(&smx, &in->smf, in->iSmoothType);
         }
         else {
-            out->nSmoothed = smReSmoothNode(smx, &in->smf, in->iSmoothType);
+            out->nSmoothed = smReSmoothNode(&smx, &in->smf, in->iSmoothType);
         }
-        smFinish(smx, &in->smf);
     #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
         if (out->nSmoothed) {
             out->sCellNumAccess.dSum = mdlNumAccess(pst->mdl(), CID_CELL) / out->nSmoothed;

@@ -209,15 +209,14 @@ inline static auto getCell(PKD pkd, int iCell, int id) {
  */
 void buildCandidateMergerList(SMX smx, KDN* node, Bound bnd_node, TinyVector<double, 3> r, int ix, int iy, int iz) {
     PKD pkd = smx->pkd;
-    int id, sp, iCell;
-    smContext::stStack* S = smx->ST;
+    int id, iCell;
 
     // We look for the biggest node that encloses the needed domain
     // We can only take advantage of this if we are are in the original cell
     auto kdn = getCell(pkd, iCell = pkd->iTopTree[ROOT], id = pkd->Self());
 
     //  Now we start the walk as usual
-    sp = 0;
+    smx->ST.clear();
     while (1) {
         auto bnd = kdn->bound();
         // min2 = bnd.mindist(r);
@@ -232,10 +231,7 @@ void buildCandidateMergerList(SMX smx, KDN* node, Bound bnd_node, TinyVector<dou
             int idUpper, iUpper;
             std::tie(iCell, id, iUpper, idUpper) = kdn->get_child_cells(id);
             kdn = getCell(pkd, iCell, id);
-            S[sp].id = idUpper;
-            S[sp].iCell = iUpper;
-            S[sp].min = 0.0;
-            ++sp;
+            smx->ST.push_back({.id = idUpper, .iCell = iUpper, .min = 0.0});
             continue;
         }
         else {
@@ -282,11 +278,11 @@ void buildCandidateMergerList(SMX smx, KDN* node, Bound bnd_node, TinyVector<dou
             }
         }
     NoIntersect:
-        if (sp) {
-            --sp;
-            id = S[sp].id;
-            iCell = S[sp].iCell;
+        if (!smx->ST.empty()) {
+            id = smx->ST.back().id;
+            iCell = smx->ST.back().iCell;
             kdn = getCell(pkd, iCell, id);
+            smx->ST.pop_back();
         }
         else break;
     }
