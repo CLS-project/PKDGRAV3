@@ -72,11 +72,6 @@ class ServiceHydroFluxes : public TraverseCount<ServiceHydroFluxes> {
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
-// This selects only blackhole particles for smoothing with gas.
-struct SmoothOnlyBH : SmoothEverything {
-    static inline auto is_active(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
-};
-
 class ServiceBHGasPin : public TraversePST {
   public:
     static constexpr std::string_view name = "BHGasPin";

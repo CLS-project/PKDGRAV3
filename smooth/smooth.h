@@ -37,75 +37,105 @@
 // implementations for smoothing density, asymmetric smoothing, etc.
 //
 // When it comes time to call Smooth(), ReSmooth(), or NodeSmooth(), you also
-// need to provide a "policy" class that defines which particles are smoothed
-// and which particles are accepted as neighbors. See the SmoothEverything class
-// below for an example. You can derive new classes from that one to provide
-// filtering based on particle type (gas, BH, etc) and/or active status.
+// need to provide several policy classes that define which particles are smoothed,
+// - TargetPolicy: which particles are smoothed (sink particles)
+// - SourcePolicy: which particles are accepted as neighbors (source particles)
+// - BallPolicy: how to compute the smoothing ball (normally based on the sink particle)
 
-// Policy classes for filtering particles during node smoothing
-struct SmoothEverything {
-    // Returns the open range [start, end) of particles in the node to process
-    // Certain optimisations (see below) allow us to avoid checking particle types
-    static inline auto range(treeStore::NodePointer node) { return std::pair{node->lower(), node->upper() + 1}; }
-    // Filter function to select nodes of interest (here, all particles)
-    // If the filter is done in range(), this can be a no-op (always true)
+namespace smooth::policy {
+// Smooth all particles
+struct Everything {
+    // Criteria for selecting particles to be smoothed (for particle by particle selection)
+    static constexpr auto active(particleStore::ParticleReference& p) -> bool { return true; }
+
+    // The following apply when selecting particles from nodes
+
+    // Filter function to select nodes of interest (here, all particles).
+    // With OPTIM_REORDER_IN_NODES we can avoid checking nodes if there are no particles of the desired type.
     static constexpr auto may_have_active(treeStore::NodePointer&) -> bool { return true; }
-    // This deterines if the particle is active (including type checks)
-    // Normally is_active() is used, but certain optimisations allow us to avoid that check
-    static constexpr auto is_active(particleStore::ParticleReference& p) -> bool { return true; }
-    // Returns the open range [start, end) of particles in the node to process for neighbours
-    // Certain optimisations (see below) allow us to avoid checking particle types
-    static inline auto range_neighbour(treeStore::NodePointer node) { return std::pair{node->lower(), node->upper() + 1}; }
-    // Filter function to select neighbors, e.g., particles types of interest (gas, BH, etc)
-    // If the filter is done in range(), this can be a no-op (always true)
-    static constexpr auto accept_neighbour(particleStore::ParticleReference& p) -> bool { return true; }
-    // The particles to be smoothed are added to the list of sinks, but we may need to
-    // check again (for example during BH mergers we may have deleted particles)
-    static constexpr auto accept_sink(particleStore::ParticleReference& p) -> bool { return true; }
-    // The fBall factor to apply during node smoothing
-    static constexpr double fBall_factor = 1.0;
-    // True if the ball should be updated
-    static constexpr bool update_ball = false;
-    // When evaluating sinks in ReSmoothNode we need a cutoff based on ball^2 (normally)
-    static constexpr auto ball2_sink(particleStore::ParticleReference& p) -> float { return p.ball() * p.ball(); }
-    // In resmoothSinks we may need to filter neighbors based on distance and other criteria
-    static auto inline accept_ball(PKD pkd, PARTICLE* P, double fDist2, blitz::TinyVector<double, 3> dr_node, const NN& nn) -> bool { return true; }
+    // Returns the open range [start, end) of particles in the node to process (here, all particles).
+    static inline auto range(treeStore::NodePointer& node) -> std::pair<int, int> { return std::pair{node->lower(), node->upper() + 1}; }
+    // Used to select particles from the node range, so some checks may be omitted if range() filters them.
+    static constexpr auto select(particleStore::ParticleReference& p) -> bool { return true; }
+    // When evaluating selected sink particles we may need to reevaluate them (see BH merger)
+    static constexpr auto accept(particleStore::ParticleReference& p) -> bool { return true; }
 };
-
-struct SmoothOnlyActive : SmoothEverything {
-    static constexpr auto is_active(particleStore::ParticleReference& p) -> bool { return p.is_active(); }
-};
-
-// This will select only gas particles as sinks and neighbors but does not check care if they are active.
-// As an opmisiation, only the range of particles in the node are checked if this option is enabled.
-struct SmoothOnlyGas : SmoothEverything {
+// Select only gas particles
+struct OnlyGas : Everything {
+    static inline auto active(particleStore::ParticleReference& p) -> bool { return p.is_gas(); }
 #ifdef OPTIM_REORDER_IN_NODES
-    static inline auto range(treeStore::NodePointer node) {
+    static inline auto may_have_active(treeStore::NodePointer& node) -> bool { return node->Ngas() > 0; }
+    static inline auto range(treeStore::NodePointer& node) {
         auto start = node->lower();
         auto end = start + node->Ngas();
         return std::pair{start, end};
     }
-    static inline auto range_neighbour(treeStore::NodePointer node) { return range(node); }
-    static inline auto may_have_active(treeStore::NodePointer& node) -> bool { return node->Ngas() > 0; }
-    // The raange() method filters particles, so is_active() will always check only gas particles
-    static inline auto is_gas(particleStore::ParticleReference& p) -> bool { return true; }
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return true; }
 #else
-    static inline auto is_gas(particleStore::ParticleReference& p) -> bool { return p.is_gas(); }
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return active(p); }
 #endif
-    static inline auto is_active(particleStore::ParticleReference& p) -> bool { return is_gas(p); }
-    static inline auto accept_neighbour(particleStore::ParticleReference& p) -> bool { return p.is_gas(); }
 };
 
-// This does the same as SmoothOnlyGas but also checks if the particles are active
-struct SmoothOnlyGasActive : SmoothOnlyGas {
-    static inline auto is_active(particleStore::ParticleReference& p) -> bool { return is_gas(p) && p.is_active(); }
+// Select only active gas particles
+struct OnlyGasActive : OnlyGas {
+    static inline auto active(particleStore::ParticleReference& p) -> bool { return p.is_gas() && p.is_active(); }
+#ifdef OPTIM_REORDER_IN_NODES
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return p.is_active(); }
+#else
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return active(p); }
+#endif
 };
 
-// For iterative density smoothing, the active particles are first marked and we use that flag here
-struct SmoothOnlyGasOptimised : SmoothOnlyGasActive {
+// Selects only active gas particles, with optimisations to avoid is_active() calls (actives are marked)
 #ifdef OPTIM_AVOID_IS_ACTIVE
-    static inline auto is_active(particleStore::ParticleReference& p) -> bool { return is_gas(p) && p.marked(); }
+struct OnlyGasOptimised : OnlyGas {
+    static inline auto active(particleStore::ParticleReference& p) -> bool { return p.is_gas() && p.is_marked(); }
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return p.is_marked(); }
+};
+#else
+using OnlyGasOptimised = OnlyGasActive;
 #endif
+
+// Select only BH particles
+struct OnlyBH : Everything {
+    static inline auto active(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
+#ifdef OPTIM_REORDER_IN_NODES
+    static inline auto may_have_active(treeStore::NodePointer& node) -> bool { return node->Nbh() > 0; }
+    static inline auto range(treeStore::NodePointer& node) {
+        auto start = node->lower();
+        start += node->Ngas();
+        if (node->have_Nstar()) start += node->Nstar();
+        auto end = start + node->Nbh();
+        return std::pair{start, end};
+    }
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return true; }
+#else
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return active(p); }
+#endif
+};
+
+struct ball {
+    // When evaluating sinks in ReSmoothNode we need a cutoff based on ball^2 (normally)
+    static inline auto ball2(particleStore::ParticleReference& p) -> float { return p.ball() * p.ball(); }
+    // In resmoothSinks we may need to filter neighbors based on distance and other criteria
+    static constexpr auto accept(PKD pkd, PARTICLE* P, double fDist2, const blitz::TinyVector<double, 3>& dr_node, const NN& nn) -> bool { return true; }
+};
+
+} // namespace smooth::policy
+
+template <class P>
+concept RangePolicy = requires(particleStore::ParticleReference& p, treeStore::NodePointer n) {
+    { P::active(p) } -> std::convertible_to<bool>;
+    { P::may_have_active(n) } -> std::convertible_to<bool>;
+    { P::range(n) } -> std::same_as<std::pair<int, int>>;
+    { P::select(p) } -> std::convertible_to<bool>;
+    { P::accept(p) } -> std::convertible_to<bool>;
+};
+
+template <class B>
+concept BallPolicy = requires(particleStore::ParticleReference& p, PKD pkd, PARTICLE* P, double fDist2, const blitz::TinyVector<double, 3>& dr, const NN& nn) {
+    { B::ball2(p) } -> std::convertible_to<float>;
+    { B::accept(pkd, P, fDist2, dr, nn) } -> std::convertible_to<bool>;
 };
 
 struct smContext {
@@ -145,17 +175,17 @@ struct smContext {
     auto getCell(int iCell, int id) { return (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL, iCell, id)]; }
     void Release(std::span<NN> list);
 
-    // for node-based smoothing
+// for node-based smoothing
 #ifdef OPTIM_SMOOTH_NODE
-    template <class RangePolicy>
-    auto getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, RangePolicy info = {}) -> Bound;
+    template <RangePolicy TargetPolicy, double fBall_factor>
+    auto getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, TargetPolicy info = {}) -> Bound;
 
-    template <class RangePolicy>
-    void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, RangePolicy info = {});
-    template <class RangePolicy>
-    void buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, RangePolicy info = {});
-    template <class RangePolicy>
-    void buildInteractionList(Bound bnd_node, RangePolicy info = {});
+    template <RangePolicy TargetPolicy, class BallPolicy>
+    void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, TargetPolicy info = {});
+    template <RangePolicy SourcePolicy>
+    void buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, SourcePolicy info = {});
+    template <RangePolicy SourcePolicy>
+    void buildInteractionList(Bound bnd_node, SourcePolicy info = {});
 #endif
   public:
     smContext(PKD pkdIn, int iSmoothType, SMF* smf, bool bSymmetric, int nSmooth, bool bPeriodic);
@@ -175,34 +205,43 @@ struct smContext {
     auto SmoothSingle(particleStore::ParticleReference& p, int iRoot1 = ROOT, int iRoot2 = 0) -> float;
     auto ReSmoothSingle(particleStore::ParticleReference& p, double fBall) -> bool;
 
-    template <class RangePolicy = ::SmoothEverything>
+    template <RangePolicy TargetPolicy = smooth::policy::Everything, bool UpdateBall = false>
     void Smooth();
-    template <class RangePolicy = ::SmoothEverything>
+    template <RangePolicy RangePolicy = smooth::policy::Everything>
     auto ReSmooth() -> uint64_t;
 #ifdef OPTIM_SMOOTH_NODE
-    template <class RangePolicy = ::SmoothEverything>
-    auto ReSmoothNode(RangePolicy info = {}) -> uint64_t;
+    template <RangePolicy TargetPolicy, RangePolicy SourcePolicy, BallPolicy BallPolicy = smooth::policy::ball, double fBall_factor = 1.0>
+    auto ReSmoothNode(TargetPolicy info = {}, SourcePolicy sourceInfo = {}) -> uint64_t;
+
+    template <RangePolicy RangePolicy = smooth::policy::Everything, double fBall_factor = 1.0>
+    auto ReSmoothNode(RangePolicy info = {}) -> uint64_t {
+        return ReSmoothNode<RangePolicy, RangePolicy, smooth::policy::ball, fBall_factor>(info, info);
+    }
+    template <RangePolicy TargetPolicy, RangePolicy SourcePolicy, double fBall_factor>
+    auto ReSmoothNode(TargetPolicy target = {}, SourcePolicy source = {}) -> uint64_t {
+        return ReSmoothNode<TargetPolicy, SourcePolicy, smooth::policy::ball, fBall_factor>(target, source);
+    }
 #endif
 };
 
-template <class RangePolicy>
+template <RangePolicy TargetPolicy, bool UpdateBall>
 void smContext::Smooth() {
     create();
     for (auto& p : pkd->particles) {
-        if (RangePolicy::is_active(p)) {
+        if (TargetPolicy::active(p)) {
             auto fBall = SmoothSingle(p);
-            if constexpr (RangePolicy::update_ball) p.set_ball(fBall);
+            if constexpr (UpdateBall) p.set_ball(fBall);
             pkd->mdl->CacheCheck();
         }
     }
     finish();
 }
 
-template <class RangePolicy>
+template <RangePolicy TargetPolicy>
 auto smContext::ReSmooth() -> uint64_t {
     uint64_t nSmoothed = 0;
     for (auto& p : pkd->particles) {
-        if (RangePolicy::is_active(p)) {
+        if (TargetPolicy::active(p)) {
             ReSmoothSingle(p, p.ball());
             ++nSmoothed;
             pkd->mdl->CacheCheck();
@@ -220,37 +259,37 @@ auto smContext::ReSmooth() -> uint64_t {
  * Then, we put all those particles (including the own bucket)
  * in an interaction list.
  */
-template <class RangePolicy>
-auto smContext::ReSmoothNode(RangePolicy info) -> uint64_t {
+template <RangePolicy TargetPolicy, RangePolicy SourcePolicy, BallPolicy BallPolicy, double fBall_factor>
+auto smContext::ReSmoothNode(TargetPolicy target, SourcePolicy source) -> uint64_t {
     uint64_t nSmoothed = 0;
     // Here we store the pointers to the particles whose interaction need to be computed
     std::vector<PARTICLE*> sinks;
     sinks.reserve(256); // At most, the bucket size
     for (auto i = NRESERVED_NODES; i < pkd->Nodes() - 1; ++i) {
         auto node = pkd->tree[i];
-        if (node->is_bucket() && RangePolicy::may_have_active(node)) {
-            auto bnd_node = getNodeSinks<RangePolicy>(node, sinks, info); // ball factor is 1.0
+        if (node->is_bucket() && TargetPolicy::may_have_active(node)) {
+            auto bnd_node = getNodeSinks<TargetPolicy, fBall_factor>(node, sinks, target); // ball factor is 1.0
             if (sinks.empty()) continue;
-            buildInteractionList<RangePolicy>(bnd_node, info);
-            resmoothSinks<RangePolicy>(sinks, bnd_node, info);
+            buildInteractionList<SourcePolicy>(bnd_node, source);
+            resmoothSinks<TargetPolicy, BallPolicy>(sinks, bnd_node, target);
             nSmoothed += sinks.size();
         }
     }
     return nSmoothed;
 }
 
-template <class RangePolicy>
-auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, RangePolicy info) -> Bound {
+template <RangePolicy TargetPolicy, double fBall_factor>
+auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, TargetPolicy info) -> Bound {
     sinks.clear();
     sinks.reserve(256); // At most, the bucket size
     auto bnd_node = node->bound();
 
     blitz::TinyVector<double, 3> fMax_shrink{0.};
-    auto [pStart, pEnd] = RangePolicy::range(node);
+    auto [pStart, pEnd] = TargetPolicy::range(node);
     for (auto pj = pStart; pj < pEnd; ++pj) {
         auto p = pkd->particles[pj];
-        if (RangePolicy::is_active(p)) {
-            fMax_shrink = blitz::max(fMax_shrink, abs(p.position() - bnd_node.center()) + p.ball() * RangePolicy::fBall_factor);
+        if (TargetPolicy::select(p)) {
+            fMax_shrink = blitz::max(fMax_shrink, abs(p.position() - bnd_node.center()) + p.ball() * fBall_factor);
             sinks.push_back(&p);
         }
     }
@@ -258,8 +297,8 @@ auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>
     return bnd_node;
 }
 
-template <class RangePolicy>
-void smContext::buildInteractionList(Bound bnd_node, RangePolicy info) {
+template <RangePolicy SourcePolicy>
+void smContext::buildInteractionList(Bound bnd_node, SourcePolicy info) {
     auto r = bnd_node.center();
     nnList.clear();
     if (bPeriodic) {
@@ -271,18 +310,18 @@ void smContext::buildInteractionList(Bound bnd_node, RangePolicy info) {
                 r[1] = bnd_node.center(1) - iy * pkd->fPeriod[1];
                 for (int iz = iStart[2]; iz <= iEnd[2]; ++iz) {
                     r[2] = bnd_node.center(2) - iz * pkd->fPeriod[2];
-                    buildInteractionList<RangePolicy>(bnd_node, r, info);
+                    buildInteractionList<SourcePolicy>(bnd_node, r, info);
                 }
             }
         }
     }
     else {
-        buildInteractionList<RangePolicy>(bnd_node, r, info);
+        buildInteractionList<SourcePolicy>(bnd_node, r, info);
     }
 }
 
-template <class RangePolicy>
-void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, RangePolicy) {
+template <RangePolicy SourcePolicy>
+void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, SourcePolicy) {
     auto mdl = pkd->mdl;
     int id, iCell;
 
@@ -308,10 +347,10 @@ void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3
         }
         else {
             if (id == pkd->Self()) {
-                auto [pStart, pEnd] = RangePolicy::range_neighbour(kdn);
+                auto [pStart, pEnd] = SourcePolicy::range(kdn);
                 for (auto pj = pStart; pj < pEnd; ++pj) {
                     auto p = pkd->particles[pj];
-                    if (RangePolicy::accept_neighbour(p)) {
+                    if (SourcePolicy::select(p)) {
                         const blitz::TinyVector<double, 3> dr{r - p.position()};
                         if (all(abs(dr) <= bnd_node.apothem())) {
                             nnList.push_back(
@@ -321,10 +360,10 @@ void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3
                 }
             }
             else {
-                auto [pStart, pEnd] = RangePolicy::range_neighbour(kdn);
+                auto [pStart, pEnd] = SourcePolicy::range(kdn);
                 for (auto pj = pStart; pj < pEnd; ++pj) {
                     auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE, pj, id)];
-                    if (RangePolicy::accept_neighbour(p)) {
+                    if (SourcePolicy::select(p)) {
                         const blitz::TinyVector<double, 3> dr{r - p.position()};
                         if (all(abs(dr) <= bnd_node.apothem())) {
                             // The actual particle information fill be acquired later
@@ -365,15 +404,15 @@ void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3
 //      c) we are not computing cell-cell interactions, so there is
 //            no well-defined axis that could be used for projection
 //
-template <class RangePolicy>
-void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, RangePolicy) {
+template <RangePolicy TargetPolicy, class BallPolicy>
+void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, TargetPolicy) {
     std::vector<NN> nnList_p;
     nnList_p.reserve(nnList.size());
 
     for (auto& P : sinks) {
         auto partj = pkd->particles[P];
-        if (!RangePolicy::accept_sink(partj)) continue;
-        const float pBall2 = RangePolicy::ball2_sink(partj);
+        if (!TargetPolicy::accept(partj)) continue;
+        const float pBall2 = BallPolicy::ball2(partj);
         const blitz::TinyVector<double, 3> dr_node{bnd_node.center() - partj.position()};
 
         nnList_p.clear();
@@ -381,7 +420,7 @@ void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, RangeP
             if (P == nn.pPart) continue;
             const blitz::TinyVector<double, 3> dr{nn.dr - dr_node};
             const double fDist2 = dot(dr, dr);
-            if (fDist2 < pBall2 && RangePolicy::accept_ball(pkd, P, fDist2, dr_node, nn)) {
+            if (fDist2 < pBall2 && BallPolicy::accept(pkd, P, fDist2, dr_node, nn)) {
                 nnList_p.push_back({.pPart = (nn.iPid == pkd->Self()) ? nn.pPart : pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE, nn.iIndex, nn.iPid),
                                     .fDist2 = fDist2,
                                     .dr = dr,

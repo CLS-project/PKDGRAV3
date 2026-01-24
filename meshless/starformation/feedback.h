@@ -40,8 +40,8 @@ class SmoothHelperSNFeedback : public SmoothHelperPacked<snFeedbackPack, snFeedb
           dSNFBDu(dSNFBDu), dCCSNFBSpecEnergy(dCCSNFBSpecEnergy), dSNIaFBSpecEnergy(dSNIaFBSpecEnergy), dConstGamma(dConstGamma) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
-    auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> override { return SmoothOnlyGas::range_neighbour(node); }
-    auto accept_neighbour(particleStore::ParticleReference& p) -> bool override { return SmoothOnlyGas::accept_neighbour(p); }
+    auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> override { return smooth::policy::OnlyGas::range(node); }
+    auto accept_neighbour(particleStore::ParticleReference& p) -> bool override { return smooth::policy::OnlyGas::select(p); }
 };
 
 static inline float SNFeedbackEfficiency(float Z, float rho, double dSNFBEfficiency, double dSNFBMaxEff, double dSNFBEffIndex, double dSNFBEffnH0) {

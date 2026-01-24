@@ -7,7 +7,7 @@ auto ServiceBHStep::Service(PST pst, std::span<std::byte> vin, std::span<std::by
     auto pkd = pst->lcl()->pkd;
     auto helper = std::make_shared<SmoothHelperBHstep>(pkd);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
-    smx.Smooth<SmoothOnlyBH>();
+    smx.Smooth<smooth::policy::OnlyBH>();
     return 0;
 }
 

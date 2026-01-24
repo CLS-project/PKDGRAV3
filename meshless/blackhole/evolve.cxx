@@ -9,7 +9,7 @@ auto ServiceBHEvolve::Service(PST pst, std::span<std::byte> vin, std::span<std::
     auto helper = std::make_shared<SmoothHelperBHEvolve>(pkd, in->a, in->dBHAccretionAlpha, in->dBHAccretionCvisc, in->dBHAccretionEddFac, in->dConstGamma,
                                                          in->dBHFBEff, in->dBHFBEcrit, in->bBHAccretion, in->bBHFeedback);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
-    smx.Smooth<SmoothOnlyBH>();
+    smx.Smooth<smooth::policy::OnlyBH>();
     return 0;
 }
 

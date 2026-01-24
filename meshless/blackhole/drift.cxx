@@ -11,7 +11,7 @@ auto ServiceBHGasPin::Service(PST pst, std::span<std::byte> vin, std::span<std::
     auto pkd = pst->lcl()->pkd;
     auto helper = std::make_shared<SmoothHelperBHGasPin>(pkd, in->a);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
-    smx.Smooth<SmoothOnlyBH>();
+    smx.Smooth<smooth::policy::OnlyBH>();
     return 0;
 }
 

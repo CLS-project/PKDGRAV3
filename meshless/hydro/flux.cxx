@@ -855,8 +855,8 @@ void hydroFluxUpdateFromBuffer(PKD pkd, PARTICLE* pIn, EnumArray<T, E>& bo, cons
 
 #endif // OPTIM_FLUX_VEC
 
-struct SmoothOnlyGasOptimisedFluxes : SmoothOnlyGasOptimised {
-    static auto inline accept_ball(PKD pkd, PARTICLE* P, double fDist2, TinyVector<double, 3> dr_node, const NN& nn) -> bool {
+struct SmoothBallOptimisedFluxes : smooth::policy::ball {
+    static auto inline accept(PKD pkd, PARTICLE* P, double fDist2, const TinyVector<double, 3>& dr_node, const NN& nn) -> bool {
 #ifndef OPTIM_AVOID_IS_ACTIVE
         abort(); // not supported
 #endif
@@ -882,9 +882,9 @@ auto ServiceHydroFluxes::Service(PST pst, std::span<std::byte> vin, std::span<st
     auto helper = std::make_shared<SmoothHelperHydroFluxes>(pkd, in->dTime, in->dDelta, in->a, in->H, in->dConstGamma, in->eEOS);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
 #ifdef OPTIM_SMOOTH_NODE
-    *out = smx.ReSmoothNode<SmoothOnlyGasOptimisedFluxes>();
+    *out = smx.ReSmoothNode<smooth::policy::OnlyGasOptimised, smooth::policy::OnlyGas, SmoothBallOptimisedFluxes>();
 #else
-        *out = smx.ReSmooth<SmoothOnlyGasOptimisedFluxes>();
+        *out = smx.ReSmooth<smooth::policy::OnlyGasOptimised>();
 #endif
     return sizeof(output);
 }

@@ -12,9 +12,9 @@ auto ServiceHydroDensityFinal::Service(PST pst, std::span<std::byte> vin, std::s
     auto helper = std::make_shared<SmoothHelperHydroDensityFinal>(pkd);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
 #ifdef OPTIM_SMOOTH_NODE
-    *out = smx.ReSmoothNode<SmoothOnlyGasOptimised>();
+    *out = smx.ReSmoothNode<smooth::policy::OnlyGasOptimised, smooth::policy::OnlyGas>();
 #else
-    *out = smx.ReSmooth<SmoothOnlyGasOptimised>();
+    *out = smx.ReSmooth<smooth::policy::OnlyGasOptimised>();
 #endif
     return sizeof(output);
 }
@@ -153,14 +153,13 @@ void SmoothHelperHydroDensityFinal::Smooth(particleStore::ParticleReference& p, 
     p.set_density(p.mass() * (*omega));
 }
 
-struct SmoothOnlyHydroDensity : SmoothOnlyGasOptimised {
+struct SmoothOnlyHydroDensity : smooth::policy::OnlyGasOptimised {
     double dNeighborsStd;
     double dhMinOverSoft;
-    static constexpr double fBall_factor = 1.2;
 };
 
 template <>
-void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, SmoothOnlyHydroDensity info) {
+void smContext::resmoothSinks<SmoothOnlyHydroDensity, smooth::policy::ball>(std::span<PARTICLE*> sinks, Bound bnd_node, SmoothOnlyHydroDensity info) {
     for (auto& P : sinks) {
         auto partj = pkd->particles[P];
 #ifdef OPTIM_UNION_EXTRAFIELDS
@@ -380,10 +379,6 @@ void SmoothHelperHydroDensity::Smooth(particleStore::ParticleReference& p, float
     p.set_density(p.mass() * sph.omega);
 }
 
-struct SmoothActiveUpdateBall : SmoothOnlyGasActive {
-    static constexpr bool update_ball = true;
-};
-
 auto ServiceHydroDensity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
@@ -392,11 +387,11 @@ auto ServiceHydroDensity::Service(PST pst, std::span<std::byte> vin, std::span<s
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
     if (in->bIterativeSmoothingLength) {
 #ifdef OPTIM_SMOOTH_NODE
-        *out = smx.ReSmoothNode(SmoothOnlyHydroDensity{.dNeighborsStd = in->dNeighborsStd, .dhMinOverSoft = in->dhMinOverSoft});
+        *out = smx.ReSmoothNode<SmoothOnlyHydroDensity, smooth::policy::OnlyGas, 1.2>({.dNeighborsStd = in->dNeighborsStd, .dhMinOverSoft = in->dhMinOverSoft});
 #else
-        *out = smx.ReSmooth<SmoothOnlyGasOptimised>();
+        *out = smx.ReSmooth<smooth::policy::OnlyGasOptimised>();
 #endif
     }
-    else smx.Smooth<SmoothActiveUpdateBall>();
+    else smx.Smooth<smooth::policy::OnlyGasActive, true>();
     return sizeof(output);
 }

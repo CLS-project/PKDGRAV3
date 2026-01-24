@@ -17,8 +17,8 @@ class SmoothHelperBHGasPin : public SmoothHelperPacked<bhGasPinPack> {
 
   public:
     SmoothHelperBHGasPin(pkdContext* pkd, double a) : SmoothHelperPacked<bhGasPinPack>(pkd, false), a_(a) {}
-    auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> override { return SmoothOnlyGas::range_neighbour(node); }
-    auto accept_neighbour(particleStore::ParticleReference& p) -> bool override { return SmoothOnlyGas::accept_neighbour(p); }
+    auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> override { return smooth::policy::OnlyGas::range(node); }
+    auto accept_neighbour(particleStore::ParticleReference& p) -> bool override { return smooth::policy::OnlyGas::select(p); }
 };
 
 void pkdBHReposition(PKD pkd);

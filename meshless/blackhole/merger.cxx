@@ -3,43 +3,22 @@
 #include "hydro/hydro.h"
 #include "smooth/smooth.h"
 
-using blitz::abs;
-using blitz::all;
-using blitz::any;
-using blitz::dot;
-using blitz::floor;
-using blitz::max;
-using blitz::TinyVector;
-
-struct SmoothOnlyBHBH : SmoothEverything {
+// Select only BH particles
+struct OnlyMarkedBH : smooth::policy::OnlyBH {
+    // BH particles must be marked to be accepted (when a merger happens, one is unmarked)
+    static inline auto accept(particleStore::ParticleReference& p) -> bool { return p.marked(); }
 #ifdef OPTIM_REORDER_IN_NODES
-    static inline auto range(treeStore::NodePointer node) {
-        auto start = node->lower();
-        start += node->Ngas();
-        if (node->have_Nstar()) start += node->Nstar();
-        auto end = start + node->Nbh();
-        return std::pair{start, end};
-    }
-    static inline auto range_neighbour(treeStore::NodePointer node) { return range(node); }
-    static inline auto may_have_active(treeStore::NodePointer& node) -> bool {
-    #ifdef OPTIM_REORDER_IN_NODES
-        return node->Nbh() > 0;
-    #else
-        return std::any_of(node->begin(), node->end(), [](auto& p) { return p.is_bh(); });
-    #endif
-    }
-    // The raange() method filters particles, so is_active() will always check only BH particles
-    static inline auto is_bh(particleStore::ParticleReference& p) -> bool { return true; }
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return accept(p); }
 #else
-    static inline auto is_bh(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return accept(p) && active(p); }
 #endif
-    // DP: It looks like blackholes have to be marked and get unmarked during smoothing
-    //     for example when there is a merger and one of them is deleted.
-    static inline auto is_active(particleStore::ParticleReference& p) -> bool { return is_bh(p) && p.marked(); }
-    static inline auto accept_neighbour(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
-    static inline auto accept_sink(particleStore::ParticleReference& p) -> bool { return p.marked(); }
-    // Use twice the softening length for BHs
-    static constexpr auto ball2_sink(particleStore::ParticleReference& p) -> float { return 4 * p.soft() * p.soft(); }
+};
+
+struct SmoothBallBH : smooth::policy::ball {
+    // When evaluating sinks in ReSmoothNode we need a cutoff based on ball^2 (normally)
+    static inline auto ball2(particleStore::ParticleReference& p) -> float { return 4 * p.soft() * p.soft(); }
+    // In resmoothSinks we may need to filter neighbors based on distance and other criteria
+    static inline auto accept(PKD pkd, PARTICLE* P, double fDist2, blitz::TinyVector<double, 3> dr_node, const NN& nn) -> bool { return true; }
 };
 
 auto ServiceBHMerger::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
@@ -48,7 +27,8 @@ auto ServiceBHMerger::Service(PST pst, std::span<std::byte> vin, std::span<std::
     auto pkd = pst->lcl()->pkd;
     auto helper = std::make_shared<SmoothHelperBHmerger>(pkd);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
-    *out = smx.ReSmoothNode<SmoothOnlyBHBH>();
+    // We search for BH sink particles and find BH neighbors within 2*softening length
+    *out = smx.ReSmoothNode<OnlyMarkedBH, OnlyMarkedBH, SmoothBallBH>();
     return sizeof(output);
 }
 
