@@ -407,6 +407,7 @@ class MSR {
     std::tuple<int, int, int> InitializePStore(uint64_t* nSpecies, uint64_t mMemoryModel, uint64_t nEphemeral);
     int CheckForStop(const char* achStopFile);
     int CheckForOutput(int iStep, int nSteps, double dTime, int* pbDoCheckpoint, int* pbDoOutput);
+    auto GetClasses() -> std::vector<PARTCLASS>;
     void SetClasses();
     void SwapClasses(int id);
     void OneNodeRead(struct inReadFile* in, FIO fio);

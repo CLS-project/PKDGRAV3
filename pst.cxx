@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cstddef>
 #include <type_traits>
 #ifdef HAVE_CONFIG_H
     #include "config.h"
@@ -51,6 +52,7 @@
 #include "group/group.h"
 #include "group/groupstats.h"
 #include "io/output.h"
+#include "io/classes.h"
 #include "core/swapall.h"
 
 #include "cooling/cooling.h"
@@ -145,10 +147,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_MOVEIC, pst, (fcnService_t*)pstMoveIC, sizeof(struct inGenerateIC), 0, Legacy::LocalMoveIC);
 #endif
     mdl->AddService(PST_MEMSTATUS, pst, (fcnService_t*)pstMemStatus, 0, nThreads * sizeof(struct outMemStatus), Legacy::MemStatus);
-    mdl->AddService(PST_GETCLASSES, pst, (fcnService_t*)pstGetClasses, 0, PKD_MAX_CLASSES * sizeof(PARTCLASS), Legacy::GetClasses);
-    mdl->AddService(PST_SETCLASSES, pst, (fcnService_t*)pstSetClasses, PKD_MAX_CLASSES * sizeof(PARTCLASS), 0, Legacy::SetClasses);
-    mdl->AddService(PST_SWAPCLASSES, pst, (fcnService_t*)pstSwapClasses, PKD_MAX_CLASSES * sizeof(PARTCLASS), PKD_MAX_CLASSES * sizeof(PARTCLASS),
-                    Legacy::SwapClasses);
     mdl->AddService(PST_PROFILE, pst, (fcnService_t*)pstProfile, sizeof(struct inProfile), 0, Legacy::Profile);
     mdl->AddService(PST_CALCDISTANCE, pst, (fcnService_t*)pstCalcDistance, sizeof(struct inCalcDistance), 0, Legacy::CalcDistance);
     mdl->AddService(PST_CALCCOM, pst, (fcnService_t*)pstCalcCOM, sizeof(struct inCalcCOM), sizeof(struct outCalcCOM), Legacy::CalcCOM);
@@ -230,15 +228,6 @@ int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
         }
     }
     return sizeof(*pout) * pst->n_total();
-}
-
-static void swap_classes(PKD pkd, int id) {
-    auto pClass = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
-    int n = pkd->particles.getClasses(PKD_MAX_CLASSES, pClass.get());
-    int rID = pkd->mdl->ReqService(id, PST_SWAPCLASSES, pClass.get(), n * sizeof(PARTCLASS));
-    n = pkd->mdl->GetReply(rID, PKD_MAX_CLASSES * sizeof(PARTCLASS), pClass.get());
-    n = n / sizeof(PARTCLASS);
-    pkd->particles.setClasses(n, pClass.get(), 0);
 }
 
 int pstReadFile(PST pst, void* vin, int nIn, void* vout, int nOut) {
@@ -331,7 +320,7 @@ int pstReadFile(PST pst, void* vin, int nIn, void* vout, int nOut) {
             }
 
             // Now shove them over to the remote processor.
-            swap_classes(pkd, id);
+            pkd->swap_classes(id);
             inswap = mdl->Self();
             rID = pst->mdl()->ReqService<ServiceSwapAll>(id, inswap);
             pkdSwapAll(pkd, id);
@@ -1340,77 +1329,6 @@ int pstMemStatus(PST pst, void* vin, int nIn, void* vout, int nOut) {
         out->nBytesIlc = pkdIlcMemory(plcl->pkd);
     }
     return pst->n_total() * sizeof(struct outMemStatus);
-}
-
-int pstGetClasses(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto out = static_cast<PARTCLASS*>(vout);
-    int nUp;
-    int n, i, j;
-
-    assert(nIn == 0);
-    if (pst->NotCore()) {
-        auto outUp = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_GETCLASSES, vin, nIn);
-        nOut = pstGetClasses(pst->lower(), vin, nIn, out, nOut);
-        nUp = pst->mdl()->GetReply(rID, PKD_MAX_CLASSES * sizeof(outUp[0]), outUp.get());
-        n = nUp / sizeof(PARTCLASS);
-        assert(n * sizeof(PARTCLASS) == nUp);
-        nUp = n;
-        n = nOut / sizeof(PARTCLASS);
-        assert(n * sizeof(PARTCLASS) == nOut);
-        for (i = 0; i < nUp; i++) {
-            if (std::find(out, out + n, outUp[i]) == out + n) {
-                out[n++] = outUp[i];
-            }
-        }
-    }
-    else {
-        n = plcl->pkd->particles.getClasses(PKD_MAX_CLASSES, out);
-    }
-    return n * sizeof(PARTCLASS);
-}
-
-int pstSetClasses(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<PARTCLASS*>(vin);
-    int n;
-
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_SETCLASSES, vin, nIn);
-        pstSetClasses(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        n = nIn / sizeof(PARTCLASS);
-        assert(n * sizeof(PARTCLASS) == nIn);
-        plcl->pkd->particles.setClasses(n, in, 1);
-    }
-    return 0;
-}
-
-/*
- * Routine to swap the class table .  Note that this does not walk
- * the pst but simply set's the given table and returns the old table.
- */
-int pstSwapClasses(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl;
-    auto in = static_cast<PARTCLASS*>(vin);
-    auto out = static_cast<PARTCLASS*>(vout);
-    int n;
-    PST lpst;
-
-    lpst = pst;
-    while (lpst->NotCore()) lpst = lpst->lower();
-    plcl = lpst->lcl();
-
-    n = plcl->pkd->particles.getClasses(PKD_MAX_CLASSES, out);
-    nOut = n * sizeof(PARTCLASS);
-
-    n = nIn / sizeof(PARTCLASS);
-    assert(n * sizeof(PARTCLASS) == nIn);
-    plcl->pkd->particles.setClasses(n, in, 0);
-    return nOut;
 }
 
 int pstProfile(PST pst, void* vin, int nIn, void* vout, int nOut) {

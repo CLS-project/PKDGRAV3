@@ -66,6 +66,7 @@
 #include "lightcone.h"
 
 #include "io/output.h"
+#include "io/classes.h"
 
 #include "domains/buildtree.h"
 #include "domains/calcbound.h"
@@ -185,6 +186,9 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSaveGroupStats>(pst);
     mdl->AddService<ServiceCountDistance>(pst);
     mdl->AddService<ServiceGetOrbits>(pst);
+    mdl->AddService<ServiceSwapClasses>(pst);
+    mdl->AddService<ServiceGetClasses>(pst);
+    mdl->AddService<ServiceSetClasses>(pst);
 #ifdef HAVE_ROCKSTAR
     mdl->AddService<ServiceRsHaloCount>(pst);
     mdl->AddService<ServiceRsHaloLoadIds>(pst);

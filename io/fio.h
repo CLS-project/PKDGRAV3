@@ -85,6 +85,7 @@
 
 #include <stdint.h>
 #include <assert.h>
+#include <stddef.h>
 
 /*
 ** These are the valid file formats

@@ -20,6 +20,7 @@
 #include "pkd_config.h"
 #include <limits>
 #include <vector>
+#include <span>
 #include <set>
 #include <algorithm>
 #include <functional>
@@ -35,8 +36,7 @@
 #include "io/fio.h"
 #include "decorator_fields.h"
 #include "core/decorator.h"
-
-#define PKD_MAX_CLASSES 256
+#include "partclass.h"
 
 #ifdef NN_FLAG_IN_PARTICLE
     #define IORDERBITS 42
@@ -72,20 +72,6 @@ typedef struct uparticle {
 } UPARTICLE;
 static_assert(sizeof(UPARTICLE) == sizeof(uint32_t));
 
-struct PARTCLASS {
-    float fMass;          /* Particle mass */
-    float fSoft;          /* Current softening */
-    int iMat;             /* newSPH material id */
-    float accFac;         /* Acceleration factor to facilitate fixed particles*/
-    FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
-    auto key() const noexcept { return std::tie(fMass, fSoft, iMat, accFac, eSpecies); }
-    bool operator<(const PARTCLASS& rhs) const noexcept { return key() < rhs.key(); }
-    bool operator==(const PARTCLASS& rhs) const noexcept { return key() == rhs.key(); }
-    PARTCLASS() = default;
-    PARTCLASS(FIO_SPECIES eSpecies, float fMass, float fSoft, int iMat, float accFac)
-        : fMass(fMass), fSoft(fSoft), iMat(iMat), accFac(accFac), eSpecies(eSpecies) {}
-};
-static_assert(std::is_trivially_copyable_v<PARTCLASS>);
 namespace sph {
 namespace hana = boost::hana;
 
@@ -559,7 +545,7 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
         }
         /* NOTE: The above can both be true, in which case a "zero" class is recorded */
         /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-        PARTCLASS newClass(eSpecies, fMass, fSoft, iMat, accFac);
+        PARTCLASS newClass{.fMass = fMass, .fSoft = fSoft, .iMat = iMat, .accFac = accFac, .eSpecies = eSpecies};
 
         /* TODO: This is a linear search which is fine for a small number of classes */
         auto iclass = std::find(ParticleClasses.begin(), ParticleClasses.end(), newClass);
@@ -574,25 +560,24 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
         }
     }
 
-    int getClasses(int nMax, PARTCLASS* pClass) {
-        std::copy(ParticleClasses.begin(), ParticleClasses.end(), pClass);
-        return ParticleClasses.size();
-    }
+    auto getClasses() -> std::span<const PARTCLASS> { return {ParticleClasses.data(), ParticleClasses.size()}; }
 
-    void setClasses(int n, PARTCLASS* pClass, int bUpdate) {
+    void setClasses(std::span<const PARTCLASS> classes, bool update) {
         uint8_t map[PKD_MAX_CLASSES];
         PARTICLE* p;
 
-        if (bUpdate && ParticleClasses.size() && !bNoParticleOrder) {
+        if (update && !ParticleClasses.empty() && !bNoParticleOrder) {
+            assert(classes.size() >= ParticleClasses.size());
+
             /* Build a map from the old class to the new class */
-            assert(n >= ParticleClasses.size());
-            for (auto i = 0; i < ParticleClasses.size(); ++i) {
-                auto jj = std::find(pClass, pClass + n, ParticleClasses[i]);
-                map[i] = std::distance(pClass, jj);
+            for (std::size_t i = 0; i < ParticleClasses.size(); ++i) {
+                auto it = std::ranges::find(classes, ParticleClasses[i]);
+                assert(it != classes.end());
+                map[i] = static_cast<uint8_t>(std::distance(classes.begin(), it));
             }
 
             /* Now update the class with the new value */
-            for (auto i = 0; i < size(); ++i) {
+            for (std::size_t i = 0; i < size(); ++i) {
                 p = Element(i);
                 assert(p->iClass < ParticleClasses.size());
                 p->iClass = map[p->iClass];
@@ -600,10 +585,8 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
         }
 
         /* Finally, set the new class table */
-        ParticleClasses.clear();
-        ParticleClasses.insert(ParticleClasses.end(), pClass, pClass + n);
+        ParticleClasses.assign(classes.begin(), classes.end());
     }
-
     void clearClasses() { ParticleClasses.clear(); }
 
     /// @brief Calculate the bound for a range of particles

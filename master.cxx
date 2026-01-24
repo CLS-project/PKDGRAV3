@@ -16,8 +16,10 @@
  */
 
 #include "analysis/orbits.h"
+#include "core/partclass.h"
 #include "pkd_config.h"
 
+#include <cstddef>
 #include <memory>
 #include <stdio.h>
 #include <stdlib.h>
@@ -125,6 +127,7 @@ struct fmt::formatter<DeferFormat> {
 #include "core/decorator_reorder.h"
 #include "io/restore.h"
 #include "io/output.h"
+#include "io/classes.h"
 #include "lightcone.h"
 #ifdef INSTRUMENT_MPI
     #include "core/cachestats.h"
@@ -681,7 +684,8 @@ MSR::ReadCheckpoint(const char* filename, PyObject* kwargs, PyObject* species, P
 
     auto classes_list = restore<PyObject*>(pFile);
     static_assert(PKD_MAX_CLASSES <= 256); // Hopefully nobody will be mean to us (we use the stack)
-    PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
+    std::vector<PARTCLASS> CheckpointClasses;
+    CheckpointClasses.reserve(PKD_MAX_CLASSES);
     auto nCheckpointClasses = PyList_Size(classes_list);
     for (int i = 0; i < nCheckpointClasses; ++i) {
         auto class_list = PyList_GetItem(classes_list, i); // Borrowed reference, no need to Py_DECREF
@@ -689,17 +693,12 @@ MSR::ReadCheckpoint(const char* filename, PyObject* kwargs, PyObject* species, P
         auto fMassObj = PyList_GetItem(class_list, 1);
         auto fSoftObj = PyList_GetItem(class_list, 2);
         auto iMatObj = PyList_GetItem(class_list, 3);
-        aCheckpointClasses[i].eSpecies = FIO_SPECIES(PyLong_AsLong(eSpeciesObj));
-        aCheckpointClasses[i].fMass = PyFloat_AsDouble(fMassObj);
-        aCheckpointClasses[i].fSoft = PyFloat_AsDouble(fSoftObj);
-        aCheckpointClasses[i].iMat = PyLong_AsLong(iMatObj);
-        if (PyList_Size(class_list) > 4) {
-            auto accFacObj = PyList_GetItem(class_list, 4);
-            aCheckpointClasses[i].accFac = PyFloat_AsDouble(accFacObj);
-        }
-        else {
-            aCheckpointClasses[i].accFac = 1;
-        }
+        auto accFac = PyList_Size(class_list) > 4 ? PyFloat_AsDouble(PyList_GetItem(class_list, 4)) : 1.0;
+        CheckpointClasses.push_back(PARTCLASS{.fMass = static_cast<float>(PyFloat_AsDouble(fMassObj)),
+                                              .fSoft = static_cast<float>(PyFloat_AsDouble(fSoftObj)),
+                                              .iMat = static_cast<int>(PyLong_AsLong(iMatObj)),
+                                              .accFac = static_cast<float>(accFac),
+                                              .eSpecies = FIO_SPECIES(PyLong_AsLong(eSpeciesObj))});
     }
 
     auto iStep = restore<int>(pFile, step);
@@ -761,7 +760,7 @@ MSR::ReadCheckpoint(const char* filename, PyObject* kwargs, PyObject* species, P
     if (parameters.get_bTrackPeakPressure()) mMemoryModel |= PKD_MODEL_PEAKPRESSURE;
     auto [nSizeParticle, nSizeDecorator, nSizeNode] = InitializePStore(nSpecies, mMemoryModel, parameters.get_nMemEphemeral());
 
-    pstSetClasses(pst, aCheckpointClasses, nCheckpointClasses * sizeof(PARTCLASS), NULL, 0);
+    mdl->RunService<ServiceSetClasses>(CheckpointClasses);
     Restore(filename, nSizeParticle, nSizeDecorator);
     CalcBound();
     CountRungs(NULL);
@@ -849,11 +848,6 @@ void MSR::writeParameters(const std::string& baseName, int iStep, int nSteps, do
     // ******************************************************************
     // Collect the information to checkpoint
     // ******************************************************************
-    static_assert(PKD_MAX_CLASSES <= 256); // Hopefully nobody will be mean to us (we use the stack)
-    PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
-    nBytes = pstGetClasses(pst, NULL, 0, aCheckpointClasses, PKD_MAX_CLASSES * sizeof(PARTCLASS));
-    int nCheckpointClasses = nBytes / sizeof(PARTCLASS);
-    abort_assert(1002, nCheckpointClasses * sizeof(PARTCLASS) == nBytes);
 
     for (i = 0; i <= FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL] = N;
@@ -869,17 +863,17 @@ void MSR::writeParameters(const std::string& baseName, int iStep, int nSteps, do
     }
 
     // Create a list with the checkpoint classes
-    auto classes_list = PyList_New(nCheckpointClasses);
-    for (int i = 0; i < nCheckpointClasses; ++i) {
+    auto CheckpointClasses = GetClasses();
+    auto classes_list = PyList_New(CheckpointClasses.size());
+    for (int i = 0; i < CheckpointClasses.size(); ++i) {
         auto class_list = PyList_New(5); // Each inner list has 5 elements
 
         // Convert structure members to Python objects and add them to the class_list
-        PyObject* eSpecies = PyLong_FromLong(aCheckpointClasses[i].eSpecies);
-        PyObject* fMass = PyFloat_FromDouble(aCheckpointClasses[i].fMass);
-        PyObject* fSoft = PyFloat_FromDouble(aCheckpointClasses[i].fSoft);
-        PyObject* iMat = PyLong_FromLong(aCheckpointClasses[i].iMat);
-        PyObject* accFac = PyFloat_FromDouble(aCheckpointClasses[i].accFac);
-
+        PyObject* eSpecies = PyLong_FromLong(CheckpointClasses[i].eSpecies);
+        PyObject* fMass = PyFloat_FromDouble(CheckpointClasses[i].fMass);
+        PyObject* fSoft = PyFloat_FromDouble(CheckpointClasses[i].fSoft);
+        PyObject* iMat = PyLong_FromLong(CheckpointClasses[i].iMat);
+        PyObject* accFac = PyFloat_FromDouble(CheckpointClasses[i].accFac);
         // Note: PyList_SetItem steals a reference to the item
         PyList_SetItem(class_list, 0, eSpecies);
         PyList_SetItem(class_list, 1, fMass);
@@ -1116,27 +1110,24 @@ MSR::~MSR() {
     if (Py_IsInitialized()) Py_Finalize();
 }
 
-void MSR::SetClasses() {
+auto MSR::GetClasses() -> std::vector<PARTCLASS> {
     std::vector<PARTCLASS> classes(PKD_MAX_CLASSES);
-    auto nClass = pstGetClasses(pst, NULL, 0, classes.data(), classes.size() * sizeof(PARTCLASS));
-    auto n = nClass / sizeof(PARTCLASS);
-    abort_assert(1002, n * sizeof(PARTCLASS) == nClass);
+    // Fetch a sorted list of particle classes
+    auto nClassBytes = mdl->RunService<ServiceGetClasses>({}, classes);
+    auto n = nClassBytes / sizeof(PARTCLASS);
+    abort_assert(1002, n * sizeof(PARTCLASS) == nClassBytes);
     classes.resize(n);
-    std::sort(classes.begin(), classes.end());
-    pstSetClasses(pst, classes.data(), nClass, NULL, 0);
+    return classes;
+}
+
+void MSR::SetClasses() {
+    auto classes = GetClasses();
+    mdl->RunService<ServiceSetClasses>(classes);
 }
 
 void MSR::SwapClasses(int id) {
-    LCL* plcl = pst->lcl();
-    int n;
-    int rID;
-
-    auto pClass = std::make_unique<PARTCLASS[]>(PKD_MAX_CLASSES);
-    n = plcl->pkd->particles.getClasses(PKD_MAX_CLASSES, pClass.get());
-    rID = pst->mdl()->ReqService(id, PST_SWAPCLASSES, pClass.get(), n * sizeof(PARTCLASS));
-    n = pst->mdl()->GetReply(rID, PKD_MAX_CLASSES * sizeof(PARTCLASS), pClass.get());
-    n = n / sizeof(PARTCLASS);
-    plcl->pkd->particles.setClasses(n, pClass.get(), 0);
+    auto pkd = pst->lcl()->pkd;
+    pkd->swap_classes(id);
 }
 
 void MSR::OneNodeRead(struct inReadFile* in, FIO fio) {

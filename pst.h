@@ -162,9 +162,6 @@ inline constexpr std::string_view LocalGenerateIC = "LocalGenerateIC";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
 inline constexpr std::string_view MemStatus = "MemStatus";
-inline constexpr std::string_view GetClasses = "GetClasses";
-inline constexpr std::string_view SetClasses = "SetClasses";
-inline constexpr std::string_view SwapClasses = "SwapClasses";
 inline constexpr std::string_view Profile = "Profile";
 inline constexpr std::string_view CalcDistance = "CalcDistance";
 inline constexpr std::string_view CalcCOM = "CalcCOM";
@@ -243,9 +240,6 @@ enum pst_service {
     PST_MOVEIC,
     PLT_MOVEIC,
     PST_MEMSTATUS,
-    PST_GETCLASSES,
-    PST_SETCLASSES,
-    PST_SWAPCLASSES,
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
@@ -775,15 +769,6 @@ struct outMemStatus {
     uint64_t nBytesIlc;
 };
 int pstMemStatus(PST, void*, int, void*, int);
-
-/* PST_GETCLASSES - Output PARTCLASS[] */
-int pstGetClasses(PST, void*, int, void*, int);
-
-/* PST_SETCLASSES - Input PARTCLASS[] */
-int pstSetClasses(PST, void*, int, void*, int);
-
-/* PST_SWAPCLASSES - Input PARTCLASS[] - Output PARTCLASS[] */
-int pstSwapClasses(PST, void*, int, void*, int);
 
 /* PST_PROFILE */
 #define PST_MAX_PROFILE_BINS 1000000
