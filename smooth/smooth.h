@@ -96,6 +96,22 @@ struct OnlyGasOptimised : OnlyGas {
 using OnlyGasOptimised = OnlyGasActive;
 #endif
 
+struct OnlyStar : Everything {
+    static inline auto active(particleStore::ParticleReference& p) -> bool { return p.is_star(); }
+#ifdef OPTIM_REORDER_IN_NODES
+    static inline auto may_have_active(treeStore::NodePointer& node) -> bool { return node->Nstar() > 0; }
+    static inline auto range(treeStore::NodePointer& node) {
+        auto start = node->lower();
+        start += node->Ngas();
+        auto end = start + node->Nstar();
+        return std::pair{start, end};
+    }
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return true; }
+#else
+    static inline auto select(particleStore::ParticleReference& p) -> bool { return active(p); }
+#endif
+};
+
 // Select only BH particles
 struct OnlyBH : Everything {
     static inline auto active(particleStore::ParticleReference& p) -> bool { return p.is_bh(); }
@@ -123,13 +139,13 @@ struct ball {
 
 } // namespace smooth::policy
 
-template <class P>
-concept RangePolicy = requires(particleStore::ParticleReference& p, treeStore::NodePointer n) {
-    { P::active(p) } -> std::convertible_to<bool>;
-    { P::may_have_active(n) } -> std::convertible_to<bool>;
-    { P::range(n) } -> std::same_as<std::pair<int, int>>;
-    { P::select(p) } -> std::convertible_to<bool>;
-    { P::accept(p) } -> std::convertible_to<bool>;
+template <class POLICY>
+concept RangePolicy = requires(POLICY P, particleStore::ParticleReference& p, treeStore::NodePointer n) {
+    { P.active(p) } -> std::convertible_to<bool>;
+    { P.may_have_active(n) } -> std::convertible_to<bool>;
+    { P.range(n) } -> std::same_as<std::pair<int, int>>;
+    { P.select(p) } -> std::convertible_to<bool>;
+    { P.accept(p) } -> std::convertible_to<bool>;
 };
 
 template <class B>
@@ -206,9 +222,9 @@ struct smContext {
     auto ReSmoothSingle(particleStore::ParticleReference& p, double fBall) -> bool;
 
     template <RangePolicy TargetPolicy = smooth::policy::Everything, bool UpdateBall = false>
-    void Smooth();
-    template <RangePolicy RangePolicy = smooth::policy::Everything>
-    auto ReSmooth() -> uint64_t;
+    void Smooth(TargetPolicy target = {});
+    template <RangePolicy TargetPolicy = smooth::policy::Everything>
+    auto ReSmooth(TargetPolicy target = {}) -> uint64_t;
 #ifdef OPTIM_SMOOTH_NODE
     template <RangePolicy TargetPolicy, RangePolicy SourcePolicy, BallPolicy BallPolicy = smooth::policy::ball, double fBall_factor = 1.0>
     auto ReSmoothNode(TargetPolicy info = {}, SourcePolicy sourceInfo = {}) -> uint64_t;
@@ -225,10 +241,10 @@ struct smContext {
 };
 
 template <RangePolicy TargetPolicy, bool UpdateBall>
-void smContext::Smooth() {
+void smContext::Smooth(TargetPolicy target) {
     create();
     for (auto& p : pkd->particles) {
-        if (TargetPolicy::active(p)) {
+        if (target.active(p)) {
             auto fBall = SmoothSingle(p);
             if constexpr (UpdateBall) p.set_ball(fBall);
             pkd->mdl->CacheCheck();
@@ -238,10 +254,10 @@ void smContext::Smooth() {
 }
 
 template <RangePolicy TargetPolicy>
-auto smContext::ReSmooth() -> uint64_t {
+auto smContext::ReSmooth(TargetPolicy target) -> uint64_t {
     uint64_t nSmoothed = 0;
     for (auto& p : pkd->particles) {
-        if (TargetPolicy::active(p)) {
+        if (target.active(p)) {
             ReSmoothSingle(p, p.ball());
             ++nSmoothed;
             pkd->mdl->CacheCheck();
@@ -267,7 +283,7 @@ auto smContext::ReSmoothNode(TargetPolicy target, SourcePolicy source) -> uint64
     sinks.reserve(256); // At most, the bucket size
     for (auto i = NRESERVED_NODES; i < pkd->Nodes() - 1; ++i) {
         auto node = pkd->tree[i];
-        if (node->is_bucket() && TargetPolicy::may_have_active(node)) {
+        if (node->is_bucket() && target.may_have_active(node)) {
             auto bnd_node = getNodeSinks<TargetPolicy, fBall_factor>(node, sinks, target); // ball factor is 1.0
             if (sinks.empty()) continue;
             buildInteractionList<SourcePolicy>(bnd_node, source);
@@ -279,16 +295,16 @@ auto smContext::ReSmoothNode(TargetPolicy target, SourcePolicy source) -> uint64
 }
 
 template <RangePolicy TargetPolicy, double fBall_factor>
-auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, TargetPolicy info) -> Bound {
+auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, TargetPolicy target) -> Bound {
     sinks.clear();
     sinks.reserve(256); // At most, the bucket size
     auto bnd_node = node->bound();
 
     blitz::TinyVector<double, 3> fMax_shrink{0.};
-    auto [pStart, pEnd] = TargetPolicy::range(node);
+    auto [pStart, pEnd] = target.range(node);
     for (auto pj = pStart; pj < pEnd; ++pj) {
         auto p = pkd->particles[pj];
-        if (TargetPolicy::select(p)) {
+        if (target.select(p)) {
             fMax_shrink = blitz::max(fMax_shrink, abs(p.position() - bnd_node.center()) + p.ball() * fBall_factor);
             sinks.push_back(&p);
         }
@@ -321,7 +337,7 @@ void smContext::buildInteractionList(Bound bnd_node, SourcePolicy info) {
 }
 
 template <RangePolicy SourcePolicy>
-void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, SourcePolicy) {
+void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, SourcePolicy source) {
     auto mdl = pkd->mdl;
     int id, iCell;
 
@@ -347,10 +363,10 @@ void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3
         }
         else {
             if (id == pkd->Self()) {
-                auto [pStart, pEnd] = SourcePolicy::range(kdn);
+                auto [pStart, pEnd] = source.range(kdn);
                 for (auto pj = pStart; pj < pEnd; ++pj) {
                     auto p = pkd->particles[pj];
-                    if (SourcePolicy::select(p)) {
+                    if (source.select(p)) {
                         const blitz::TinyVector<double, 3> dr{r - p.position()};
                         if (all(abs(dr) <= bnd_node.apothem())) {
                             nnList.push_back(
@@ -360,10 +376,10 @@ void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3
                 }
             }
             else {
-                auto [pStart, pEnd] = SourcePolicy::range(kdn);
+                auto [pStart, pEnd] = source.range(kdn);
                 for (auto pj = pStart; pj < pEnd; ++pj) {
                     auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE, pj, id)];
-                    if (SourcePolicy::select(p)) {
+                    if (source.select(p)) {
                         const blitz::TinyVector<double, 3> dr{r - p.position()};
                         if (all(abs(dr) <= bnd_node.apothem())) {
                             // The actual particle information fill be acquired later
@@ -405,13 +421,13 @@ void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3
 //            no well-defined axis that could be used for projection
 //
 template <RangePolicy TargetPolicy, class BallPolicy>
-void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, TargetPolicy) {
+void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, TargetPolicy target) {
     std::vector<NN> nnList_p;
     nnList_p.reserve(nnList.size());
 
     for (auto& P : sinks) {
         auto partj = pkd->particles[P];
-        if (!TargetPolicy::accept(partj)) continue;
+        if (!target.accept(partj)) continue;
         const float pBall2 = BallPolicy::ball2(partj);
         const blitz::TinyVector<double, 3> dr_node{bnd_node.center() - partj.position()};
 

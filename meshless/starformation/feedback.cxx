@@ -1,6 +1,35 @@
 #include <numeric>
+#include "hydro/hydro.h"
 #include "feedback.h"
 #include "imf.h"
+struct SmoothSNFeedback : smooth::policy::OnlyStar {
+    double dTime;
+    double dCCSNFBDelay;
+    double dSNIaFBDelay;
+
+    inline auto active(particleStore::ParticleReference& p) -> bool {
+        if (p.is_star()) {
+            auto& star = p.star();
+            if (!star.bCCSNFBDone && ((dTime - star.fTimer) > dCCSNFBDelay)) return true;
+            if (!star.bSNIaFBDone && ((dTime - star.fTimer) > dSNIaFBDelay)) return true;
+        }
+        return false;
+    }
+};
+
+auto ServiceSNFeedback::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    auto helper = std::make_shared<SmoothHelperSNFeedback>(pkd, in->dTime, in->dCCSNFBDelay, in->dSNIaFBDelay, in->dSNFBDu, in->dCCSNFBSpecEnergy,
+                                                           in->dSNIaFBSpecEnergy, in->dConstGamma);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
+    smx.Smooth<SmoothSNFeedback>({
+        .dTime = in->dTime,
+        .dCCSNFBDelay = in->dCCSNFBDelay,
+        .dSNIaFBDelay = in->dSNIaFBDelay,
+    });
+    return 0;
+}
 
 static inline void snFeedback(PKD pkd, PARTICLE* pIn, std::span<NN> nnList, const float fNgbTotMass, const double dDeltau, const double dStarMass,
                               const double dSpecEnergy, const float fEfficiency, const double dConstGamma);

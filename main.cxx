@@ -142,6 +142,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceHydroFluxes>(pst);
     mdl->AddService<ServiceHydroGradients>(pst);
     mdl->AddService<ServiceHydroStep>(pst);
+    mdl->AddService<ServiceSNFeedback>(pst);
     mdl->AddService<ServiceBHMerger>(pst);
     mdl->AddService<ServiceBHGasPin>(pst);
     mdl->AddService<ServiceBHEvolve>(pst);

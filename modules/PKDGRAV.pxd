@@ -107,7 +107,6 @@ cdef extern from "smooth/smoothfcn.h":
         SMOOTH_TYPE_HOP_LINK "SMX_HOP_LINK"
         SMOOTH_TYPE_BALL    "SMX_BALL"
         SMOOTH_TYPE_PRINTNN "SMX_PRINTNN"
-        SMOOTH_TYPE_SN_FEEDBACK "SMX_SN_FEEDBACK"
         SMOOTH_TYPE_CHEM_ENRICHMENT "SMX_CHEM_ENRICHMENT"
 
 include "pkd_parameters.pxi"

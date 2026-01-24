@@ -112,9 +112,6 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
         return std::make_shared<SmoothHelperHopChains>(pkd);
     case SMX_PRINTNN:
         return std::make_shared<SmoothHelperPrintNN>(pkd);
-    case SMX_SN_FEEDBACK:
-        return std::make_shared<SmoothHelperSNFeedback>(pkd, smf->dTime, smf->dCCSNFBDelay, smf->dSNIaFBDelay, smf->dSNFBDu, smf->dCCSNFBSpecEnergy,
-                                                        smf->dSNIaFBSpecEnergy, smf->dConstGamma);
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
         return std::make_shared<SmoothHelperChemEnrich>(pkd, smf->dTime, smf->dWindSpecificEkin, smf->dCCSNMinMass, smf->dSNIaNorm, smf->dSNIaScale);
@@ -338,21 +335,6 @@ void smSmooth(SMX smx, SMF* smf) {
     for (auto& p : pkd->particles) p.set_marked(true);
     smx->create();
     switch (smx->iSmoothType) {
-    case SMX_SN_FEEDBACK:
-        for (auto& p : pkd->particles) {
-            if (p.is_star()) {
-                auto& star = p.star();
-
-                if (!star.bCCSNFBDone && ((smf->dTime - star.fTimer) > smf->dCCSNFBDelay)) {
-                    smx->SmoothSingle(p);
-                }
-
-                if (!star.bSNIaFBDone && ((smf->dTime - star.fTimer) > smf->dSNIaFBDelay)) {
-                    smx->SmoothSingle(p);
-                }
-            }
-        }
-        break;
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
         for (auto& p : pkd->particles) {
@@ -532,7 +514,6 @@ uint64_t smReSmooth(SMX smx, int iSmoothType) {
 
     switch (iSmoothType) {
 
-    case SMX_SN_FEEDBACK:
     case SMX_CHEM_ENRICHMENT:
         assert(0);
         break;

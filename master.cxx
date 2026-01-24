@@ -2898,6 +2898,21 @@ int MSR::CheckForOutput(int iStep, int nSteps, double dTime, int* pbDoCheckpoint
     return *pbDoOutput || *pbDoCheckpoint;
 }
 
+auto MSR::StellarFeedback(double dTime) -> uint64_t {
+    ServiceSNFeedback::input in{.nSmooth = static_cast<int>(parameters.get_nSmooth()),
+                                .bPeriodic = parameters.get_bPeriodic(),
+                                .dTime = dTime,
+                                .dCCSNFBDelay = parameters.get_dCCSNFBDelay(),
+                                .dSNIaFBDelay = parameters.get_dSNIaFBDelay(),
+                                .dSNFBDu = calc.dSNFBDu,
+                                .dCCSNFBSpecEnergy = calc.dCCSNFBSpecEnergy,
+                                .dSNIaFBSpecEnergy = calc.dSNIaFBSpecEnergy,
+                                .dConstGamma = parameters.get_dConstGamma()};
+    uint64_t nSmoothed = 0;
+    mdl->RunService<ServiceSNFeedback>(in, nSmoothed);
+    return nSmoothed;
+}
+
 int MSR::NewTopStepKDK(double& dTime,                                           /* MODIFIED: Current simulation time */
                        double dDelta, double dTheta, int nSteps, int bDualTree, /* Should be zero at rung 0! */
                        uint8_t uRung,                                           /* Rung level */
@@ -3146,7 +3161,7 @@ int MSR::NewTopStepKDK(double& dTime,                                           
     if (DoStellarFeedback() /* or STELLAR_EVOLUTION */) {
         ActiveRung(uRung, 0);
         if (DoStellarFeedback()) {
-            Smooth(dTime, dDelta, SMX_SN_FEEDBACK, 1, parameters.get_nSmooth());
+            StellarFeedback(dTime);
         }
 #ifdef STELLAR_EVOLUTION
         if (parameters.get_bChemEnrich()) {
@@ -3312,7 +3327,7 @@ void MSR::TopStepKDK(double dStep,             /* Current step */
             print("Computing feedback... ");
             TimerStart(TIMER_FEEDBACK);
             if (DoStellarFeedback()) {
-                Smooth(dTime, dDeltaStep, SMX_SN_FEEDBACK, 1, parameters.get_nSmooth());
+                StellarFeedback(dTime);
             }
             TimerStop(TIMER_FEEDBACK);
             dsec = TimerGet(TIMER_FEEDBACK);
