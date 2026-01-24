@@ -122,10 +122,6 @@ inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
 inline constexpr std::string_view MemStatus = "MemStatus";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
-inline constexpr std::string_view PlaceBHSeed = "PlaceBHSeed";
-inline constexpr std::string_view BHInit = "BHInit";
-inline constexpr std::string_view BHReposition = "BHReposition";
-inline constexpr std::string_view BHAccretion = "BHAccretion";
 } // namespace Legacy
 
 // Legacy service IDs. These will be removed in the future.
@@ -143,10 +139,6 @@ enum pst_service {
     PST_GRACKLEINIT,
 #endif
     PST_CHEMCOMPINIT,
-    PST_BH_PLACESEED,
-    PST_BH_REPOSITION,
-    PST_BH_INIT,
-    PST_BH_ACCRETION,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
 #ifdef STELLAR_EVOLUTION
@@ -260,25 +252,6 @@ struct inGrackleInit {
 int pstGrackleInit(PST, void*, int, void*, int);
 #endif
 int pstChemCompInit(PST, void*, int, void*, int);
-struct inPlaceBHSeed {
-    double dTime;
-    double dScaleFactor;
-    double dDenMin;
-    double dBHMhaloMin;
-    double dTau;
-    double dBHSeedMass;
-    uint8_t uRungMax;
-};
-struct outPlaceBHSeed {
-    int nBHs;
-};
-int pstPlaceBHSeed(PST, void*, int, void*, int);
-int pstBHInit(PST, void*, int, void*, int);
-int pstBHReposition(PST, void*, int, void*, int);
-struct inBHAccretion {
-    double dScaleFactor;
-};
-int pstBHAccretion(PST, void*, int, void*, int);
 
 /* PST_GRAVITY */
 struct inGravity {

@@ -1,10 +1,31 @@
 #include "blackhole/drift.h"
 #include "hydro/hydro.h"
+#include "smooth/smooth.h"
 
 #define NOT_PINNED -1
 
 using blitz::dot;
 using blitz::TinyVector;
+
+struct bhGasPinPack {
+    blitz::TinyVector<double, 3> position;
+    blitz::TinyVector<double, 3> velocity;
+    float fMass;
+    float fPotential;
+    uint8_t iClass;
+};
+
+class SmoothHelperBHGasPin : public SmoothHelperPacked<bhGasPinPack> {
+    double a_;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+    virtual void pack(void* dst, const void* src) override final;
+    virtual void unpack(void* dst, const void* src, const void* key) override final;
+
+  public:
+    SmoothHelperBHGasPin(pkdContext* pkd, double a) : SmoothHelperPacked<bhGasPinPack>(pkd, false), a_(a) {}
+    auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> override { return smooth::policy::OnlyGas::range(node); }
+    auto accept_neighbour(particleStore::ParticleReference& p) -> bool override { return smooth::policy::OnlyGas::select(p); }
+};
 
 auto ServiceBHGasPin::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
@@ -116,25 +137,25 @@ void SmoothHelperBHReposition::unpack(void* dst, const void* src, const void* ke
     p1.set_class(p2->iClass);
 }
 
-void pkdBHReposition(PKD pkd) {
-    pkd->mdl->CacheInitialize(CID_PARTICLE, std::make_shared<SmoothHelperBHReposition>(pkd));
-    for (auto& p : pkd->particles) {
+void pkdContext::BHReposition() {
+    mdl->CacheInitialize(CID_PARTICLE, std::make_shared<SmoothHelperBHReposition>(this));
+    for (auto& p : particles) {
         if (p.is_bh()) {
             auto& bh = p.BH();
             auto& iPid = bh.GasPin.iPid;
             auto& iIndex = bh.GasPin.iIndex;
             if (iPid != NOT_PINNED) {
-                particleStore::ParticlePointer pin(pkd->particles);
-                if (iPid != pkd->Self()) {
-                    pin = &pkd->particles[pkd->mdl->Fetch<PARTICLE>(CID_PARTICLE, iIndex, iPid)];
+                particleStore::ParticlePointer pin(particles);
+                if (iPid != Self()) {
+                    pin = &particles[mdl->Fetch<PARTICLE>(CID_PARTICLE, iIndex, iPid)];
                 }
                 else {
-                    pin = &pkd->particles[iIndex];
+                    pin = &particles[iIndex];
                 }
                 assert(pin->is_gas());
                 p.set_position(pin->position());
             }
         }
     }
-    pkd->mdl->FinishCache(CID_PARTICLE);
+    mdl->FinishCache(CID_PARTICLE);
 }

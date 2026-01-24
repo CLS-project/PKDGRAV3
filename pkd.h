@@ -599,6 +599,10 @@ class pkdContext : public Integerize {
     void Drift(int iRoot, double dTime, double dDelta, double, double, int bDoGas, int bGasEvolveDensity);
 
     void WriteViaNode(int iNode);
+    void BHInit(uint8_t uRungMax);
+    auto PlaceBHSeed(double dTime, double dScaleFactor, uint8_t uRungMax, double dDenMin, double dBHMhaloMin, double dTau, double dBHSeedMass) -> int;
+    void BHReposition();
+    void BHAccretion(double dScaleFactor);
 
     void swap_classes(int id);
 #ifdef OPTIM_REORDER_IN_NODES

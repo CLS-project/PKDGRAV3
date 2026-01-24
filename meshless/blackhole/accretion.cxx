@@ -77,20 +77,20 @@ void SmoothHelperAccretionFlush::combine(void* dst, const void* src, const void*
     }
 }
 
-void pkdBHAccretion(PKD pkd, double dScaleFactor) {
-    pkd->mdl->CacheInitialize(CID_PARTICLE, std::make_shared<SmoothHelperAccretionFlush>(pkd));
-    for (auto& p : pkd->particles) {
+void pkdContext::BHAccretion(double dScaleFactor) {
+    mdl->CacheInitialize(CID_PARTICLE, std::make_shared<SmoothHelperAccretionFlush>(this));
+    for (auto& p : particles) {
         if (p.is_gas()) {
             auto& sph = p.sph();
             auto& iPid = sph.BHAccretor.iPid;
             auto& iIndex = sph.BHAccretor.iIndex;
             if (iPid != NOT_ACCRETED) {
-                particleStore::ParticlePointer bh(pkd->particles);
-                if (iPid != pkd->Self()) {
-                    bh = &pkd->particles[pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE, iIndex, iPid)];
+                particleStore::ParticlePointer bh(particles);
+                if (iPid != Self()) {
+                    bh = &particles[mdl->Acquire<PARTICLE>(CID_PARTICLE, iIndex, iPid)];
                 }
                 else {
-                    bh = &pkd->particles[iIndex];
+                    bh = &particles[iIndex];
                 }
                 assert(bh->is_bh());
 
@@ -105,7 +105,7 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                 // We have to consider remote and local particles differently,
                 // as for the remotes the momentum is accumulated here but then
                 // added in the combine function
-                if (iPid != pkd->Self()) {
+                if (iPid != Self()) {
                     bhv += dScaleFactor * sph.mom;
                 }
                 else {
@@ -113,11 +113,11 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                     bhv = (bhMass * bhv + dScaleFactor * sph.mom) * inv_newMass;
                 }
 
-                pkdDeleteParticle(pkd, p);
+                pkdDeleteParticle(this, p);
 
-                if (iPid != pkd->Self()) pkd->mdl->Release(CID_PARTICLE, bh);
+                if (iPid != Self()) mdl->Release(CID_PARTICLE, bh);
             }
         }
     }
-    pkd->mdl->FinishCache(CID_PARTICLE);
+    mdl->FinishCache(CID_PARTICLE);
 }

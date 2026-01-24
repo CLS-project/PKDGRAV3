@@ -105,6 +105,10 @@
 #include "meshless/cooling/services.h"
 #include "meshless/starformation/init.h"
 #include "meshless/starformation/starformation.h"
+#include "meshless/blackhole/init.h"
+#include "meshless/blackhole/seed.h"
+#include "meshless/blackhole/drift.h"
+#include "meshless/blackhole/accretion.h"
 
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
@@ -157,6 +161,10 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceBHGasPin>(pst);
     mdl->AddService<ServiceBHEvolve>(pst);
     mdl->AddService<ServiceBHStep>(pst);
+    mdl->AddService<ServiceBHInit>(pst);
+    mdl->AddService<ServicePlaceBHSeed>(pst);
+    mdl->AddService<ServiceBHReposition>(pst);
+    mdl->AddService<ServiceBHAccretion>(pst);
     mdl->AddService<ServiceSetAdd>(pst);
     mdl->AddService<ServiceSwapAll>(pst);
     mdl->AddService<ServiceHostname>(pst);

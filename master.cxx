@@ -185,6 +185,10 @@ namespace rockstar {
 #include "meshless/hydro/hydro.h"
 #include "meshless/hydro/endstep.h"
 #include "meshless/hydro/wakeup.h"
+#include "meshless/blackhole/init.h"
+#include "meshless/blackhole/seed.h"
+#include "meshless/blackhole/drift.h"
+#include "meshless/blackhole/accretion.h"
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
@@ -4946,9 +4950,8 @@ auto MSR::ValidateEOSParam() -> int {
 }
 
 void MSR::BHAccretion(double dTime) {
-    struct inBHAccretion in;
-    in.dScaleFactor = csmTime2Exp(csm, dTime);
-    pstBHAccretion(pst, &in, sizeof(in), NULL, 0);
+    ServiceBHAccretion::input in{.dScaleFactor = csmTime2Exp(csm, dTime)};
+    mdl->RunService<ServiceBHAccretion>(in);
 }
 
 void MSR::BHGasPin(double dTime, double dDelta) {
@@ -4961,7 +4964,7 @@ void MSR::BHGasPin(double dTime, double dDelta) {
 }
 
 void MSR::BHReposition() {
-    pstBHReposition(pst, NULL, 0, NULL, 0);
+    mdl->RunService<ServiceBHReposition>();
 }
 
 void MSR::BHEvolve(double dTime, double dDelta) {
@@ -5029,42 +5032,30 @@ int MSR::ValidateBlackholeParam() {
 }
 
 void MSR::BlackholeInit(uint8_t uRungMax) {
-    // We reuse this struct for simplicity
-    struct inPlaceBHSeed in;
-
-    in.uRungMax = uRungMax;
-
-    pstBHInit(pst, &in, sizeof(in), NULL, 0);
+    struct ServiceBHInit::input in{.uRungMax = uRungMax};
+    mdl->RunService<ServiceBHInit>(in);
 }
 
 void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
-    struct inPlaceBHSeed in;
-    struct outPlaceBHSeed out;
-
-    out.nBHs = 0;
-    in.dTime = dTime;
-    in.uRungMax = uRungMax;
-    in.dScaleFactor = csmTime2Exp(csm, dTime);
-    in.dBHMhaloMin = parameters.get_dBHMhaloMin();
-    in.dTau = parameters.get_dTau();
-    in.dBHSeedMass = parameters.get_dBHSeedMass();
-    if (parameters.get_bDoStarFormation()) {
-        in.dDenMin = calc.dSFThresholdDen * pow(in.dScaleFactor, 3);
-    }
-    else {
-        in.dDenMin = 0.0;
-    }
-
+    assert(parameters.get_bFindGroups());
     printf("Planting seeds...\n");
     TimerStart(TIMER_BHS);
-    assert(parameters.get_bFindGroups());
-    pstPlaceBHSeed(pst, &in, sizeof(in), &out, sizeof(out));
+    ServicePlaceBHSeed::input in{
+        .dTime = dTime,
+        .dScaleFactor = csmTime2Exp(csm, dTime),
+        .dDenMin = parameters.get_bDoStarFormation() ? calc.dSFThresholdDen * pow(csmTime2Exp(csm, dTime), 3) : 0.0,
+        .dBHMhaloMin = parameters.get_dBHMhaloMin(),
+        .dTau = parameters.get_dTau(),
+        .dBHSeedMass = parameters.get_dBHSeedMass(),
+        .uRungMax = uRungMax,
+    };
+    ServicePlaceBHSeed::output nBH;
+    mdl->RunService<ServicePlaceBHSeed>(in, nBH);
     TimerStop(TIMER_BHS);
 
-    nGas -= out.nBHs;
-    nBH += out.nBHs;
-    printf("Planted %d BH seeds \n", out.nBHs);
-
+    nGas -= nBH;
+    nBH += nBH;
+    printf("Planted %d BH seeds \n", nBH);
 #ifdef OPTIM_REORDER_IN_NODES
     ReorderInNodes();
 #endif

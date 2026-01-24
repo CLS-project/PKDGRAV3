@@ -4,40 +4,40 @@
 #include "smooth/smooth.h"
 #include "smooth/smoothfcn.h"
 
-int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax, double dDenMin, double dBHMhaloMin, double dTau, double dBHSeedMass) {
+auto pkdContext::PlaceBHSeed(double dTime, double dScaleFactor, uint8_t uRungMax, double dDenMin, double dBHMhaloMin, double dTau, double dBHSeedMass) -> int {
     int newBHs = 0;
-    smContext smx(pkd, std::make_shared<SmoothHelperNull>(pkd), 32, true);
+    smContext smx(this, std::make_shared<SmoothHelperNull>(this), 32, true);
     // Look for any FoF group that do not contain any BH particle in it
-    for (int gid = 1; gid <= pkd->nLocalGroups; ++gid) {
+    for (int gid = 1; gid <= nLocalGroups; ++gid) {
 
         smx.nnList.clear();
-        if (pkd->veryTinyGroupTable[gid].nBH == 0 && pkd->veryTinyGroupTable[gid].fMass > dBHMhaloMin) {
+        if (veryTinyGroupTable[gid].nBH == 0 && veryTinyGroupTable[gid].fMass > dBHMhaloMin) {
 
             // To adaptively search around rPot but avoiding very long interactions lists
             // the search radius is increased in steps until enough gas particles are found
             float dTauSearch = dTau * 0.02;
             while (!(smx.nnList.size() > 100 || dTauSearch >= dTau)) {
                 smx.nnList.clear();
-                smx.Gather(dTauSearch * dTauSearch, pkd->veryTinyGroupTable[gid].rPot);
+                smx.Gather(dTauSearch * dTauSearch, veryTinyGroupTable[gid].rPot);
                 dTauSearch *= 2.0;
             }
 
             // Find the first local particle
-            auto ii = std::find_if(smx.nnList.begin(), smx.nnList.end(), [pkd](const auto& nn) { return nn.iPid == pkd->Self(); });
+            auto ii = std::ranges::find_if(smx.nnList, [this](const auto& nn) { return nn.iPid == Self(); });
             // IA: I do not like this *at all*
             //  But maybe we are reading completely remote fof group??? TODO Check
             if (ii == smx.nnList.end()) continue;
 
             // Now find the one with the minimum potential
-            ii = std::min_element(ii, smx.nnList.end(), [pkd](const auto& a, const auto& b) {
-                if (a.iPid != pkd->Self()) return false; // keep smallest
-                auto p = pkd->particles[a.pPart];
-                auto q = pkd->particles[b.pPart];
+            ii = std::min_element(ii, smx.nnList.end(), [this](const auto& a, const auto& b) {
+                if (a.iPid != Self()) return false; // keep smallest
+                auto p = particles[a.pPart];
+                auto q = particles[b.pPart];
                 return p.potential() < q.potential();
             });
             assert(ii != smx.nnList.end());
-            assert(ii->iPid == pkd->Self());
-            auto pLowPot = pkd->particles[ii->pPart];
+            assert(ii->iPid == Self());
+            auto pLowPot = particles[ii->pPart];
 
             // Since we looked for neighbours within a distance at most equal to the
             // linking length, the selected particle MUST be part of the group
@@ -48,8 +48,8 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax,
 
             assert(pLowPot.is_gas());
 
-            printf("Group %d (mass %e thread %d) doesn't have a BH, adding one!\n", gid, pkd->veryTinyGroupTable[gid].fMass, pkd->Self());
-            ++pkd->veryTinyGroupTable[gid].nBH;
+            printf("Group %d (mass %e thread %d) doesn't have a BH, adding one!\n", gid, veryTinyGroupTable[gid].fMass, Self());
+            ++veryTinyGroupTable[gid].nBH;
 
             // Now convert this particle into a BH
             // We just change the class of the particle
@@ -83,8 +83,8 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax,
             ++newBHs;
 
             for (auto& nn : smx.nnList) {
-                if (nn.iPid != pkd->Self()) {
-                    pkd->mdl->Release(CID_PARTICLE, nn.pPart);
+                if (nn.iPid != Self()) {
+                    mdl->Release(CID_PARTICLE, nn.pPart);
                 }
             }
             /* Old seeding process, which creates a BH rather than converting
@@ -97,10 +97,10 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax,
              * into BH anyway
              */
             /*
-            auto p = pkd->particles.NewParticle();
+            auto p = particles.NewParticle();
             p.velocity() = 0.0;
             p.acceleration() = 0.0;
-            p.set_position(pkd->veryTinyGroupTable[gid].rPot);
+            p.set_position(veryTinyGroupTable[gid].rPot);
             p.set_rung(uRungMax);
             p.set_new_rung(uRungMax);
 
@@ -108,8 +108,8 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax,
             // this won't be problematic as long as we use oMass and dSoft is set in the parameters file
             p.set_class(0,p.soft(),0,FIO_SPECIES_BH);
 
-            p.mass() = pkd->parameters.get_dBHSeedMass();
-            p.set_ball(pkd->parameters.get_dSoft());
+            p.mass() = parameters.get_dBHSeedMass();
+            p.set_ball(parameters.get_dSoft());
 
             auto &pBH = p.BH();
 

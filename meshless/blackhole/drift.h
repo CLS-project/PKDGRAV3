@@ -1,24 +1,18 @@
-#include "smooth/smooth.h"
-#include "pkd.h"
-
-struct bhGasPinPack {
-    blitz::TinyVector<double, 3> position;
-    blitz::TinyVector<double, 3> velocity;
-    float fMass;
-    float fPotential;
-    uint8_t iClass;
-};
-
-class SmoothHelperBHGasPin : public SmoothHelperPacked<bhGasPinPack> {
-    double a_;
-    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
-    virtual void pack(void* dst, const void* src) override final;
-    virtual void unpack(void* dst, const void* src, const void* key) override final;
-
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) Douglas Potter and Joachim Stadel
+#include "TraversePST.h"
+class ServiceBHReposition : public TraversePST {
   public:
-    SmoothHelperBHGasPin(pkdContext* pkd, double a) : SmoothHelperPacked<bhGasPinPack>(pkd, false), a_(a) {}
-    auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> override { return smooth::policy::OnlyGas::range(node); }
-    auto accept_neighbour(particleStore::ParticleReference& p) -> bool override { return smooth::policy::OnlyGas::select(p); }
-};
+    static constexpr std::string_view name = "BHReposition";
+    using input = void;
+    using output = void;
+    explicit ServiceBHReposition(PST pst) : TraversePST(pst, name) {}
 
-void pkdBHReposition(PKD pkd);
+  protected:
+    auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
+        auto in = reinterpret_cast<const input*>(vin.data());
+        auto pkd = pst->lcl()->pkd;
+        pkd->BHReposition();
+        return 0;
+    }
+};

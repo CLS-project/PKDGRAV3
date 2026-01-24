@@ -95,10 +95,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_GRACKLEINIT, pst, (fcnService_t*)pstGrackleInit, sizeof(struct inGrackleInit), 0, Legacy::GrackleInit);
 #endif
     mdl->AddService(PST_CHEMCOMPINIT, pst, (fcnService_t*)pstChemCompInit, sizeof(struct inChemCompInit), 0, Legacy::ChemCompInit);
-    mdl->AddService(PST_BH_PLACESEED, pst, (fcnService_t*)pstPlaceBHSeed, sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed), Legacy::PlaceBHSeed);
-    mdl->AddService(PST_BH_INIT, pst, (fcnService_t*)pstBHInit, sizeof(struct inPlaceBHSeed), 0, Legacy::BHInit);
-    mdl->AddService(PST_BH_REPOSITION, pst, (fcnService_t*)pstBHReposition, 0, 0, Legacy::BHReposition);
-    mdl->AddService(PST_BH_ACCRETION, pst, (fcnService_t*)pstBHAccretion, sizeof(struct inBHAccretion), 0, Legacy::BHAccretion);
     //
     mdl->AddService(PST_PHYSICALSOFT, pst, (fcnService_t*)pstPhysicalSoft, sizeof(struct inPhysicalSoft), 0, Legacy::PhysicalSoft);
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
@@ -432,65 +428,6 @@ int pstPhysicalSoft(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdPhysicalSoft(plcl->pkd, in->dSoftMax, in->dFac, in->bSoftMaxMul);
-    }
-    return 0;
-}
-
-int pstPlaceBHSeed(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inPlaceBHSeed*>(vin);
-    auto out = static_cast<struct outPlaceBHSeed*>(vout);
-    struct outPlaceBHSeed outUpper;
-    assert(nIn == sizeof(struct inPlaceBHSeed));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_BH_PLACESEED, in, nIn);
-        pstPlaceBHSeed(pst->lower(), vin, nIn, vout, nOut);
-        nOut = pst->mdl()->GetReply(rID, outUpper);
-        assert(nOut == sizeof(struct outPlaceBHSeed));
-        out->nBHs += outUpper.nBHs;
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        out->nBHs = pkdPlaceBHSeed(plcl->pkd, in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin, in->dBHMhaloMin, in->dTau, in->dBHSeedMass);
-    }
-    return sizeof(struct outPlaceBHSeed);
-}
-int pstBHInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inPlaceBHSeed*>(vin);
-    assert(nIn == sizeof(struct inPlaceBHSeed));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_BH_INIT, in, nIn);
-        pstBHInit(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        pkdBHInit(plcl->pkd, in->uRungMax);
-    }
-    return 0;
-}
-int pstBHReposition(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_BH_REPOSITION, NULL, 0);
-        pstBHReposition(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        pkdBHReposition(plcl->pkd);
-    }
-    return 0;
-}
-int pstBHAccretion(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inBHAccretion*>(vin);
-    assert(nIn == sizeof(struct inBHAccretion));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_BH_ACCRETION, in, nIn);
-        pstBHAccretion(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        pkdBHAccretion(plcl->pkd, in->dScaleFactor);
     }
     return 0;
 }
