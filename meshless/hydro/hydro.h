@@ -117,6 +117,25 @@ class ServiceHydroGradients : public TraverseCount<ServiceHydroGradients> {
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
+class ServiceHydroStep : public TraverseCount<ServiceHydroStep> {
+  public:
+    static constexpr std::string_view name = "HydroStep";
+    struct input {
+        int nSmooth;
+        bool bPeriodic;
+        bool bDoGravity;
+        double dEtaCourant;
+        double a;
+        double dCFLacc;
+        double dDelta;
+    };
+    using output = uint64_t;
+    explicit ServiceHydroStep(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 class ServiceBHEvolve : public TraversePST {
   public:
     static constexpr std::string_view name = "BHEvolve";

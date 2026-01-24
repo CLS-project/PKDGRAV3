@@ -5272,14 +5272,20 @@ void MSR::HydroStep(double dTime, double dDelta) {
     printf("Computing hydro time step... ");
 
     TimerStart(TIMER_TIMESTEP);
-#ifdef OPTIM_SMOOTH_NODE
-    #ifdef OPTIM_AVOID_IS_ACTIVE
+#ifdef OPTIM_AVOID_IS_ACTIVE
     SelActives();
-    #endif
-    ReSmoothNode(dTime, dDelta, SMX_HYDRO_STEP, 1);
-#else
-    ReSmooth(dTime, dDelta, SMX_HYDRO_STEP, 1);
 #endif
+    ServiceHydroStep::input in{
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()),
+        .bPeriodic = parameters.get_bPeriodic(),
+        .bDoGravity = parameters.get_bDoGravity(),
+        .dEtaCourant = parameters.get_dEtaCourant(),
+        .a = Comove() ? csmTime2Exp(csm, dTime) : 1.0,
+        .dCFLacc = parameters.get_dCFLacc(),
+        .dDelta = dDelta,
+    };
+    uint64_t nSmoothed;
+    mdl->RunService<ServiceHydroStep>(in, nSmoothed);
 
     if (parameters.get_bGlobalDt()) {
         SetGlobalRung(GetMaxRung());

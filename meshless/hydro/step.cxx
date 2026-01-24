@@ -6,6 +6,20 @@
 using blitz::dot;
 using blitz::TinyVector;
 
+auto ServiceHydroStep::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto pkd = pst->lcl()->pkd;
+    auto helper = std::make_shared<SmoothHelperHydroStep>(pkd, in->dEtaCourant, in->a, in->dCFLacc, in->dDelta, in->bDoGravity);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
+#ifdef OPTIM_SMOOTH_NODE
+    *out = smx.ReSmoothNode<smooth::policy::OnlyGasOptimised, smooth::policy::OnlyGas>();
+#else
+    *out = smx.ReSmooth<smooth::policy::OnlyGasOptimised>();
+#endif
+    return sizeof(output);
+}
+
 void SmoothHelperHydroStep::pack(void* dst, const void* src) {
     auto p1 = static_cast<pack_type*>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];

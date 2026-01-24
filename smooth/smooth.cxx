@@ -112,9 +112,6 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
         return std::make_shared<SmoothHelperHopChains>(pkd);
     case SMX_PRINTNN:
         return std::make_shared<SmoothHelperPrintNN>(pkd);
-    case SMX_HYDRO_STEP:
-        assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
-        return std::make_shared<SmoothHelperHydroStep>(pkd, smf->dEtaCourant, smf->a, smf->dCFLacc, smf->dDelta, smf->bDoGravity);
     case SMX_SN_FEEDBACK:
         return std::make_shared<SmoothHelperSNFeedback>(pkd, smf->dTime, smf->dCCSNFBDelay, smf->dSNIaFBDelay, smf->dSNFBDu, smf->dCCSNFBSpecEnergy,
                                                         smf->dSNIaFBSpecEnergy, smf->dConstGamma);
@@ -534,16 +531,6 @@ uint64_t smReSmooth(SMX smx, int iSmoothType) {
     uint64_t nSmoothed = 0;
 
     switch (iSmoothType) {
-    case SMX_HYDRO_STEP:
-        for (auto& p : pkd->particles) {
-            if (p.is_gas()) {
-                if (p.is_active()) {
-                    smx->ReSmoothSingle(p, p.ball());
-                    nSmoothed++;
-                }
-            }
-        }
-        break;
 
     case SMX_SN_FEEDBACK:
     case SMX_CHEM_ENRICHMENT:
