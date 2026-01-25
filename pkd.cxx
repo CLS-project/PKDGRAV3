@@ -2303,32 +2303,31 @@ void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType) {
 /*
 ** Initialize the EOS tables
 */
-void pkdInitializeEOS(PKD pkd) {
-    auto materials = pkd->particles.getMaterials(true);
-    for (auto iMat : materials) {
-        if (iMat == 0 && pkd->SPHoptions.useBuiltinIdeal) {
+void pkdContext::InitializeEOS() {
+    for (auto iMat : particles.getMaterials(true)) {
+        if (iMat == 0 && SPHoptions.useBuiltinIdeal) {
             // Nothing to do
         }
         else {
 #ifdef HAVE_EOSLIB_H
-            if (pkd->materials[iMat] == NULL) {
+            if (materials[iMat] == NULL) {
                 if (iMat == MAT_IDEALGAS) {
                     struct igeosParam param;
-                    param.dConstGamma = pkd->SPHoptions.gamma;
-                    param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
-                    pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, &param);
+                    param.dConstGamma = SPHoptions.gamma;
+                    param.dMeanMolMass = SPHoptions.dMeanMolWeight;
+                    materials[iMat] = EOSinitMaterial(iMat, SPHoptions.dKpcUnit, SPHoptions.dMsolUnit, &param);
                 }
                 else {
-                    pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, NULL);
+                    materials[iMat] = EOSinitMaterial(iMat, SPHoptions.dKpcUnit, SPHoptions.dMsolUnit, NULL);
                 }
-                if (pkd->SPHoptions.useIsentropic) {
-                    EOSinitIsentropicLookup(pkd->materials[iMat], NULL);
+                if (SPHoptions.useIsentropic) {
+                    EOSinitIsentropicLookup(materials[iMat], NULL);
                 }
-                if (pkd->SPHoptions.doShearStrengthModel && (EOSYieldModel(pkd->materials[iMat]) < 0)) {
-                    if (EOSYieldModel(pkd->materials[iMat]) == -1) {
+                if (SPHoptions.doShearStrengthModel && (EOSYieldModel(materials[iMat]) < 0)) {
+                    if (EOSYieldModel(materials[iMat]) == -1) {
                         printf("Yield strength was requested but material %d has no or faulty parameters.", iMat);
                     }
-                    else if (EOSYieldModel(pkd->materials[iMat]) == -2) {
+                    else if (EOSYieldModel(materials[iMat]) == -2) {
                         printf("Yield strength was requested but for material %d this is not implemented yet.", iMat);
                     }
                     assert(0);

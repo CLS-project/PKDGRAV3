@@ -125,6 +125,7 @@ struct fmt::formatter<DeferFormat> {
 #include "services/calceandl.h"
 #include "services/physicalsoft.h"
 #include "services/setsphoptions.h"
+#include "services/initializeeos.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -4264,7 +4265,7 @@ void MSR::InitializeEOS() {
     double sec, dsec;
     sec = MSR::Time();
     print("Initialize EOS ...\n");
-    pstInitializeEOS(pst, NULL, 0, NULL, 0);
+    mdl->RunService<ServiceInitializeEOS>();
     dsec = MSR::Time() - sec;
     print("EOS initialized, Wallclock: {:.5f} secs\n\n", dsec);
 }

@@ -559,6 +559,7 @@ class pkdContext : public Integerize {
     void GroupOrder(uint32_t* iGrpOffset);
     auto ActiveOrder() -> uint64_t;
 
+    void InitializeEOS();
     void UpdateGasValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions);
     void ResetCOM(blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
     void CalcEandL(double& T, double& U, double& Eth, blitz::TinyVector<double, 3>& L, blitz::TinyVector<double, 3>& F, double& W);
@@ -921,7 +922,6 @@ int pkdIsStar(PKD, PARTICLE*);
 int pkdIsBH(PKD, PARTICLE*);
 
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double* r, float* fPot);
-void pkdInitializeEOS(PKD pkd);
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
 #ifdef MDL_FFTW
 float getLinAcc(PKD pkd, MDLFFT fft, int cid, double r[3]);

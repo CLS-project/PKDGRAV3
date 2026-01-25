@@ -91,7 +91,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PLT_MOVEIC, pst, (fcnService_t*)pltMoveIC, sizeof(struct inMoveIC), 0, Legacy::MoveIC);
     mdl->AddService(PST_MOVEIC, pst, (fcnService_t*)pstMoveIC, sizeof(struct ServiceGenerateIC::input), 0, Legacy::LocalMoveIC);
 #endif
-    mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
 }
 
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
@@ -327,18 +326,5 @@ int pstWrite(PST pst, void* vin, int nIn, void* vout, int nOut) {
         }
     }
 
-    return 0;
-}
-
-int pstInitializeEOS(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_INITIALIZEEOS, vin, nIn);
-        pstInitializeEOS(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdInitializeEOS(plcl->pkd);
-    }
     return 0;
 }
