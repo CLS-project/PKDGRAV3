@@ -8,17 +8,17 @@ void MSR::BHEvolve(double dTime, double dDelta) {
     Smooth(dTime, dDelta, SMX_BH_EVOLVE, 1, parameters.get_nSmooth());
 }
 
-static inline int bhAccretion(PKD pkd, NN* nnList, int nSmooth, particleStore::ParticleReference& p, decorators::BLACKHOLE& bh, float pH, float pMass,
+static inline int bhAccretion(PKD pkd, std::span<NN> nnList, particleStore::ParticleReference& p, decorators::BLACKHOLE& bh, float pH, float pMass,
                               double pDensity, double dScaleFactor) {
     const double prob_factor = (bh.dInternalMass - pMass) / pDensity;
     int nAccreted = 0;
     if (prob_factor > 0.0) {
-        for (auto i = 0; i < nSmooth; ++i) {
-            auto q = pkd->particles[nnList[i].pPart];
+        for (auto& nn : nnList) {
+            auto q = pkd->particles[nn.pPart];
             assert(q.is_gas());
             auto& sph = q.sph();
             if (sph.BHAccretor.iPid != NOT_ACCRETED) continue; // Skip accreted particles
-            const double rpq = sqrt(nnList[i].fDist2);
+            const double rpq = sqrt(nn.fDist2);
             const double kernel = cubicSplineKernel(rpq, static_cast<double>(pH));
             const double prob = prob_factor * kernel;
             if (rand() < RAND_MAX * prob) {
@@ -33,19 +33,19 @@ static inline int bhAccretion(PKD pkd, NN* nnList, int nSmooth, particleStore::P
     return nAccreted;
 }
 
-static inline void bhFeedback(PKD pkd, NN* nnList, int nSmooth, int nAccreted, particleStore::ParticleReference& p, decorators::BLACKHOLE& bh, float massSum,
+static inline void bhFeedback(PKD pkd, std::span<NN> nnList, int nAccreted, particleStore::ParticleReference& p, decorators::BLACKHOLE& bh, float massSum,
                               double dConstGamma, double dBHFBEff, double dBHFBEcrit) {
 
     bh.dFeedbackRate = dBHFBEff * bh.dAccretionRate;
 
-    const double meanMass = massSum / nSmooth;
+    const double meanMass = massSum / nnList.size();
     const double Ecrit = dBHFBEcrit * meanMass;
     if (bh.dAccEnergy > Ecrit) {
         const double nHeat = bh.dAccEnergy / Ecrit;
-        const double prob = nHeat / (nSmooth - nAccreted); // Correct probability for accreted particles
-        for (auto i = 0; i < nSmooth; ++i) {
+        const double prob = nHeat / (nnList.size() - nAccreted); // Correct probability for accreted particles
+        for (auto& nn : nnList) {
             if (rand() < RAND_MAX * prob) {
-                auto q = pkd->particles[nnList[i].pPart];
+                auto q = pkd->particles[nn.pPart];
                 assert(q.is_gas());
 
                 auto& qsph = q.sph();
@@ -69,11 +69,10 @@ static inline void bhFeedback(PKD pkd, NN* nnList, int nSmooth, int nAccreted, p
     }
 }
 
-void smBHEvolve(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
+void SmoothHelperBHEvolve::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     const auto& pv = p.velocity();
     const auto& pMass = p.mass();
-    const float inv_a = 1. / smf->a;
+    const float inv_a = 1. / a_;
     // CDV - pH = H
     const float ph = 0.5 * fBall;
     const float pH = fBall;
@@ -86,11 +85,11 @@ void smBHEvolve(particleStore::ParticleReference& p, float fBall, int nSmooth, N
     double massSum = 0.0;
     double cs = 0.0;
     TinyVector<vel_t, 3> v{0.0}, vcirc{0.0};
-    for (auto i = 0; i < nSmooth; ++i) {
-        auto q = pkd->particles[nnList[i].pPart];
+    for (auto& nn : nnList) {
+        auto q = pkd->particles[nn.pPart];
         assert(q.is_gas());
         if (q.sph().BHAccretor.iPid != NOT_ACCRETED) ++nAccreted;
-        const double rpq = sqrt(nnList[i].fDist2);
+        const double rpq = sqrt(nn.fDist2);
         const double kernel = cubicSplineKernel(rpq, static_cast<double>(pH));
         const auto& qMass = q.mass();
         massSum += qMass;
@@ -102,7 +101,7 @@ void smBHEvolve(particleStore::ParticleReference& p, float fBall, int nSmooth, N
         const auto& qv = q.velocity();
         const TinyVector<vel_t, 3> dv{weight * (qv - pv * inv_a)};
         v += dv;
-        vcirc += blitz::cross(nnList[i].dr, dv);
+        vcirc += blitz::cross(nn.dr, dv);
     }
     const double norm = 1. / pDensity;
     const double vRel2 = dot(v, v) * norm * norm;
@@ -111,11 +110,11 @@ void smBHEvolve(particleStore::ParticleReference& p, float fBall, int nSmooth, N
     p.set_density(pDensity);
 
     // We allow the accretion viscosity to act over a boosted Bondi accretion
-    double dBondiPrefactor = smf->dBHAccretionAlpha;
-    if (smf->dBHAccretionCvisc) {
+    double dBondiPrefactor = dBHAccretionAlpha;
+    if (dBHAccretionCvisc) {
         const double vphi = sqrt(dot(vcirc, vcirc)) * norm / ph;
         const double fac = cs / vphi;
-        dBondiPrefactor *= std::min(1.0, fac * fac * fac / smf->dBHAccretionCvisc);
+        dBondiPrefactor *= std::min(1.0, fac * fac * fac / dBHAccretionCvisc);
     }
 
     // Do we need to convert to physical?
@@ -123,17 +122,17 @@ void smBHEvolve(particleStore::ParticleReference& p, float fBall, int nSmooth, N
     const double dBondiAccretion = dBondiPrefactor * 4. * M_PI * bh.dInternalMass * bh.dInternalMass * pDensity / pow(cs * cs + vRel2, 1.5);
 
     // All the prefactors are computed at the setup phase
-    const double dEddingtonAccretion = smf->dBHAccretionEddFac * bh.dInternalMass;
+    const double dEddingtonAccretion = dBHAccretionEddFac * bh.dInternalMass;
 
     bh.dEddingtonRatio = dBondiAccretion / dEddingtonAccretion;
 
     bh.dAccretionRate = (dEddingtonAccretion < dBondiAccretion) ? dEddingtonAccretion : dBondiAccretion;
 
-    if (smf->bBHAccretion) {
-        nAccreted += bhAccretion(pkd, nnList, nSmooth, p, bh, pH, pMass, pDensity, smf->a);
+    if (bBHAccretion) {
+        nAccreted += bhAccretion(pkd, nnList, p, bh, pH, pMass, pDensity, a_);
     }
-    if (smf->bBHFeedback) {
-        bhFeedback(pkd, nnList, nSmooth, nAccreted, p, bh, massSum, smf->dConstGamma, smf->dBHFBEff, smf->dBHFBEcrit);
+    if (bBHFeedback) {
+        bhFeedback(pkd, nnList, nAccreted, p, bh, massSum, dConstGamma, dBHFBEff, dBHFBEcrit);
     }
 }
 

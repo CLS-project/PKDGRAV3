@@ -4,7 +4,9 @@
 #include "TraversePST.h"
 #include "feedback.h"
 #include "eEOS/eEOS.h"
-
+#ifdef STELLAR_EVOLUTION
+    #include "stellarevolution/stellarevolution.h"
+#endif
 /*
  * ---------------------
  * STRUCTURE DEFINITIONS

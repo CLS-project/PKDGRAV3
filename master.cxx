@@ -3432,30 +3432,20 @@ void MSR::WriteGroupStats(const std::string_view& fname, int nParallel) {
 void MSR::Hop(double dTime, double dDelta) {
     struct inSmooth in;
     int i;
-    uint64_t nGroups;
     double sec, dsec, ssec;
 
     ssec = MSR::Time();
 
-    ServiceHopLink::input h{.dHopTau = parameters.get_dHopTau(),
-                            .nSmooth = 80,
-                            .bPeriodic = parameters.get_bPeriodic(),
-                            .bSymmetric = 0,
-                            .iSmoothType = SMX_GRADIENT_M3,
-                            .smf = {.a = dTime, .dTau2 = 0.0, .nMinMembers = int(parameters.get_nMinMembers())}};
+    ServiceHopLink::input il{.nSmooth = 80, .bPeriodic = parameters.get_bPeriodic()};
+    ServiceHopJoin::input ij{.dHopTau = parameters.get_dHopTau(), .nSmooth = 80, .bPeriodic = parameters.get_bPeriodic()};
 
     in.nSmooth = 80;
     in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = 0;
-    in.smf.a = dTime;
-    in.smf.dTau2 = 0.0;
-    in.smf.nMinMembers = int(parameters.get_nMinMembers());
-    SmoothSetSMF(&(in.smf), dTime, dDelta, in.nSmooth);
-    SmoothSetSMF(&(h.smf), dTime, dDelta, in.nSmooth);
 
     if (parameters.get_bVStep()) {
-        if (h.dHopTau < 0.0) print("Running Grasshopper with adaptive linking length ({:g} times softening)\n", -h.dHopTau);
-        else print("Running Grasshopper with fixed linking length {:g}\n", h.dHopTau);
+        if (ij.dHopTau < 0.0) print("Running Grasshopper with adaptive linking length ({:g} times softening)\n", -ij.dHopTau);
+        else print("Running Grasshopper with fixed linking length {:g}\n", ij.dHopTau);
     }
 
     in.iSmoothType = SMX_DENSITY_M3;
@@ -3464,10 +3454,9 @@ void MSR::Hop(double dTime, double dDelta) {
     dsec = MSR::Time() - sec;
     if (parameters.get_bVStep()) print("Density calculation complete in {:.5f} secs, finding chains...\n", dsec);
 
-    h.iSmoothType = SMX_GRADIENT_M3;
     sec = MSR::Time();
-    nGroups = 0;
-    mdl->RunService<ServiceHopLink>(h, nGroups);
+    ServiceHopLink::output nGroups;
+    mdl->RunService<ServiceHopLink>(il, nGroups);
     dsec = MSR::Time() - sec;
     if (parameters.get_bVStep()) print("Chain search complete in {:.5f} secs, building minimal tree...\n", dsec);
 
@@ -3477,14 +3466,13 @@ void MSR::Hop(double dTime, double dDelta) {
     dsec = MSR::Time() - sec;
     if (parameters.get_bVStep()) print("Tree build complete in {:.5f} secs, merging {} chains...\n", dsec, nGroups);
 
-    h.iSmoothType = SMX_HOP_LINK;
     sec = MSR::Time();
     i = 0;
     ServiceHopJoin::output j;
     do {
         ++i;
         assert(i < 100);
-        mdl->RunService<ServiceHopJoin>(h, j);
+        mdl->RunService<ServiceHopJoin>(ij, j);
         if (parameters.get_bVStep()) print("... {} iteration{}, {} chains remain\n", i, i == 1 ? "" : "s", j.nGroups);
     } while (!j.bDone);
     nGroups = j.nGroups;

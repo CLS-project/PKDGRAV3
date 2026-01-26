@@ -157,24 +157,91 @@ int smHashPresent(SMX smx, void* p) {
     return 0;
 }
 
+smContext::smContext(PKD pkdIn, std::shared_ptr<SmoothHelper> helper, int nSmooth, bool bPeriodic, bool bMakeCache)
+    : pkd(pkdIn), nSmooth(nSmooth), bPeriodic(bPeriodic) {
+    pSentinel = static_cast<PARTICLE*>(malloc(pkd->particles.ParticleSize()));
+    function = helper;
+
+    helper->initialize_local();
+    /*
+    ** Start particle caching space (cell cache is already active).
+    */
+    if (bMakeCache) {
+        bOwnCache = 1;
+        pkd->mdl->CacheInitialize(CID_PARTICLE, helper);
+    }
+    else bOwnCache = 0;
+    /*
+    ** Allocate Nearest-Neighbor List.
+    */
+    nnList.reserve(NNLIST_INCREMENT);
+    /*
+    ** Allocate priority queue.
+    */
+    pq.resize(nSmooth);
+    PQ_INIT(pq.data(), nSmooth);
+    /*
+    ** Allocate hash table entries.
+    ** The constant here just sets the hash table loading factor, for numbers larger than
+    ** the 1000'th prime we end up using the result here as the hash table modulus.
+    */
+    int i;
+    nHash = (int)floor(nSmooth * 1.543765241931);
+    for (i = 0; i < 1000; ++i) {
+        if (primes[i] > nHash) {
+            nHash = primes[i];
+            break;
+        }
+    }
+    pHash = static_cast<struct hashElement*>(malloc((nHash + nSmooth) * sizeof(struct hashElement)));
+    assert(pHash != NULL);
+    for (i = 0; i < nHash; ++i) {
+        pHash[i].p = NULL;
+        pHash[i].coll = NULL;
+    }
+    /*
+    ** set up the extra entries that may be needed for collision chains
+    */
+    pFreeHash = &pHash[i];
+    for (; i < (nHash + nSmooth - 1); ++i) {
+        pHash[i].p = NULL;
+        pHash[i].coll = &pHash[i + 1];
+    }
+    pHash[i].p = NULL;
+    pHash[i].coll = NULL;
+    /*
+    ** Allocate special stacks for searching within the tree.
+    ** 1024 is more than enough.
+    */
+    ST = new struct smContext::stStack[1024];
+    assert(ST != NULL);
+    S = new int[1024];
+    assert(S != NULL);
+    /*
+    ** Set up the sentinel particle with some very far away distance.
+    ** This is used to initially load the priority queue and all references
+    ** to this particle should end up being replaced in the priority queue
+    ** as long as there are nSmooth particles.
+    */
+    auto sentinel = pkd->particles[pSentinel];
+    if (pkd->bIntegerPosition) sentinel.raw_position<int32_t>() = TinyVector<int32_t, 3>(INT32_MAX, INT32_MAX, INT32_MAX);
+    else sentinel.raw_position<double>() = TinyVector<double, 3>(HUGE_VAL, HUGE_VAL, HUGE_VAL);
+}
+
+smContext::~smContext() {
+
+    /*
+    ** Stop particle caching space.
+    */
+    if (bOwnCache) pkd->mdl->FinishCache(CID_PARTICLE);
+    delete[] S;
+    delete[] ST;
+    free(pHash);
+    free(pSentinel);
+}
+
 static int smInitializeBasic(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType, int bMakeCache) {
     SMX smx;
-    int i;
-
-    smx = new smContext;
-    assert(smx != NULL);
-    smx->pSentinel = static_cast<PARTICLE*>(malloc(pkd->particles.ParticleSize()));
-    assert(smx->pSentinel != NULL);
-    smx->pkd = pkd;
-    smx->fcnSmoothNode = NULL;
-    smx->fcnSmoothGetBufferInfo = NULL;
-    smx->fcnSmoothFillBuffer = NULL;
-    smx->fcnSmoothUpdate = NULL;
-    if (smf != NULL) smf->pkd = pkd;
-    smx->nSmooth = nSmooth;
-    smx->bPeriodic = bPeriodic;
-    smx->bSearchGasOnly = 0;
-    smx->iSmoothType = iSmoothType;
     /*
     ** Initialize the context for compressed nearest neighbor lists.
     */
@@ -183,102 +250,78 @@ static int smInitializeBasic(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPer
     std::shared_ptr<SmoothHelper> helper;
     switch (iSmoothType) {
     case SMX_NULL:
-        smx->fcnSmooth = NullSmooth;
         helper = std::make_shared<SmoothHelperNull>(pkd);
         break;
     case SMX_DENSITY:
-        smx->fcnSmooth = bSymmetric ? DensitySym : Density;
-        helper = std::make_shared<SmoothHelperDensity>(pkd, bSymmetric);
+        if (bSymmetric) helper = std::make_shared<SmoothHelperDensitySymmetric>(pkd);
+        else helper = std::make_shared<SmoothHelperDensity>(pkd);
         break;
     case SMX_DENSITY_F1:
         assert(!bSymmetric);
-        smx->fcnSmooth = DensityF1;
-        helper = std::make_shared<SmoothHelperDensityF1>(pkd, bSymmetric);
+        helper = std::make_shared<SmoothHelperDensityF1>(pkd);
         break;
     case SMX_DENSITY_M3:
         assert(!bSymmetric);
         assert(pkd->particles.present(PKD_FIELD::oGroup));
-        smx->fcnSmooth = DensityM3;
-        helper = std::make_shared<SmoothHelperDensityM3>(pkd, bSymmetric);
+        helper = std::make_shared<SmoothHelperDensityM3>(pkd);
         break;
     case SMX_GRADIENT_M3:
         assert(!bSymmetric);
-        smx->fcnSmooth = LinkGradientM3;
-        helper = std::make_shared<SmoothHelperGradientM3>(pkd, bSymmetric);
+        helper = std::make_shared<SmoothHelperGradientM3>(pkd);
         break;
     case SMX_HOP_LINK:
         assert(!bSymmetric);
-        smx->fcnSmooth = LinkHopChains;
-        helper = std::make_shared<SmoothHelperHopChains>(pkd, bSymmetric);
+        helper = std::make_shared<SmoothHelperHopChains>(pkd);
         break;
     case SMX_PRINTNN:
-        smx->fcnSmooth = PrintNN;
-        helper = std::make_shared<SmoothHelperNull>(pkd);
+        helper = std::make_shared<SmoothHelperPrintNN>(pkd);
         break;
     case SMX_HYDRO_DENSITY:
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
-        smx->fcnSmooth = hydroDensity;
-        helper = std::make_shared<SmoothHelperHydroDensity>(pkd);
+        helper = std::make_shared<SmoothHelperHydroDensity>(pkd, smf->dNeighborsStd, smf->bIterativeSmoothingLength);
         break;
     case SMX_HYDRO_DENSITY_FINAL:
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
-        smx->fcnSmooth = hydroDensityFinal;
-        helper = std::make_shared<SmoothHelperHydroDensity>(pkd);
+        helper = std::make_shared<SmoothHelperHydroDensityFinal>(pkd);
         break;
     case SMX_HYDRO_GRADIENT:
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
-        smx->fcnSmooth = hydroGradients;
-        helper = std::make_shared<SmoothHelperHydroGradients>(pkd);
+        helper = std::make_shared<SmoothHelperHydroGradients>(pkd, smf->bConditionedBarthJespersen, smf->bStricterSlopeLimiter);
         break;
 #ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
-        smx->fcnSmoothNode = hydroRiemann_wrapper;
-        smx->fcnSmoothGetBufferInfo = hydroFluxGetBufferInfo;
-        smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
-        smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
-        helper = std::make_shared<SmoothHelperHydroFluxes>(pkd);
+        helper = std::make_shared<SmoothHelperHydroFluxes>(pkd, smf->dTime, smf->dDelta, smf->a, smf->H, smf->dConstGamma, smf->eEOS);
         break;
 #endif
     case SMX_HYDRO_STEP:
         assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
-        smx->fcnSmooth = hydroStep;
-        helper = std::make_shared<SmoothHelperHydroStep>(pkd);
+        helper = std::make_shared<SmoothHelperHydroStep>(pkd, smf->dEtaCourant, smf->a, smf->dCFLacc, smf->dDelta, smf->bDoGravity);
         break;
     case SMX_SN_FEEDBACK:
-        smx->fcnSmooth = smSNFeedback;
-        smx->bSearchGasOnly = 1;
-        helper = std::make_shared<SmoothHelperSNFeedback>(pkd);
+        helper = std::make_shared<SmoothHelperSNFeedback>(pkd, smf->dTime, smf->dCCSNFBDelay, smf->dSNIaFBDelay, smf->dSNFBDu, smf->dCCSNFBSpecEnergy,
+                                                          smf->dSNIaFBSpecEnergy, smf->dConstGamma);
         break;
     case SMX_BH_MERGER:
-        smx->fcnSmooth = smBHmerger;
         helper = std::make_shared<SmoothHelperBHmerger>(pkd);
         break;
     case SMX_BH_STEP:
-        smx->fcnSmooth = smBHstep;
-        smx->bSearchGasOnly = 1;
         helper = std::make_shared<SmoothHelperBHstep>(pkd);
         break;
     case SMX_BH_EVOLVE:
-        smx->fcnSmooth = smBHEvolve;
-        smx->bSearchGasOnly = 1;
-        helper = std::make_shared<SmoothHelperBHEvolve>(pkd);
+        helper = std::make_shared<SmoothHelperBHEvolve>(pkd, smf->a, smf->dBHAccretionAlpha, smf->dBHAccretionCvisc, smf->dBHAccretionEddFac, smf->dConstGamma,
+                                                        smf->dBHFBEff, smf->dBHFBEcrit, smf->bBHAccretion, smf->bBHFeedback);
         break;
     case SMX_BH_GASPIN:
-        smx->fcnSmooth = smBHGasPin;
-        smx->bSearchGasOnly = 1;
-        helper = std::make_shared<SmoothHelperBHGasPin>(pkd);
+        helper = std::make_shared<SmoothHelperBHGasPin>(pkd, smf->a);
         break;
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
-        smx->fcnSmooth = smChemEnrich;
-        smx->bSearchGasOnly = 1;
-        helper = std::make_shared<SmoothHelperChemEnrich>(pkd);
+        helper = std::make_shared<SmoothHelperChemEnrich>(pkd, smf->dTime, smf->dWindSpecificEkin, smf->dCCSNMinMass, smf->dSNIaNorm, smf->dSNIaScale);
         break;
 #endif
     case SMX_BALL:
         assert(pkd->particles.present(PKD_FIELD::oBall));
-        smx->fcnSmooth = BallSmooth;
         helper = std::make_shared<SmoothHelperBallSmooth>(pkd);
         break;
 
@@ -287,95 +330,18 @@ static int smInitializeBasic(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPer
     }
     assert(helper);
 
-    if ((smx->fcnSmoothNode != NULL) && ((smx->fcnSmoothGetBufferInfo == NULL) || (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL))) {
-        fprintf(stderr, "ERROR: Trying to use particle buffer in node smooth,"
-                        "but not all the required fuctions are set\n");
-        abort();
-    }
-    /*
-    ** Initialize the ACTIVE particles in the tree.
-    ** There are other particles in the tree -- just not active.mdlN
-    */
-    auto pRoot = pkd->tree[ROOT];
-    // auto nTree = pRoot->count();
-    helper->initialize_local();
-    /*
-    ** Start particle caching space (cell cache is already active).
-    */
-    if (bMakeCache) {
-        smx->bOwnCache = 1;
-        pkd->mdl->CacheInitialize(CID_PARTICLE, std::move(helper));
-    }
-    else smx->bOwnCache = 0;
-    /*
-    ** Allocate Nearest-Neighbor List.
-    */
-    smx->nnListSize = 0;
-    smx->nnListMax = NNLIST_INCREMENT;
-    smx->nnList = static_cast<NN*>(malloc(smx->nnListMax * sizeof(NN)));
-    assert(smx->nnList != NULL);
-
-    /*
-    ** Allocate priority queue.
-    */
-    smx->pq = static_cast<PQ*>(malloc(nSmooth * sizeof(PQ)));
-    assert(smx->pq != NULL);
-    PQ_INIT(smx->pq, nSmooth);
-    /*
-    ** Allocate hash table entries.
-    ** The constant here just sets the hash table loading factor, for numbers larger than
-    ** the 1000'th prime we end up using the result here as the hash table modulus.
-    */
-    smx->nHash = (int)floor(nSmooth * 1.543765241931);
-    for (i = 0; i < 1000; ++i) {
-        if (primes[i] > smx->nHash) {
-            smx->nHash = primes[i];
-            break;
-        }
-    }
-    smx->pHash = static_cast<struct hashElement*>(malloc((smx->nHash + nSmooth) * sizeof(struct hashElement)));
-    assert(smx->pHash != NULL);
-    for (i = 0; i < smx->nHash; ++i) {
-        smx->pHash[i].p = NULL;
-        smx->pHash[i].coll = NULL;
-    }
-    /*
-    ** set up the extra entries that may be needed for collision chains
-    */
-    smx->pFreeHash = &smx->pHash[i];
-    for (; i < (smx->nHash + nSmooth - 1); ++i) {
-        smx->pHash[i].p = NULL;
-        smx->pHash[i].coll = &smx->pHash[i + 1];
-    }
-    smx->pHash[i].p = NULL;
-    smx->pHash[i].coll = NULL;
-    /*
-    ** Allocate special stacks for searching within the tree.
-    ** 1024 is more than enough.
-    */
-    smx->ST = new struct smContext::stStack[1024];
-    assert(smx->ST != NULL);
-    smx->S = new int[1024];
-    assert(smx->S != NULL);
-    /*
-    ** Set up the sentinel particle with some very far away distance.
-    ** This is used to initially load the priority queue and all references
-    ** to this particle should end up being replaced in the priority queue
-    ** as long as there are nSmooth particles.
-    */
-    auto sentinel = pkd->particles[smx->pSentinel];
-    if (pkd->bIntegerPosition) sentinel.raw_position<int32_t>() = TinyVector<int32_t, 3>(INT32_MAX, INT32_MAX, INT32_MAX);
-    else sentinel.raw_position<double>() = TinyVector<double, 3>(HUGE_VAL, HUGE_VAL, HUGE_VAL);
+    smx = new smContext(pkd, helper, nSmooth, bPeriodic, bMakeCache);
+    smx->iSmoothType = iSmoothType;
     *psmx = smx;
     return (1);
 }
 
-int smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType) {
-    return smInitializeBasic(psmx, pkd, smf, nSmooth, bPeriodic, bSymmetric, iSmoothType, 1);
+int smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType, bool bMakeCache) {
+    return smInitializeBasic(psmx, pkd, smf, nSmooth, bPeriodic, bSymmetric, iSmoothType, bMakeCache);
 }
 
 int smInitializeRO(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int iSmoothType) {
-    return smInitializeBasic(psmx, pkd, smf, nSmooth, bPeriodic, 0, iSmoothType, 0);
+    return smInitializeBasic(psmx, pkd, smf, nSmooth, bPeriodic, 0, iSmoothType, false);
 }
 
 void smFinish(SMX smx, SMF* smf) {
@@ -392,23 +358,7 @@ void smFinish(SMX smx, SMF* smf) {
     mdlDiag(smx->pkd->mdl, achOut);
     snprintf(achOut, sizeof(achOut), "    Miss ratio: %g\n", smx->pkd->mdl->MissRatio(CID_PARTICLE));
     mdlDiag(smx->pkd->mdl, achOut);
-    /*
-    ** Stop particle caching space.
-    */
-    if (smx->bOwnCache) smx->pkd->mdl->FinishCache(CID_PARTICLE);
-    /*
-    ** Finish compressed lists.
-    */
-    // lcodeFinish(smx->lcmp);
-    /*
-    ** Free up context storage.
-    */
-    delete[] smx->S;
-    delete[] smx->ST;
-    free(smx->pq);
-    free(smx->nnList);
-    free(smx->pHash);
-    free(smx->pSentinel);
+
     delete smx;
 }
 
@@ -459,7 +409,7 @@ PQ* pqSearch(SMX smx, PQ* pq, TinyVector<double, 3> r, int iRoot) {
         /* Now at a bucket */
         if (id == idSelf) {
 #ifdef OPTIM_REORDER_IN_NODES
-            auto pEnd = (smx->bSearchGasOnly) ? kdn->lower() + kdn->Ngas() : kdn->upper() + 1;
+            auto pEnd = (smx->function->gasOnly()) ? kdn->lower() + kdn->Ngas() : kdn->upper() + 1;
 #else
             auto pEnd = kdn->upper() + 1;
 #endif
@@ -467,7 +417,7 @@ PQ* pqSearch(SMX smx, PQ* pq, TinyVector<double, 3> r, int iRoot) {
                 auto p = pkd->particles[pj];
                 if (!p.marked()) continue;
 #ifndef OPTIM_REORDER_IN_NODES
-                if (smx->bSearchGasOnly && !p.is_gas()) continue;
+                if (smx->function->gasOnly() && !p.is_gas()) continue;
 #endif
                 dr = r - p.position();
                 fDist2 = dot(dr, dr);
@@ -491,14 +441,14 @@ PQ* pqSearch(SMX smx, PQ* pq, TinyVector<double, 3> r, int iRoot) {
         }
         else {
 #ifdef OPTIM_REORDER_IN_NODES
-            auto pEnd = (smx->bSearchGasOnly) ? kdn->lower() + kdn->Ngas() : kdn->upper() + 1;
+            auto pEnd = (smx->function->gasOnly()) ? kdn->lower() + kdn->Ngas() : kdn->upper() + 1;
 #else
             auto pEnd = kdn->upper() + 1;
 #endif
             for (auto pj = kdn->lower(); pj < pEnd; ++pj) {
                 auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE, pj, id)];
 #ifndef OPTIM_REORDER_IN_NODES
-                if (smx->bSearchGasOnly && !p.is_gas()) continue;
+                if (smx->function->gasOnly() && !p.is_gas()) continue;
 #endif
                 if (smHashPresent(smx, &p)) continue;
                 dr = r - p.position();
@@ -568,6 +518,7 @@ void smSmoothFinish(SMX smx) {
 }
 
 float smSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, int iRoot1, int iRoot2) {
+    if (!smx->function->shouldSmooth(p)) return 0.0f; // No smoothing needed for this particle
     PKD pkd = smx->pkd;
     int ix, iy, iz;
     TinyVector<double, 3> r;
@@ -594,7 +545,7 @@ float smSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, int
     r = p_r;
     smx->rLast = p_r;
 
-    PQ_BUILD(smx->pq, smx->nSmooth, pq);
+    PQ_BUILD(smx->pq.data(), smx->pq.size(), pq);
     pq = pqSearch(smx, pq, r, iRoot1);
     if (iRoot2) pq = pqSearch(smx, pq, r, iRoot2);
     /*
@@ -635,7 +586,7 @@ float smSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, int
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p, fBall, smx->nSmooth, smx->pq, smf);
+    smx->function->Smooth(p, fBall, smx->pq);
     return fBall;
 }
 
@@ -716,9 +667,7 @@ void smGather(SMX smx, double fBall2, TinyVector<double, 3> r) {
     struct smContext::stStack* S = smx->ST;
     int iCell, id;
     int sp = 0;
-    int pj, pEnd, nCnt;
-
-    nCnt = smx->nnListSize;
+    int pj, pEnd;
 
     auto kdn = getCell(pkd, iCell = pkd->iTopTree[ROOT], id = idSelf);
 
@@ -749,17 +698,7 @@ void smGather(SMX smx, double fBall2, TinyVector<double, 3> r) {
                     TinyVector<double, 3> dr{r - p.position()};
                     double fDist2 = dot(dr, dr);
                     if (fDist2 <= fBall2) {
-                        if (nCnt >= smx->nnListMax) {
-                            smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = static_cast<NN*>(realloc(smx->nnList, smx->nnListMax * sizeof(NN)));
-                            assert(smx->nnList != NULL);
-                        }
-                        smx->nnList[nCnt].fDist2 = fDist2;
-                        smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].pPart = &p;
-                        smx->nnList[nCnt].iIndex = pj;
-                        smx->nnList[nCnt].iPid = idSelf;
-                        ++nCnt;
+                        smx->nnList.push_back({.pPart = &p, .fDist2 = fDist2, .dr = dr, .iIndex = pj, .iPid = idSelf});
                     }
                 }
             }
@@ -771,17 +710,7 @@ void smGather(SMX smx, double fBall2, TinyVector<double, 3> r) {
                     TinyVector<double, 3> dr{r - p.position()};
                     double fDist2 = dot(dr, dr);
                     if (fDist2 <= fBall2) {
-                        if (nCnt >= smx->nnListMax) {
-                            smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = static_cast<NN*>(realloc(smx->nnList, smx->nnListMax * sizeof(NN)));
-                            assert(smx->nnList != NULL);
-                        }
-                        smx->nnList[nCnt].fDist2 = fDist2;
-                        smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].pPart = mdl->Acquire<PARTICLE>(CID_PARTICLE, pj, id);
-                        smx->nnList[nCnt].iIndex = pj;
-                        smx->nnList[nCnt].iPid = id;
-                        ++nCnt;
+                        smx->nnList.push_back({.pPart = mdl->Acquire<PARTICLE>(CID_PARTICLE, pj, id), .fDist2 = fDist2, .dr = dr, .iIndex = pj, .iPid = id});
                     }
                 }
             }
@@ -795,7 +724,6 @@ void smGather(SMX smx, double fBall2, TinyVector<double, 3> r) {
         }
         else break;
     }
-    smx->nnListSize = nCnt;
 }
 
 void smDoGatherLocal(SMX smx, double fBall2, TinyVector<double, 3> r, void (*Do)(SMX, PARTICLE*, double)) {
@@ -833,13 +761,14 @@ void smDoGatherLocal(SMX smx, double fBall2, TinyVector<double, 3> r, void (*Do)
     }
 }
 
-void smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, double fBall) {
+auto smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, double fBall) -> bool {
+    if (!smx->function->shouldSmooth(p)) return false; // No smoothing needed for this particle
     PKD pkd = smx->pkd;
     TinyVector<double, 3> r;
 
     auto R = p.position();
 
-    smx->nnListSize = 0;
+    smx->nnList.clear();
     /*
     ** Note for implementing SLIDING PATCH, the offsets for particles are
     ** negative here, reflecting the relative +ve offset of the simulation
@@ -865,15 +794,16 @@ void smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, do
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p, fBall, smx->nnListSize, smx->nnList, smf);
+    smx->function->Smooth(p, fBall, smx->nnList);
     /*
     ** Release acquired pointers.
     */
-    for (int i = 0; i < smx->nnListSize; ++i) {
-        if (smx->nnList[i].iPid != pkd->Self()) {
-            pkd->mdl->Release(CID_PARTICLE, smx->nnList[i].pPart);
+    for (auto& nn : smx->nnList) {
+        if (nn.iPid != pkd->Self()) {
+            pkd->mdl->Release(CID_PARTICLE, nn.pPart);
         }
     }
+    return true;
 }
 
 uint64_t smReSmooth(SMX smx, SMF* smf, int iSmoothType) {
@@ -924,36 +854,6 @@ uint64_t smReSmooth(SMX smx, SMF* smf, int iSmoothType) {
 
 #ifdef OPTIM_SMOOTH_NODE
 
-/* Allocate a buffer for N particles each one with nVar variables.
- *
- * If oldBuff is present, the new buffer is initialized with the contents of
- * oldBuff, with a size oldN
- */
-void static inline allocNodeBuffer(const int N, const int nVar, meshless::myreal** p_buff, meshless::myreal* oldBuff, const int oldN) {
-
-    assert(oldN < N);
-
-    *p_buff = new (std::align_val_t(64)) meshless::myreal[N * nVar];
-    assert(*p_buff != NULL);
-    meshless::myreal* buff = *p_buff;
-
-    // Fill if requested
-    if (oldBuff != NULL)
-        for (int var = 0; var < nVar; var++)
-            for (int i = 0; i < oldN; i++) buff[var * N + i] = oldBuff[var * oldN + i];
-}
-
-void static inline reallocNodeBuffer(const int N, const int nVar, meshless::myreal** p_buff, const int oldN) {
-
-    meshless::myreal* tmp_buffer;
-
-    allocNodeBuffer(N, nVar, &tmp_buffer, *p_buff, oldN);
-
-    delete[] *p_buff;
-
-    *p_buff = tmp_buffer;
-}
-
 /* IA: In this version, we loop over the buckets, rather than over the particles.
  *
  * For each bucket, we look for all the surroiding buckets that may interact
@@ -965,14 +865,12 @@ void static inline reallocNodeBuffer(const int N, const int nVar, meshless::myre
 uint64_t smReSmoothNode(SMX smx, SMF* smf, int iSmoothType) {
     PKD pkd = smx->pkd;
     auto mdl = pkd->mdl;
-    int nCnt;
     uint64_t nSmoothed = 0;
 
-    smx->nnListSize = 0;
-    int nnListMax_p = NNLIST_INCREMENT;
+    smx->nnList.clear();
 
-    NN* nnList_p;
-    nnList_p = static_cast<NN*>(malloc(sizeof(NN) * nnListMax_p));
+    std::vector<NN> nnList_p;
+    nnList_p.reserve(NNLIST_INCREMENT);
 
     // Here we store the pointers to the particles whose interaction
     // need to be computed
@@ -988,14 +886,6 @@ uint64_t smReSmoothNode(SMX smx, SMF* smf, int iSmoothType) {
      *  Having everything in the same buffer can be advantageous as it should
      *  be in cache, but it was painful to code...
      */
-    meshless::myreal* input_buffer = NULL;
-    meshless::myreal* output_buffer = NULL;
-    int inNvar, outNvar;
-    if (smx->fcnSmoothGetBufferInfo) {
-        smx->fcnSmoothGetBufferInfo(&inNvar, &outNvar);
-        allocNodeBuffer(nnListMax_p, inNvar, &input_buffer, NULL, 0);
-        allocNodeBuffer(nnListMax_p, outNvar, &output_buffer, NULL, 0);
-    }
 
     double fBall_factor = 1.;
     if (iSmoothType == SMX_HYDRO_DENSITY) fBall_factor *= 1.2; // An small margin is kept in case fBall needs to increase
@@ -1062,7 +952,7 @@ uint64_t smReSmoothNode(SMX smx, SMF* smf, int iSmoothType) {
             // There are no elligible particles in this bucket, go to the next
             if (sinks.empty()) continue;
 
-            nCnt = 0;
+            smx->nnList.clear();
 
             bnd_node.shrink(fMax_shrink);
 
@@ -1075,13 +965,13 @@ uint64_t smReSmoothNode(SMX smx, SMF* smf, int iSmoothType) {
                         r[1] = bnd_node.center(1) - iy * pkd->fPeriod[1];
                         for (int iz = iStart[2]; iz <= iEnd[2]; ++iz) {
                             r[2] = bnd_node.center(2) - iz * pkd->fPeriod[2];
-                            buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, ix, iy, iz);
+                            buildInteractionList(smx, smf, node, bnd_node, r, ix, iy, iz);
                         }
                     }
                 }
             }
             else {
-                buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, 0, 0, 0);
+                buildInteractionList(smx, smf, node, bnd_node, r, 0, 0, 0);
             }
 
             // IA: Now we should have inside nnList all the particles in the
@@ -1108,92 +998,55 @@ uint64_t smReSmoothNode(SMX smx, SMF* smf, int iSmoothType) {
             //  neighbours than needed and thus the iterative procedure should be
             //  faster
             if (iSmoothType == SMX_HYDRO_DENSITY) {
-                hydroDensity_node(pkd, smf, bnd_node, sinks, smx->nnList, nCnt);
+                hydroDensity_node(pkd, smf, bnd_node, sinks, smx->nnList.data(), smx->nnList.size());
             }
             else {
                 for (auto& P : sinks) {
+                    assert(P);
                     auto partj = pkd->particles[P];
                     const float pBall2 = partj.ball() * partj.ball();
                     const TinyVector<double, 3> dr_node{bnd_node.center() - partj.position()};
 
-                    int nCnt_p = 0;
-                    for (auto pk = 0; pk < nCnt; ++pk) {
-                        if (P == smx->nnList[pk].pPart) continue;
-                        const TinyVector<double, 3> dr{smx->nnList[pk].dr - dr_node};
+                    nnList_p.clear();
+                    for (auto& nn : smx->nnList) {
+                        if (P == nn.pPart) continue;
+                        const TinyVector<double, 3> dr{nn.dr - dr_node};
                         const double fDist2 = dot(dr, dr);
                         if (fDist2 < pBall2) {
 
                             // Reasons not to compute this interaction
                             if (iSmoothType == SMX_HYDRO_FLUX || iSmoothType == SMX_HYDRO_FLUX_VEC) {
 
-                                const auto& qBall = smx->nnList[pk].fBall;
+                                const auto& qBall = nn.fBall;
                                 if (qBall * qBall < fDist2) continue;
 
     #ifdef OPTIM_AVOID_IS_ACTIVE
-                                int qIsActive = smx->nnList[pk].bMarked;
+                                int qIsActive = nn.bMarked;
     #else
                                 abort(); // not supported
     #endif
 
     #ifdef OPTIM_NO_REDUNDANT_FLUXES
                                 if (qIsActive) {
-                                    if (pkd->Self() == smx->nnList[pk].iPid) {
-                                        if (P < smx->nnList[pk].pPart) continue;
+                                    if (pkd->Self() == nn.iPid) {
+                                        if (P < nn.pPart) continue;
                                     }
-                                    else if (pkd->Self() < smx->nnList[pk].iPid) continue;
+                                    else if (pkd->Self() < nn.iPid) continue;
                                 }
     #endif
                             }
 
-                            // Try pointer to pPart declared as restrict, to check if compiler does something better
-
-                            if (nCnt_p + dvec::width() >= nnListMax_p) {
-                                nnListMax_p += NNLIST_INCREMENT;
-                                nnList_p = static_cast<NN*>(realloc(nnList_p, nnListMax_p * sizeof(NN)));
-                                assert(nnList_p != NULL);
-                                if (smx->fcnSmoothGetBufferInfo) {
-                                    printf("WARNING: Increasing smoothNode buffer size to %d\n", nnListMax_p);
-                                    int oldListMax = nnListMax_p - NNLIST_INCREMENT;
-                                    reallocNodeBuffer(nnListMax_p, inNvar, &input_buffer, oldListMax);
-                                    reallocNodeBuffer(nnListMax_p, outNvar, &output_buffer, oldListMax);
-                                }
-                            }
-
-                            nnList_p[nCnt_p].pPart = (smx->nnList[pk].iPid == pkd->Self())
-                                                         ? smx->nnList[pk].pPart
-                                                         : mdl->Acquire<PARTICLE>(CID_PARTICLE, smx->nnList[pk].iIndex, smx->nnList[pk].iPid);
-                            nnList_p[nCnt_p].fDist2 = fDist2;
-                            nnList_p[nCnt_p].dr = dr;
-                            nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
-                            nnList_p[nCnt_p].iPid = smx->nnList[pk].iPid;
-
-                            if (smx->fcnSmoothFillBuffer) {
-                                PARTICLE* q = nnList_p[nCnt_p].pPart;
-
-                                smx->fcnSmoothFillBuffer(input_buffer, q, nCnt_p, nnListMax_p, fDist2, dr, smf);
-                            }
-
-                            ++nCnt_p;
+                            nnList_p.push_back({.pPart = (nn.iPid == pkd->Self()) ? nn.pPart : mdl->Acquire<PARTICLE>(CID_PARTICLE, nn.iIndex, nn.iPid),
+                                                .fDist2 = fDist2,
+                                                .dr = dr,
+                                                .iIndex = nn.iIndex,
+                                                .iPid = nn.iPid});
                         }
                     }
-
-                    // abort();
-                    // printf("nCnt_p %d \n", nCnt_p);
-                    // assert(nCnt_p<200);
-
-                    if (smx->fcnSmoothNode) {
-                        smx->fcnSmoothNode(&partj, partj.ball(), nCnt_p, nnListMax_p, input_buffer, output_buffer, smf);
-                        for (auto pk = 0; pk < nCnt_p; ++pk) {
-                            smx->fcnSmoothUpdate(output_buffer, input_buffer, &partj, nnList_p[pk].pPart, pk, nnListMax_p, smf);
-                        }
-                    }
-                    else {
-                        smx->fcnSmooth(partj, partj.ball(), nCnt_p, nnList_p, smf);
-                    }
-
-                    for (auto pk = 0; pk < nCnt_p; ++pk) {
-                        if (nnList_p[pk].iPid != pkd->Self()) {
-                            pkd->mdl->Release(CID_PARTICLE, nnList_p[pk].pPart);
+                    smx->function->Smooth(partj, partj.ball(), nnList_p);
+                    for (auto& nn : nnList_p) {
+                        if (nn.iPid != pkd->Self()) {
+                            mdl->Release(CID_PARTICLE, nn.pPart);
                         }
                     }
                 }
@@ -1202,21 +1055,14 @@ uint64_t smReSmoothNode(SMX smx, SMF* smf, int iSmoothType) {
             nSmoothed += sinks.size();
         }
     }
-    if (smx->fcnSmoothGetBufferInfo) {
-        delete[] input_buffer;
-        delete[] output_buffer;
-    }
-    free(nnList_p);
-    // printf("nSmoothed %lu \n", nSmoothed);
     return nSmoothed;
 }
 
-void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int* nCnt_tot, TinyVector<double, 3> r, int ix, int iy, int iz) {
+void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, TinyVector<double, 3> r, int ix, int iy, int iz) {
     PKD pkd = smx->pkd;
     auto mdl = pkd->mdl;
     int id, sp, iCell;
     struct smContext::stStack* S = smx->ST;
-    int nCnt = *nCnt_tot;
 
     // We look for the biggest node that encloses the needed domain
     // We can only take advantage of this if we are are in the original cell
@@ -1256,20 +1102,8 @@ void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int* nCn
     #endif
                     const TinyVector<double, 3> dr{r - p.position()};
                     if (all(abs(dr) <= bnd_node.apothem())) {
-                        if (nCnt >= smx->nnListMax) {
-                            smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = static_cast<NN*>(realloc(smx->nnList, smx->nnListMax * sizeof(NN)));
-                            // printf("realloc \n");
-                            assert(smx->nnList != NULL);
-                        }
-                        smx->nnList[nCnt].fDist2 = dot(dr, dr);
-                        smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].pPart = &p;
-                        smx->nnList[nCnt].fBall = p.ball();
-                        smx->nnList[nCnt].bMarked = p.marked();
-                        smx->nnList[nCnt].iIndex = pj;
-                        smx->nnList[nCnt].iPid = pkd->Self();
-                        ++nCnt;
+                        smx->nnList.push_back(
+                            {.pPart = &p, .fDist2 = dot(dr, dr), .dr = dr, .fBall = p.ball(), .bMarked = p.marked(), .iIndex = pj, .iPid = id});
                     }
                 }
             }
@@ -1286,22 +1120,9 @@ void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int* nCn
     #endif
                     const TinyVector<double, 3> dr{r - p.position()};
                     if (all(abs(dr) <= bnd_node.apothem())) {
-                        if (nCnt >= smx->nnListMax) {
-                            smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = static_cast<NN*>(realloc(smx->nnList, smx->nnListMax * sizeof(NN)));
-                            // printf("realloc \n");
-                            assert(smx->nnList != NULL);
-                        }
-
-                        smx->nnList[nCnt].fDist2 = dot(dr, dr);
-                        smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].fBall = p.ball();
-                        smx->nnList[nCnt].bMarked = p.marked();
                         // The actual particle information fill be acquired later
-                        smx->nnList[nCnt].pPart = NULL;
-                        smx->nnList[nCnt].iIndex = pj;
-                        smx->nnList[nCnt].iPid = id;
-                        ++nCnt;
+                        smx->nnList.push_back(
+                            {.pPart = nullptr, .fDist2 = dot(dr, dr), .dr = dr, .fBall = p.ball(), .bMarked = p.marked(), .iIndex = pj, .iPid = id});
                     }
                 }
             }
@@ -1315,7 +1136,5 @@ void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int* nCn
         }
         else break;
     }
-
-    *nCnt_tot = nCnt;
 }
 #endif // OPTIM_SMOOTH_NODE

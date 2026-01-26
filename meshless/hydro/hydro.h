@@ -3,6 +3,63 @@
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
 #include <vector>
+#include "blitz/array.h"
+#include "blitz/memblock.h"
+
+template <typename T, typename Enum>
+class EnumArray {
+    static_assert(std::is_enum_v<Enum>, "EnumArray requires an enum type");
+
+  public:
+    using value_type = T;
+
+    // Raw-buffer constructor
+    EnumArray(T* data, Enum last, int nBuff) : A_(data, blitz::shape(static_cast<int>(last), nBuff), blitz::deleteDataWhenDone) {}
+
+    // Owning: allocate internal storage
+    EnumArray(int nBuff) : A_(blitz::shape(static_cast<int>(Enum::last), nBuff)) {}
+
+    // Construct from existing Blitz array
+    explicit EnumArray(const blitz::Array<std::remove_const_t<T>, 2>& array) : A_(array) {}
+
+    EnumArray() = default;
+
+    // Rebind to another EnumArray (no copy)
+    void reference(EnumArray const& other) { A_.reference(other.A_); }
+
+    [[nodiscard]] auto extent(int i) const noexcept { return A_.extent(i); }
+
+    // Resize the second dimension
+    void resize(int nBuff) { A_.resize(blitz::shape(A_.extent(0), nBuff)); }
+
+    // Indexing (constness propagates automatically)
+    template <typename... I>
+    auto operator()(Enum e, I... i) -> decltype(auto) {
+        return A_(static_cast<int>(e), i...);
+    }
+
+    template <typename... I>
+    auto operator()(Enum e, I... i) const -> decltype(auto) {
+        return A_(static_cast<int>(e), i...);
+    }
+
+    [[nodiscard]] auto array() const noexcept -> const blitz::Array<std::remove_const_t<T>, 2>& { return A_; }
+
+    // Only enable mutable access when T is non-const
+    template <typename U = T>
+    [[nodiscard]] auto array() noexcept -> blitz::Array<U, 2>&
+        requires(!std::is_const_v<U>)
+    {
+        return A_;
+    }
+
+  private:
+    blitz::Array<T, 2> A_;
+};
+template <typename T, typename Enum>
+EnumArray(T const*, Enum, int) -> EnumArray<const T, Enum>;
+template <typename T, typename Enum>
+EnumArray(T*, Enum, int) -> EnumArray<T, Enum>;
 
 #define XX 0
 #define YY 3
@@ -12,8 +69,74 @@
 #define YZ 4
 
 namespace meshless {
-typedef double myreal;
-}
+using myreal = double;
+} // namespace meshless
+
+namespace meshless::FLUX {
+/* When doing SIMD, a structure of arrays is used,
+ * rather than an array of structures.
+ *
+ * To simplify the indexing of the elements, these enum should be
+ * always used
+ */
+enum class IFLD : int {
+    ball,
+    dx,
+    dy,
+    dz,
+    dr,
+    rung,
+    rho,
+    P,
+#ifdef ENTROPY_SWITCH
+    S,
+#endif
+    vx,
+    vy,
+    vz,
+    gradRhoX,
+    gradRhoY,
+    gradRhoZ,
+    gradPX,
+    gradPY,
+    gradPZ,
+    gradVxX,
+    gradVxY,
+    gradVxZ,
+    gradVyX,
+    gradVyY,
+    gradVyZ,
+    gradVzX,
+    gradVzY,
+    gradVzZ,
+    lastAccX,
+    lastAccY,
+    lastAccZ,
+    lastUpdateTime,
+    B_XX,
+    B_YY,
+    B_ZZ,
+    B_XY,
+    B_XZ,
+    B_YZ,
+    omega,
+    spheom,
+    last
+};
+
+enum class OFLD : int {
+    minDt,
+    Frho,
+    FmomX,
+    FmomY,
+    FmomZ,
+    Fene,
+#ifdef ENTROPY_SWITCH
+    FS,
+#endif
+    last
+};
+} // namespace meshless::FLUX
 
 /* -----------------
  * MAIN FUNCTIONS AND CLASSES
@@ -105,16 +228,32 @@ struct hydroDensityPack {
     bool bMarked;
 };
 
-void hydroDensity(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
 void hydroDensity_node(PKD pkd, SMF* smf, Bound bnd_node, const std::vector<PARTICLE*>& sinks, NN* nnList, int nCnt);
-void hydroDensityFinal(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
-class SmoothHelperHydroDensity : public SmoothHelperPacked<hydroDensityPack> {
+class SmoothHelperHydroDensityBase : public SmoothHelperPacked<hydroDensityPack> {
+    auto shouldSmooth(particleStore::ParticleReference& p) -> bool final { return p.is_active(); }
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
     virtual void init_shared(void* dst) override final { init_shared_gas_decorator(pkd, dst); }
 
+  protected:
+    SmoothHelperHydroDensityBase(pkdContext* pkd) : SmoothHelperPacked<hydroDensityPack>(pkd, false) {}
+};
+
+class SmoothHelperHydroDensity : public SmoothHelperHydroDensityBase {
+    double dNeighborsStd;
+    bool bIterativeSmoothingLength;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+
   public:
-    SmoothHelperHydroDensity(pkdContext* pkd) : SmoothHelperPacked<hydroDensityPack>(pkd, false) {}
+    SmoothHelperHydroDensity(pkdContext* pkd, double dNeighborsStd, bool bIterativeSmoothingLength)
+        : SmoothHelperHydroDensityBase(pkd), dNeighborsStd(dNeighborsStd), bIterativeSmoothingLength(bIterativeSmoothingLength) {}
+};
+
+class SmoothHelperHydroDensityFinal : public SmoothHelperHydroDensityBase {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+
+  public:
+    SmoothHelperHydroDensityFinal(pkdContext* pkd) : SmoothHelperHydroDensityBase(pkd) {}
 };
 
 /* Gradient loop */
@@ -128,14 +267,18 @@ struct hydroGradientsPack {
     bool bMarked;
 };
 
-void hydroGradients(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
 class SmoothHelperHydroGradients : public SmoothHelperPacked<hydroGradientsPack> {
-    virtual void pack(void* dst, const void* src) override final;
-    virtual void unpack(void* dst, const void* src, const void* key) override final;
-    virtual void init_shared(void* dst) override final { init_shared_gas_decorator(pkd, dst); }
+    bool bConditionedBarthJespersen;
+    bool bStricterSlopeLimiter;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+    void pack(void* dst, const void* src) final;
+    void unpack(void* dst, const void* src, const void* key) final;
+    void init_shared(void* dst) final { init_shared_gas_decorator(pkd, dst); }
 
   public:
-    SmoothHelperHydroGradients(pkdContext* pkd) : SmoothHelperPacked<hydroGradientsPack>(pkd, false) {
+    SmoothHelperHydroGradients(pkdContext* pkd, bool bConditionedBarthJespersen, bool bStricterSlopeLimiter)
+        : SmoothHelperPacked<hydroGradientsPack>(pkd, false), bConditionedBarthJespersen(bConditionedBarthJespersen),
+          bStricterSlopeLimiter(bStricterSlopeLimiter) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
 };
@@ -170,15 +313,20 @@ struct hydroFluxesFlush {
     float fMass;
 };
 
-void hydroRiemann(PARTICLE* p, float fBall, int nSmooth, int nBuff, meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
+void hydroRiemann(PARTICLE* p, float fBall, int nSmooth, int nBuff, const meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
                   SMF* smf);
 void hydroRiemann_wrapper(PARTICLE* p, float fBall, int nSmooth, int nBuff, meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
                           SMF* smf);
 void hydroFluxFillBuffer(meshless::myreal* input_buffer, PARTICLE* q, int i, int nBuff, double dr2, blitz::TinyVector<double, 3> dr, SMF*);
-void hydroFluxUpdateFromBuffer(meshless::myreal* output_buffer, meshless::myreal* input_buffer, PARTICLE* p, PARTICLE* q, int i, int nBuff, SMF*);
+void hydroFluxUpdateFromBuffer(meshless::myreal* output_buffer, const meshless::myreal* input_buffer, PARTICLE* p, PARTICLE* q, int i, int nBuff, SMF*);
 void hydroFluxGetBufferInfo(int* in, int* out);
 
 class SmoothHelperHydroFluxes : public SmoothHelperPacked<hydroFluxesPack, hydroFluxesFlush> {
+    EnumArray<meshless::myreal, meshless::FLUX::IFLD> ia;
+    EnumArray<meshless::myreal, meshless::FLUX::OFLD> oa;
+    const double dTime, dDelta, a_, H_, dConstGamma;
+    eEOSparam eEOS;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
     virtual void init(void* dst) override final;
@@ -187,7 +335,8 @@ class SmoothHelperHydroFluxes : public SmoothHelperPacked<hydroFluxesPack, hydro
     virtual void init_shared(void* dst) override final { init_shared_gas_decorator(pkd, dst); }
 
   public:
-    SmoothHelperHydroFluxes(pkdContext* pkd) : SmoothHelperPacked<hydroFluxesPack, hydroFluxesFlush>(pkd, true) {
+    SmoothHelperHydroFluxes(pkdContext* pkd, double dTime, double dDelta, double a, double H, double dConstGamma, const eEOSparam& eEOS)
+        : SmoothHelperPacked<hydroFluxesPack, hydroFluxesFlush>(pkd, true), dTime(dTime), dDelta(dDelta), a_(a), H_(H), dConstGamma(dConstGamma), eEOS(eEOS) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
 };
@@ -209,8 +358,10 @@ struct hydroStepFlush {
     uint8_t uWake;
 };
 
-void hydroStep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
 class SmoothHelperHydroStep : public SmoothHelperPacked<hydroStepPack, hydroStepFlush> {
+    double dEtaCourant, a_, dCFLacc, dDelta;
+    bool bDoGravity;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
     virtual void init(void* dst) override final;
@@ -219,7 +370,9 @@ class SmoothHelperHydroStep : public SmoothHelperPacked<hydroStepPack, hydroStep
     virtual void init_shared(void* dst) override final { init_shared_gas_decorator(pkd, dst); }
 
   public:
-    SmoothHelperHydroStep(pkdContext* pkd) : SmoothHelperPacked<hydroStepPack, hydroStepFlush>(pkd, true) {
+    SmoothHelperHydroStep(pkdContext* pkd, double dEtaCourant, double a, double dCFLacc, double dDelta, bool bDoGravity)
+        : SmoothHelperPacked<hydroStepPack, hydroStepFlush>(pkd, true), dEtaCourant(dEtaCourant), a_(a), dCFLacc(dCFLacc), dDelta(dDelta),
+          bDoGravity(bDoGravity) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
 };

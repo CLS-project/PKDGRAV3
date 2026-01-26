@@ -23,12 +23,8 @@ class ServiceHopLink : public TraverseCount<ServiceHopLink> {
   public:
     static constexpr std::string_view name = "HopLink";
     struct input {
-        double dHopTau;
         int nSmooth;
-        int bPeriodic;
-        int bSymmetric;
-        int iSmoothType;
-        SMF smf;
+        bool bPeriodic;
     };
     using output = uint64_t;
     explicit ServiceHopLink(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
@@ -40,7 +36,11 @@ class ServiceHopLink : public TraverseCount<ServiceHopLink> {
 class ServiceHopJoin : public TraverseCount<ServiceHopJoin> {
   public:
     static constexpr std::string_view name = "HopJoin";
-    using input = ServiceHopLink::input;
+    struct input {
+        double dHopTau;
+        int nSmooth;
+        bool bPeriodic;
+    };
     struct output {
         uint64_t nGroups;
         bool bDone;

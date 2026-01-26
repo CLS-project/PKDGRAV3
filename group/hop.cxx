@@ -25,19 +25,20 @@
 #include <algorithm>
 
 class HelperJoinLoops : public mdl::arrayCACHEhelper {
-    int& bDone;
-    virtual void combine(void* dst, const void* src, const void* key) override final {
+    bool bDone = true;
+    void combine(void* dst, const void* src, const void* key) final {
         auto g1 = static_cast<GHtmpGroupTable*>(dst);
         const auto g2 = static_cast<const GHtmpGroupTable*>(src);
         if (g1->iPid > g2->iPid || (g1->iPid == g2->iPid && g1->iIndex > g2->iIndex)) {
             g1->iPid = g2->iPid;
             g1->iIndex = g2->iIndex;
-            bDone = 0;
+            bDone = false;
         }
     }
 
   public:
-    explicit HelperJoinLoops(PKD pkd, int& bDone) : arrayCACHEhelper(pkd->tmpHopGroups, pkd->nGroups, true), bDone(bDone) {}
+    [[nodiscard]] auto done() const -> bool { return bDone; }
+    explicit HelperJoinLoops(PKD pkd) : arrayCACHEhelper(pkd->tmpHopGroups, pkd->nGroups, true) {}
 };
 
 class HelperSetArc : public particleCACHEhelper {
@@ -112,7 +113,7 @@ static int traverseLink(PKD pkd, struct smGroupArray* ga, int pi, int* iPid2, in
 ** Chains still need to be joined if their terminating loops are close together.
 ** Prerequisites: Density and fBall from smooth
 */
-static int smHopLink(SMX smx, SMF* smf) {
+static int smHopLink(SMX smx, std::shared_ptr<SmoothHelperGradientM3> helper) {
     PKD pkd = smx->pkd;
     auto mdl = pkd->mdl;
     int pi, j, gid, nLoop, nSpur;
@@ -159,9 +160,10 @@ static int smHopLink(SMX smx, SMF* smf) {
             p.set_group(nGroups);
             /* Need: fDensity and fBall but pl[iParticle] is not yet used */
             /* fDensity MUST persist but fBall could be stashed into pl[] */
-            smReSmoothSingle(smx, smf, p, p.ball());
+            smReSmoothSingle(smx, nullptr, p, p.ball());
             /* Done: fBall */
-            ga[nGroups].id = smf->hopParticleLink;
+            auto link = helper->link();
+            ga[nGroups].id = link;
             /*
             ** Call mdlCacheCheck to make sure we are making progress!
             */
@@ -170,13 +172,13 @@ static int smHopLink(SMX smx, SMF* smf) {
             ** If we link to a remote node, then this group chain is done for now.
             ** Later we will merge remote groups.
             **/
-            if (smf->hopParticleLink.iPid != pkd->Self()) {
+            if (link.iPid != pkd->Self()) {
                 ++nGroups;
                 ++nRemote;
                 break;
             }
             else {
-                iParticle = pl[iParticle] = smf->hopParticleLink.iIndex;
+                iParticle = pl[iParticle] = link.iIndex;
                 p = pkd->particles[iParticle];
                 gid = p.group();
                 /* We link to ourselves: this forms a new "loop" */
@@ -378,11 +380,9 @@ auto ServiceHopLink::Service(PST pst, std::span<std::byte> vin, std::span<std::b
     auto pkd = pst->lcl()->pkd;
     auto in = reinterpret_cast</*const*/ input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-
-    SMX smx;
-    smInitialize(&smx, pkd, &in->smf, in->nSmooth, in->bPeriodic, in->bSymmetric, in->iSmoothType);
-    *out = smHopLink(smx, &in->smf);
-    smFinish(smx, &in->smf);
+    auto helper = std::make_shared<SmoothHelperGradientM3>(pkd);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
+    *out = smHopLink(&smx, helper);
     return sizeof(output);
 }
 
@@ -392,15 +392,15 @@ auto ServiceHopLink::Service(PST pst, std::span<std::byte> vin, std::span<std::b
 ** OPTIMIZATION: we should mark individual groups as done/not done so we can skip
 **               subsequent iterations for those groups.
 */
-static int smHopJoin(SMX smx, SMF* smf, double dHopTau, int* nLocal) {
+static int smHopJoin(SMX smx, double dHopTau, int* nLocal) {
     PKD pkd = smx->pkd;
     auto mdl = pkd->mdl;
     auto pRoot = pkd->tree[ROOT];
     struct smGroupArray* ga = pkd->ga;
     int pi;
 
-    smf->bDone = 1;
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperJoinLoops>(pkd, smf->bDone));
+    auto join_helper = std::make_shared<HelperJoinLoops>(pkd);
+    mdl->CacheInitialize(CID_GROUP, join_helper);
     /*
     ** Check all particles that are part of a loop or an arc (they are marked).
     ** We have contructed a tree with only marked particles, so just check those.
@@ -409,7 +409,7 @@ static int smHopJoin(SMX smx, SMF* smf, double dHopTau, int* nLocal) {
         assert(p.marked());
         float fBall = (dHopTau < 0.0) ? -dHopTau * p.soft() : dHopTau;
         fBall = std::max(fBall, p.ball() * 0.5f);
-        smReSmoothSingle(smx, smf, p, fBall);
+        smReSmoothSingle(smx, nullptr, p, fBall);
     }
     mdl->FinishCache(CID_GROUP);
 
@@ -451,18 +451,17 @@ static int smHopJoin(SMX smx, SMF* smf, double dHopTau, int* nLocal) {
         pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
     }
     pkd->nLocalGroups = *nLocal;
-    return smf->bDone;
+    return join_helper->done();
 }
 
 auto ServiceHopJoin::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto pkd = pst->lcl()->pkd;
     auto in = reinterpret_cast</*const*/ input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    SMX smx;
-    smInitialize(&smx, pkd, &in->smf, in->nSmooth, in->bPeriodic, in->bSymmetric, in->iSmoothType);
+    auto helper = std::make_shared<SmoothHelperHopChains>(pkd);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
     int nLocal;
-    out->bDone = smHopJoin(smx, &in->smf, in->dHopTau, &nLocal);
-    smFinish(smx, &in->smf);
+    out->bDone = smHopJoin(&smx, in->dHopTau, &nLocal) && helper->done();
     out->nGroups = nLocal;
     return sizeof(output);
 }

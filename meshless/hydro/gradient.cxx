@@ -56,9 +56,7 @@ void SmoothHelperHydroGradients::unpack(void* dst, const void* src, const void* 
     }
 }
 
-void hydroGradients(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-
-    PKD pkd = smf->pkd;
+void SmoothHelperHydroGradients::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     double rho_max, rho_min;
     double vx_max, vx_min, vy_max, vy_min, vz_max, vz_min;
     double p_max, p_min;
@@ -72,14 +70,13 @@ void hydroGradients(particleStore::ParticleReference& p, float fBall, int nSmoot
     /* Compute the E matrix (Hopkins 2015, eq 14) */
     TinyVector<double, 6> E{0.0}; //  We are assumming 3D here!
 
-    for (auto i = 0; i < nSmooth; ++i) {
+    for (auto& nn : nnList) {
 
-        const double rpq = sqrt(nnList[i].fDist2);
+        const double rpq = sqrt(nn.fDist2);
         const auto& Hpq = pH;
 
         const double Wpq = cubicSplineKernel(rpq, Hpq);
-        const auto& dr = nnList[i].dr;
-
+        const auto& dr = nn.dr;
         E[XX] += dr[0] * dr[0] * Wpq;
         E[YY] += dr[1] * dr[1] * Wpq;
         E[ZZ] += dr[2] * dr[2] * Wpq;
@@ -138,16 +135,16 @@ void hydroGradients(particleStore::ParticleReference& p, float fBall, int nSmoot
     p_min = p_max = psph.P;
     max_face_dist = 0.;
 
-    for (auto i = 0; i < nSmooth; ++i) {
-        if (&p == nnList[i].pPart) continue;
-        auto q = pkd->particles[nnList[i].pPart];
+    for (auto& nn : nnList) {
+        if (&p == nn.pPart) continue;
+        auto q = pkd->particles[nn.pPart];
         const auto& qv = q.velocity();
         auto& qsph = q.sph();
 
         /* Vector from p to q; i.e., rq - rp */
-        const TinyVector<double, 3> dr{-nnList[i].dr};
+        const TinyVector<double, 3> dr{-nn.dr};
 
-        const double rpq = sqrt(nnList[i].fDist2);
+        const double rpq = sqrt(nn.fDist2);
         const auto& Hpq = pH;
         const double Wpq = cubicSplineKernel(rpq, Hpq);
         const double psi = Wpq / psph.omega;
@@ -183,11 +180,11 @@ void hydroGradients(particleStore::ParticleReference& p, float fBall, int nSmoot
 
     /* Now we can limit the gradients */
     double beta = 1.;
-    if (smf->bConditionedBarthJespersen) {
+    if (bConditionedBarthJespersen) {
         beta = std::max(1., 2. * std::min(1., 10. / psph.Ncond));
     }
 
-    if (smf->bStricterSlopeLimiter) {
+    if (bStricterSlopeLimiter) {
         max_face_dist *= 0.5;
         double var_max_extrap, c_fac;
 
@@ -220,9 +217,9 @@ void hydroGradients(particleStore::ParticleReference& p, float fBall, int nSmoot
         rho_max_extrap = vx_max_extrap = vy_max_extrap = vz_max_extrap = p_max_extrap = -FLT_MAX;
         rho_min_extrap = vx_min_extrap = vy_min_extrap = vz_min_extrap = p_min_extrap = FLT_MAX;
 
-        for (auto i = 0; i < nSmooth; ++i) {
+        for (auto& nn : nnList) {
             /* Vector from p to the pq face */
-            const TinyVector<double, 3> dr{-0.5 * nnList[i].dr};
+            const TinyVector<double, 3> dr{-0.5 * nn.dr};
 
             const auto rho_q_extrap = dot(dr, psph.gradRho);
             rho_min_extrap = std::min(rho_min_extrap, rho_q_extrap);

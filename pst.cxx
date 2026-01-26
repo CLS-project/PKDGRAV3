@@ -805,7 +805,7 @@ int pstReorderWithinNodes(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pst->mdl()->GetReply(rID);
     }
     else {
-        pkdReorderWithinNodes(plcl->pkd);
+        plcl->pkd->ReorderWithinNodes();
     }
     return 0;
 }

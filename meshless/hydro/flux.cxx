@@ -1,3 +1,4 @@
+#include <new>
 #include "hydro/hydro.h"
 #include "master.h"
 #include "eEOS/eEOS.h"
@@ -5,6 +6,8 @@
 #include "riemann.h"
 using blitz::dot;
 using blitz::TinyVector;
+
+using namespace meshless::FLUX; // IFLD and OFLD
 
 void MSR::MeshlessFluxes(double dTime, double dDelta) {
     double dsec;
@@ -161,70 +164,6 @@ void SmoothHelperHydroFluxes::combine(void* dst, const void* src, const void* ke
     }
 }
 
-/* When doing SIMD, a structure of arrays is used,
- * rather than an array of structures.
- *
- * To simplify the indexing of the elements, these enum should be
- * always used
- */
-enum q_data {
-    q_ball,
-    q_dx,
-    q_dy,
-    q_dz,
-    q_dr,
-    q_rung,
-    q_rho,
-    q_P,
-#ifdef ENTROPY_SWITCH
-    q_S,
-#endif
-    q_vx,
-    q_vy,
-    q_vz,
-    q_gradRhoX,
-    q_gradRhoY,
-    q_gradRhoZ,
-    q_gradPX,
-    q_gradPY,
-    q_gradPZ,
-    q_gradVxX,
-    q_gradVxY,
-    q_gradVxZ,
-    q_gradVyX,
-    q_gradVyY,
-    q_gradVyZ,
-    q_gradVzX,
-    q_gradVzY,
-    q_gradVzZ,
-    q_lastAccX,
-    q_lastAccY,
-    q_lastAccZ,
-    q_lastUpdateTime,
-    q_B_XX,
-    q_B_YY,
-    q_B_ZZ,
-    q_B_XY,
-    q_B_XZ,
-    q_B_YZ,
-    q_omega,
-    q_spheom,
-    q_last
-};
-
-enum FLUX_OUT {
-    out_minDt,
-    out_Frho,
-    out_FmomX,
-    out_FmomY,
-    out_FmomZ,
-    out_Fene,
-#ifdef ENTROPY_SWITCH
-    out_FS,
-#endif
-    out_last
-};
-
 template <typename dtype = dvec, typename mtype = dmask>
 class MeshlessHydroSolver {
     bool bMFV;
@@ -339,7 +278,7 @@ class MeshlessHydroSolver {
                                dtype qBzz, dtype qDensity, dtype qVpredx, dtype qVpredy, dtype qVpredz, dtype qP, dtype qS, dtype qGradRhoX, dtype qGradRhoY,
                                dtype qGradRhoZ, dtype qGradPX, dtype qGradPY, dtype qGradPZ, dtype qGradVxX, dtype qGradVxY, dtype qGradVxZ, dtype qGradVyX,
                                dtype qGradVyY, dtype qGradVyZ, dtype qGradVzX, dtype qGradVzY, dtype qGradVzZ, dtype qLastAccX, dtype qLastAccY,
-                               dtype qLastAccZ, struct eEOSparam& eEOS) {
+                               dtype qLastAccZ, const eEOSparam& eEOS) {
 
 #ifdef FORCE_1D
         if (dz != 0) continue;
@@ -460,7 +399,7 @@ class MeshlessHydroSolver {
         const double pLjeans =
             jeansPressureFloor(L_rho, pH, smf->dConstGamma, smf->dEOSNJeans);
         const double pRjeans =
-            jeansPressureFloor(R_rho, q(ball), smf->dConstGamma, smf->dEOSNJeans);
+            jeansPressureFloor(R_rho, bi(IFLD::ball,i), smf->dConstGamma, smf->dEOSNJeans);
         L_p = max(L_p, pLjeans);
         R_p = max(R_p, pRjeans);
         #endif
@@ -601,29 +540,20 @@ class MeshlessHydroSolver {
 #ifdef OPTIM_FLUX_VEC
 
   public:
-    // Simple macro to improve readability
-    #define q(X) input_buffer[q_##X * nBuff + i]
-    #define qout(X) output_buffer[out_##X * nBuff + i]
-    void hydroRiemann(PARTICLE* pIn, float fBall, int nSmooth, int nBuff, meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
-                      SMF* smf) {
-        PKD pkd = smf->pkd;
+    void hydroRiemann(PKD pkd, PARTICLE* pIn, float fBall, int nSmooth, EnumArray<meshless::myreal, IFLD>& bi, EnumArray<meshless::myreal, OFLD>& bo,
+                      double dTime, double dDelta, double a, double H, double dConstGamma, const eEOSparam& eEOS) {
         auto P = pkd->particles[pIn];
 
         const auto& pv = P.velocity();
         auto& psph = P.sph();
 
         bool bComove = pkd->csm->val.bComove;
-        dtype dTime = smf->dTime;
-        dtype dDelta = smf->dDelta;
-        dtype a = smf->a;
-        dtype H = smf->H;
-        dtype dConstGamma = smf->dConstGamma;
 
         dtype pomega = psph.omega;
         dtype pspheom = psph.spheom;
         dtype pH = P.ball();
         dtype plast = psph.lastUpdateTime;
-        dtype pDt = smf->dDelta / (1 << P.rung());
+        dtype pDt = dDelta / (1 << P.rung());
         dtype pBXX = psph.B[XX];
         dtype pBXY = psph.B[XY];
         dtype pBXZ = psph.B[XZ];
@@ -703,8 +633,7 @@ class MeshlessHydroSolver {
         dtype index_v;
         index_v.load(index);
 
-    #pragma forceinline
-        assert(nBuff > (nSmooth + dtype::width() - 1));
+        assert(bi.extent(1) >= ((nSmooth + dtype::mask()) & ~dtype::mask()));
         for (auto i = 0; i < nSmooth; i += dtype::width()) {
             dtype F_rho;
             std::array<dtype, 3> F_v;
@@ -715,50 +644,50 @@ class MeshlessHydroSolver {
             const mtype mask = index_v < (double)nSmooth;
             index_v += (double)dtype::width();
 
-            qdr.load(&q(dr));
-            qdx.load(&q(dx));
-            qdy.load(&q(dy));
-            qdz.load(&q(dz));
-            qomega.load(&q(omega));
-            qspheom.load(&q(spheom));
+            qdr.load(&bi(IFLD::dr, i));
+            qdx.load(&bi(IFLD::dx, i));
+            qdy.load(&bi(IFLD::dy, i));
+            qdz.load(&bi(IFLD::dz, i));
+            qomega.load(&bi(IFLD::omega, i));
+            qspheom.load(&bi(IFLD::spheom, i));
             // Change name to h, not ball
-            qh.load(&q(ball));
-            qlast.load(&q(lastUpdateTime));
-            qDt.load(&q(rung));
-            qBXX.load(&q(B_XX));
-            qBXY.load(&q(B_XY));
-            qBXZ.load(&q(B_XZ));
-            qBYY.load(&q(B_YY));
-            qBYZ.load(&q(B_YZ));
-            qBZZ.load(&q(B_ZZ));
-            qDens.load(&q(rho));
-            qvx.load(&q(vx));
-            qvy.load(&q(vy));
-            qvz.load(&q(vz));
-            qP.load(&q(P));
+            qh.load(&bi(IFLD::ball, i));
+            qlast.load(&bi(IFLD::lastUpdateTime, i));
+            qDt.load(&bi(IFLD::rung, i));
+            qBXX.load(&bi(IFLD::B_XX, i));
+            qBXY.load(&bi(IFLD::B_XY, i));
+            qBXZ.load(&bi(IFLD::B_XZ, i));
+            qBYY.load(&bi(IFLD::B_YY, i));
+            qBYZ.load(&bi(IFLD::B_YZ, i));
+            qBZZ.load(&bi(IFLD::B_ZZ, i));
+            qDens.load(&bi(IFLD::rho, i));
+            qvx.load(&bi(IFLD::vx, i));
+            qvy.load(&bi(IFLD::vy, i));
+            qvz.load(&bi(IFLD::vz, i));
+            qP.load(&bi(IFLD::P, i));
     #ifdef ENTROPY_SWITCH
-            qS.load(&q(S));
+            qS.load(&bi(IFLD::S, i));
     #endif
-            qgradRhox.load(&q(gradRhoX));
-            qgradRhoy.load(&q(gradRhoY));
-            qgradRhoz.load(&q(gradRhoZ));
-            qgradPx.load(&q(gradPX));
-            qgradPy.load(&q(gradPY));
-            qgradPz.load(&q(gradPZ));
-            qgradVxx.load(&q(gradVxX));
-            qgradVxy.load(&q(gradVxY));
-            qgradVxz.load(&q(gradVxZ));
-            qgradVyx.load(&q(gradVyX));
-            qgradVyy.load(&q(gradVyY));
-            qgradVyz.load(&q(gradVyZ));
-            qgradVzx.load(&q(gradVzX));
-            qgradVzy.load(&q(gradVzY));
-            qgradVzz.load(&q(gradVzZ));
-            qlastAccx.load(&q(lastAccX));
-            qlastAccy.load(&q(lastAccY));
-            qlastAccz.load(&q(lastAccZ));
+            qgradRhox.load(&bi(IFLD::gradRhoX, i));
+            qgradRhoy.load(&bi(IFLD::gradRhoY, i));
+            qgradRhoz.load(&bi(IFLD::gradRhoZ, i));
+            qgradPx.load(&bi(IFLD::gradPX, i));
+            qgradPy.load(&bi(IFLD::gradPY, i));
+            qgradPz.load(&bi(IFLD::gradPZ, i));
+            qgradVxx.load(&bi(IFLD::gradVxX, i));
+            qgradVxy.load(&bi(IFLD::gradVxY, i));
+            qgradVxz.load(&bi(IFLD::gradVxZ, i));
+            qgradVyx.load(&bi(IFLD::gradVyX, i));
+            qgradVyy.load(&bi(IFLD::gradVyY, i));
+            qgradVyz.load(&bi(IFLD::gradVyZ, i));
+            qgradVzx.load(&bi(IFLD::gradVzX, i));
+            qgradVzy.load(&bi(IFLD::gradVzY, i));
+            qgradVzz.load(&bi(IFLD::gradVzZ, i));
+            qlastAccx.load(&bi(IFLD::lastAccX, i));
+            qlastAccy.load(&bi(IFLD::lastAccY, i));
+            qlastAccz.load(&bi(IFLD::lastAccZ, i));
 
-            if (smf->dDelta <= 0.0) {
+            if (dDelta <= 0.0) {
                 pDt = 0.;
                 qDt = 0.;
                 plast = 0.;
@@ -771,124 +700,127 @@ class MeshlessHydroSolver {
                            pgradPz, pgradVxx, pgradVxy, pgradVxz, pgradVyx, pgradVyy, pgradVyz, pgradVzx, pgradVzy, pgradVzz, plastAccx, plastAccy, plastAccz,
                            qh, qlast, qDt, qomega, qspheom, qBXX, qBXY, qBXZ, qBYY, qBYZ, qBZZ, qDens, qvx, qvy, qvz, qP, qS, qgradRhox, qgradRhoy, qgradRhoz,
                            qgradPx, qgradPy, qgradPz, qgradVxx, qgradVxy, qgradVxz, qgradVyx, qgradVyy, qgradVyz, qgradVzx, qgradVzy, qgradVzz, qlastAccx,
-                           qlastAccy, qlastAccz, smf->eEOS);
+                           qlastAccy, qlastAccz, eEOS);
 
             // We fill the output buffer with the fluxes, which then
             // will be added to the corresponding particles
-            F_rho.store(&output_buffer[out_Frho * nBuff + i]);
-            F_P.store(&output_buffer[out_Fene * nBuff + i]);
-            F_v[0].store(&output_buffer[out_FmomX * nBuff + i]);
-            F_v[1].store(&output_buffer[out_FmomY * nBuff + i]);
-            F_v[2].store(&output_buffer[out_FmomZ * nBuff + i]);
+            F_rho.store(&bo(OFLD::Frho, i));
+            F_P.store(&bo(OFLD::Fene, i));
+            F_v[0].store(&bo(OFLD::FmomX, i));
+            F_v[1].store(&bo(OFLD::FmomY, i));
+            F_v[2].store(&bo(OFLD::FmomZ, i));
     #ifdef ENTROPY_SWITCH
-            F_S.store(&output_buffer[out_FS * nBuff + i]);
+            F_S.store(&bo(OFLD::FS, i));
     #endif
             // dump(F_v[0]);
-            minDt.store(&output_buffer[out_minDt * nBuff + i]);
+            minDt.store(&bo(OFLD::minDt, i));
         }
     }
 };
 
-void hydroFluxFillBuffer(meshless::myreal* input_buffer, PARTICLE* qIn, int i, int nBuff, double dr2, blitz::TinyVector<double, 3> dr, SMF* smf) {
-    PKD pkd = smf->pkd;
+template <typename T, typename E>
+void hydroFluxFillBuffer(PKD pkd, EnumArray<T, E>& bi, const NN& nn, int i, double dDelta) {
+    auto qIn = nn.pPart;
+    auto dr2 = nn.fDist2;
+    auto dr = nn.dr;
     auto Q = pkd->particles[qIn];
-    double dDelta = smf->dDelta;
     auto& qsph = Q.sph();
-    q(ball) = Q.ball();
-    q(dx) = dr[0];
-    q(dy) = dr[1];
-    q(dz) = dr[2];
-    q(dr) = sqrt(dr2);
-    q(rung) = dDelta / (1 << Q.rung());
-    q(rho) = Q.density();
-    q(P) = qsph.P;
+    bi(IFLD::ball, i) = Q.ball();
+    bi(IFLD::dx, i) = dr[0];
+    bi(IFLD::dy, i) = dr[1];
+    bi(IFLD::dz, i) = dr[2];
+    bi(IFLD::dr, i) = sqrt(dr2);
+    bi(IFLD::rung, i) = dDelta / (1 << Q.rung());
+    bi(IFLD::rho, i) = Q.density();
+    bi(IFLD::P, i) = qsph.P;
     #ifdef ENTROPY_SWITCH
-    q(S) = qsph.S;
+    bi(IFLD::S, i) = qsph.S;
     #endif
     const auto& qv = Q.velocity();
-    q(vx) = qv[0];
-    q(vy) = qv[1];
-    q(vz) = qv[2];
+    bi(IFLD::vx, i) = qv[0];
+    bi(IFLD::vy, i) = qv[1];
+    bi(IFLD::vz, i) = qv[2];
 
-    q(gradRhoX) = qsph.gradRho[0];
-    q(gradRhoY) = qsph.gradRho[1];
-    q(gradRhoZ) = qsph.gradRho[2];
+    bi(IFLD::gradRhoX, i) = qsph.gradRho[0];
+    bi(IFLD::gradRhoY, i) = qsph.gradRho[1];
+    bi(IFLD::gradRhoZ, i) = qsph.gradRho[2];
 
-    q(gradPX) = qsph.gradP[0];
-    q(gradPY) = qsph.gradP[1];
-    q(gradPZ) = qsph.gradP[2];
+    bi(IFLD::gradPX, i) = qsph.gradP[0];
+    bi(IFLD::gradPY, i) = qsph.gradP[1];
+    bi(IFLD::gradPZ, i) = qsph.gradP[2];
 
-    q(gradVxX) = qsph.gradVx[0];
-    q(gradVxY) = qsph.gradVx[1];
-    q(gradVxZ) = qsph.gradVx[2];
+    bi(IFLD::gradVxX, i) = qsph.gradVx[0];
+    bi(IFLD::gradVxY, i) = qsph.gradVx[1];
+    bi(IFLD::gradVxZ, i) = qsph.gradVx[2];
 
-    q(gradVyX) = qsph.gradVy[0];
-    q(gradVyY) = qsph.gradVy[1];
-    q(gradVyZ) = qsph.gradVy[2];
+    bi(IFLD::gradVyX, i) = qsph.gradVy[0];
+    bi(IFLD::gradVyY, i) = qsph.gradVy[1];
+    bi(IFLD::gradVyZ, i) = qsph.gradVy[2];
 
-    q(gradVzX) = qsph.gradVz[0];
-    q(gradVzY) = qsph.gradVz[1];
-    q(gradVzZ) = qsph.gradVz[2];
+    bi(IFLD::gradVzX, i) = qsph.gradVz[0];
+    bi(IFLD::gradVzY, i) = qsph.gradVz[1];
+    bi(IFLD::gradVzZ, i) = qsph.gradVz[2];
 
-    q(lastUpdateTime) = qsph.lastUpdateTime;
-    q(lastAccX) = qsph.lastAcc[0];
-    q(lastAccY) = qsph.lastAcc[1];
-    q(lastAccZ) = qsph.lastAcc[2];
-    q(B_XX) = qsph.B[XX];
-    q(B_YY) = qsph.B[YY];
-    q(B_ZZ) = qsph.B[ZZ];
-    q(B_XY) = qsph.B[XY];
-    q(B_XZ) = qsph.B[XZ];
-    q(B_YZ) = qsph.B[YZ];
-    q(omega) = qsph.omega;
-    q(spheom) = qsph.spheom;
+    bi(IFLD::lastUpdateTime, i) = qsph.lastUpdateTime;
+    bi(IFLD::lastAccX, i) = qsph.lastAcc[0];
+    bi(IFLD::lastAccY, i) = qsph.lastAcc[1];
+    bi(IFLD::lastAccZ, i) = qsph.lastAcc[2];
+    bi(IFLD::B_XX, i) = qsph.B[XX];
+    bi(IFLD::B_YY, i) = qsph.B[YY];
+    bi(IFLD::B_ZZ, i) = qsph.B[ZZ];
+    bi(IFLD::B_XY, i) = qsph.B[XY];
+    bi(IFLD::B_XZ, i) = qsph.B[XZ];
+    bi(IFLD::B_YZ, i) = qsph.B[YZ];
+    bi(IFLD::omega, i) = qsph.omega;
+    bi(IFLD::spheom, i) = qsph.spheom;
 }
 
-void hydroFluxUpdateFromBuffer(meshless::myreal* output_buffer, meshless::myreal* input_buffer, PARTICLE* pIn, PARTICLE* qIn, int i, int nBuff, SMF* smf) {
-    PKD pkd = smf->pkd;
+template <typename T, typename E>
+// void hydroFluxFillBuffer(PKD pkd, EnumArray<T, E>& bi, const NN& nn, int i, double dDelta) {
+void hydroFluxUpdateFromBuffer(PKD pkd, PARTICLE* pIn, EnumArray<T, E>& bo, const NN& nn, int i, double dDelta, double aFac) {
+    auto qIn = nn.pPart;
+    auto dr = nn.dr;
     auto P = pkd->particles[pIn];
     auto Q = pkd->particles[qIn];
     const auto& pv = P.velocity();
     const auto& qv = Q.velocity();
     auto& psph = P.sph();
     auto& qsph = Q.sph();
-    const auto& dDelta = smf->dDelta;
-    const auto& aFac = smf->a;
     if (dDelta > 0) {
         if (P.have_mfv()) {
-            P.set_mass(P.mass() - qout(minDt) * qout(Frho));
+            P.set_mass(P.mass() - bo(OFLD::minDt, i) * bo(OFLD::Frho, i));
         }
 
-        psph.mom[0] -= qout(minDt) * qout(FmomX);
-        psph.mom[1] -= qout(minDt) * qout(FmomY);
-        psph.mom[2] -= qout(minDt) * qout(FmomZ);
+        psph.mom[0] -= bo(OFLD::minDt, i) * bo(OFLD::FmomX, i);
+        psph.mom[1] -= bo(OFLD::minDt, i) * bo(OFLD::FmomY, i);
+        psph.mom[2] -= bo(OFLD::minDt, i) * bo(OFLD::FmomZ, i);
 
-        psph.E -= qout(minDt) * qout(Fene);
+        psph.E -= bo(OFLD::minDt, i) * bo(OFLD::Fene, i);
 
-        psph.Uint -= qout(minDt) * (qout(Fene) - qout(FmomX) * pv[0] - qout(FmomY) * pv[1] - qout(FmomZ) * pv[2] + 0.5 * dot(pv, pv) * qout(Frho));
-
+        psph.Uint -= bo(OFLD::minDt, i) * (bo(OFLD::Fene, i) - bo(OFLD::FmomX, i) * pv[0] - bo(OFLD::FmomY, i) * pv[1] - bo(OFLD::FmomZ, i) * pv[2] +
+                                           0.5 * dot(pv, pv) * bo(OFLD::Frho, i));
     #ifdef ENTROPY_SWITCH
-        psph.S -= qout(minDt) * qout(FS);
+        psph.S -= bo(OFLD::minDt, i) * bo(OFLD::FS, i);
     #endif
 
         if (P.have_mfv()) {
             auto& mfv = P.mfv();
-            mfv.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
-            mfv.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
-            mfv.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
+            mfv.drDotFrho[0] += bo(OFLD::minDt, i) * bo(OFLD::Frho, i) * dr[0] * aFac;
+            mfv.drDotFrho[1] += bo(OFLD::minDt, i) * bo(OFLD::Frho, i) * dr[1] * aFac;
+            mfv.drDotFrho[2] += bo(OFLD::minDt, i) * bo(OFLD::Frho, i) * dr[2] * aFac;
         }
-        psph.Frho += qout(Frho);
-        psph.Fene += qout(Fene);
-        psph.Fmom[0] += qout(FmomX);
-        psph.Fmom[1] += qout(FmomY);
-        psph.Fmom[2] += qout(FmomZ);
+        psph.Frho += bo(OFLD::Frho, i);
+        psph.Fene += bo(OFLD::Fene, i);
+        psph.Fmom[0] += bo(OFLD::FmomX, i);
+        psph.Fmom[1] += bo(OFLD::FmomY, i);
+        psph.Fmom[2] += bo(OFLD::FmomZ, i);
     }
     else {
-        psph.Frho += qout(Frho);
-        psph.Fene += qout(Fene);
-        psph.Fmom[0] += qout(FmomX);
-        psph.Fmom[1] += qout(FmomY);
-        psph.Fmom[2] += qout(FmomZ);
+        psph.Frho += bo(OFLD::Frho, i);
+        psph.Fene += bo(OFLD::Fene, i);
+        psph.Fmom[0] += bo(OFLD::FmomX, i);
+        psph.Fmom[1] += bo(OFLD::FmomY, i);
+        psph.Fmom[2] += bo(OFLD::FmomZ, i);
     }
 
     #ifndef OPTIM_NO_REDUNDANT_FLUXES
@@ -901,52 +833,89 @@ void hydroFluxUpdateFromBuffer(meshless::myreal* output_buffer, meshless::myreal
     {
 
         // If this is not the case, something VERY odd must have happened
-        assert(qsph.P == q(P));
+        // assert(qsph.P == bi(IFLD::P, i));
         if (dDelta > 0) {
             if (Q.have_mfv()) {
-                Q.set_mass(Q.mass() + qout(minDt) * qout(Frho));
+                Q.set_mass(Q.mass() + bo(OFLD::minDt, i) * bo(OFLD::Frho, i));
             }
 
-            qsph.mom[0] += qout(minDt) * qout(FmomX);
-            qsph.mom[1] += qout(minDt) * qout(FmomY);
-            qsph.mom[2] += qout(minDt) * qout(FmomZ);
+            qsph.mom[0] += bo(OFLD::minDt, i) * bo(OFLD::FmomX, i);
+            qsph.mom[1] += bo(OFLD::minDt, i) * bo(OFLD::FmomY, i);
+            qsph.mom[2] += bo(OFLD::minDt, i) * bo(OFLD::FmomZ, i);
 
-            qsph.E += qout(minDt) * qout(Fene);
+            qsph.E += bo(OFLD::minDt, i) * bo(OFLD::Fene, i);
 
-            qsph.Uint += qout(minDt) * (qout(Fene) - qout(FmomX) * qv[0] - qout(FmomY) * qv[1] - qout(FmomZ) * qv[2] + 0.5 * dot(qv, qv) * qout(Frho));
+            qsph.Uint += bo(OFLD::minDt, i) * (bo(OFLD::Fene, i) - bo(OFLD::FmomX, i) * qv[0] - bo(OFLD::FmomY, i) * qv[1] - bo(OFLD::FmomZ, i) * qv[2] +
+                                               0.5 * dot(qv, qv) * bo(OFLD::Frho, i));
     #ifdef ENTROPY_SWITCH
-            qsph.S += qout(minDt) * qout(FS);
+            qsph.S += bo(OFLD::minDt, i) * bo(OFLD::FS, i);
     #endif
 
             if (Q.have_mfv()) {
                 auto& mfv = P.mfv();
-                mfv.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
-                mfv.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
-                mfv.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
+                mfv.drDotFrho[0] += bo(OFLD::minDt, i) * bo(OFLD::Frho, i) * dr[0] * aFac;
+                mfv.drDotFrho[1] += bo(OFLD::minDt, i) * bo(OFLD::Frho, i) * dr[1] * aFac;
+                mfv.drDotFrho[2] += bo(OFLD::minDt, i) * bo(OFLD::Frho, i) * dr[2] * aFac;
             }
-            qsph.Frho -= qout(Frho);
-            qsph.Fene -= qout(Fene);
-            qsph.Fmom[0] -= qout(FmomX);
-            qsph.Fmom[1] -= qout(FmomY);
-            qsph.Fmom[2] -= qout(FmomZ);
+            qsph.Frho -= bo(OFLD::Frho, i);
+            qsph.Fene -= bo(OFLD::Fene, i);
+            qsph.Fmom[0] -= bo(OFLD::FmomX, i);
+            qsph.Fmom[1] -= bo(OFLD::FmomY, i);
+            qsph.Fmom[2] -= bo(OFLD::FmomZ, i);
         }
         else {
-            qsph.Frho -= qout(Frho);
-            qsph.Fene -= qout(Fene);
-            qsph.Fmom[0] -= qout(FmomX);
-            qsph.Fmom[1] -= qout(FmomY);
-            qsph.Fmom[2] -= qout(FmomZ);
+            qsph.Frho -= bo(OFLD::Frho, i);
+            qsph.Fene -= bo(OFLD::Fene, i);
+            qsph.Fmom[0] -= bo(OFLD::FmomX, i);
+            qsph.Fmom[1] -= bo(OFLD::FmomY, i);
+            qsph.Fmom[2] -= bo(OFLD::FmomZ, i);
         }
 
     } // q marked/active
 }
 
 void hydroFluxGetBufferInfo(int* in, int* out) {
-    *in = q_last;
-    *out = out_last;
+    *in = static_cast<int>(IFLD::last);
+    *out = static_cast<int>(OFLD::last);
 }
 
 #endif // OPTIM_FLUX_VEC
+
+void SmoothHelperHydroFluxes::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+#if defined(USE_SIMD_FLUX)
+    using DVEC = dvec;
+    using MASK = dmask;
+#else
+        using DVEC = vec<double, double>;
+        using MASK = mmask<bool>;
+#endif
+
+    // Allocate or extend the buffers if required
+    auto nBuff = (nnList.size() + DVEC::mask()) & ~DVEC::mask();
+    if (ia.extent(1) < nBuff) {
+        auto nByte = std::max(static_cast<size_t>(256), 2 * nBuff) * static_cast<size_t>(IFLD::last);
+        EnumArray na(new (std::align_val_t(sizeof(DVEC))) meshless::myreal[nByte], IFLD::last, nBuff);
+        ia.reference(na);
+    }
+    if (oa.extent(1) < nBuff) {
+        auto nByte = std::max(static_cast<size_t>(256), 2 * nBuff) * static_cast<size_t>(OFLD::last);
+        EnumArray na(new (std::align_val_t(sizeof(DVEC))) meshless::myreal[nByte], OFLD::last, nBuff);
+        oa.reference(na);
+    }
+
+    // Vectorize the quantities from the neighbors into the input buffer
+    for (auto i = 0; i < nnList.size(); i++) {
+        hydroFluxFillBuffer(pkd, ia, nnList[i], i, dDelta);
+    }
+
+    MeshlessHydroSolver<DVEC, MASK> solver(p.have_mfv());
+    solver.hydroRiemann(pkd, &p, fBall, nnList.size(), ia, oa, dTime, dDelta, a_, H_, dConstGamma, eEOS);
+
+    // Gather the results from the Riemann solver
+    for (auto i = 0; i < nnList.size(); i++) {
+        hydroFluxUpdateFromBuffer(pkd, &p, oa, nnList[i], i, dDelta, a_);
+    }
+}
 
 void hydroRiemann_wrapper(PARTICLE* p, float fBall, int nSmooth, int nBuff, meshless::myreal* restrict input_buffer, meshless::myreal* restrict output_buffer,
                           SMF* smf) {
@@ -958,5 +927,5 @@ void hydroRiemann_wrapper(PARTICLE* p, float fBall, int nSmooth, int nBuff, mesh
 #else
         MeshlessHydroSolver<vec<double, double>, mmask<bool>> solver(P.have_mfv());
 #endif
-    solver.hydroRiemann(p, fBall, nSmooth, nBuff, input_buffer, output_buffer, smf);
+    // solver.hydroRiemann(p, fBall, nSmooth, nBuff, input_buffer, output_buffer, smf);
 }

@@ -112,7 +112,7 @@ static inline double densNodeNcondB(PKD pkd, particleStore::ParticleReference& p
     return Ncond;
 }
 
-void SmoothHelperHydroDensity::pack(void* dst, const void* src) {
+void SmoothHelperHydroDensityBase::pack(void* dst, const void* src) {
     auto p1 = static_cast<pack_type*>(dst);
     auto p2 = pkd->particles[static_cast<const PARTICLE*>(src)];
 
@@ -124,7 +124,7 @@ void SmoothHelperHydroDensity::pack(void* dst, const void* src) {
     }
 }
 
-void SmoothHelperHydroDensity::unpack(void* dst, const void* src, const void* key) {
+void SmoothHelperHydroDensityBase::unpack(void* dst, const void* src, const void* key) {
     auto p1 = pkd->particles[static_cast<PARTICLE*>(dst)];
     auto p2 = static_cast<const pack_type*>(src);
 
@@ -138,8 +138,7 @@ void SmoothHelperHydroDensity::unpack(void* dst, const void* src, const void* ke
 
 // Compute the density and derived variables simply given the fBall,
 // without trying to converge to the correct value
-void hydroDensityFinal(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
+void SmoothHelperHydroDensityFinal::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
     double* omega = NULL;
     omega = p.is_gas() ? &(p.sph().omega) : omega;
@@ -157,15 +156,15 @@ void hydroDensityFinal(particleStore::ParticleReference& p, float fBall, int nSm
         TinyVector<double, 6> E{0.0};
         double sphfac{0.0};
 
-        for (auto i = 0; i < nSmooth; ++i) {
-            const double rpq = sqrt(nnList[i].fDist2);
+        for (auto& nn : nnList) {
+            const double rpq = sqrt(nn.fDist2);
             const double Wpq = cubicSplineKernel(rpq, static_cast<double>(pH));
             const double dWpq = cubicSplineKernelDeriv(rpq, static_cast<double>(pH));
 
             sphfac += rpq * dWpq;
             *omega += Wpq;
 
-            const auto& dr = nnList[i].dr;
+            const auto& dr = nn.dr;
 
             E[XX] += dr[0] * dr[0] * Wpq;
             E[YY] += dr[1] * dr[1] * Wpq;
@@ -183,8 +182,8 @@ void hydroDensityFinal(particleStore::ParticleReference& p, float fBall, int nSm
         p.sph().spheom = 3. / sphfac;
     }
     else {
-        for (auto i = 0; i < nSmooth; ++i) {
-            const double rpq = sqrt(nnList[i].fDist2);
+        for (auto& nn : nnList) {
+            const double rpq = sqrt(nn.fDist2);
             *omega += cubicSplineKernel(rpq, static_cast<double>(pH));
         }
     }
@@ -345,8 +344,7 @@ void hydroDensity_node(PKD pkd, SMF* smf, Bound bnd_node, const std::vector<PART
  * The supported density computation is that performed by hydroDensity_node,
  * which is automatically selected when using the OPTIM_SMOOTH_NODE flag
  */
-void hydroDensity(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
+void SmoothHelperHydroDensity::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     double pH, rpq, Hpq, c;
 
     /* Particle p data */
@@ -358,11 +356,11 @@ void hydroDensity(particleStore::ParticleReference& p, float fBall, int nSmooth,
 #ifdef OPTIM_DENSITY_REITER
     float maxr = 0.0;
 #endif // OPTIM_DENSITY_REITER
-    for (auto i = 0; i < nSmooth; ++i) {
+    for (auto& nn : nnList) {
 #ifdef OPTIM_DENSITY_REITER
-        if (nnList[i].fDist2 > maxr) maxr = nnList[i].fDist2;
+        if (nn.fDist2 > maxr) maxr = nn.fDist2;
 #else
-        rpq = sqrt(nnList[i].fDist2);
+        rpq = sqrt(nn.fDist2);
         Hpq = pH;
 
         sph.omega += cubicSplineKernel(rpq, Hpq);
@@ -378,24 +376,24 @@ void hydroDensity(particleStore::ParticleReference& p, float fBall, int nSmooth,
     while (p.marked()) {
         sph.omega = 0.0;
         pH = p.ball();
-        for (auto i = 0; i < nSmooth; ++i) {
-            rpq = sqrt(nnList[i].fDist2);
+        for (auto& nn : nnList) {
+            rpq = sqrt(nn.fDist2);
             Hpq = pH;
 
             sph.omega += cubicSplineKernel(rpq, Hpq);
         }
 #else
-    if (smf->bIterativeSmoothingLength && p.marked()) {
+    if (bIterativeSmoothingLength && p.marked()) {
 #endif // OPTIM_DENSITY_REITER
 
         c = 4. * M_PI / 3. * sph.omega * pH * pH * pH;
-        if (fabs(c - smf->nSmooth) < smf->dNeighborsStd) {
+        if (fabs(c - nnList.size()) < dNeighborsStd) {
             p.set_marked(false);
         }
         else {
             float pNewH;
-            pNewH = pH * pow(smf->nSmooth / c, 0.3333333333);
-            //   if (nSmooth <= 1) pNewH *= 2.*fBall;
+            pNewH = pH * pow(nnList.size() / c, 0.3333333333);
+            //   if (nnList.size() <= 1) pNewH *= 2.*fBall;
 
             p.set_ball(0.5 * (pNewH + pH));
             // sph.fLastBall = pH;

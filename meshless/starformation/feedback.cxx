@@ -19,18 +19,17 @@ void MSR::SetFeedbackParam() {
     calc.dSNFBEffnH0 = parameters.get_dSNFBEffnH0() * dnHToRho;
 }
 
-static inline void snFeedback(PKD pkd, PARTICLE* pIn, int nSmooth, NN* nnList, const float fNgbTotMass, const double dDeltau, const double dStarMass,
+static inline void snFeedback(PKD pkd, PARTICLE* pIn, std::span<NN> nnList, const float fNgbTotMass, const double dDeltau, const double dStarMass,
                               const double dSpecEnergy, const float fEfficiency, const double dConstGamma);
 
 /* Function that will be called with the information of all the neighbors.
  * The helper snFeedback computes the probability of explosion and adds
  * the energy to the gas particles in nnList
  */
-void smSNFeedback(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
 
+void SmoothHelperSNFeedback::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     const auto fNgbTotMass =
-        std::accumulate(nnList, nnList + nSmooth, 0.0f, [pkd](auto a, const auto& b) { return a + pkd->particles[b.pPart].mass(); }) - p.mass();
+        std::accumulate(nnList.begin(), nnList.end(), 0.0f, [this](auto a, const auto& b) { return a + pkd->particles[b.pPart].mass(); }) - p.mass();
 
     auto& star = p.star();
 
@@ -40,13 +39,13 @@ void smSNFeedback(particleStore::ParticleReference& p, float fBall, int nSmooth,
     const double dStarMass = p.mass();
 #endif
 
-    if (!star.bCCSNFBDone && ((smf->dTime - star.fTimer) > smf->dCCSNFBDelay)) {
-        snFeedback(pkd, &p, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass, smf->dCCSNFBSpecEnergy, star.fSNEfficiency, smf->dConstGamma);
+    if (!star.bCCSNFBDone && ((dTime - star.fTimer) > dCCSNFBDelay)) {
+        snFeedback(pkd, &p, nnList, fNgbTotMass, dSNFBDu, dStarMass, dCCSNFBSpecEnergy, star.fSNEfficiency, dConstGamma);
         star.bCCSNFBDone = 1;
     }
 
-    if (!star.bSNIaFBDone && ((smf->dTime - star.fTimer) > smf->dSNIaFBDelay)) {
-        snFeedback(pkd, &p, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass, smf->dSNIaFBSpecEnergy, star.fSNEfficiency, smf->dConstGamma);
+    if (!star.bSNIaFBDone && ((dTime - star.fTimer) > dSNIaFBDelay)) {
+        snFeedback(pkd, &p, nnList, fNgbTotMass, dSNFBDu, dStarMass, dSNIaFBSpecEnergy, star.fSNEfficiency, dConstGamma);
         star.bSNIaFBDone = 1;
     }
 }
@@ -112,17 +111,17 @@ void SmoothHelperSNFeedback::combine(void* dst, const void* src, const void* key
     }
 }
 
-static inline void snFeedback(PKD pkd, PARTICLE* pIn, int nSmooth, NN* nnList, const float fNgbTotMass, const double dDeltau, const double dStarMass,
+static inline void snFeedback(PKD pkd, PARTICLE* pIn, std::span<NN> nnList, const float fNgbTotMass, const double dDeltau, const double dStarMass,
                               const double dSpecEnergy, const float fEfficiency, const double dConstGamma) {
 
     const double dProb = fEfficiency * dSpecEnergy * dStarMass / (dDeltau * fNgbTotMass);
     const double dCorrFac = dProb > 1.0 ? dProb : 1.0;
 
-    for (auto i = 0; i < nSmooth; ++i) {
-        if (nnList[i].pPart == pIn) continue;
+    for (auto& nn : nnList) {
+        if (nn.pPart == pIn) continue;
 
         if (rand() < RAND_MAX * dProb) {
-            auto q = pkd->particles[nnList[i].pPart];
+            auto q = pkd->particles[nn.pPart];
             auto& qsph = q.sph();
             const double dEnergyInput = dCorrFac * dDeltau * q.mass();
 

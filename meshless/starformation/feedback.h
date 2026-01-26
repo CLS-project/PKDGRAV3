@@ -23,19 +23,24 @@ struct snFeedbackFlush {
     float fAccFBEnergy;
 };
 
-void smSNFeedback(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
 class SmoothHelperSNFeedback : public SmoothHelperPacked<snFeedbackPack, snFeedbackFlush> {
-    virtual void pack(void* dst, const void* src) override final;
-    virtual void unpack(void* dst, const void* src, const void* key) override final;
-    virtual void init(void* dst) override final;
-    virtual void flush(void* dst, const void* src) override final;
-    virtual void combine(void* dst, const void* src, const void* key) override final;
-    virtual void init_shared(void* dst) override final { init_shared_gas_decorator(pkd, dst); }
+    double dTime, dCCSNFBDelay, dSNIaFBDelay, dSNFBDu, dCCSNFBSpecEnergy, dSNIaFBSpecEnergy, dConstGamma;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+    void pack(void* dst, const void* src) final;
+    void unpack(void* dst, const void* src, const void* key) final;
+    void init(void* dst) final;
+    void flush(void* dst, const void* src) final;
+    void combine(void* dst, const void* src, const void* key) final;
+    void init_shared(void* dst) final { init_shared_gas_decorator(pkd, dst); }
 
   public:
-    SmoothHelperSNFeedback(pkdContext* pkd) : SmoothHelperPacked<snFeedbackPack, snFeedbackFlush>(pkd, true) {
+    SmoothHelperSNFeedback(pkdContext* pkd, double dTime, double dCCSNFBDelay, double dSNIaFBDelay, double dSNFBDu, double dCCSNFBSpecEnergy,
+                           double dSNIaFBSpecEnergy, double dConstGamma)
+        : SmoothHelperPacked<snFeedbackPack, snFeedbackFlush>(pkd, true), dTime(dTime), dCCSNFBDelay(dCCSNFBDelay), dSNIaFBDelay(dSNIaFBDelay),
+          dSNFBDu(dSNFBDu), dCCSNFBSpecEnergy(dCCSNFBSpecEnergy), dSNIaFBSpecEnergy(dSNIaFBSpecEnergy), dConstGamma(dConstGamma) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
+    auto gasOnly() -> bool override { return true; }
 };
 
 static inline float SNFeedbackEfficiency(float Z, float rho, double dSNFBEfficiency, double dSNFBMaxEff, double dSNFBEffIndex, double dSNFBEffnH0) {

@@ -8,11 +8,12 @@ struct bhStepPack {
     uint8_t iClass;
 };
 
-void smBHstep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
 class SmoothHelperBHstep : public SmoothHelperPacked<bhStepPack> {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
 
   public:
     SmoothHelperBHstep(pkdContext* pkd) : SmoothHelperPacked<bhStepPack>(pkd, false) {}
+    auto gasOnly() -> bool override { return true; }
 };

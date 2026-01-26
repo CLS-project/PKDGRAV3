@@ -1,3 +1,5 @@
+#ifndef STELLAREVOLUTION_H
+#define STELLAREVOLUTION_H
 #ifdef STELLAR_EVOLUTION
 
     #include "pst.h"
@@ -20,9 +22,9 @@
  * ---------------------
  */
 
-typedef struct StellarEvolutionData {
+struct StellarEvolutionData {
     /* Pointer to function that gives the number of SNIa per Msol in [fInitialTime, fFinalTime] */
-    float (*fcnNumSNIa)(SMF* smf, decorators::STAR& star, float fInitialTime, float fFinalTime);
+    float (*fcnNumSNIa)(double dSNIaNorm, double dSNIaScale, decorators::STAR& star, float fInitialTime, float fFinalTime);
 
     /* Initial mass array for CCSN and AGB tables */
     float afInitialMass[STEV_INTERP_N_MASS];
@@ -53,7 +55,8 @@ typedef struct StellarEvolutionData {
     float afLifetimeMetallicity[STEV_LIFETIME_N_METALLICITY];
     float afLifetimeInitialMass[STEV_LIFETIME_N_MASS];
     float afLifetime[STEV_LIFETIME_N_METALLICITY * STEV_LIFETIME_N_MASS];
-} STEV_DATA;
+};
+using STEV_DATA = StellarEvolutionData;
 
 typedef struct StellarEvolutionRawData {
     int nZs;
@@ -100,8 +103,9 @@ int pstStellarEvolutionInit(PST, void*, int, void*, int);
 int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit*);
 void pkdAddStellarEjecta(PKD, particleStore::ParticleReference&, decorators::MFM&, const double);
 
-void smChemEnrich(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
 class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack, stevFlush> {
+    double dTime, dWindSpecificEkin, dCCSNMinMass, dSNIaNorm, dSNIaScale;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
     virtual void init(void* dst) override final;
@@ -110,9 +114,12 @@ class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack, stevFlush> {
     virtual void init_shared(void* dst) override final { init_shared_gas_decorator(pkd, dst); }
 
   public:
-    SmoothHelperChemEnrich(pkdContext* pkd) : SmoothHelperPacked<stevPack, stevFlush>(pkd, true) {
+    SmoothHelperChemEnrich(pkdContext* pkd, double dTime, double dWindSpecificEkin, double dCCSNMinMass, double dSNIaNorm, double dSNIaScale)
+        : SmoothHelperPacked<stevPack, stevFlush>(pkd, true), dTime(dTime), dWindSpecificEkin(dWindSpecificEkin), dCCSNMinMass(dCCSNMinMass),
+          dSNIaNorm(dSNIaNorm), dSNIaScale(dSNIaScale) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
+    auto gasOnly() -> bool override { return true; }
 };
 
 /*
@@ -128,8 +135,8 @@ void stevFreeTable(STEV_RAWDATA*);
 void stevFreeSNIaTable(STEV_RAWDATA*);
 void stevFreeLifetimeTable(STEV_RAWDATA*);
 
-float stevExponentialNumSNIa(SMF*, decorators::STAR&, float, float);
-float stevPowerlawNumSNIa(SMF*, decorators::STAR&, float, float);
+float stevExponentialNumSNIa(double, double, decorators::STAR&, float, float);
+float stevPowerlawNumSNIa(double, double, decorators::STAR&, float, float);
 
 /*
  * -------
@@ -544,3 +551,4 @@ static inline void stevStarParticleInit(PKD pkd, decorators::STAR& star, const d
 }
 
 #endif /* STELLAR_EVOLUTION */
+#endif /* STELLAREVOLUTION_H */

@@ -1,7 +1,9 @@
 #include <algorithm>
+#include <memory>
 #include "blackhole/seed.h"
 #include "smooth/smooth.h"
 #include "master.h"
+#include "smooth/smoothfcn.h"
 
 void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     struct inPlaceBHSeed in;
@@ -38,37 +40,36 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
 
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax, double dDenMin, double dBHMhaloMin, double dTau, double dBHSeedMass) {
     int newBHs = 0;
-    SMX smx;
-    smInitialize(&smx, pkd, NULL, 32, 1, 0, SMX_NULL);
+    smContext smx(pkd, std::make_shared<SmoothHelperNull>(pkd), 32, true);
     // Look for any FoF group that do not contain any BH particle in it
     for (int gid = 1; gid <= pkd->nLocalGroups; ++gid) {
 
-        smx->nnListSize = 0;
+        smx.nnList.clear();
         if (pkd->veryTinyGroupTable[gid].nBH == 0 && pkd->veryTinyGroupTable[gid].fMass > dBHMhaloMin) {
 
             // To adaptively search around rPot but avoiding very long interactions lists
             // the search radius is increased in steps until enough gas particles are found
             float dTauSearch = dTau * 0.02;
-            while (!(smx->nnListSize > 100 || dTauSearch >= dTau)) {
-                smx->nnListSize = 0;
-                smGather(smx, dTauSearch * dTauSearch, pkd->veryTinyGroupTable[gid].rPot);
+            while (!(smx.nnList.size() > 100 || dTauSearch >= dTau)) {
+                smx.nnList.clear();
+                smGather(&smx, dTauSearch * dTauSearch, pkd->veryTinyGroupTable[gid].rPot);
                 dTauSearch *= 2.0;
             }
 
             // Find the first local particle
-            auto ii = std::find_if(smx->nnList, smx->nnList + smx->nnListSize, [pkd](const auto& nn) { return nn.iPid == pkd->Self(); });
+            auto ii = std::find_if(smx.nnList.begin(), smx.nnList.end(), [pkd](const auto& nn) { return nn.iPid == pkd->Self(); });
             // IA: I do not like this *at all*
             //  But maybe we are reading completely remote fof group??? TODO Check
-            if (ii == smx->nnList + smx->nnListSize) continue;
+            if (ii == smx.nnList.end()) continue;
 
             // Now find the one with the minimum potential
-            ii = std::min_element(ii, smx->nnList + smx->nnListSize, [pkd](const auto& a, const auto& b) {
+            ii = std::min_element(ii, smx.nnList.end(), [pkd](const auto& a, const auto& b) {
                 if (a.iPid != pkd->Self()) return false; // keep smallest
                 auto p = pkd->particles[a.pPart];
                 auto q = pkd->particles[b.pPart];
                 return p.potential() < q.potential();
             });
-            assert(ii < smx->nnList + smx->nnListSize);
+            assert(ii != smx.nnList.end());
             assert(ii->iPid == pkd->Self());
             auto pLowPot = pkd->particles[ii->pPart];
 
@@ -115,9 +116,9 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax,
 
             ++newBHs;
 
-            for (int i = 0; i < smx->nnListSize; ++i) {
-                if (smx->nnList[i].iPid != pkd->Self()) {
-                    pkd->mdl->Release(CID_PARTICLE, smx->nnList[i].pPart);
+            for (auto& nn : smx.nnList) {
+                if (nn.iPid != pkd->Self()) {
+                    pkd->mdl->Release(CID_PARTICLE, nn.pPart);
                 }
             }
             /* Old seeding process, which creates a BH rather than converting
@@ -158,7 +159,6 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax,
             */
         }
     }
-    smFinish(smx, NULL);
 
     return newBHs;
 }

@@ -11,6 +11,8 @@ using blitz::floor;
 using blitz::max;
 using blitz::TinyVector;
 
+void buildCandidateMergerList(SMX smx, KDN* node, Bound bnd_node, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
+
 void MSR::BHMerger(double dTime) {
     struct inSmooth in;
     struct outSmooth out;
@@ -27,17 +29,17 @@ void MSR::BHMerger(double dTime) {
     in.bSymmetric = 0;
     in.iSmoothType = SMX_BH_MERGER;
     SmoothSetSMF(&(in.smf), dTime, 0.0, in.nSmooth);
-
+#ifdef OPTIM_SMOOTH_NODE
     pstReSmoothNode(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
-
+#else
+    pstReSmooth(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
+#endif
     TimerStop(TIMER_BHS);
 }
 
-void smBHmerger(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
-
-    for (auto i = 0; i < nSmooth; ++i) {
-        auto q = pkd->particles[nnList[i].pPart];
+void SmoothHelperBHmerger::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+    for (auto& nn : nnList) {
+        auto q = pkd->particles[nn.pPart];
         /* IA: Merging across domain boundaries is a tricky thing,
          * This would require careful atomic operations in order to maintain
          * conservation *and* a deterministic behaviour independent of
@@ -53,7 +55,7 @@ void smBHmerger(particleStore::ParticleReference& p, float fBall, int nSmooth, N
          * Anyway, the most important thing is *conservation*, so that is what
          * I should check for in the test cases
          */
-        if (pkd->Self() != nnList[i].iPid) continue;
+        if (pkd->Self() != nn.iPid) continue;
 
         if (&p != &q && p.is_bh() && q.is_bh() && p.marked() && q.marked()) {
             // At this point, we are sure that both particles are black holes and
@@ -61,7 +63,7 @@ void smBHmerger(particleStore::ParticleReference& p, float fBall, int nSmooth, N
             //
             // So, the following should not give any problem
             // (remove for performance)
-            assert(nnList[i].fDist2 < 4. * p.soft() * p.soft());
+            assert(nn.fDist2 < 4. * p.soft() * p.soft());
 
             if (p.position(0) >= q.position(0)) {
                 const auto& pmass = p.mass();
@@ -69,7 +71,7 @@ void smBHmerger(particleStore::ParticleReference& p, float fBall, int nSmooth, N
                 const auto& qv = q.velocity();
                 const auto dv2 = dot(pv - qv, pv - qv);
 
-                const auto& dist2 = nnList[i].fDist2;
+                const auto& dist2 = nn.fDist2;
                 const float inv_dist = dist2 > 0.0 ? sqrt(1. / dist2) : FLT_MAX;
                 if (dv2 < pmass * inv_dist) {
                     // We have a merger!!
@@ -80,7 +82,7 @@ void smBHmerger(particleStore::ParticleReference& p, float fBall, int nSmooth, N
                     const float inv_newmass = 1. / newmass;
 
                     auto& pbh = p.BH();
-                    p.set_position(p.position() - qmass * inv_newmass * nnList[i].dr);
+                    p.set_position(p.position() - qmass * inv_newmass * nn.dr);
                     pbh.dInternalMass += q.BH().dInternalMass;
                     pbh.dAccEnergy += q.BH().dAccEnergy;
                     pv = (pmass * pv + qmass * qv) * inv_newmass;
@@ -106,11 +108,9 @@ uint64_t smReSmoothBHNode(SMX smx, SMF* smf, int iSmoothType) {
     PKD pkd = smx->pkd;
     uint64_t nSmoothed = 0;
 
-    smx->nnListSize = 0;
-    int nnListMax_p = NNLIST_INCREMENT;
-
-    NN* nnList_p;
-    nnList_p = static_cast<NN*>(malloc(sizeof(NN) * nnListMax_p));
+    std::vector<NN> nnList_p;
+    nnList_p.reserve(NNLIST_INCREMENT);
+    smx->nnList.clear();
 
     // Here we store the pointers to the particles whose interaction need
     // to be computed
@@ -166,7 +166,6 @@ uint64_t smReSmoothBHNode(SMX smx, SMF* smf, int iSmoothType) {
 
             bnd_node.shrink(fMax_shrink);
 
-            int nCnt = 0;
             if (smx->bPeriodic) {
                 TinyVector<int, 3> iStart, iEnd;
                 iStart = floor((r - bnd_node.apothem()) / pkd->fPeriod + 0.5);
@@ -177,13 +176,13 @@ uint64_t smReSmoothBHNode(SMX smx, SMF* smf, int iSmoothType) {
                         r[1] = bnd_node.center(1) - iy * pkd->fPeriod[1];
                         for (int iz = iStart[2]; iz <= iEnd[2]; ++iz) {
                             r[2] = bnd_node.center(2) - iz * pkd->fPeriod[2];
-                            buildCandidateMergerList(smx, smf, node, bnd_node, &nCnt, r, ix, iy, iz);
+                            buildCandidateMergerList(smx, node, bnd_node, r, ix, iy, iz);
                         }
                     }
                 }
             }
             else {
-                buildCandidateMergerList(smx, smf, node, bnd_node, &nCnt, r, 0, 0, 0);
+                buildCandidateMergerList(smx, node, bnd_node, r, 0, 0, 0);
             }
 
             // IA: Now we should have inside nnList all the particles in the bucket (sinks) and those of which can
@@ -197,42 +196,29 @@ uint64_t smReSmoothBHNode(SMX smx, SMF* smf, int iSmoothType) {
                 if (partj.is_marked()) {
                     const double fBall2_p = 4. * partj.soft() * partj.soft();
                     TinyVector<double, 3> dr_node{bnd_node.center() - partj.position()};
-                    int nCnt_p = 0;
-                    for (auto pk = 0; pk < nCnt; ++pk) {
-                        if (P == smx->nnList[pk].pPart) continue;
-                        TinyVector<double, 3> dr{smx->nnList[pk].dr - dr_node};
+                    nnList_p.clear();
+                    for (auto& pk : smx->nnList) {
+                        if (P == pk.pPart) continue;
+                        TinyVector<double, 3> dr{pk.dr - dr_node};
                         const auto fDist2 = dot(dr, dr);
                         if (fDist2 < fBall2_p) {
-                            if (nCnt_p >= nnListMax_p) {
-                                nnListMax_p += NNLIST_INCREMENT;
-                                nnList_p = static_cast<NN*>(realloc(nnList_p, nnListMax_p * sizeof(NN)));
-                                assert(nnList_p != NULL);
-                            }
-
-                            nnList_p[nCnt_p].fDist2 = fDist2;
-                            nnList_p[nCnt_p].dr = dr;
-                            nnList_p[nCnt_p].pPart = smx->nnList[pk].pPart;
-                            nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
-                            nnList_p[nCnt_p].iPid = smx->nnList[pk].iPid;
-
-                            ++nCnt_p;
+                            nnList_p.push_back({.pPart = pk.pPart, .fDist2 = fDist2, .dr = dr, .iIndex = pk.iIndex, .iPid = pk.iPid});
                         }
                     }
 
-                    smx->fcnSmooth(partj, partj.soft(), nCnt_p, nnList_p, smf);
+                    smx->function->Smooth(partj, partj.soft(), nnList_p);
                 }
             }
 
             nSmoothed += sinks.size();
 
-            for (auto pk = 0; pk < nCnt; ++pk) {
-                if (smx->nnList[pk].iPid != pkd->Self()) {
-                    pkd->mdl->Release(CID_PARTICLE, smx->nnList[pk].pPart);
+            for (auto& pk : smx->nnList) {
+                if (pk.iPid != pkd->Self()) {
+                    pkd->mdl->Release(CID_PARTICLE, pk.pPart);
                 }
             }
         }
     }
-    free(nnList_p);
     return nSmoothed;
 }
 
@@ -246,11 +232,10 @@ inline static auto getCell(PKD pkd, int iCell, int id) {
  * Probably, using C++ templates this could be done avoiding code duplications
  * or extra overheads...
  */
-void buildCandidateMergerList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int* nCnt_tot, TinyVector<double, 3> r, int ix, int iy, int iz) {
+void buildCandidateMergerList(SMX smx, KDN* node, Bound bnd_node, TinyVector<double, 3> r, int ix, int iy, int iz) {
     PKD pkd = smx->pkd;
     int id, sp, iCell;
     smContext::stStack* S = smx->ST;
-    int nCnt = *nCnt_tot;
 
     // We look for the biggest node that encloses the needed domain
     // We can only take advantage of this if we are are in the original cell
@@ -295,18 +280,7 @@ void buildCandidateMergerList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int*
 #endif
                     TinyVector<double, 3> dr{r - p.position()};
                     if (all(abs(dr) <= bnd_node.apothem())) {
-                        if (nCnt >= smx->nnListMax) {
-                            smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = static_cast<NN*>(realloc(smx->nnList, smx->nnListMax * sizeof(NN)));
-                            // printf("realloc \n");
-                            assert(smx->nnList != NULL);
-                        }
-                        smx->nnList[nCnt].fDist2 = dot(dr, dr);
-                        smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].pPart = &p;
-                        smx->nnList[nCnt].iIndex = pj;
-                        smx->nnList[nCnt].iPid = pkd->Self();
-                        ++nCnt;
+                        smx->nnList.push_back({.pPart = &p, .fDist2 = dot(dr, dr), .dr = dr, .iIndex = pj, .iPid = pkd->Self()});
                     }
                 }
             }
@@ -326,19 +300,8 @@ void buildCandidateMergerList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int*
 #endif
                     TinyVector<double, 3> dr{r - p.position()};
                     if (all(abs(dr) <= bnd_node.apothem())) {
-                        if (nCnt >= smx->nnListMax) {
-                            smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = static_cast<NN*>(realloc(smx->nnList, smx->nnListMax * sizeof(NN)));
-                            // printf("realloc \n");
-                            assert(smx->nnList != NULL);
-                        }
-
-                        smx->nnList[nCnt].fDist2 = dot(dr, dr);
-                        smx->nnList[nCnt].dr = dr;
-                        smx->nnList[nCnt].pPart = pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE, pj, id);
-                        smx->nnList[nCnt].iIndex = pj;
-                        smx->nnList[nCnt].iPid = id;
-                        ++nCnt;
+                        smx->nnList.push_back(
+                            {.pPart = pkd->mdl->Acquire<PARTICLE>(CID_PARTICLE, pj, id), .fDist2 = dot(dr, dr), .dr = dr, .iIndex = pj, .iPid = id});
                     }
                 }
             }
@@ -352,6 +315,4 @@ void buildCandidateMergerList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int*
         }
         else break;
     }
-
-    *nCnt_tot = nCnt;
 }

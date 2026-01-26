@@ -2023,28 +2023,28 @@ void pkdReorderDecorator(PKD pkd) {
 /// @param pkd
 /// After this function is complete, particles in buckets will be in the following order:
 ///     Gas, Star, Blackhole, Dark
-void pkdReorderWithinNodes(PKD pkd) {
-    for (int i = NRESERVED_NODES; i < pkd->Nodes(); i++) {
-        auto node = pkd->tree[i];
+void pkdContext::ReorderWithinNodes() {
+    for (int i = NRESERVED_NODES; i < Nodes(); i++) {
+        auto node = tree[i];
         if (node->is_bucket()) { // We are in a bucket
             auto start = node->begin();
             auto i = std::partition(start, node->end(), [](auto& p) { return p.is_gas(); });
             node->Ngas() = i - start;
             start = i;
             // We perform another swap, just to have nGas->nStar->DM
-            if (pkd->bStars) {
+            if (bStars) {
                 i = std::partition(start, node->end(), [](auto& p) { return p.is_star(); });
                 node->Nstar() = i - start;
                 start = i;
             }
-            if (pkd->bBlackholes) {
+            if (bBlackholes) {
                 i = std::partition(start, node->end(), [](auto& p) { return p.is_bh(); });
                 node->Nbh() = i - start;
             }
         }
     }
-    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
-    pkd->mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(pkd));
+    if (mdl->CacheStatus(CID_CELL)) mdl->FinishCache(CID_CELL);
+    mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(this));
 }
 #endif
 

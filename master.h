@@ -173,7 +173,7 @@ class MSR {
     void BuildTreeActive(int bNeedEwald, uint8_t uRungDD);
     void BuildTreeMarked(int bNeedEwald = 0);
     void ReorderDecorator();
-#ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_REORDER_IN_NODES
     void ReorderWithinNodes();
 #endif
 

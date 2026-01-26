@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "smooth/smoothfcn.h"
 #ifdef HAVE_CONFIG_H
     #include "config.h"
 #else
@@ -62,9 +63,9 @@ static void addChild(PKD pkd, int iCache, clList& cl, int iChild, int id, blitz:
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, struct pkdKickParameters* kick, struct pkdLightconeParameters* lc,
-                            struct pkdTimestepParameters* ts, double dTime, int bEwald, bool bGPU, double dThetaMin, double* pdFlop, double* pdPartSum,
-                            double* pdCellSum, SPHOptions* SPHoptions) {
+static auto processCheckList(PKD pkd, smContext* smx, std::shared_ptr<SmoothHelperDensityGravStep> helper, int iRoot, int iRoot2,
+                             struct pkdKickParameters* kick, struct pkdLightconeParameters* lc, struct pkdTimestepParameters* ts, double dTime, int bEwald,
+                             bool bGPU, double dThetaMin, double* pdFlop, double* pdPartSum, double* pdCellSum, SPHOptions* SPHoptions) -> int {
     using std::swap; // For ADL of std::swap
     treeStore::NodePointer c(pkd->tree);
     int id, iCell, iSib, iCheckCell, iCheckLower;
@@ -555,7 +556,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, st
         ** Checklist should be empty! Calculate gravity on this
         ** Bucket!
         */
-        nActive = pkdGravInteract(pkd, kick, lc, ts, k, &L, pkd->ilp, pkd->ilc, dirLsum, normLsum, bEwald, pdFlop, smx, &smf, iRoot, iRoot2, SPHoptions, bGPU);
+        nActive =
+            pkdGravInteract(pkd, kick, lc, ts, k, &L, pkd->ilp, pkd->ilc, dirLsum, normLsum, bEwald, pdFlop, smx, helper, iRoot, iRoot2, SPHoptions, bGPU);
         /*
         ** Update the limit for a shift of the center here based on the opening radius of this
         ** cell (the one we just evaluated).
@@ -622,20 +624,13 @@ doneCheckList:
     return (nTotActive);
 }
 
-static void doneGravWalk(PKD pkd, SMX smx, SMF* smf) {
-    if (smx) {
-        smSmoothFinish(smx);
-        smFinish(smx, smf);
-    }
-}
-
-static void initGravWalk(PKD pkd, double dTime, double dThetaMin, int bPeriodic, int bGravStep, int nPartRhoLoc, int iTimeStepCrit, SMX* smx, SMF* smf) {
+static void initGravWalk(PKD pkd, double dTime, double dThetaMin, int bPeriodic, int bGravStep, int nPartRhoLoc, int iTimeStepCrit) {
 
     pkd->dEnergyU = 0.0;
     pkd->dEnergyT = 0.0;
     pkd->dEnergyW = 0.0;
-    pkd->dEnergyF[0] = pkd->dEnergyF[1] = pkd->dEnergyF[2] = 0.0;
-    pkd->dEnergyL[0] = pkd->dEnergyL[1] = pkd->dEnergyL[2] = 0.0;
+    pkd->dEnergyF = 0.0;
+    pkd->dEnergyL = 0.0;
 
     pkd->fiCritTheta = 1.0f / dThetaMin;
 
@@ -647,15 +642,6 @@ static void initGravWalk(PKD pkd, double dTime, double dThetaMin, int bPeriodic,
             assert(pkd->particles.present(PKD_FIELD::oVelocity));
         }
     }
-
-    /*
-    ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
-    */
-    if (bGravStep) {
-        smInitializeRO(smx, pkd, smf, nPartRhoLoc, bPeriodic, SMX_DENSITY_F1);
-        smSmoothInitialize(*smx);
-    }
-    else (*smx) = NULL;
 }
 
 /*
@@ -666,12 +652,10 @@ int pkdContext::HopGravity(double dTime, double dThetaMin, double* pdFlop, doubl
     float fOffset[3];
     int nActive;
     int i, j, gid;
-    SMX smx;
-    SMF smf;
 
     mdl->CacheInitialize(CID_PARTICLE, std::make_shared<particleCACHEhelper>(this));
 
-    initGravWalk(this, dTime, dThetaMin, 0, 0, 0, 0, &smx, &smf);
+    initGravWalk(this, dTime, dThetaMin, 0, 0, 0, 0);
     nActive = 0;
     for (gid = 1; gid < nGroups; ++gid) {
         if (!hopGroups[gid].bNeedGrav) continue;
@@ -688,11 +672,10 @@ int pkdContext::HopGravity(double dTime, double dThetaMin, double* pdFlop, doubl
             addChild(this, CID_CELL, cl, iRoot, id, fOffset);
         }
         assert(hopRoots[iRootSelf].iPid == Self());
-        // nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
+        // nActive += processCheckList(pkd, nullptr, nullptr, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
         //     NULL,NULL,1.0,dTime,
         //     0, dThetaMin, 0, 0, pdFlop, pdPartSum, pdCellSum);
     }
-    doneGravWalk(this, smx, &smf);
     mdl->FinishCache(CID_PARTICLE);
     return nActive;
 }
@@ -707,11 +690,11 @@ int pkdGravWalk(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconePara
     float fOffset[3];
     int ix, iy, iz;
     int nActive = 0;
-    SMX smx;
-    SMF smf;
+    auto helper = std::make_shared<SmoothHelperDensityGravStep>(pkd);
+    smContext smx(pkd, helper, ts->nPartRhoLoc, nReps > 0, false);
     int iTop1, iTop2;
 
-    initGravWalk(pkd, dTime, dThetaMin, nReps ? 1 : 0, ts->bGravStep, ts->nPartRhoLoc, ts->iTimeStepCrit, &smx, &smf);
+    initGravWalk(pkd, dTime, dThetaMin, nReps ? 1 : 0, ts->bGravStep, ts->nPartRhoLoc, ts->iTimeStepCrit);
 
     iTop1 = pkd->iTopTree[iLocalRoot1];
     iTop2 = pkd->iTopTree[iLocalRoot2];
@@ -749,8 +732,8 @@ int pkdGravWalk(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconePara
                 }
             }
         }
-        nActive +=
-            processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, kick, lc, ts, dTime, bEwald, bGPU, dThetaMin, pdFlop, pdPartSum, pdCellSum, SPHoptions);
+        nActive += processCheckList(pkd, &smx, helper, iLocalRoot1, iLocalRoot2, kick, lc, ts, dTime, bEwald, bGPU, dThetaMin, pdFlop, pdPartSum, pdCellSum,
+                                    SPHoptions);
     }
 #if 0
     /*
@@ -776,11 +759,10 @@ int pkdGravWalk(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconePara
                 }
             }
         }
-        nActive += processCheckList(pkd, smx, smf, iLocalRoot2, iLocalRoot1,
+        nActive += processCheckList(pkd, &smx, helper, iLocalRoot2, iLocalRoot1,
                                     kick,lc,ts,dTime,0, dThetaMin, pdFlop, pdPartSum, pdCellSum, SPHoptions);
     }
 #endif
-    doneGravWalk(pkd, smx, &smf);
     return nActive;
 }
 
@@ -791,10 +773,8 @@ int pkdGravWalkGroups(PKD pkd, double dTime, double dThetaMin, double* pdFlop, d
     int id, iRoot;
     blitz::TinyVector<float, 3> fOffset;
     int i, k;
-    SMX smx;
-    SMF smf;
 
-    initGravWalk(pkd, dTime, dThetaMin, 0, 0, 0, 0, &smx, &smf);
+    initGravWalk(pkd, dTime, dThetaMin, 0, 0, 0, 0);
     /*
     ** Initially we set our cell pointer to
     ** point to the top tree.
@@ -815,10 +795,9 @@ int pkdGravWalkGroups(PKD pkd, double dTime, double dThetaMin, double* pdFlop, d
             addChild(pkd, CID_CELL, pkd->cl, iRoot, id, fOffset);
         }
 #endif
-        // nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG,
+        // nActive += processCheckList(pkd, nullptr, nullptr, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG,
         //     NULL,NULL,1.0,dTime,
         //     0, dThetaMin, 0, 0, pdFlop, pdPartSum, pdCellSum);
     }
-    doneGravWalk(pkd, smx, &smf);
     return nActive;
 }

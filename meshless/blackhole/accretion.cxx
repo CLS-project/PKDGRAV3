@@ -20,6 +20,7 @@ struct bhAccretionFlush {
 };
 
 class SmoothHelperAccretionFlush : public SmoothHelperPacked<bhAccretionPack, bhAccretionFlush> {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final {}
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
     virtual void init(void* dst) override final;

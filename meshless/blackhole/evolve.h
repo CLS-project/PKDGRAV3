@@ -28,8 +28,10 @@ struct bhEvolveFlush {
     int iAccIndex;
 };
 
-void smBHEvolve(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
 class SmoothHelperBHEvolve : public SmoothHelperPacked<bhEvolvePack, bhEvolveFlush> {
+    double a_, dBHAccretionAlpha, dBHAccretionCvisc, dBHAccretionEddFac, dConstGamma, dBHFBEff, dBHFBEcrit;
+    bool bBHAccretion, bBHFeedback;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
     virtual void init(void* dst) override final;
@@ -38,9 +40,14 @@ class SmoothHelperBHEvolve : public SmoothHelperPacked<bhEvolvePack, bhEvolveFlu
     virtual void init_shared(void* dst) override final { init_shared_bh_decorator(pkd, dst); }
 
   public:
-    SmoothHelperBHEvolve(pkdContext* pkd) : SmoothHelperPacked<bhEvolvePack, bhEvolveFlush>(pkd, true) {
+    SmoothHelperBHEvolve(pkdContext* pkd, double a, double dBHAccretionAlpha, double dBHAccretionCvisc, double dBHAccretionEddFac, bool bBHAccretion,
+                         bool bBHFeedback, double dConstGamma, double dBHFBEff, double dBHFBEcrit)
+        : SmoothHelperPacked<bhEvolvePack, bhEvolveFlush>(pkd, true), a_(a), dBHAccretionAlpha(dBHAccretionAlpha), dBHAccretionCvisc(dBHAccretionCvisc),
+          dBHAccretionEddFac(dBHAccretionEddFac), dConstGamma(dConstGamma), dBHFBEff(dBHFBEff), dBHFBEcrit(dBHFBEcrit), bBHAccretion(bBHAccretion),
+          bBHFeedback(bBHFeedback) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
+    auto gasOnly() -> bool override { return true; }
 };
 
 void pkdBHIntegrate(PKD pkd, particleStore::ParticleReference& p, double dTime, double dDelta, double dBHRadiativeEff);

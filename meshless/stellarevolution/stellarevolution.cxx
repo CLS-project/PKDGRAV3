@@ -123,11 +123,11 @@ void MSR::StellarEvolutionInit(double dTime) {
 }
 
 int pstStellarEvolutionInit(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    mdlassert(pst->mdl, nIn == sizeof(struct inStellarEvolutionInit));
+    mdlassert(pst->mdl(), nIn == sizeof(struct inStellarEvolutionInit));
     if (pst->NotCore()) {
-        int rID = pst->mdl->ReqService(pst->upper(), PST_STELLAREVOLUTIONINIT, vin, nIn);
+        int rID = pst->mdl()->ReqService(pst->upper(), PST_STELLAREVOLUTIONINIT, vin, nIn);
         pstStellarEvolutionInit(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl->GetReply(rID);
+        pst->mdl()->GetReply(rID);
     }
     else {
         struct inStellarEvolutionInit* in = (struct inStellarEvolutionInit*)vin;
@@ -283,15 +283,14 @@ void SmoothHelperChemEnrich::combine(void* dst, const void* src, const void* key
    in smf are in Msol. Conversely, star.fInitialMass and p.mass() are in code units.
    Furthermore, all times are in code units.
 */
-void smChemEnrich(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
+void SmoothHelperChemEnrich::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     auto& star = p.star();
 
     const float fInitialTime = star.fLastEnrichTime;
     const float fInitialMass = star.fLastEnrichMass;
     const int iInitialMass = star.iLastEnrichMass;
 
-    const float fFinalTime = (float)smf->dTime - star.fTimer;
+    const float fFinalTime = (float)dTime - star.fTimer;
     const float fFinalMass = stevInverseLifetimeFunction(pkd, star, fFinalTime);
     const int iFinalMass = stevGetIMFMassIndex(pkd->StelEvolData->afInitialMass, STEV_INTERP_N_MASS, fFinalMass, iInitialMass);
 
@@ -307,7 +306,7 @@ void smChemEnrich(particleStore::ParticleReference& p, float fBall, int nSmooth,
     TinyVector<float, ELEMENT_COUNT> ElemMass{0.0f};
     float fMetalMass{0.0f};
 
-    const float fTransMass = smf->dCCSNMinMass;
+    const float fTransMass = dCCSNMinMass;
     if (fFinalMass > fTransMass) {
         /* CCSN only */
         stevComputeMassToEject<STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT>(
@@ -338,7 +337,7 @@ void smChemEnrich(particleStore::ParticleReference& p, float fBall, int nSmooth,
             fTransMass, star.AGB.oZ, star.AGB.fDeltaZ, ElemMass.data(), &fMetalMass);
     }
 
-    const float fNumSNIa = (*pkd->StelEvolData->fcnNumSNIa)(smf, star, fInitialTime, fFinalTime);
+    const float fNumSNIa = (*pkd->StelEvolData->fcnNumSNIa)(dSNIaNorm, dSNIaScale, star, fInitialTime, fFinalTime);
     for (auto i = 0; i < ELEMENT_COUNT; ++i) {
         ElemMass[i] += fNumSNIa * pkd->StelEvolData->afSNIaEjectedMass[i];
     }
@@ -347,27 +346,27 @@ void smChemEnrich(particleStore::ParticleReference& p, float fBall, int nSmooth,
     fMetalMass *= star.fInitialMass;
 
     const double dTotalMass = (double)ElemMass[ELEMENT_H] + ElemMass[ELEMENT_He] + fMetalMass;
-    star.fNextEnrichTime = stevComputeNextEnrichTime(smf->dTime, star.fInitialMass, dTotalMass, fFinalTime - fInitialTime);
+    star.fNextEnrichTime = stevComputeNextEnrichTime(dTime, star.fInitialMass, dTotalMass, fFinalTime - fInitialTime);
     p.set_mass(p.mass() - dTotalMass);
     assert(p.mass() > 0.0f);
 
-    const double dScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
+    const double dScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, dTime);
     const double dScaleFactorInvSq = dScaleFactorInv * dScaleFactorInv;
     const auto& StarVel = p.velocity();
 
     const double dStarDeltaEkin = 0.5 * dTotalMass * blitz::dot(StarVel, StarVel);
-    const double dWindEkin = smf->dWindSpecificEkin * dTotalMass;
+    const double dWindEkin = dWindSpecificEkin * dTotalMass;
     const double dStarEjEnergy = dStarDeltaEkin * dScaleFactorInvSq + dWindEkin;
 
-    const double dWeight = 1.0 / nSmooth;
+    const double dWeight = 1.0 / nnList.size();
     const double dDeltaMass = dWeight * dTotalMass;
     const double dDeltaE = dWeight * dStarEjEnergy;
 
     ElemMass *= dWeight;
     fMetalMass *= dWeight;
 
-    for (auto i = 0; i < nSmooth; ++i) {
-        auto q = pkd->particles[nnList[i].pPart];
+    for (auto& nn : nnList) {
+        auto q = pkd->particles[nn.pPart];
         assert(q.is_gas());
         auto& qsph = q.sph();
 
@@ -661,7 +660,7 @@ void stevFreeLifetimeTable(STEV_RAWDATA* RawData) {
     free(RawData);
 }
 
-float stevExponentialNumSNIa(SMF* smf, decorators::STAR& star, float fInitialTime, float fFinalTime) {
+float stevExponentialNumSNIa(double dSNIaNorm, double dSNIaScale, decorators::STAR& star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
         return 0.0f;
     }
@@ -669,10 +668,10 @@ float stevExponentialNumSNIa(SMF* smf, decorators::STAR& star, float fInitialTim
         fInitialTime = star.fSNIaOnsetTime;
     }
 
-    return (float)smf->dSNIaNorm * (expf(-(fInitialTime / (float)smf->dSNIaScale)) - expf(-(fFinalTime / (float)smf->dSNIaScale)));
+    return (float)dSNIaNorm * (expf(-(fInitialTime / (float)dSNIaScale)) - expf(-(fFinalTime / (float)dSNIaScale)));
 }
 
-float stevPowerlawNumSNIa(SMF* smf, decorators::STAR& star, float fInitialTime, float fFinalTime) {
+float stevPowerlawNumSNIa(double dSNIaNorm, double dSNIaScale, decorators::STAR& star, float fInitialTime, float fFinalTime) {
     if (fFinalTime <= star.fSNIaOnsetTime) {
         return 0.0f;
     }
@@ -680,7 +679,7 @@ float stevPowerlawNumSNIa(SMF* smf, decorators::STAR& star, float fInitialTime, 
         fInitialTime = star.fSNIaOnsetTime;
     }
 
-    return (float)smf->dSNIaNorm * (powf(fFinalTime, (float)smf->dSNIaScale + 1.0f) - powf(fInitialTime, (float)smf->dSNIaScale + 1.0f));
+    return (float)dSNIaNorm * (powf(fFinalTime, (float)dSNIaScale + 1.0f) - powf(fInitialTime, (float)dSNIaScale + 1.0f));
 }
 
 #endif /* STELLAR_EVOLUTION */

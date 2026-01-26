@@ -127,9 +127,6 @@ void init_shared_bh_decorator(PKD pkd, void* dst) {
     }
 }
 
-void NullSmooth(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-}
-
 SmoothHelperBallSmooth::SmoothHelperBallSmooth(pkdContext* pkd) : SmoothHelper(pkd) {
     assert(pkd->particles.present(PKD_FIELD::oBall));
 }
@@ -143,58 +140,49 @@ void SmoothHelperBallSmooth::initialize_local() {
         if (p.is_active()) init(&p);
     }
 }
-void BallSmooth(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
+void SmoothHelperBallSmooth::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     p.set_ball(p.is_gas() ? fBall : 0);
 }
 
-SmoothHelperDensity::SmoothHelperDensity(pkdContext* pkd, bool bSymmetric) : SmoothHelper(pkd, bSymmetric) {
-}
-void SmoothHelperDensity::init(void* pIn) {
+void SmoothHelperDensitySymmetric::init(void* pIn) {
     auto p = pkd->particles[static_cast<PARTICLE*>(pIn)];
     p.set_density(0.0);
 }
-void SmoothHelperDensity::combine(void* dst, const void* src, const void* key) {
+void SmoothHelperDensitySymmetric::combine(void* dst, const void* src, const void* key) {
     auto P1 = pkd->particles[reinterpret_cast<PARTICLE*>(dst)];
     auto P2 = pkd->particles[reinterpret_cast<const PARTICLE*>(src)];
     P1.set_density(P1.density() + P2.density());
 }
-void SmoothHelperDensity::initialize_local() {
+void SmoothHelperDensitySymmetric::initialize_local() {
     auto pRoot = pkd->tree[ROOT];
     for (auto& p : *pRoot) {
         if (p.is_active()) init(&p);
     }
 }
 
-void DensityF1(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
-    double ih2, r2, rs, fDensity, fMass;
-    int i;
-
-    ih2 = 1.0 / BALL2(fBall);
-    fDensity = 0.0;
-    for (i = 0; i < nSmooth; ++i) {
-        auto Q = pkd->particles[nnList[i].pPart];
-        fMass = Q.mass();
-        r2 = nnList[i].fDist2 * ih2;
-        rs = 1 - r2;
+void SmoothHelperDensityF1::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+    auto ih2 = 1.0 / BALL2(fBall);
+    auto fDensity = 0.0;
+    for (auto& nn : nnList) {
+        auto Q = pkd->particles[nn.pPart];
+        auto fMass = Q.mass();
+        auto r2 = nn.fDist2 * ih2;
+        auto rs = 1 - r2;
         if (rs < 0) rs = 0.0;
         fDensity += rs * fMass;
     }
     fDensity *= 1.875f * M_1_PI * sqrtf(ih2) * ih2; /* F1 Kernel (15/8) */
-    if (smf->pfDensity) *smf->pfDensity = fDensity;
-    else p.set_density(fDensity);
+    set_density(p, fDensity);
 }
 
-void DensityM3(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
-    double ih2, r2, rs, fDensity, fMass;
-    int i;
-    ih2 = 1.0f / BALL2(fBall);
-    fDensity = 0.0;
-    for (i = 0; i < nSmooth; ++i) {
-        auto Q = pkd->particles[nnList[i].pPart];
-        fMass = Q.mass();
-        r2 = nnList[i].fDist2 * ih2;
+void SmoothHelperDensityM3::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+    double ih2 = 1.0 / BALL2(fBall);
+    double fDensity = 0.0;
+    for (const auto& nn : nnList) {
+        auto Q = pkd->particles[nn.pPart];
+        auto fMass = Q.mass();
+        auto r2 = nn.fDist2 * ih2;
+        double rs;
         if (r2 < 1.0) {
             double r = sqrt(r2);
             rs = 1.0f - r;
@@ -211,17 +199,16 @@ void DensityM3(particleStore::ParticleReference& p, float fBall, int nSmooth, NN
     p.set_density(16.0f * M_1_PI * sqrtf(ih2) * ih2 * fDensity);
 }
 
-void LinkGradientM3(particleStore::ParticleReference& P, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
-    double ih2, r2, rs, fMass, fNorm, idrho, r2min;
+void SmoothHelperGradientM3::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+    double rs, idrho, r2min;
     int i, j;
-    ih2 = 1.0 / BALL2(fBall);
-    fNorm = 16.0f * M_1_PI * ih2 * ih2 * sqrtf(ih2);
+    auto ih2 = 1.0 / BALL2(fBall);
+    auto fNorm = 16.0f * M_1_PI * ih2 * ih2 * sqrtf(ih2);
     TinyVector<double, 3> frho(0.0);
-    for (i = 0; i < nSmooth; ++i) {
-        auto Q = pkd->particles[nnList[i].pPart];
-        fMass = Q.mass();
-        r2 = nnList[i].fDist2 * ih2;
+    for (auto& nn : nnList) {
+        auto q = pkd->particles[nn.pPart];
+        double fMass = q.mass();
+        auto r2 = nn.fDist2 * ih2;
         if (r2 < 1.0) {
             double r = sqrt(r2);
             if (r < 0.5f) {
@@ -236,42 +223,42 @@ void LinkGradientM3(particleStore::ParticleReference& P, float fBall, int nSmoot
         }
         else rs = 0.0;
         rs *= fNorm * fMass;
-        rs *= (Q.density() - P.density()) / Q.density();
+        rs *= (q.density() - p.density()) / q.density();
         frho -= nnList[i].dr * rs;
     }
     idrho = 1.0 / sqrt(dot(frho, frho));
     for (j = 0; j < 3; ++j) frho[j] *= 0.5 * idrho * fBall;
     r2min = HUGE_VALF;
-    if (nSmooth == 0) P.set_group(-1);
-    for (i = 0; i < nSmooth; ++i) {
-        TinyVector<double, 3> dr = nnList[i].dr - frho;
-        r2 = dot(dr, dr);
+    if (nnList.size() == 0) p.set_group(-1);
+    for (auto& nn : nnList) {
+        TinyVector<double, 3> dr = nn.dr - frho;
+        auto r2 = dot(dr, dr);
         if (r2 < r2min) {
             r2min = r2;
-            smf->hopParticleLink.iPid = nnList[i].iPid;
-            smf->hopParticleLink.iIndex = nnList[i].iIndex;
+            hopParticleLink.iPid = nn.iPid;
+            hopParticleLink.iIndex = nn.iIndex;
         }
     }
 }
 
-void LinkHopChains(particleStore::ParticleReference& P, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
+void SmoothHelperHopChains::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     auto mdl = pkd->mdl;
     int i, gid1, gid2;
     GHtmpGroupTable *g1, *g2, g;
-    gid1 = P.group();
+    gid1 = p.group();
     g1 = &pkd->tmpHopGroups[gid1];
-    for (i = 0; i < nSmooth; ++i) {
-        auto Q = pkd->particles[nnList[i].pPart];
+    bDone = true;
+    for (auto& nn : nnList) {
+        auto Q = pkd->particles[nn.pPart];
         gid2 = Q.group();
-        if (nnList[i].iPid == pkd->Self() && gid1 == gid2) continue;
-        g.iPid = nnList[i].iPid;
+        if (nn.iPid == pkd->Self() && gid1 == gid2) continue;
+        g.iPid = nn.iPid;
         g.iIndex = gid2;
         g2 = mdl->Acquire<GHtmpGroupTable>(CID_GROUP, g.iIndex, g.iPid);
 
         /* Remote is authoratative. Update myself, but also what I currently link to. */
         if (g1->iPid > g2->iPid || (g1->iPid == g2->iPid && g1->iIndex > g2->iIndex)) {
-            smf->bDone = 0;
+            bDone = false;
             g = *g1;
             g1->iPid = g2->iPid;
             g1->iIndex = g2->iIndex;
@@ -281,7 +268,7 @@ void LinkHopChains(particleStore::ParticleReference& P, float fBall, int nSmooth
 
         /* Update remote (or what we were pointing to) and what it points to if necessary. */
         while (g1->iPid < g2->iPid || (g1->iPid == g2->iPid && g1->iIndex < g2->iIndex)) {
-            smf->bDone = 0;
+            bDone = false;
             g = *g2;
             g2->iPid = g1->iPid;
             g2->iIndex = g1->iIndex;
@@ -292,47 +279,39 @@ void LinkHopChains(particleStore::ParticleReference& P, float fBall, int nSmooth
     }
 }
 
-void Density(particleStore::ParticleReference& P, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
-    double ih2, r2, rs, fDensity;
-    int i;
-
-    ih2 = 4.0 / BALL2(fBall);
-    fDensity = 0.0;
-    for (i = 0; i < nSmooth; ++i) {
-        auto Q = pkd->particles[nnList[i].pPart];
-        r2 = nnList[i].fDist2 * ih2;
+void SmoothHelperDensity::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+    auto ih2 = 4.0 / BALL2(fBall);
+    auto fDensity = 0.0;
+    for (auto& nn : nnList) {
+        auto Q = pkd->particles[nn.pPart];
+        auto r2 = nn.fDist2 * ih2;
+        double rs;
         KERNEL(rs, r2);
         fDensity += rs * Q.mass();
     }
-    P.set_density(M_1_PI * sqrt(ih2) * ih2 * fDensity);
+    p.set_density(M_1_PI * sqrt(ih2) * ih2 * fDensity);
 }
 
-void DensitySym(particleStore::ParticleReference& P, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
-    double fNorm, ih2, r2, rs, fMassP;
-    int i;
-    fMassP = P.mass();
-    ih2 = 4.0 / (BALL2(fBall));
-    fNorm = 0.5 * M_1_PI * sqrt(ih2) * ih2;
-    for (i = 0; i < nSmooth; ++i) {
-        r2 = nnList[i].fDist2 * ih2;
+void SmoothHelperDensitySymmetric::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+    auto fMassP = p.mass();
+    auto ih2 = 4.0 / (BALL2(fBall));
+    auto fNorm = 0.5 * M_1_PI * sqrt(ih2) * ih2;
+    for (auto& nn : nnList) {
+        auto r2 = nn.fDist2 * ih2;
+        double rs;
         KERNEL(rs, r2);
         rs *= fNorm;
-        auto Q = pkd->particles[nnList[i].pPart];
-        P.set_density(P.density() + rs * Q.mass());
-        Q.set_density(Q.density() + rs * fMassP);
+        auto q = pkd->particles[nn.pPart];
+        p.set_density(p.density() + rs * p.mass());
+        q.set_density(q.density() + rs * fMassP);
     }
 }
 
-void PrintNN(particleStore::ParticleReference& P, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
-    int i;
-
-    printf("%" PRIu64 ":", P.order());
-    for (i = 0; i < nSmooth; ++i) {
-        if (pkdIsActive(pkd, nnList[i].pPart)) printf("%" PRIu64 " ", (uint64_t)nnList[i].pPart->iOrder);
-        else printf("\033[7m%" PRIu64 "\033[0m ", (uint64_t)nnList[i].pPart->iOrder);
+void SmoothHelperPrintNN::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+    printf("%" PRIu64 ":", p.order());
+    for (auto& nn : nnList) {
+        if (pkdIsActive(pkd, nn.pPart)) printf("%" PRIu64 " ", (uint64_t)nn.pPart->iOrder);
+        else printf("\033[7m%" PRIu64 "\033[0m ", (uint64_t)nn.pPart->iOrder);
     }
     printf("\n");
 }

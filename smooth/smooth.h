@@ -18,9 +18,7 @@
 #ifndef SMOOTH_HINCLUDED
 #define SMOOTH_HINCLUDED
 
-// extern "C" {
-// #include "listcomp.h"
-// }
+#include <memory>
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
 #include "hydro/hydro.h"
@@ -34,22 +32,19 @@ struct hashElement {
     struct hashElement* coll;
 };
 
-typedef struct smContext {
+struct smContext {
+    smContext(PKD pkdIn, std::shared_ptr<SmoothHelper> helper, int nSmooth, bool bPeriodic, bool bMakeCache = true);
+    virtual ~smContext();
     PKD pkd;
-    PARTICLE* pSentinel;
-    void (*fcnSmooth)(particleStore::ParticleReference& p, float, int, NN*, SMF*);
-    void (*fcnSmoothNode)(PARTICLE*, float, int, int, double*, double*, SMF*);
-    void (*fcnSmoothGetBufferInfo)(int*, int*);
-    void (*fcnSmoothFillBuffer)(double*, PARTICLE*, int, int, double, blitz::TinyVector<double, 3>, SMF*);
-    void (*fcnSmoothUpdate)(double*, double*, PARTICLE*, PARTICLE*, int, int, SMF*);
-    int nSmooth;
-    int nQueue;
-    int bPeriodic;
-    int bOwnCache;
-    int iSmoothType;
-    int bSearchGasOnly;
-    blitz::TinyVector<double, 3> rLast; /* For the snake */
-    PQ* pq;
+    PARTICLE* pSentinel = nullptr;
+    std::shared_ptr<SmoothFunction> function;
+    int nSmooth = 0;
+    int nQueue = 0;
+    bool bPeriodic = false;
+    int bOwnCache = 0;
+    int iSmoothType = 0;
+    blitz::TinyVector<double, 3> rLast{0.0, 0.0, 0.0}; /* For the snake */
+    std::vector<PQ> pq;
     /*
     ** Flags to mark local particles which are finished in the processing
     ** of the smFastGas routine. They have updated their densities.
@@ -59,14 +54,12 @@ typedef struct smContext {
     ** Hash table to indicate whether a remote particle is already present in the
     ** priority queue.
     */
-    int nHash; /* should be a prime number > nSmooth */
-    struct hashElement* pHash;
-    struct hashElement* pFreeHash;
-    int nnListSize;
-    int nnListMax;
-    NN* nnList;
-    int* S;
-    double* Smin;
+    int nHash = 0; /* should be a prime number > nSmooth */
+    struct hashElement* pHash = nullptr;
+    struct hashElement* pFreeHash = nullptr;
+    std::vector<NN> nnList;
+    int* S = nullptr;
+    double* Smin = nullptr;
     /*
      ** Also need the stacks for the tree search
      */
@@ -82,39 +75,26 @@ typedef struct smContext {
     /*
     ** Some variables needed for smNewFof().
     */
-    uint32_t iHead;
-    uint32_t iTail;
-    int* Fifo;
-}* SMX;
+    uint32_t iHead = 0;
+    uint32_t iTail = 0;
+    int* Fifo = nullptr;
+};
+using SMX = smContext*;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-int smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType);
+int smInitialize(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int bSymmetric, int iSmoothType, bool bMakeCache = true);
 int smInitializeRO(SMX* psmx, PKD pkd, SMF* smf, int nSmooth, int bPeriodic, int iSmoothType);
 void smFinish(SMX, SMF*);
 void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
 float smSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, int iRoot1, int iRoot2);
 void smSmooth(SMX, SMF*);
-void smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, double fBall);
+auto smReSmoothSingle(SMX smx, SMF* smf, particleStore::ParticleReference& p, double fBall) -> bool;
 uint64_t smReSmooth(SMX, SMF*, int);
 #ifdef OPTIM_SMOOTH_NODE
 uint64_t smReSmoothNode(SMX, SMF*, int);
-void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, int* nCnt, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
+void buildInteractionList(SMX smx, SMF* smf, KDN* node, Bound bnd_node, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
 #endif
 
 void smGather(SMX smx, double fBall2, blitz::TinyVector<double, 3> r);
-
-inline void smSwapNN(NN* nnList, int i, int j) {
-    NN temp;
-    memcpy((void*)&temp, &nnList[i], sizeof(NN));
-    memcpy((void*)&nnList[i], &nnList[j], sizeof(NN));
-    memcpy((void*)&nnList[j], &temp, sizeof(NN));
-}
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

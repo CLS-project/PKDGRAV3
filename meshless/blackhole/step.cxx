@@ -32,10 +32,9 @@ void SmoothHelperBHstep::unpack(void* dst, const void* src, const void* key) {
     }
 }
 
-void smBHstep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
+void SmoothHelperBHstep::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
 #ifndef DEBUG_BH_ONLY
-    PKD pkd = smf->pkd;
-    auto ii = std::max_element(nnList, nnList + nSmooth, [pkd](const auto& a, const auto& b) {
+    auto ii = std::max_element(nnList.begin(), nnList.end(), [this](const auto& a, const auto& b) {
         auto p = pkd->particles[a.pPart];
         auto q = pkd->particles[b.pPart];
         auto pRung = std::max(p.rung(), p.new_rung());

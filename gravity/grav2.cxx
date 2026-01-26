@@ -15,6 +15,8 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "smooth/smoothfcn.h"
+#include <memory>
 #ifdef HAVE_CONFIG_H
     #include "config.h"
 #else
@@ -817,8 +819,8 @@ static void extensiveILPTest(PKD pkd, workParticle* wp, ilpList& ilp) {
 */
 
 int pkdGravInteract(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconeParameters* lc, struct pkdTimestepParameters* ts, treeStore::NodePointer pkdn,
-                    LOCR* pLoc, ilpList& ilp, ilcList& ilc, float dirLsum, float normLsum, int bEwald, double* pdFlop, SMX smx, SMF* smf, int iRoot1,
-                    int iRoot2, SPHOptions* SPHoptions, bool bGPU) {
+                    LOCR* pLoc, ilpList& ilp, ilcList& ilc, float dirLsum, float normLsum, int bEwald, double* pdFlop, smContext* smx,
+                    std::shared_ptr<SmoothHelperDensityGravStep> helper, int iRoot1, int iRoot2, SPHOptions* SPHoptions, bool bGPU) {
     float fBall;
     int i, nSoft, nActive;
     int nP;
@@ -936,13 +938,14 @@ int pkdGravInteract(PKD pkd, struct pkdKickParameters* kick, struct pkdLightcone
         */
         if (SPHoptions->doGravity) {
             if (ts->bGravStep) {
+                assert(smx != nullptr && helper != nullptr && "Smooth context or helper is null in GravStep density calculation");
                 /*
                 ** Calculate local density using smooth; this is fast because the particles are
                 ** likely to be cached already because they will be on the P-P list.
                 */
-                smf->pfDensity = &wp->pInfoIn[nP].fDensity;
-                fBall = smSmoothSingle(smx, smf, p, iRoot1, iRoot2);
+                fBall = smSmoothSingle(smx, nullptr, p, iRoot1, iRoot2);
                 wp->pInfoIn[nP].fSmooth2 = fBall * fBall;
+                wp->pInfoIn[nP].fDensity = helper->density();
             }
             else {
                 /*

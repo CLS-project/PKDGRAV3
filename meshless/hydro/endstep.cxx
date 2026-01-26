@@ -4,6 +4,9 @@
 #include "meshless/starformation/feedback.h"
 #include "meshless/blackhole/evolve.h"
 #include "eEOS/eEOS.h"
+#ifdef STELLAR_EVOLUTION
+    #include "stellarevolution/stellarevolution.h"
+#endif
 
 int ServiceEndTimestepIntegration::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pkd = pst->lcl()->pkd;

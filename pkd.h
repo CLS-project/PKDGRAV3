@@ -601,6 +601,9 @@ class pkdContext : public Integerize {
     void WriteViaNode(int iNode);
 
     void swap_classes(int id);
+#ifdef OPTIM_REORDER_IN_NODES
+    void ReorderWithinNodes();
+#endif
 
   public:
     int nRejects;
@@ -871,9 +874,6 @@ void pkdSPHForcesEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOpti
 void pkdGravEvalPC(const PINFOIN& pPart, ilcTile& tile, PINFOOUT& pOut);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
 void pkdReorderDecorator(PKD pkd);
-#ifdef OPTIM_REORDER_IN_NODES
-void pkdReorderWithinNodes(PKD pkd);
-#endif
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo);
 void pkdInitLightcone(PKD pkd, int bBowtie, int bLightConeParticles, double dBoxSize, double dRedshiftLCP, double alphaLCP, blitz::TinyVector<double, 3> hLCP,

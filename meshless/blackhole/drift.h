@@ -10,12 +10,14 @@ struct bhGasPinPack {
 };
 
 class SmoothHelperBHGasPin : public SmoothHelperPacked<bhGasPinPack> {
+    double a_;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
 
   public:
-    SmoothHelperBHGasPin(pkdContext* pkd) : SmoothHelperPacked<bhGasPinPack>(pkd, false) {}
+    SmoothHelperBHGasPin(pkdContext* pkd, double a) : SmoothHelperPacked<bhGasPinPack>(pkd, false), a_(a) {}
+    auto gasOnly() -> bool override { return true; }
 };
 
-void smBHGasPin(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf);
 void pkdBHReposition(PKD pkd);

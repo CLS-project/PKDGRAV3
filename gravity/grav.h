@@ -33,8 +33,8 @@ static inline double softmassweight(double m1, double h12, double m2, double h22
 void pkdGravStartEwald(PKD pkd);
 void pkdGravFinishEwald(PKD pkd);
 int pkdGravInteract(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconeParameters* lc, struct pkdTimestepParameters* ts,
-                    treeStore::NodePointer pBucket, LOCR* pLoc, ilpList& ilp, ilcList& ilc, float dirLsum, float normLsum, int bEwald, double* pdFlop, SMX smx,
-                    SMF* smf, int iRoot1, int iRoot2, SPHOptions* SPHoptions, bool bGPU = true);
+                    treeStore::NodePointer pBucket, LOCR* pLoc, ilpList& ilp, ilcList& ilc, float dirLsum, float normLsum, int bEwald, double* pdFlop,
+                    smContext* smx, std::shared_ptr<SmoothHelperDensityGravStep> helper, int iRoot1, int iRoot2, SPHOptions* SPHoptions, bool bGPU = true);
 
 void pkdParticleWorkDone(workParticle* work);
 

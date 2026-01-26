@@ -20,7 +20,7 @@
 
 #include "pkd.h"
 
-typedef struct smfParameters {
+struct smfParameters {
     int nSmooth;
     int iMaxRung;
     int bComove;
@@ -44,7 +44,6 @@ typedef struct smfParameters {
     double dDelta;
     double dEtaCourant;
     PKD pkd; /* useful for diagnostics, etc. */
-    remoteID hopParticleLink;
     int bDone;
     float* pfDensity;
     /* IA: Meshless hydro */
@@ -77,7 +76,8 @@ typedef struct smfParameters {
     double dSNIaScale;
     double dCCSNMinMass;
 #endif
-} SMF;
+};
+using SMF = struct smfParameters;
 
 typedef struct pqNode {
     struct pqNode* pqLoser;
@@ -149,6 +149,18 @@ typedef PQ NN;
         }                                                                                                                                                      \
     }
 
+class SmoothFunction {
+  protected:
+    pkdContext* pkd;
+
+  public:
+    SmoothFunction(PKD pkd) : pkd(pkd) {}
+    virtual ~SmoothFunction() = default;
+    virtual void Smooth(particleStore::ParticleReference& p, float, std::span<NN> nnList) = 0;
+    virtual auto shouldSmooth(particleStore::ParticleReference& p) -> bool { return true; }
+    virtual auto gasOnly() -> bool { return false; } // for OPTIM_REORDER_IN_NODES
+};
+
 enum SMOOTH_TYPE {
     SMX_NULL,
     SMX_DENSITY,
@@ -179,9 +191,12 @@ extern void init_shared_bh_decorator(PKD pkd, void* dst);
 // Additionally we can call a function to initialize the local data
 // before we open the cache. Most often this is not needed, but
 // occasionally we loop over the local particles calling init.
-class SmoothHelper : public particleCACHEhelper {
+class SmoothHelper : public particleCACHEhelper, public SmoothFunction {
+  protected:
+    using SmoothFunction::pkd;
+
   public:
-    SmoothHelper(pkdContext* pkd, bool bModify = false) : particleCACHEhelper(pkd, bModify) {}
+    SmoothHelper(pkdContext* pkd, bool bModify = false) : particleCACHEhelper(pkd, bModify), SmoothFunction(pkd) {}
     virtual void initialize_local() {}
 };
 
@@ -201,58 +216,100 @@ class SmoothHelperPacked : public SmoothHelper {
 };
 
 // This is a simple cache helper that does not allow symmetric smoothing.
-// If bSymmetric is true, it will assert. For symmetric smoothing, the
-// helper requires at least a combine function.
 class SmoothHelperAsymmetric : public SmoothHelper {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) override {}
+
   public:
-    SmoothHelperAsymmetric(pkdContext* pkd, bool bSymmetric = false) : SmoothHelper(pkd, false) { assert(!bSymmetric); }
+    SmoothHelperAsymmetric(pkdContext* pkd) : SmoothHelper(pkd, false) {}
 };
 
 // #define SMX_NULL                            0
-void NullSmooth(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
 class SmoothHelperNull : public SmoothHelper {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final {}
+
   public:
     SmoothHelperNull(pkdContext* pkd) : SmoothHelper(pkd) {}
 };
 
 // #define SMX_DENSITY             1
-void Density(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
-void DensitySym(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
 class SmoothHelperDensity : public SmoothHelper {
-    virtual void init(void* pIn) override final;
-    virtual void combine(void* dst, const void* src, const void* key) override final;
-    virtual void initialize_local() override final;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
 
   public:
-    SmoothHelperDensity(pkdContext* pkd, bool bSymmetric);
+    SmoothHelperDensity(pkdContext* pkd) : SmoothHelper(pkd, false) {}
+};
+
+class SmoothHelperDensitySymmetric : public SmoothHelper {
+    void init(void* pIn) final;
+    void combine(void* dst, const void* src, const void* key) final;
+    void initialize_local() final;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+
+  public:
+    SmoothHelperDensitySymmetric(pkdContext* pkd) : SmoothHelper(pkd, true) {}
 };
 
 // #define SMX_PRINTNN                            9
-void PrintNN(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
+class SmoothHelperPrintNN : public SmoothHelper {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+
+  public:
+    SmoothHelperPrintNN(pkdContext* pkd) : SmoothHelper(pkd) {}
+};
 
 // #define SMX_DENSITY_F1          28
-void DensityF1(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
-using SmoothHelperDensityF1 = SmoothHelperAsymmetric;
+class SmoothHelperDensityF1 : public SmoothHelperAsymmetric {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+    virtual void set_density(particleStore::ParticleReference& p, float fDensity) { p.set_density(fDensity); }
+
+  public:
+    SmoothHelperDensityF1(pkdContext* pkd) : SmoothHelperAsymmetric(pkd) {}
+};
+
+// Provides the density estimate for gravity step. Must be used per-particle.
+class SmoothHelperDensityGravStep : public SmoothHelperDensityF1 {
+    float fDensity_;
+    void set_density(particleStore::ParticleReference& p, float fDensity) final { fDensity_ = fDensity; }
+
+  public:
+    SmoothHelperDensityGravStep(pkdContext* pkd) : SmoothHelperDensityF1(pkd) {}
+    [[nodiscard]] auto density() const { return fDensity_; }
+};
 
 // #define SMX_DENSITY_M3          29
-void DensityM3(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
 class SmoothHelperDensityM3 : public SmoothHelper {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+
   public:
-    SmoothHelperDensityM3(pkdContext* pkd, bool bSymmetric = false) : SmoothHelper(pkd, false) {
+    SmoothHelperDensityM3(pkdContext* pkd) : SmoothHelper(pkd, false) { assert(pkd->particles.present(PKD_FIELD::oGroup)); }
+};
+// #define SMX_GRADIENT_M3         30
+class SmoothHelperGradientM3 : public SmoothHelperAsymmetric {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+    remoteID hopParticleLink{};
+
+  public:
+    [[nodiscard]] auto link() const { return hopParticleLink; }
+    SmoothHelperGradientM3(pkdContext* pkd) : SmoothHelperAsymmetric(pkd) { assert(pkd->particles.present(PKD_FIELD::oGroup)); }
+};
+
+// #define SMX_HOP_LINK            31
+class SmoothHelperHopChains : public SmoothHelperAsymmetric {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+    bool bDone = true;
+
+  public:
+    [[nodiscard]] auto done() const -> bool { return bDone; }
+    SmoothHelperHopChains(pkdContext* pkd, bool bSymmetric = false) : SmoothHelperAsymmetric(pkd) {
         assert(!bSymmetric);
         assert(pkd->particles.present(PKD_FIELD::oGroup));
     }
 };
-// #define SMX_GRADIENT_M3         30
-void LinkGradientM3(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
-using SmoothHelperGradientM3 = SmoothHelperAsymmetric;
-// #define SMX_HOP_LINK            31
-void LinkHopChains(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
-using SmoothHelperHopChains = SmoothHelperAsymmetric;
 
 // #define SMX_BALL                33
-void BallSmooth(particleStore::ParticleReference& p, float fBall, int, NN*, SMF*);
 class SmoothHelperBallSmooth : public SmoothHelper {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
+
     virtual void init(void* pIn) override final;
     virtual void initialize_local() override final;
 

@@ -101,8 +101,8 @@ void SmoothHelperHydroStep::combine(void* dst, const void* src, const void* key)
  *    - Acceleration
  *    - Timestep of the neighouring particles (in a scatter approach)
  */
-void hydroStep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
+
+void SmoothHelperHydroStep::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
     double dtEst;
 
     const auto& pv = p.velocity();
@@ -112,27 +112,26 @@ void hydroStep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN
     dtEst = HUGE_VAL;
 
     /*  Signal velocity criterion as described in Monaghan (1997) */
-    for (auto i = 0; i < nSmooth; ++i) {
-        if (&p == nnList[i].pPart) continue;
-        auto q = pkd->particles[nnList[i].pPart];
+    for (auto& nn : nnList) {
+        if (&p == nn.pPart) continue;
+        auto q = pkd->particles[nn.pPart];
         const auto& qv = q.velocity();
         const auto& qsph = q.sph();
 
-        const auto& dr = nnList[i].dr;
-
+        const auto& dr = nn.dr;
         const double dvDotdr = dot(dr, pv - qv);
         double vsig_pq = psph.c + qsph.c;
-        if (dvDotdr < 0.) vsig_pq -= dvDotdr / sqrt(nnList[i].fDist2);
+        if (dvDotdr < 0.) vsig_pq -= dvDotdr / sqrt(nn.fDist2);
 
-        const double dt2 = smf->dEtaCourant * 2 * ph * smf->a / vsig_pq;
+        const double dt2 = dEtaCourant * 2 * ph * a_ / vsig_pq;
         if (dt2 < dtEst) dtEst = dt2;
     }
 
 #ifdef ENTROPY_SWITCH
     // Gather the maximum relative kinetic energy
     psph.maxEkin = 0.0;
-    for (auto i = 0; i < nSmooth; ++i) {
-        auto q = pkd->particles[nnList[i].pPart];
+    for (auto& nn : nnList) {
+        auto q = pkd->particles[nn.pPart];
         const auto& qv = q.velocity();
 
         double dv2 = dot(qv - pv, qv - pv);
@@ -153,7 +152,7 @@ void hydroStep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN
 
     // Timestep criteria based on the hydro+grav accelerations
 
-    const TinyVector<double, 3> a{p.acceleration() - smf->a * (-p.velocity() * psph.Frho + psph.Fmom) / p.mass()};
+    const TinyVector<double, 3> a{p.acceleration() - a_ * (-p.velocity() * psph.Frho + psph.Fmom) / p.mass()};
 
     // 1/a^3 from grav2.c:217
     // Explanation:
@@ -163,14 +162,14 @@ void hydroStep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN
     // But for the hydro, it is 1/a^2:
     // 1/a from hydro eqs (included normally in minDt)
     // 1/a from pkdVel, which is normally incorporated in the drift
-    const double aFac = 1. / (smf->a * smf->a * smf->a);
+    const double aFac = 1. / (a_ * a_ * a_);
     const double acc = sqrt(dot(a, a)) * aFac;
 
-    const float h = smf->bDoGravity ? std::min(ph, static_cast<double>(p.soft())) : ph;
-    const double dtAcc = smf->dCFLacc * sqrt(2. * h / acc);
+    const float h = bDoGravity ? std::min(ph, static_cast<double>(p.soft())) : ph;
+    const double dtAcc = dCFLacc * sqrt(2. * h / acc);
 
     if (dtAcc < dtEst) dtEst = dtAcc;
-    uint8_t uNewRung = pkdDtToRung(dtEst, smf->dDelta, MAX_RUNG);
+    uint8_t uNewRung = pkdDtToRung(dtEst, dDelta, MAX_RUNG);
     if (uNewRung > p.new_rung()) p.set_new_rung(uNewRung);
 
     /* Timestep limiter that imposes that the particle must have a dt
@@ -180,9 +179,9 @@ void hydroStep(particleStore::ParticleReference& p, float fBall, int nSmooth, NN
      * neighbours is set given the dt computed from this particle
      */
     uNewRung = std::max(p.rung(), p.new_rung());
-    if (smf->dDelta >= 0) {
-        for (auto i = 0; i < nSmooth; ++i) {
-            auto q = pkd->particles[nnList[i].pPart];
+    if (dDelta >= 0) {
+        for (auto& nn : nnList) {
+            auto q = pkd->particles[nn.pPart];
             if (uNewRung > q.new_rung() + 2) {
                 q.set_new_rung(uNewRung - 1);
                 if (!q.is_active() && q.new_rung() > q.sph().uWake) {

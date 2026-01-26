@@ -36,20 +36,19 @@ void SmoothHelperBHGasPin::unpack(void* dst, const void* src, const void* key) {
     }
 }
 
-void smBHGasPin(particleStore::ParticleReference& p, float fBall, int nSmooth, NN* nnList, SMF* smf) {
-    PKD pkd = smf->pkd;
-    const auto pv = p.velocity() / smf->a;
+void SmoothHelperBHGasPin::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+    const auto pv = p.velocity() / a_;
     const NN* nnLowPot;
 
     TinyVector<vel_t, 3> meanv{0.0};
     vel_t meanv2 = 0.0;
     float minPot = HUGE_VAL;
-    for (auto i = 0; i < nSmooth; ++i) {
-        auto q = pkd->particles[nnList[i].pPart];
+    for (auto& nn : nnList) {
+        auto q = pkd->particles[nn.pPart];
         assert(q.is_gas());
         if (q.potential() < minPot) {
             minPot = q.potential();
-            nnLowPot = &nnList[i];
+            nnLowPot = &nn;
         }
         const TinyVector<vel_t, 3> v{q.velocity() - pv};
         meanv += v;
@@ -70,7 +69,7 @@ void smBHGasPin(particleStore::ParticleReference& p, float fBall, int nSmooth, N
             bh.bForceReposition = false;
         }
         else {
-            const double inv_nSmooth = 1. / nSmooth;
+            const double inv_nSmooth = 1. / nnList.size();
             meanv *= inv_nSmooth;
             meanv2 *= inv_nSmooth;
             const auto stdv2 = meanv2 - dot(meanv, meanv);
@@ -91,6 +90,7 @@ struct bhRepositionPack {
 };
 
 class SmoothHelperBHReposition : public SmoothHelperPacked<bhRepositionPack> {
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final {}
     virtual void pack(void* dst, const void* src) override final;
     virtual void unpack(void* dst, const void* src, const void* key) override final;
 
