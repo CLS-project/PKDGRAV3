@@ -154,46 +154,12 @@ PowerTransfer::PowerTransfer(CSM csm, double a, int nTf, double* tk, double* tf)
     }
 }
 
-// The function getGridInfoLPT() determines the number of grids needed, and at the moment
+// The constructor of gridInfoLPT() determines the number of grids needed, and at the moment
 // the maximum number is 12. We use a small_vector here which will allocate on the stack
 // if the number of grids is 12 or fewer, and on the heap if it is larger.
 static constexpr int MAX_LPT_GRIDS = 12;
 using real_arrays = boost::container::small_vector<real_array_t, MAX_LPT_GRIDS>;
 using complex_arrays = boost::container::small_vector<complex_array_t, MAX_LPT_GRIDS>;
-
-/* Function for determining the total number of grids needed as well as
-** the grid index mapping used during LPT computations.
-*/
-gridInfoLPT getGridInfoLPT(int iLPT) {
-    int bExtraTmpGridFor1LPT = 1; // allow one additional temporary grid when doing 1LPT only?
-    gridInfoLPT gridInfo;
-    gridInfo.nGrids = 6; // particle positions and velocities
-    if (iLPT >= 1) {
-        /* For 1LPT we need 1 potential grid and one temporary grid */
-        gridInfo.indexPhi1 = gridInfo.nGrids++;
-        gridInfo.indexTmp0 = gridInfo.nGrids++;
-        /* We can save time by having one additional temporary grid */
-        gridInfo.indexTmp1 = gridInfo.indexTmp0;
-        if (iLPT == 1 && bExtraTmpGridFor1LPT) {
-            gridInfo.indexTmp1 = gridInfo.nGrids++;
-        }
-    }
-    if (iLPT >= 2) {
-        /* For 2LPT we need 1 additional potential grid
-        ** and one additional temporary grid.
-        */
-        gridInfo.indexPhi2 = gridInfo.nGrids++;
-        gridInfo.indexTmp1 = gridInfo.nGrids++;
-    }
-    if (iLPT >= 3) {
-        /* For 3LPT we need 1 additional potential grid */
-        gridInfo.indexPhi3 = gridInfo.nGrids++;
-    }
-    // It is better to adjust MAX_LPT_GRIDS above if it changes, but everything
-    // should work with larger values except it will allocate on the heap.
-    // assert(gridInfo.nGrids <= MAX_LPT_GRIDS);
-    return gridInfo;
-}
 
 /* Function for out-of-place differentiation (once of twice)
 ** of a Fourier grid, followed by an inverse Fourier transform.
@@ -603,17 +569,18 @@ void carryout2LPT(PKD pkd, MDLFFT fft, basicParticleArray output, real_arrays& R
     */
     if (pkd->Self() == 0) printf("%*sBuilding potential\n", printIndent, "");
     float potentialFactor = growth.D2 / pow(growth.D1, 2.);
-    handleLPTTerm(pkd, fft, R, K, notes, kFundamental, gridInfo.indexPhi2, LPT_TERM_OP::EQ, -1., {{gridInfo.indexPhi1, {0, 0}}, {gridInfo.indexPhi1, {1, 1}}});
+    handleLPTTerm(pkd, fft, R, K, notes, kFundamental, gridInfo.indexPhi2, LPT_TERM_OP::EQ, -1.,
+                  {{.gridIndex = gridInfo.indexPhi1, .diffs = {0, 0}}, {.gridIndex = gridInfo.indexPhi1, .diffs = {1, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental, gridInfo.indexPhi2, LPT_TERM_OP::MIN_EQ, 1.,
-                  {{gridInfo.indexPhi1, {1, 1}}, {gridInfo.indexPhi1, {2, 2}}});
+                  {{.gridIndex = gridInfo.indexPhi1, .diffs = {1, 1}}, {.gridIndex = gridInfo.indexPhi1, .diffs = {2, 2}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental, gridInfo.indexPhi2, LPT_TERM_OP::MIN_EQ, 1.,
-                  {{gridInfo.indexPhi1, {2, 2}}, {gridInfo.indexPhi1, {0, 0}}});
+                  {{.gridIndex = gridInfo.indexPhi1, .diffs = {2, 2}}, {.gridIndex = gridInfo.indexPhi1, .diffs = {0, 0}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental, gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1.,
-                  {{gridInfo.indexPhi1, {0, 1}}, {gridInfo.indexPhi1, {0, 1}}});
+                  {{.gridIndex = gridInfo.indexPhi1, .diffs = {0, 1}}, {.gridIndex = gridInfo.indexPhi1, .diffs = {0, 1}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental, gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1.,
-                  {{gridInfo.indexPhi1, {1, 2}}, {gridInfo.indexPhi1, {1, 2}}});
+                  {{.gridIndex = gridInfo.indexPhi1, .diffs = {1, 2}}, {.gridIndex = gridInfo.indexPhi1, .diffs = {1, 2}}});
     handleLPTTerm(pkd, fft, R, K, notes, kFundamental, gridInfo.indexPhi2, LPT_TERM_OP::PLS_EQ, 1.,
-                  {{gridInfo.indexPhi1, {2, 0}}, {gridInfo.indexPhi1, {2, 0}}});
+                  {{.gridIndex = gridInfo.indexPhi1, .diffs = {2, 0}}, {.gridIndex = gridInfo.indexPhi1, .diffs = {2, 0}}});
     FFTLaplacianInverse(pkd, fft, Phi2_R, Phi2_K, kFundamental, fftFactor * potentialFactor);
     /* Construct displacement field from potential,
     ** displace positions and boost velocities.
@@ -840,7 +807,7 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
     ** Note that "data" points to the same block for all threads.
     ** Particles will overlap K[0] through K[5] eventually.
     */
-    gridInfoLPT gridInfo = getGridInfoLPT(iLPT);
+    gridInfoLPT gridInfo(iLPT);
     real_arrays R(gridInfo.nGrids);
     complex_arrays K(gridInfo.nGrids);
     GridInfo G(pkd->mdl, fft);

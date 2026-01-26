@@ -71,10 +71,39 @@ struct gridInfoLPT {
     int indexPhi3 = -1; // 3LPT potentials
     int indexTmp0 = -1; // temporary grid
     int indexTmp1 = -1; // temporary grid
+
+    /* Function for determining the total number of grids needed as well as
+    ** the grid index mapping used during LPT computations.
+    */
+    gridInfoLPT(int iLPT) {
+        bool bExtraTmpGridFor1LPT = true; // allow one additional temporary grid when doing 1LPT only?
+        nGrids = 6;                       // particle positions and velocities
+        if (iLPT >= 1) {
+            /* For 1LPT we need 1 potential grid and one temporary grid */
+            indexPhi1 = nGrids++;
+            indexTmp0 = nGrids++;
+            /* We can save time by having one additional temporary grid */
+            indexTmp1 = indexTmp0;
+            if (iLPT == 1 && bExtraTmpGridFor1LPT) {
+                indexTmp1 = nGrids++;
+            }
+        }
+        if (iLPT >= 2) {
+            /* For 2LPT we need 1 additional potential grid
+            ** and one additional temporary grid.
+            */
+            indexPhi2 = nGrids++;
+            indexTmp1 = nGrids++;
+        }
+        if (iLPT >= 3) {
+            /* For 3LPT we need 1 additional potential grid */
+            indexPhi3 = nGrids++;
+        }
+        // It is better to adjust MAX_LPT_GRIDS above if it changes, but everything
+        // should work with larger values except it will allocate on the heap.
+        // assert(gridInfo.nGrids <= MAX_LPT_GRIDS);
+    }
 };
-
-gridInfoLPT getGridInfoLPT(int iLPT);
-
 #endif
 
 /* PLT_MOVEIC */

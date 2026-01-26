@@ -529,7 +529,7 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
     ps.nMinEphemeral = e.per_process;
 
     // Calculate constraint for generating initial conditions
-    EphemeralMemory ic_memory(mdl, parameters.get_nGrid(), getGridInfoLPT(parameters.get_iLPT()).nGrids);
+    EphemeralMemory ic_memory(mdl, parameters.get_nGrid(), gridInfoLPT(parameters.get_iLPT()).nGrids);
     ps.nMinTotalStore = ic_memory.per_process;
 
     ServiceInitializePStore::output pout;
