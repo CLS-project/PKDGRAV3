@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "hydro/hydro.h"
 #include <cstddef>
 #include <type_traits>
 #ifdef HAVE_CONFIG_H
@@ -571,7 +572,7 @@ int pstReSmoothNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
             out->nSmoothed = smReSmoothBHNode(&smx, &in->smf, in->iSmoothType);
         }
         else {
-            out->nSmoothed = smReSmoothNode(&smx, &in->smf, in->iSmoothType);
+            out->nSmoothed = smx.ReSmoothNode();
         }
     #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
         if (out->nSmoothed) {

@@ -179,6 +179,7 @@ namespace rockstar {
 #include "SPH/gasvalues.h"
 #include "SPH/resetcom.h"
 #include "imf.h"
+#include "meshless/hydro/hydro.h"
 #include "meshless/hydro/endstep.h"
 #include "meshless/hydro/wakeup.h"
 #ifdef STELLAR_EVOLUTION
@@ -5164,43 +5165,32 @@ void MSR::BHStep(double dTime, double dDelta) {
 }
 
 void MSR::ComputeSmoothing(double dTime, double dDelta) {
-    uint64_t nSmoothed = 1;
+    uint64_t nSmoothed;
     int it = 0, maxit = 100;
 
     printf("Computing density... \n");
     TimerStart(TIMER_DENSITY);
-    if (parameters.get_bIterativeSmoothingLength()) {
+    ServiceHydroDensity::input in{
+        .dNeighborsStd = parameters.get_dNeighborsStd(),
+        .dhMinOverSoft = parameters.get_dhMinOverSoft(),
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()),
+        .bPeriodic = parameters.get_bPeriodic(),
+        .bIterativeSmoothingLength = parameters.get_bIterativeSmoothingLength(),
+    };
+    if (in.bIterativeSmoothingLength) {
 #ifdef OPTIM_AVOID_IS_ACTIVE
         SelActives();
 #else
         SelAll(); // We set all particles as "not converged"
 #endif
-
-        // Currently implemented but not used/tested
-        // pstPredictSmoothing(msr->pst,&in,sizeof(in),NULL,NULL);
-
-        while (nSmoothed > 0 && it <= maxit) {
-            // I think this is no longer used
-            // msrSetFirstHydroLoop(msr, 1);
-            // 1-> we care if the particle is marked
-            // 0-> we dont
-#ifdef OPTIM_SMOOTH_NODE
-            nSmoothed = ReSmoothNode(dTime, dDelta, SMX_HYDRO_DENSITY, 0);
-#else
-            nSmoothed = ReSmooth(dTime, dDelta, SMX_HYDRO_DENSITY, 0);
-#endif
-            // msrSetFirstHydroLoop(msr, 0);
-            it++;
-        }
+        do {
+            mdl->RunService<ServiceHydroDensity>(in, nSmoothed);
+        } while (nSmoothed > 0 && ++it <= maxit);
         if (nSmoothed > 0) {
             // If we can not converge, at least make sure that we update the
             // density and other variables with the latest fBall
-#ifdef OPTIM_SMOOTH_NODE
-            nSmoothed = ReSmoothNode(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL, 0);
-#else
-            nSmoothed = ReSmooth(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL, 0);
-#endif
-
+            ServiceHydroDensityFinal::input inFinal{.nSmooth = static_cast<int>(parameters.get_nSmooth()), .bPeriodic = parameters.get_bPeriodic()};
+            mdl->RunService<ServiceHydroDensityFinal>(inFinal, nSmoothed);
             printf("Smoothing length did not converge for %" PRIu64 " particles\n", nSmoothed);
         }
 
@@ -5209,9 +5199,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
         printf("Computing h took %d iterations and %.5f seconds \n", it, dsec);
     }
     else {
-        bUpdateBall = 1;
-        Smooth(dTime, dDelta, SMX_HYDRO_DENSITY, 0, parameters.get_nSmooth());
-        bUpdateBall = 0;
+        mdl->RunService<ServiceHydroDensity>(in, nSmoothed);
     }
 }
 

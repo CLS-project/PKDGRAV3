@@ -156,7 +156,6 @@ class SmoothFunction {
     SmoothFunction(PKD pkd) : pkd(pkd) {}
     virtual ~SmoothFunction() = default;
     virtual void Smooth(particleStore::ParticleReference& p, float, std::span<NN> nnList) = 0;
-    virtual auto shouldSmooth(particleStore::ParticleReference& p) -> bool { return true; }
     virtual auto gasOnly() -> bool { return false; } // for OPTIM_REORDER_IN_NODES
 };
 
@@ -169,8 +168,6 @@ enum SMOOTH_TYPE {
     SMX_HOP_LINK,
     SMX_BALL,
     SMX_PRINTNN,
-    SMX_HYDRO_DENSITY,
-    SMX_HYDRO_DENSITY_FINAL,
     SMX_HYDRO_GRADIENT,
     SMX_HYDRO_FLUX,
     SMX_HYDRO_STEP,

@@ -1,10 +1,42 @@
 #ifndef HYDRO_H
 #define HYDRO_H
+#include "TraversePST.h"
 #include "pkd.h"
-#include "smooth/smoothfcn.h"
+#include "smooth/smooth.h"
 #include <vector>
 #include "blitz/array.h"
 #include "blitz/memblock.h"
+
+class ServiceHydroDensity : public TraverseCount<ServiceHydroDensity> {
+  public:
+    static constexpr std::string_view name = "HydroDensity";
+    struct input {
+        double dNeighborsStd;
+        double dhMinOverSoft;
+        int nSmooth;
+        bool bPeriodic;
+        bool bIterativeSmoothingLength;
+    };
+    using output = uint64_t;
+    explicit ServiceHydroDensity(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceHydroDensityFinal : public TraverseCount<ServiceHydroDensityFinal> {
+  public:
+    static constexpr std::string_view name = "HydroDensityFinal";
+    struct input {
+        int nSmooth;
+        bool bPeriodic;
+    };
+    using output = uint64_t;
+    explicit ServiceHydroDensityFinal(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
 
 template <typename T, typename Enum>
 class EnumArray {
@@ -226,12 +258,10 @@ struct hydroDensityPack {
     bool bMarked;
 };
 
-void hydroDensity_node(PKD pkd, SMF* smf, Bound bnd_node, const std::vector<PARTICLE*>& sinks, NN* nnList, int nCnt);
 class SmoothHelperHydroDensityBase : public SmoothHelperPacked<hydroDensityPack> {
-    auto shouldSmooth(particleStore::ParticleReference& p) -> bool final { return p.is_active(); }
-    virtual void pack(void* dst, const void* src) override final;
-    virtual void unpack(void* dst, const void* src, const void* key) override final;
-    virtual void init_shared(void* dst) override final { init_shared_gas_decorator(pkd, dst); }
+    void pack(void* dst, const void* src) final;
+    void unpack(void* dst, const void* src, const void* key) final;
+    void init_shared(void* dst) final { init_shared_gas_decorator(pkd, dst); }
 
   protected:
     SmoothHelperHydroDensityBase(pkdContext* pkd) : SmoothHelperPacked<hydroDensityPack>(pkd, false) {}
@@ -252,6 +282,22 @@ class SmoothHelperHydroDensityFinal : public SmoothHelperHydroDensityBase {
 
   public:
     SmoothHelperHydroDensityFinal(pkdContext* pkd) : SmoothHelperHydroDensityBase(pkd) {}
+};
+
+class SmoothHydroDensity : public smContext {
+    double dNeighborsStd;
+    double dhMinOverSoft;
+    void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node) override;
+    auto getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, double fBall_factor = 1.0) -> Bound override {
+        return smContext::getNodeSinks(node, sinks, 1.2);
+    }
+
+  public:
+    SmoothHydroDensity(PKD pkdIn, int nSmooth, bool bPeriodic, double dNeighborsStd, bool bIterativeSmoothingLength, double dhMinOverSoft)
+        : smContext(pkdIn, std::make_shared<SmoothHelperHydroDensity>(pkdIn, dNeighborsStd, bIterativeSmoothingLength), nSmooth, bPeriodic),
+          dNeighborsStd(dNeighborsStd), dhMinOverSoft(dhMinOverSoft) {}
+    void SmoothParticles() override;
+    auto ReSmoothParticles() -> uint64_t override;
 };
 
 /* Gradient loop */

@@ -64,11 +64,17 @@ struct smContext {
     auto pqSearch(PQ* pq, blitz::TinyVector<double, 3> r, int iRoot) -> PQ*;
     void Gather(double fBall2, blitz::TinyVector<double, 3> r);
 
-  protected:
+    // protected:
+  public:
     // These calls (Re)SmoothSingle for all particles which ultimately calls the Smooth() method of the SmoothFunction
     // and can be overridden to provide efficient particle filtering.
     virtual void SmoothParticles();
     virtual auto ReSmoothParticles() -> uint64_t;
+
+    virtual auto getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, double fBall_factor = 1.0) -> Bound;
+    virtual void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node);
+    void buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r);
+    void buildInteractionList(Bound bnd_node);
 
   public:
     smContext(PKD pkdIn, int iSmoothType, SMF* smf, bool bSymmetric, int nSmooth, bool bPeriodic, bool bMakeCache = true);
@@ -78,14 +84,13 @@ struct smContext {
     auto ReSmoothSingle(particleStore::ParticleReference& p, double fBall) -> bool;
     void Smooth();
     auto ReSmooth() -> uint64_t { return ReSmoothParticles(); }
+#ifdef OPTIM_SMOOTH_NODE
+    auto ReSmoothNode() -> uint64_t;
+#endif
 };
 using SMX = smContext*;
 
 void smSmooth(SMX, SMF*);
 auto smReSmooth(SMX, int) -> uint64_t;
-#ifdef OPTIM_SMOOTH_NODE
-auto smReSmoothNode(SMX, SMF*, int) -> uint64_t;
-void buildInteractionList(SMX smx, KDN* node, Bound bnd_node, blitz::TinyVector<double, 3> r, int ix, int iy, int iz);
-#endif
 
 #endif

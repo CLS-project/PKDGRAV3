@@ -96,6 +96,7 @@
 #include "SPH/gasvalues.h"
 #include "SPH/resetcom.h"
 
+#include "meshless/hydro/hydro.h"
 #include "meshless/hydro/wakeup.h"
 #include "meshless/hydro/endstep.h"
 
@@ -136,6 +137,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceCoolingHydReionization>(pst);
     mdl->AddService<ServiceWakeParticles>(pst);
     mdl->AddService<ServiceEndTimestepIntegration>(pst);
+    mdl->AddService<ServiceHydroDensity>(pst);
+    mdl->AddService<ServiceHydroDensityFinal>(pst);
     mdl->AddService<ServiceSetAdd>(pst);
     mdl->AddService<ServiceSwapAll>(pst);
     mdl->AddService<ServiceHostname>(pst);
