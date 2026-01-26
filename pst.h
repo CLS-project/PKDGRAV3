@@ -112,24 +112,10 @@ inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view Checkpoint = "Checkpoint";
 inline constexpr std::string_view Smooth = "Smooth";
 inline constexpr std::string_view Gravity = "Gravity";
-inline constexpr std::string_view LightCone = "LightCone";
 inline constexpr std::string_view CalcEandL = "CalcEandL";
 inline constexpr std::string_view Drift = "Drift";
-inline constexpr std::string_view ComputePrimVars = "ComputePrimVars";
-inline constexpr std::string_view WakeParticles = "WakeParticles";
-inline constexpr std::string_view FluxStats = "FluxStats";
 inline constexpr std::string_view GrackleInit = "GrackleInit";
-inline constexpr std::string_view CoolingUpdate = "CoolingUpdate";
-inline constexpr std::string_view CoolingUpdateZ = "CoolingUpdateZ";
-inline constexpr std::string_view CoolingInit = "CoolingInit";
-inline constexpr std::string_view CoolingHydReion = "CoolingHydReion";
 inline constexpr std::string_view ChemCompInit = "ChemCompInit";
-inline constexpr std::string_view BhPlaceSeed = "BhPlaceSeed";
-inline constexpr std::string_view BhReposition = "BhReposition";
-inline constexpr std::string_view BhInit = "BhInit";
-inline constexpr std::string_view BhAccretion = "BhAccretion";
-inline constexpr std::string_view ROParticleCache = "ROParticleCache";
-inline constexpr std::string_view ParticleCacheFinish = "ParticleCacheFinish";
 inline constexpr std::string_view Kick = "Kick";
 inline constexpr std::string_view KickTree = "KickTree";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
@@ -142,8 +128,6 @@ inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
 inline constexpr std::string_view GroupStats = "GroupStats";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
-inline constexpr std::string_view GenerateIC = "GenerateIC";
-inline constexpr std::string_view LocalGenerateIC = "LocalGenerateIC";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
 inline constexpr std::string_view MemStatus = "MemStatus";
@@ -200,7 +184,6 @@ enum pst_service {
     PST_MEMSTATUS,
     PST_SETSPHOPTIONS,
     PST_INITIALIZEEOS,
-    PST_INTERLACE,
 };
 
 void pstAddServices(PST, mdl::mdlClass*);
