@@ -49,20 +49,20 @@ int TraversePST::Traverse(std::string_view service_name, PST pst, void* vin, int
 // the leaf (AmCore) then Service() is called and must be provided.
 int TraversePST::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
-    auto rID = mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
+    auto rID = ReqService(pst, {static_cast<std::byte*>(vin), size_t(nIn)});
     Traverse(pst->pstLower, vin, nIn, vout, nOut);
     return mdl->GetReply(rID, nOut, vout);
 }
 
-int TraversePST::ReqService(PST pst, void* vin, int nIn) {
-    return pst->mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
+int TraversePST::ReqService(PST pst, std::span<std::byte> in) {
+    return pst->mdl->ReqService(pst->idUpper, getServiceID(), in);
 }
 
 // This class is used for services that pass the same input (or none),
 // and need to combine output results of the same size and type.
 int TraverseCombinePST::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto mdl = reinterpret_cast<mdl::mdlClass*>(pst->mdl);
-    auto rID = mdl->ReqService(pst->idUpper, getServiceID(), vin, nIn);
+    auto rID = ReqService(pst, {static_cast<std::byte*>(vin), size_t(nIn)});
     Traverse(pst->pstLower, vin, nIn, vout, nOut);
     void* vout2 = alloca(nOut);
     nOut = mdl->GetReply(rID, nOut, vout2);

@@ -35,7 +35,7 @@ int ServiceFileSizes::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut)
         if (nLower == 0) nLower = 1;
         hdr->nSimultaneous -= nLower;
         hdr->iReaderWriter += nLower;
-        auto rID = ReqService(pst, vin, nIn);
+        auto rID = ReqService(pst, std::span(static_cast<std::byte*>(vin), size_t(nIn)));
         ;
         hdr->nSimultaneous = nLower;
         hdr->iReaderWriter -= nLower;
@@ -104,7 +104,7 @@ int ServiceIO::do_lower(PST pst, void* vin, int nIn, void* vout, int nOut) {
 }
 
 int ServiceIO::do_upper(PST pst, void* vin, int nIn) {
-    return ReqService(pst, vin, nIn);
+    return ReqService(pst, std::span(static_cast<std::byte*>(vin), size_t(nIn)));
 }
 
 int ServiceIO::Service(PST pst, void* vin, int nIn, void* vout, int nOut) {

@@ -31,7 +31,17 @@ class TraversePST : public mdl::BasicService {
     explicit TraversePST(PST node_pst, std::string_view service_name, int nInBytes = 0, int nOutBytes = 0)
         : BasicService(service_name, nInBytes, nOutBytes), node_pst(node_pst) {}
     virtual ~TraversePST() = default;
-    int ReqService(PST pst, void* vin, int nIn);
+    int ReqService(PST pst, std::span<std::byte> in);
+    template <typename I>
+    int ReqService(PST pst, const I& in) {
+        auto bytes = mdl::as_bytes(in);
+        return ReqService(pst, bytes);
+    }
+    template <typename I>
+    int ReqService(PST pst, std::span<I> in) {
+        auto bytes = mdl::as_bytes(in);
+        return ReqService(pst, bytes);
+    }
 
   protected:
     virtual int operator()(std::span<std::byte> In, std::span<std::byte> Out) final;

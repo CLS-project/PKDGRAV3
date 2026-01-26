@@ -24,7 +24,7 @@ int ServiceReorder::OffNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto thread = mdl->Self() + pst->nLower;
     auto proc = mdl->ThreadToProc(thread);
     pst->iOrdSplit = in->nPerProc * proc;
-    auto rID = ReqService(pst, in, nIn);
+    auto rID = ReqService(pst, std::span(reinterpret_cast<std::byte*>(in), size_t(nIn)));
     Traverse(pst->pstLower, in, nIn, NULL, 0);
     mdl->GetReply(rID);
     return 0;
@@ -42,7 +42,7 @@ int ServiceReorder::Recurse(PST pst, void* vin, int nIn, void* vout, int nOut) {
     auto mdl = static_cast<mdl::mdlClass*>(pst->mdl);
     auto in = static_cast<input*>(vin);
     pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * (pst->nLower + mdl->Core());
-    auto rID = ReqService(pst, in, nIn);
+    auto rID = ReqService(pst, std::span(reinterpret_cast<std::byte*>(in), size_t(nIn)));
     Traverse(pst->pstLower, in, nIn, NULL, 0);
     mdl->GetReply(rID);
     return 0;

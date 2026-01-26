@@ -442,14 +442,37 @@ class mdlClass : public mdlBASE {
 
     void FlushCache(int cid);
     void FinishCache(int cid);
+
+    int ReqService(int id, int sid, std::span<std::byte> in = {});
+    template <typename I>
+    int ReqService(int id, int sid, const I& in) {
+        auto bytes = as_bytes(in);
+        return ReqService(id, sid, bytes);
+    }
+    template <typename I>
+    int ReqService(int id, int sid, std::span<I> in) {
+        auto bytes = as_bytes(in);
+        return ReqService(id, sid, bytes);
+    }
+
+    int ReqService(int id, std::string_view service_name, std::span<std::byte> in = {});
+    template <typename I>
+    int ReqService(int id, std::string_view service_name, const I& in) {
+        auto bytes = as_bytes(in);
+        return ReqService(id, service_name, bytes);
+    }
+    template <typename I>
+    int ReqService(int id, std::string_view service_name, std::span<I> in) {
+        auto bytes = as_bytes(in);
+        return ReqService(id, service_name, bytes);
+    }
+
     int ReqService(int id, int sid, void* vin, int nInBytes);
-    int ReqService(int id, int sid) { return ReqService(id, sid, nullptr, 0); }
     template <typename T>
     int ReqService(int id, int sid, T& in) {
         return ReqService(id, sid, &in, sizeof(in));
     }
     int ReqService(int id, std::string_view service_name, void* vin, int nInBytes);
-    int ReqService(int id, std::string_view service_name) { return ReqService(id, service_name, nullptr, 0); }
     template <typename S>
     int ReqService(int id, void* vin, int nInBytes) {
         return ReqService(id, S::name, vin, nInBytes);

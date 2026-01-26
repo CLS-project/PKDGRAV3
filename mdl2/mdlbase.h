@@ -79,6 +79,34 @@ concept ByteBufferLike = requires(C& c) {
 template <class C>
 concept WritableByteBufferLike = ByteBufferLike<C> && !std::is_const_v<std::remove_pointer_t<decltype(std::declval<C&>().data())>>;
 
+// Helper functions to convert various types to byte spans
+static std::span<std::byte> as_writable_bytes(std::span<std::byte> s) noexcept {
+    return s;
+}
+static std::span<const std::byte> as_bytes(std::span<const std::byte> s) noexcept {
+    return s;
+}
+template <WritableByteBufferLike C>
+static std::span<std::byte> as_writable_bytes(C& c) {
+    using T = std::remove_pointer_t<decltype(c.data())>;
+    return std::as_writable_bytes(std::span<T>{c.data(), c.size()});
+}
+template <ByteBufferLike C>
+static std::span<const std::byte> as_bytes(const C& c) {
+    using T = std::remove_pointer_t<decltype(c.data())>;
+    return std::as_bytes(std::span<const T>{c.data(), c.size()});
+}
+template <class T>
+    requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
+static std::span<std::byte> as_writable_bytes(T& obj) noexcept {
+    return {reinterpret_cast<std::byte*>(std::addressof(obj)), sizeof(T)};
+}
+template <class T>
+    requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
+static std::span<const std::byte> as_bytes(const T& obj) noexcept {
+    return {reinterpret_cast<const std::byte*>(std::addressof(obj)), sizeof(T)};
+}
+
 // This struct is use to keep track of a variable length buffer for service requests.
 // List all data types and the number of times they are repeated in the constructor.
 //     ServiceBuffer msg {
@@ -254,31 +282,6 @@ class mdlBASE : protected mdlbt {
     int AddService(Args&&... args) {
         static_assert(std::is_base_of_v<BasicService, T>, "T must derive from BasicService");
         return AddService(std::make_unique<T>(std::forward<Args>(args)...));
-    }
-
-  private:
-    // Helper functions to convert various types to byte spans
-    static std::span<std::byte> as_writable_bytes(std::span<std::byte> s) noexcept { return s; }
-    static std::span<const std::byte> as_bytes(std::span<const std::byte> s) noexcept { return s; }
-    template <WritableByteBufferLike C>
-    static std::span<std::byte> as_writable_bytes(C& c) {
-        using T = std::remove_pointer_t<decltype(c.data())>;
-        return std::as_writable_bytes(std::span<T>{c.data(), c.size()});
-    }
-    template <ByteBufferLike C>
-    static std::span<const std::byte> as_bytes(const C& c) {
-        using T = std::remove_pointer_t<decltype(c.data())>;
-        return std::as_bytes(std::span<const T>{c.data(), c.size()});
-    }
-    template <class T>
-        requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
-    static std::span<std::byte> as_writable_bytes(T& obj) noexcept {
-        return {reinterpret_cast<std::byte*>(std::addressof(obj)), sizeof(T)};
-    }
-    template <class T>
-        requires(!ByteBufferLike<T>) /* && std::is_trivially_copyable_v<T> */
-    static std::span<const std::byte> as_bytes(const T& obj) noexcept {
-        return {reinterpret_cast<const std::byte*>(std::addressof(obj)), sizeof(T)};
     }
 
   public:

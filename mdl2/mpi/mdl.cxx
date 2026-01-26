@@ -2502,6 +2502,16 @@ void mdlClass::CommitServices() {
 //     mdl->AddService(sid, p1, fcnService, nInBytes, nOutBytes);
 // }
 
+int mdlClass::ReqService(int id, int sid, std::span<std::byte> in) {
+    mdlMessageSendRequest request(Self(), sid, id, in.data(), in.size());
+    enqueueAndWait(request);
+    return request.header.replyTag;
+}
+
+int mdlClass::ReqService(int id, std::string_view service_name, std::span<std::byte> in) {
+    return ReqService(id, service_map.at(service_name), in);
+}
+
 int mdlClass::ReqService(int id, int sid, void* vin, int nInBytes) {
     mdlMessageSendRequest request(Self(), sid, id, vin, nInBytes);
     enqueueAndWait(request);
