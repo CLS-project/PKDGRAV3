@@ -22,6 +22,7 @@
 #include <cmath>
 
 #include <new>
+#include <utility>
 #include <math.h>
 #include <limits.h>
 #include <assert.h>
@@ -46,24 +47,14 @@ using blitz::floor;
 using blitz::TinyVector;
 
 // This delegating constructor will go away once we convert the functions
-smContext::smContext(PKD pkdIn, int iSmoothType, SMF* smf, bool bSymmetric, int nSmooth, bool bPeriodic, bool bMakeCache)
-    : smContext(pkdIn, makeHelper(pkdIn, smf, bSymmetric, iSmoothType), nSmooth, bPeriodic, bMakeCache) {
+smContext::smContext(PKD pkdIn, int iSmoothType, SMF* smf, bool bSymmetric, int nSmooth, bool bPeriodic)
+    : smContext(pkdIn, makeHelper(pkdIn, smf, bSymmetric, iSmoothType), nSmooth, bPeriodic) {
     this->iSmoothType = iSmoothType;
 }
 
-smContext::smContext(PKD pkdIn, std::shared_ptr<SmoothHelper> helper, int nSmooth, bool bPeriodic, bool bMakeCache)
-    : pkd(pkdIn), function(helper), nSmooth(nSmooth), bPeriodic(bPeriodic), iSmoothType(-1) {
+smContext::smContext(PKD pkdIn, std::shared_ptr<SmoothFunction> helper, int nSmooth, bool bPeriodic)
+    : pkd(pkdIn), function(std::move(helper)), nSmooth(nSmooth), bPeriodic(bPeriodic), iSmoothType(-1) {
     pSentinel = static_cast<PARTICLE*>(malloc(pkd->particles.ParticleSize()));
-
-    helper->initialize_local();
-    /*
-    ** Start particle caching space (cell cache is already active).
-    */
-    if (bMakeCache) {
-        bOwnCache = 1;
-        pkd->mdl->CacheInitialize(CID_PARTICLE, helper);
-    }
-    else bOwnCache = 0;
     /*
     ** Allocate Nearest-Neighbor List.
     */
@@ -93,11 +84,8 @@ smContext::smContext(PKD pkdIn, std::shared_ptr<SmoothHelper> helper, int nSmoot
 }
 
 smContext::~smContext() {
-
-    /*
-    ** Stop particle caching space.
-    */
-    if (bOwnCache) pkd->mdl->FinishCache(CID_PARTICLE);
+    // Stop particle caching space, but only if it was created by this class.
+    if (cacheHelper) pkd->mdl->FinishCache(CID_PARTICLE);
     free(pSentinel);
 }
 
@@ -138,8 +126,6 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
     case SMX_SN_FEEDBACK:
         return std::make_shared<SmoothHelperSNFeedback>(pkd, smf->dTime, smf->dCCSNFBDelay, smf->dSNIaFBDelay, smf->dSNFBDu, smf->dCCSNFBSpecEnergy,
                                                         smf->dSNIaFBSpecEnergy, smf->dConstGamma);
-    case SMX_BH_MERGER:
-        return std::make_shared<SmoothHelperBHmerger>(pkd);
     case SMX_BH_STEP:
         return std::make_shared<SmoothHelperBHstep>(pkd);
     case SMX_BH_EVOLVE:
@@ -158,10 +144,6 @@ auto smContext::makeHelper(PKD pkd, SMF* smf, int bSymmetric, int iSmoothType) -
     return nullptr;
 }
 
-static auto getCell(PKD pkd, int iCell, int id) {
-    return (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[pkd->mdl->Fetch<KDN>(CID_CELL, iCell, id)];
-}
-
 auto smContext::pqSearch(PQ* pq, TinyVector<double, 3> r, int iRoot) -> PQ* {
     auto mdl = pkd->mdl;
     int idSelf = pkd->Self();
@@ -170,21 +152,21 @@ auto smContext::pqSearch(PQ* pq, TinyVector<double, 3> r, int iRoot) -> PQ* {
     TinyVector<double, 3> dr;
 
     /* Start at the root node of the tree */
-    auto kdn = getCell(pkd, pkd->iTopTree[iRoot], id = idSelf);
+    auto kdn = getCell(pkd->iTopTree[iRoot], id = idSelf);
     ST.clear();
     while (1) {
         while (kdn->is_cell()) {
             auto [iLower, idLower, iUpper, idUpper] = kdn->get_child_cells(id);
-            kdn = getCell(pkd, iLower, idLower);
+            kdn = getCell(iLower, idLower);
             auto min1 = kdn->bound().mindist(r);
-            kdn = getCell(pkd, iUpper, idUpper);
+            kdn = getCell(iUpper, idUpper);
             auto min2 = kdn->bound().mindist(r);
             if (min1 < min2) {
                 if (min1 > pq->fDist2) goto NoIntersect;
                 ST.push_back({.id = idUpper, .iCell = iUpper, .min = min2});
                 id = idLower;
                 iCell = iLower;
-                kdn = getCell(pkd, iCell, id);
+                kdn = getCell(iCell, id);
             }
             else {
                 if (min2 > pq->fDist2) goto NoIntersect;
@@ -195,17 +177,10 @@ auto smContext::pqSearch(PQ* pq, TinyVector<double, 3> r, int iRoot) -> PQ* {
         }
         /* Now at a bucket */
         if (id == idSelf) {
-#ifdef OPTIM_REORDER_IN_NODES
-            auto pEnd = (function->gasOnly()) ? kdn->lower() + kdn->Ngas() : kdn->upper() + 1;
-#else
-            auto pEnd = kdn->upper() + 1;
-#endif
-            for (auto pj = kdn->lower(); pj < pEnd; ++pj) {
+            auto [pStart, pEnd] = function->range_neighbour(kdn);
+            for (auto pj = pStart; pj < pEnd; ++pj) {
                 auto p = pkd->particles[pj];
-                if (!p.marked()) continue;
-#ifndef OPTIM_REORDER_IN_NODES
-                if (function->gasOnly() && !p.is_gas()) continue;
-#endif
+                if (!p.marked() || !function->accept_neighbour(p)) continue;
                 dr = r - p.position();
                 fDist2 = dot(dr, dr);
                 if (fDist2 <= pq->fDist2) {
@@ -227,16 +202,10 @@ auto smContext::pqSearch(PQ* pq, TinyVector<double, 3> r, int iRoot) -> PQ* {
             }
         }
         else {
-#ifdef OPTIM_REORDER_IN_NODES
-            auto pEnd = (function->gasOnly()) ? kdn->lower() + kdn->Ngas() : kdn->upper() + 1;
-#else
-            auto pEnd = kdn->upper() + 1;
-#endif
-            for (auto pj = kdn->lower(); pj < pEnd; ++pj) {
+            auto [pStart, pEnd] = function->range_neighbour(kdn);
+            for (auto pj = pStart; pj < pEnd; ++pj) {
                 auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE, pj, id)];
-#ifndef OPTIM_REORDER_IN_NODES
-                if (function->gasOnly() && !p.is_gas()) continue;
-#endif
+                if (!function->accept_neighbour(p)) continue;
                 if (hash.contains(&p)) continue;
                 dr = r - p.position();
                 fDist2 = dot(dr, dr);
@@ -266,14 +235,14 @@ auto smContext::pqSearch(PQ* pq, TinyVector<double, 3> r, int iRoot) -> PQ* {
             auto& top = ST.back();
             id = top.id;
             iCell = top.iCell;
-            kdn = getCell(pkd, iCell, id);
+            kdn = getCell(iCell, id);
             ST.pop_back();
         }
         else return pq;
     }
 }
 
-void smContext::initialize() {
+void smContext::create() {
     // Initialize the priority queue first.
     auto sentinel = pkd->particles[pSentinel];
     for (auto& q : vpq) {
@@ -369,19 +338,6 @@ auto smContext::SmoothSingle(particleStore::ParticleReference& p, int iRoot1, in
     return fBall;
 }
 
-void smContext::Smooth() {
-    initialize();
-    SmoothParticles();
-    finish();
-}
-
-void smContext::SmoothParticles() {
-    for (auto& p : pkd->particles) {
-        SmoothSingle(p);
-        pkd->mdl->CacheCheck();
-    }
-}
-
 void smSmooth(SMX smx, SMF* smf) {
     PKD pkd = smx->pkd;
     float fBall;
@@ -390,7 +346,7 @@ void smSmooth(SMX smx, SMF* smf) {
     ** Initialize the bInactive flags for all local particles.
     */
     for (auto& p : pkd->particles) p.set_marked(true);
-    smx->initialize();
+    smx->create();
     switch (smx->iSmoothType) {
     case SMX_BH_EVOLVE:
     case SMX_BH_STEP:
@@ -457,7 +413,7 @@ void smContext::Gather(double fBall2, TinyVector<double, 3> r) {
     int iCell, id;
     int pj, pEnd;
 
-    auto kdn = getCell(pkd, iCell = pkd->iTopTree[ROOT], id = idSelf);
+    auto kdn = getCell(iCell = pkd->iTopTree[ROOT], id = idSelf);
 
     ST.clear();
     while (1) {
@@ -471,7 +427,7 @@ void smContext::Gather(double fBall2, TinyVector<double, 3> r) {
         if (kdn->is_cell()) {
             int idUpper, iUpper;
             std::tie(iCell, id, iUpper, idUpper) = kdn->get_child_cells(id);
-            kdn = getCell(pkd, iCell, id);
+            kdn = getCell(iCell, id);
             ST.push_back({.id = idUpper, .iCell = iUpper, .min = 0.0});
             continue;
         }
@@ -506,7 +462,7 @@ void smContext::Gather(double fBall2, TinyVector<double, 3> r) {
             auto& top = ST.back();
             id = top.id;
             iCell = top.iCell;
-            kdn = getCell(pkd, iCell, id);
+            kdn = getCell(iCell, id);
             ST.pop_back();
         }
         else break;
@@ -593,28 +549,6 @@ auto smContext::ReSmoothSingle(particleStore::ParticleReference& p, double fBall
     return true;
 }
 
-auto smContext::ReSmoothParticles() -> uint64_t {
-    uint64_t nSmoothed = 0;
-    for (auto& p : pkd->particles) {
-        ReSmoothSingle(p, p.ball());
-        ++nSmoothed;
-        pkd->mdl->CacheCheck();
-    }
-    return nSmoothed;
-}
-
-auto SmoothHydroDensity::ReSmoothParticles() -> uint64_t {
-    uint64_t nSmoothed = 0;
-    for (auto& p : pkd->particles) {
-        if (p.is_active() && p.marked() && p.is_gas()) {
-            ReSmoothSingle(p, p.ball());
-            ++nSmoothed;
-        }
-        pkd->mdl->CacheCheck();
-    }
-    return nSmoothed;
-}
-
 uint64_t smReSmooth(SMX smx, int iSmoothType) {
     PKD pkd = smx->pkd;
     uint64_t nSmoothed = 0;
@@ -653,43 +587,24 @@ uint64_t smReSmooth(SMX smx, int iSmoothType) {
 
 #ifdef OPTIM_SMOOTH_NODE
 
-auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, double fBall_factor) -> Bound {
-    sinks.clear();
-    sinks.reserve(256); // At most, the bucket size
-
-    auto bnd_node = node->bound();
-    // TinyVector<double, 3> r{bnd_node.center()};
-
-    #ifdef OPTIM_REORDER_IN_NODES
-    auto pEnd = node->lower() + node->Ngas();
-    #else // OPTIM_REORDER_IN_NODES
-    auto pEnd = node->upper() + 1;
-    #endif
-
-    TinyVector<double, 3> fMax_shrink{0.};
-    for (auto pj = node->lower(); pj < pEnd; ++pj) {
-        auto p = pkd->particles[pj];
-
-    #ifdef OPTIM_AVOID_IS_ACTIVE
-        int pIsActive = p.marked();
-    #else
-        int pIsActive = p.is_active();
-    #endif
-
-        if (pIsActive) {
-    #ifndef OPTIM_REORDER_IN_NODES
-            // Explicit check of the types
-            if (!p.is_gas()) continue;
-    #endif
-            fMax_shrink = blitz::max(fMax_shrink, abs(p.position() - bnd_node.center()) + p.ball() * fBall_factor);
-
-            sinks.push_back(&p);
-        }
-    }
-    if (!sinks.empty()) bnd_node.shrink(fMax_shrink);
-    return bnd_node;
-}
-
+// IA: Now we should have inside nnList all the particles in the
+//  bucket (sinks) and those of which can interact with them
+//  from other buckets (smx->nnList)
+//
+// We just have to proceed to compute the correct dx, dy, dz and
+// pass that nnList to the smoothfcn routine
+//
+// However, we have different options to do so:
+// 1) Naive: we pass the whole nnList
+//
+// 2) Sorting: we could follow Gonnet, 2007 (10.1002/jcc.20563) to
+// reduce the number of distance computations, but this is troublesome
+// in our case because:
+//      a) we need to compute the distance anyway for sorting
+//      b) we could sort relative to the cell, but this is suboptimal
+//      c) we are not computing cell-cell interactions, so there is
+//            no well-defined axis that could be used for projection
+//
 void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node) {
     std::vector<NN> nnList_p;
     nnList_p.reserve(nnList.size());
@@ -742,162 +657,6 @@ void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node) {
                 pkd->mdl->Release(CID_PARTICLE, nn.pPart);
             }
         }
-    }
-}
-
-/* IA: In this version, we loop over the buckets, rather than over the particles.
- *
- * For each bucket, we look for all the surroiding buckets that may interact
- * with any particle in said bucket.
- *
- * Then, we put all those particles (including the own bucket)
- * in an interaction list.
- */
-auto smContext::ReSmoothNode() -> uint64_t {
-    uint64_t nSmoothed = 0;
-
-    // std::vector<NN> nnList_p;
-    // nnList_p.reserve(nnList.capacity());
-
-    // Here we store the pointers to the particles whose interaction need to be computed
-    std::vector<PARTICLE*> sinks;
-    sinks.reserve(256); // At most, the bucket size
-
-    // For allowing vectorization, it is better to use an structure of
-    // arrays rather than an array of structures.
-    //
-    //  In our case, the structure is just an array of pointers to the locations
-    //  in the buffer where a given array of variables starts.
-    //
-    //  Having everything in the same buffer can be advantageous as it should
-    //  be in cache, but it was painful to code...
-
-    for (auto i = NRESERVED_NODES; i < pkd->Nodes() - 1; ++i) {
-        auto node = pkd->tree[i];
-        if (node->is_bucket()) {
-            auto bnd_node = getNodeSinks(node, sinks); // ball factor is 1.0
-            if (sinks.empty()) continue;
-            buildInteractionList(bnd_node);
-
-            // IA: Now we should have inside nnList all the particles in the
-            //  bucket (sinks) and those of which can interact with them
-            //  from other buckets (smx->nnList)
-            //
-            // We just have to proceed to compute the correct dx, dy, dz and
-            // pass that nnList to the smoothfcn routine
-            //
-            // However, we have different options to do so:
-            // 1) Naive: we pass the whole nnList
-            //
-            // 2) Sorting: we could follow Gonnet, 2007 (10.1002/jcc.20563) to
-            // reduce the number of distance computations, but this is troublesome
-            // in our case because:
-            //      a) we need to compute the distance anyway for sorting
-            //      b) we could sort relative to the cell, but this is suboptimal
-            //      c) we are not computing cell-cell interactions, so there is
-            //            no well-defined axis that could be used for projection
-            //
-            resmoothSinks(sinks, bnd_node);
-            nSmoothed += sinks.size();
-        }
-    }
-    return nSmoothed;
-}
-
-void smContext::buildInteractionList(Bound bnd_node) {
-    auto r = bnd_node.center();
-    nnList.clear();
-    if (bPeriodic) {
-        TinyVector<int, 3> iStart{floor((r - bnd_node.apothem()) / pkd->fPeriod + 0.5)};
-        TinyVector<int, 3> iEnd{floor((r + bnd_node.apothem()) / pkd->fPeriod + 0.5)};
-        for (int ix = iStart[0]; ix <= iEnd[0]; ++ix) {
-            r[0] = bnd_node.center(0) - ix * pkd->fPeriod[0];
-            for (int iy = iStart[1]; iy <= iEnd[1]; ++iy) {
-                r[1] = bnd_node.center(1) - iy * pkd->fPeriod[1];
-                for (int iz = iStart[2]; iz <= iEnd[2]; ++iz) {
-                    r[2] = bnd_node.center(2) - iz * pkd->fPeriod[2];
-                    buildInteractionList(bnd_node, r);
-                }
-            }
-        }
-    }
-    else {
-        buildInteractionList(bnd_node, r);
-    }
-}
-
-void smContext::buildInteractionList(Bound bnd_node, TinyVector<double, 3> r) {
-    auto mdl = pkd->mdl;
-    int id, iCell;
-
-    // We look for the biggest node that encloses the needed domain
-    // We can only take advantage of this if we are are in the original cell
-    auto kdn = getCell(pkd, iCell = pkd->iTopTree[ROOT], id = pkd->Self());
-
-    //  Now we start the walk as usual
-    ST.clear();
-    while (1) {
-        auto bnd = kdn->bound();
-        if (any(abs(bnd.center() - r) - bnd.apothem() - bnd_node.apothem() > 0.)) goto NoIntersect;
-
-        /*
-        ** We have an intersection to test.
-        */
-        if (kdn->is_cell()) {
-            int idUpper, iUpper;
-            std::tie(iCell, id, iUpper, idUpper) = kdn->get_child_cells(id);
-            kdn = getCell(pkd, iCell, id);
-            ST.push_back({.id = idUpper, .iCell = iUpper});
-            continue;
-        }
-        else {
-            if (id == pkd->Self()) {
-    #ifdef OPTIM_REORDER_IN_NODES
-                auto pEnd = kdn->lower() + kdn->Ngas();
-    #else
-                auto pEnd = kdn->upper() + 1;
-    #endif
-                // printf("pEnd %d \n", pEnd);
-                for (auto pj = kdn->lower(); pj < pEnd; ++pj) {
-                    auto p = pkd->particles[pj];
-    #ifndef OPTIM_REORDER_IN_NODES
-                    if (!p.is_gas()) continue;
-    #endif
-                    const TinyVector<double, 3> dr{r - p.position()};
-                    if (all(abs(dr) <= bnd_node.apothem())) {
-                        nnList.push_back({.pPart = &p, .fDist2 = dot(dr, dr), .dr = dr, .fBall = p.ball(), .bMarked = p.marked(), .iIndex = pj, .iPid = id});
-                    }
-                }
-            }
-            else {
-    #ifdef OPTIM_REORDER_IN_NODES
-                auto pEnd = kdn->lower() + kdn->Ngas();
-    #else
-                auto pEnd = kdn->upper() + 1;
-    #endif
-                for (auto pj = kdn->lower(); pj < pEnd; ++pj) {
-                    auto p = pkd->particles[mdl->Fetch<PARTICLE>(CID_PARTICLE, pj, id)];
-    #ifndef OPTIM_REORDER_IN_NODES
-                    if (!p.is_gas()) continue;
-    #endif
-                    const TinyVector<double, 3> dr{r - p.position()};
-                    if (all(abs(dr) <= bnd_node.apothem())) {
-                        // The actual particle information fill be acquired later
-                        nnList.push_back(
-                            {.pPart = nullptr, .fDist2 = dot(dr, dr), .dr = dr, .fBall = p.ball(), .bMarked = p.marked(), .iIndex = pj, .iPid = id});
-                    }
-                }
-            }
-        }
-    NoIntersect:
-        if (!ST.empty()) {
-            auto& top = ST.back();
-            id = top.id;
-            iCell = top.iCell;
-            kdn = getCell(pkd, iCell, id);
-            ST.pop_back();
-        }
-        else break;
     }
 }
 #endif // OPTIM_SMOOTH_NODE

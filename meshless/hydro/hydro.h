@@ -38,6 +38,20 @@ class ServiceHydroDensityFinal : public TraverseCount<ServiceHydroDensityFinal> 
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
+class ServiceHydroMergerBH : public TraverseCount<ServiceHydroMergerBH> {
+  public:
+    static constexpr std::string_view name = "HydroMergerBH";
+    struct input {
+        int nSmooth;
+        bool bPeriodic;
+    };
+    using output = uint64_t;
+    explicit ServiceHydroMergerBH(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 template <typename T, typename Enum>
 class EnumArray {
     static_assert(std::is_enum_v<Enum>, "EnumArray requires an enum type");
@@ -282,22 +296,6 @@ class SmoothHelperHydroDensityFinal : public SmoothHelperHydroDensityBase {
 
   public:
     SmoothHelperHydroDensityFinal(pkdContext* pkd) : SmoothHelperHydroDensityBase(pkd) {}
-};
-
-class SmoothHydroDensity : public smContext {
-    double dNeighborsStd;
-    double dhMinOverSoft;
-    void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node) override;
-    auto getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, double fBall_factor = 1.0) -> Bound override {
-        return smContext::getNodeSinks(node, sinks, 1.2);
-    }
-
-  public:
-    SmoothHydroDensity(PKD pkdIn, int nSmooth, bool bPeriodic, double dNeighborsStd, bool bIterativeSmoothingLength, double dhMinOverSoft)
-        : smContext(pkdIn, std::make_shared<SmoothHelperHydroDensity>(pkdIn, dNeighborsStd, bIterativeSmoothingLength), nSmooth, bPeriodic),
-          dNeighborsStd(dNeighborsStd), dhMinOverSoft(dhMinOverSoft) {}
-    void SmoothParticles() override;
-    auto ReSmoothParticles() -> uint64_t override;
 };
 
 /* Gradient loop */

@@ -160,7 +160,7 @@ void SmoothHelperDensitySymmetric::initialize_local() {
     }
 }
 
-void SmoothHelperDensityF1::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
+auto SmoothHelperDensityF1::Smooth(pkdContext* pkd, particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) -> double {
     auto ih2 = 1.0 / BALL2(fBall);
     auto fDensity = 0.0;
     for (auto& nn : nnList) {
@@ -172,7 +172,7 @@ void SmoothHelperDensityF1::Smooth(particleStore::ParticleReference& p, float fB
         fDensity += rs * fMass;
     }
     fDensity *= 1.875f * M_1_PI * sqrtf(ih2) * ih2; /* F1 Kernel (15/8) */
-    set_density(p, fDensity);
+    return fDensity;
 }
 
 void SmoothHelperDensityM3::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {

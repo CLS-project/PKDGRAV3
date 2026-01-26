@@ -5135,9 +5135,6 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
 }
 
 void MSR::BHMerger(double dTime) {
-    struct inSmooth in;
-    struct outSmooth out;
-
     TimerStart(TIMER_BHS);
 
 #ifdef DEBUG_BH_ONLY
@@ -5145,16 +5142,12 @@ void MSR::BHMerger(double dTime) {
     ReorderWithinNodes();
 #endif
 
-    in.nSmooth = parameters.get_nSmooth();
-    in.bPeriodic = parameters.get_bPeriodic();
-    in.bSymmetric = 0;
-    in.iSmoothType = SMX_BH_MERGER;
-    SmoothSetSMF(&(in.smf), dTime, 0.0, in.nSmooth);
-#ifdef OPTIM_SMOOTH_NODE
-    pstReSmoothNode(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
-#else
-    pstReSmooth(pst, &in, sizeof(in), &out, sizeof(struct outSmooth));
-#endif
+    ServiceHydroMergerBH::input inBHMerger{
+        .nSmooth = static_cast<int>(parameters.get_nSmooth()),
+        .bPeriodic = parameters.get_bPeriodic(),
+    };
+    ServiceHydroMergerBH::output outBHMerger;
+    mdl->RunService<ServiceHydroMergerBH>(inBHMerger, outBHMerger);
     TimerStop(TIMER_BHS);
 }
 

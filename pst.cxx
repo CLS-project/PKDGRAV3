@@ -568,12 +568,7 @@ int pstReSmoothNode(PST pst, void* vin, int nIn, void* vout, int nOut) {
     else {
         auto pkd = pst->lcl()->pkd;
         smContext smx(pkd, in->iSmoothType, &in->smf, in->bSymmetric, in->nSmooth, in->bPeriodic);
-        if (in->iSmoothType == SMX_BH_MERGER) {
-            out->nSmoothed = smReSmoothBHNode(&smx, &in->smf, in->iSmoothType);
-        }
-        else {
-            out->nSmoothed = smx.ReSmoothNode();
-        }
+        out->nSmoothed = smx.ReSmoothNode<SmoothOnlyGasOptimised>();
     #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
         if (out->nSmoothed) {
             out->sCellNumAccess.dSum = mdlNumAccess(pst->mdl(), CID_CELL) / out->nSmoothed;

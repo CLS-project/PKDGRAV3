@@ -690,8 +690,9 @@ int pkdGravWalk(PKD pkd, struct pkdKickParameters* kick, struct pkdLightconePara
     float fOffset[3];
     int ix, iy, iz;
     int nActive = 0;
+    // This helper is a SmoothFunction only, so the particle cache is not opened (it is already open).
     auto helper = std::make_shared<SmoothHelperDensityGravStep>(pkd);
-    smContext smx(pkd, helper, ts->nPartRhoLoc, nReps > 0, false);
+    smContext smx(pkd, helper, ts->nPartRhoLoc, nReps > 0);
     int iTop1, iTop2;
 
     initGravWalk(pkd, dTime, dThetaMin, nReps ? 1 : 0, ts->bGravStep, ts->nPartRhoLoc, ts->iTimeStepCrit);

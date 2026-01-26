@@ -136,7 +136,7 @@ static int smHopLink(SMX smx, std::shared_ptr<SmoothHelperGradientM3> helper) {
         p.set_group(0);     // Ungrouped
         p.set_marked(true); // Used by smooth to determine active particles
     }
-    smx->initialize();
+    smx->create();
 
     pkd->nGroups = 0;
     pkd->nLocalGroups = 0;

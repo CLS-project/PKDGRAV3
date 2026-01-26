@@ -5,24 +5,6 @@ using blitz::abs;
 using blitz::any;
 using blitz::TinyVector;
 
-auto ServiceHydroDensity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto in = reinterpret_cast<const input*>(vin.data());
-    auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
-    // auto helper = std::make_shared<SmoothHelperHydroDensity>(pkd, in->dNeighborsStd, in->bIterativeSmoothingLength);
-    // smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
-    SmoothHydroDensity smx(pkd, in->nSmooth, in->bPeriodic, in->dNeighborsStd, in->bIterativeSmoothingLength, in->dhMinOverSoft);
-    if (in->bIterativeSmoothingLength) {
-#ifdef OPTIM_SMOOTH_NODE
-        *out = smx.ReSmoothNode();
-#else
-        *out = smx.ReSmooth();
-#endif
-    }
-    else smx.Smooth();
-    return sizeof(output);
-}
-
 auto ServiceHydroDensityFinal::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
@@ -30,21 +12,11 @@ auto ServiceHydroDensityFinal::Service(PST pst, std::span<std::byte> vin, std::s
     auto helper = std::make_shared<SmoothHelperHydroDensityFinal>(pkd);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
 #ifdef OPTIM_SMOOTH_NODE
-    *out = smx.ReSmoothNode();
+    *out = smx.ReSmoothNode<SmoothOnlyGasOptimised>();
 #else
-    *out = smx.ReSmooth();
+    *out = smx.ReSmooth<SmoothOnlyGasOptimised>();
 #endif
     return sizeof(output);
-}
-
-void SmoothHydroDensity::SmoothParticles() {
-    for (auto& p : pkd->particles) {
-        if (p.is_active()) {
-            auto fBall = SmoothSingle(p);
-            p.set_ball(fBall); // Always update ball for hydro density smoothing
-        }
-        pkd->mdl->CacheCheck();
-    }
 }
 
 static inline void densNodeOmegaE(std::span<NN> nnList, float pH, TinyVector<double, 3> dr_node, double* omega, TinyVector<double, 6>& E, double& sphfac,
@@ -181,7 +153,14 @@ void SmoothHelperHydroDensityFinal::Smooth(particleStore::ParticleReference& p, 
     p.set_density(p.mass() * (*omega));
 }
 
-void SmoothHydroDensity::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node) {
+struct SmoothOnlyHydroDensity : SmoothOnlyGasOptimised {
+    double dNeighborsStd;
+    double dhMinOverSoft;
+    static constexpr double fBall_factor = 1.2;
+};
+
+template <>
+void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, SmoothOnlyHydroDensity info) {
     for (auto& P : sinks) {
         auto partj = pkd->particles[P];
 #ifdef OPTIM_UNION_EXTRAFIELDS
@@ -212,7 +191,7 @@ void SmoothHydroDensity::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_nod
 
             // Check if it has converged
             const double c = 4. * M_PI / 3. * (*omega) * pH * pH * pH;
-            if ((fabs(c - Neff) < dNeighborsStd)) {
+            if ((fabs(c - Neff) < info.dNeighborsStd)) {
 
                 // Check if the converged density has a low enough condition number
                 double Ncond = densNodeNcondB(pkd, partj, E, *omega, sphfac);
@@ -269,8 +248,8 @@ void SmoothHydroDensity::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_nod
                     // Put a hard lower limit based on the softening, even if we
                     // have not yet fully converged due to, e.g., an anisotropic
                     // particle distribution
-                    if (dhMinOverSoft > 0) {
-                        const float pMinH = 2 * dhMinOverSoft * partj.soft();
+                    if (info.dhMinOverSoft > 0) {
+                        const float pMinH = 2 * info.dhMinOverSoft * partj.soft();
                         if (pNewH < pMinH) {
                             partj.set_ball(pMinH);
                             if (!onLowerLimit) {
@@ -331,7 +310,8 @@ void SmoothHydroDensity::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_nod
 /* This function is now deprecated and may be removed in future versions of
  * the code.
  *
- * The supported density computation is that performed by SmoothHydroDensity::resmoothSinks,
+ * The supported density computation is that performed by void smContext::resmoothSinks<SmoothOnlyHydroDensity>.
+
  * which is automatically selected when using the OPTIM_SMOOTH_NODE flag
  */
 void SmoothHelperHydroDensity::Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) {
@@ -398,4 +378,25 @@ void SmoothHelperHydroDensity::Smooth(particleStore::ParticleReference& p, float
 
     /* We compute the density making use of Eq. 27 Hopkins 2015 */
     p.set_density(p.mass() * sph.omega);
+}
+
+struct SmoothActiveUpdateBall : SmoothOnlyGasActive {
+    static constexpr bool update_ball = true;
+};
+
+auto ServiceHydroDensity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto pkd = pst->lcl()->pkd;
+    auto helper = std::make_shared<SmoothHelperHydroDensity>(pkd, in->dNeighborsStd, in->bIterativeSmoothingLength);
+    smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
+    if (in->bIterativeSmoothingLength) {
+#ifdef OPTIM_SMOOTH_NODE
+        *out = smx.ReSmoothNode(SmoothOnlyHydroDensity{.dNeighborsStd = in->dNeighborsStd, .dhMinOverSoft = in->dhMinOverSoft});
+#else
+        *out = smx.ReSmooth<SmoothOnlyGasOptimised>();
+#endif
+    }
+    else smx.Smooth<SmoothActiveUpdateBall>();
+    return sizeof(output);
 }

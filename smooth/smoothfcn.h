@@ -150,13 +150,17 @@ typedef PQ NN;
 
 class SmoothFunction {
   protected:
-    pkdContext* pkd;
+    pkdContext* const pkd;
+
+  public:
+    virtual void initialize_local() {}
 
   public:
     SmoothFunction(PKD pkd) : pkd(pkd) {}
     virtual ~SmoothFunction() = default;
     virtual void Smooth(particleStore::ParticleReference& p, float, std::span<NN> nnList) = 0;
-    virtual auto gasOnly() -> bool { return false; } // for OPTIM_REORDER_IN_NODES
+    virtual auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> { return std::pair{node->lower(), node->upper() + 1}; }
+    virtual auto accept_neighbour(particleStore::ParticleReference& p) -> bool { return true; }
 };
 
 enum SMOOTH_TYPE {
@@ -173,7 +177,6 @@ enum SMOOTH_TYPE {
     SMX_HYDRO_STEP,
     SMX_HYDRO_FLUX_VEC,
     SMX_SN_FEEDBACK,
-    SMX_BH_MERGER,
     SMX_BH_EVOLVE,
     SMX_BH_STEP,
     SMX_BH_GASPIN,
@@ -193,7 +196,6 @@ class SmoothHelper : public particleCACHEhelper, public SmoothFunction {
 
   public:
     SmoothHelper(pkdContext* pkd, bool bModify = false) : particleCACHEhelper(pkd, bModify), SmoothFunction(pkd) {}
-    virtual void initialize_local() {}
 };
 
 template <typename P, typename F = P>
@@ -255,20 +257,23 @@ class SmoothHelperPrintNN : public SmoothHelper {
 
 // #define SMX_DENSITY_F1          28
 class SmoothHelperDensityF1 : public SmoothHelperAsymmetric {
-    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final;
-    virtual void set_density(particleStore::ParticleReference& p, float fDensity) { p.set_density(fDensity); }
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final { p.set_density(Smooth(pkd, p, fBall, nnList)); };
 
   public:
+    static auto Smooth(pkdContext* pkd, particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) -> double;
     SmoothHelperDensityF1(pkdContext* pkd) : SmoothHelperAsymmetric(pkd) {}
 };
 
-// Provides the density estimate for gravity step. Must be used per-particle.
-class SmoothHelperDensityGravStep : public SmoothHelperDensityF1 {
-    float fDensity_;
-    void set_density(particleStore::ParticleReference& p, float fDensity) final { fDensity_ = fDensity; }
+// This is a SmoothFunction ONLY. It is used in gravity and the cache is already open.
+// It computes the density for use in gravity calculations using the F1 kernel.
+class SmoothHelperDensityGravStep : public SmoothFunction {
+    float fDensity_ = 0;
+    void Smooth(particleStore::ParticleReference& p, float fBall, std::span<NN> nnList) final {
+        fDensity_ = SmoothHelperDensityF1::Smooth(pkd, p, fBall, nnList);
+    }
 
   public:
-    SmoothHelperDensityGravStep(pkdContext* pkd) : SmoothHelperDensityF1(pkd) {}
+    SmoothHelperDensityGravStep(pkdContext* pkd) : SmoothFunction(pkd) {}
     [[nodiscard]] auto density() const { return fDensity_; }
 };
 

@@ -4,6 +4,7 @@
 
     #include "pst.h"
     #include <boost/container/small_vector.hpp>
+    #include "smooth/smooth.h"
 
     #define STEV_CCSN_N_METALLICITY 5
     #define STEV_CCSN_N_MASS 11
@@ -119,7 +120,8 @@ class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack, stevFlush> {
           dSNIaNorm(dSNIaNorm), dSNIaScale(dSNIaScale) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
-    auto gasOnly() -> bool override { return true; }
+    auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> override { return SmoothOnlyGas::range_neighbour(node); }
+    auto accept_neighbour(particleStore::ParticleReference& p) -> bool override { return SmoothOnlyGas::accept_neighbour(p); }
 };
 
 /*

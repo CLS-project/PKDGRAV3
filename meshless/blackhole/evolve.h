@@ -47,7 +47,8 @@ class SmoothHelperBHEvolve : public SmoothHelperPacked<bhEvolvePack, bhEvolveFlu
           bBHFeedback(bBHFeedback) {
         nCacheSize = pkd->decorators.DecoratorSize() + pkd->particles.ParticleSize();
     }
-    auto gasOnly() -> bool override { return true; }
+    auto range_neighbour(treeStore::NodePointer node) -> std::pair<int, int> override { return SmoothOnlyGas::range_neighbour(node); }
+    auto accept_neighbour(particleStore::ParticleReference& p) -> bool override { return SmoothOnlyGas::accept_neighbour(p); }
 };
 
 void pkdBHIntegrate(PKD pkd, particleStore::ParticleReference& p, double dTime, double dDelta, double dBHRadiativeEff);

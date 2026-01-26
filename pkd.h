@@ -754,7 +754,7 @@ using PKD = pkdContext*;
 #ifdef FIXED_SIZE_TREES
 class treeCACHEhelper : public mdl::arrayCACHEhelper {
   protected:
-    pkdContext* pkd;
+    pkdContext* const pkd;
 
   public:
     explicit treeCACHEhelper(pkdContext* pkd) : arrayCACHEhelper(pkd->tree.ElementSize(), pkd->tree, pkd->Local(), false), pkd(pkd) {}
@@ -762,7 +762,7 @@ class treeCACHEhelper : public mdl::arrayCACHEhelper {
 #else
 class treeCACHEhelper : public mdl::CACHEhelper {
   protected:
-    pkdContext* pkd;
+    pkdContext* const pkd;
 
   public:
     explicit treeCACHEhelper(pkdContext* pkd) : CACHEhelper(pkd->NodeSize(), pkd->tree.size(), false), pkd(pkd) {}
@@ -772,7 +772,7 @@ class treeCACHEhelper : public mdl::CACHEhelper {
 
 class particleCACHEhelper : public mdl::arrayCACHEhelper {
   protected:
-    pkdContext* pkd;
+    pkdContext* const pkd;
 
   public:
     explicit particleCACHEhelper(pkdContext* pkd, bool bModify = false)
