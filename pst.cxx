@@ -88,41 +88,12 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
-    mdl->AddService(PST_INITIALIZEPSTORE, pst, (fcnService_t*)pstInitializePStore, sizeof(struct inInitializePStore), sizeof(struct outInitializePStore),
-                    Legacy::InitializePStore);
 #ifdef MDL_FFTW
     mdl->AddService(PLT_MOVEIC, pst, (fcnService_t*)pltMoveIC, sizeof(struct inMoveIC), 0, Legacy::MoveIC);
     mdl->AddService(PST_MOVEIC, pst, (fcnService_t*)pstMoveIC, sizeof(struct ServiceGenerateIC::input), 0, Legacy::LocalMoveIC);
 #endif
     mdl->AddService(PST_SETSPHOPTIONS, pst, (fcnService_t*)pstSetSPHoptions, sizeof(struct inSetSPHoptions), 0, Legacy::SetSPHoptions);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
-}
-
-static void initializePStore(PKD* ppkd, MDL mdl, struct inInitializePStore* in) {
-    *ppkd = new pkdContext(static_cast<mdl::mdlClass*>(mdl), in->nStore, in->nDecoratorStore, in->nBucket, in->nMinTotalStore, in->nMinEphemeral,
-                           in->nEphemeralBytes, in->nTreeBitsLo, in->nTreeBitsHi, in->iCacheSize, in->iCacheMaxInflight, in->iWorkQueueSize, in->mpi_recv_mode,
-                           in->mpi_recv_count, in->mpi_RDMA, in->fPeriod, in->nSpecies[FIO_SPECIES_DARK], in->nSpecies[FIO_SPECIES_SPH],
-                           in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH], in->mMemoryModel, in->nIntegerFactor);
-}
-
-int pstInitializePStore(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inInitializePStore*>(vin);
-    auto out = static_cast<struct outInitializePStore*>(vout);
-    assert(nIn == sizeof(struct inInitializePStore));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_INITIALIZEPSTORE, in, nIn);
-        pstInitializePStore(pst->lower(), vin, nIn, vout, nOut);
-        pst->mdl()->GetReply(rID, nOut, vout);
-    }
-    else {
-        if (plcl->pkd) delete plcl->pkd;
-        initializePStore(&plcl->pkd, pst->mdl(), in);
-        out->nSizeParticle = plcl->pkd->particles.ElementSize();
-        out->nSizeDecorator = plcl->pkd->decorators.ElementSize();
-        out->nSizeNode = plcl->pkd->tree.ElementSize();
-    }
-    return sizeof(*out);
 }
 
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut) {

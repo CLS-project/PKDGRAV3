@@ -41,6 +41,7 @@
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
+#include "core/pstore.h"
 #include "core/initcosmology.h"
 #include "core/calcroot.h"
 #include "core/select.h"
@@ -182,6 +183,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSendArray>(pst); // This service is point-to-point
     mdl->AddService<ServiceCheckpoint>(pst);
     mdl->AddService<ServiceHostname>(pst);
+    mdl->AddService<ServiceInitializePStore>(pst);
     mdl->AddService<ServiceMemStatus>(pst);
     mdl->AddService<ServiceInitCosmology>(pst);
     mdl->AddService<ServiceInitLightcone>(pst);

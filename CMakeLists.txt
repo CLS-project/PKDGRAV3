@@ -264,7 +264,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_EXTENSIONS NO)
 
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c io/classes.cxx io/ascii.cxx core/illinois.c core/abort_error.cxx units.cxx
+	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx core/pstore.cxx
+        io/fio.c io/classes.cxx io/ascii.cxx core/illinois.c core/abort_error.cxx units.cxx
 	pyrameters.cxx ${CMAKE_CURRENT_BINARY_DIR}/pkd_parameters.h
 	pkd.cxx analysis/analysis.cxx analysis/orbits.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx io/checkpoint.cxx
 	gravity/gravity.cxx gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx domains/buildtree.cxx

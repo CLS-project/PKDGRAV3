@@ -105,7 +105,6 @@ inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-inline constexpr std::string_view InitializePStore = "InitializePStore";
 inline constexpr std::string_view MoveIC = "MoveIC";
 inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
 inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
@@ -121,7 +120,6 @@ enum pst_service {
     PST_OUTPUT_SEND,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
-    PST_INITIALIZEPSTORE,
     PST_MOVEIC,
     PLT_MOVEIC,
     PST_SETSPHOPTIONS,
@@ -129,34 +127,6 @@ enum pst_service {
 };
 
 void pstAddServices(PST, mdl::mdlClass*);
-
-/* PST_INITIALIZEPSTORE */
-struct inInitializePStore {
-    uint64_t mMemoryModel;
-    uint64_t nStore;
-    uint64_t nDecoratorStore;
-    fioSpeciesList nSpecies;
-    blitz::TinyVector<double, 3> fPeriod;
-    uint64_t nMinEphemeral;
-    uint64_t nMinTotalStore;
-    uint32_t nIntegerFactor;
-    uint32_t nBucket;
-    int nEphemeralBytes;
-    int nTreeBitsLo;
-    int nTreeBitsHi;
-    int iCacheSize;
-    int iCacheMaxInflight;
-    int iWorkQueueSize;
-    mdl::MPI_RECV_MODE mpi_recv_mode;
-    int mpi_recv_count;
-    bool mpi_RDMA;
-};
-struct outInitializePStore {
-    int nSizeParticle;
-    int nSizeDecorator;
-    int nSizeNode;
-};
-int pstInitializePStore(PST, void*, int, void*, int);
 
 /* PST_READFILE */
 struct inReadFile {

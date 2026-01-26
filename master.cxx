@@ -126,6 +126,7 @@ struct fmt::formatter<DeferFormat> {
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
+#include "core/pstore.h"
 #include "core/memstatus.h"
 #include "core/ignoresigbus.h"
 #include "core/initcosmology.h"
@@ -468,7 +469,7 @@ EphemeralMemory MSR::EphemeralMemoryGrid(int nGrid, int nCount) {
 }
 
 std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMemoryModel, uint64_t nEphemeral) {
-    struct inInitializePStore ps;
+    ServiceInitializePStore::input ps;
     double dStorageAmount = (1.0 + parameters.get_dExtraStore());
     double dDecoratorStorageAmount = (1.0 + parameters.get_dExtraDecoratorStore());
     int i;
@@ -528,8 +529,8 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
     EphemeralMemory ic_memory(mdl, parameters.get_nGrid(), getGridInfoLPT(parameters.get_iLPT()).nGrids);
     ps.nMinTotalStore = ic_memory.per_process;
 
-    outInitializePStore pout;
-    pstInitializePStore(pst, &ps, sizeof(ps), &pout, sizeof(pout));
+    ServiceInitializePStore::output pout;
+    mdl->RunService<ServiceInitializePStore>(ps, pout);
     PKD pkd = pst->lcl()->pkd;
     print("Allocated {} MB for {} particles on each processor.\n", pkd->ParticleMemory() / (1024 * 1024), pkd->FreeStore());
     print("Allocated {} MB for {} decorators on each processor.\n", pkd->DecoratorMemory() / (1024 * 1024), pkd->FreeDecoratorStore());
