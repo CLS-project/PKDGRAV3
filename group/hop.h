@@ -17,12 +17,111 @@
 
 #ifndef HOP_H
 #define HOP_H
-#include "smooth/smooth.h"
-#include "group.h"
-int smHopLink(SMX smx, SMF* smf);
-int smHopJoin(SMX smx, SMF* smf, double dHopTau, int* nLocal);
-int pkdHopFinishUp(PKD pkd, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod);
-void pkdHopTreeBuild(PKD pkd, int nBucket, int nGroup);
-int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod);
-int pkdGravWalkHop(PKD pkd, double dTime, double dThetaMin, double* pdFlop, double* pdPartSum, double* pdCellSum);
+#include "TraversePST.h"
+
+class ServiceHopLink : public TraverseCount<ServiceHopLink> {
+  public:
+    static constexpr std::string_view name = "HopLink";
+    struct input {
+        double dHopTau;
+        int nSmooth;
+        int bPeriodic;
+        int bSymmetric;
+        int iSmoothType;
+        SMF smf;
+    };
+    using output = uint64_t;
+    explicit ServiceHopLink(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceHopJoin : public TraverseCount<ServiceHopJoin> {
+  public:
+    static constexpr std::string_view name = "HopJoin";
+    using input = ServiceHopLink::input;
+    struct output {
+        uint64_t nGroups;
+        bool bDone;
+        auto operator+=(const output& rhs) -> output& {
+            nGroups += rhs.nGroups;
+            bDone = bDone && rhs.bDone;
+            return *this;
+        }
+    };
+    explicit ServiceHopJoin(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceHopFinishUp : public TraverseCombinePST {
+  public:
+    static constexpr std::string_view name = "HopFinishUp";
+    struct input {
+        blitz::TinyVector<double, 3> fPeriod;
+        int nMinGroupSize;
+        bool bPeriodic;
+    };
+    using output = uint64_t;
+    explicit ServiceHopFinishUp(PST pst) : TraverseCombinePST(pst, name, sizeof(input), sizeof(output)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) -> int override;
+};
+
+class ServiceHopTreeBuild : public TraversePST {
+  public:
+    static constexpr std::string_view name = "HopTreeBuild";
+    struct input {
+        int nBucket;
+        int nGroup;
+    };
+    using output = void;
+    explicit ServiceHopTreeBuild(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceHopGravity : public TraversePST {
+  public:
+    static constexpr std::string_view name = "HopGravity";
+    struct input {
+        double dTime;
+        double dTheta;
+    };
+    using output = void;
+    explicit ServiceHopGravity(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceHopUnbind : public TraverseCount<ServiceHopJoin> {
+  public:
+    static constexpr std::string_view name = "HopUnbind";
+    struct input {
+        double dTime;
+        blitz::TinyVector<double, 3> fPeriod;
+        int bPeriodic;
+        int nMinGroupSize;
+    };
+    struct output {
+        uint64_t nEvaporated;
+        uint64_t nGroups;
+        auto operator+=(const output& rhs) -> output& {
+            nEvaporated += rhs.nEvaporated;
+            nGroups += rhs.nGroups;
+            return *this;
+        }
+    };
+    explicit ServiceHopUnbind(PST pst) : TraverseCount(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
 #endif

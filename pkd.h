@@ -571,6 +571,11 @@ class pkdContext : public Integerize {
     void NewFof(double dTau2, int nMinMembers, int bPeriodic, int nReplicas, int nBucket);
     auto FofPhases() -> bool;
     auto FofFinishUp(int nMinGroupSize) -> uint64_t;
+    auto HopFinishUp(int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) -> int;
+    void HopTreeBuild(int nBucket, int nGroup);
+    auto HopGravity(double dTime, double dThetaMin, double* pdFlop, double* pdPartSum, double* pdCellSum) -> int;
+    auto HopUnbind(double dTime, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) -> int;
+
     void swap_classes(int id);
 
   public:

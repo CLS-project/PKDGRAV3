@@ -63,6 +63,7 @@
 #include "analysis/rsreorder.h"
 #include "analysis/rsextract.h"
 #include "group/fof.h"
+#include "group/hop.h"
 
 #include "analysis/lightcone.h"
 
@@ -187,6 +188,12 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceNewFof>(pst);
     mdl->AddService<ServiceFofPhases>(pst);
     mdl->AddService<ServiceFofFinishUp>(pst);
+    mdl->AddService<ServiceHopLink>(pst);
+    mdl->AddService<ServiceHopJoin>(pst);
+    mdl->AddService<ServiceHopFinishUp>(pst);
+    mdl->AddService<ServiceHopTreeBuild>(pst);
+    mdl->AddService<ServiceHopGravity>(pst);
+    mdl->AddService<ServiceHopUnbind>(pst);
     mdl->AddService<ServiceZeroNewRung>(pst);
     mdl->AddService<ServiceGetOrdSplits>(pst);
     mdl->AddService<ServiceSaveGroupStats>(pst);

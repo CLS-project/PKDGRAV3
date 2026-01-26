@@ -151,6 +151,7 @@ namespace rockstar {
 #include "analysis/rssaveids.h"
 #include "analysis/rsextract.h"
 #include "group/fof.h"
+#include "group/hop.h"
 
 #include "domains/buildtree.h"
 #include "domains/calcbound.h"
@@ -3460,9 +3461,6 @@ void MSR::WriteGroupStats(const std::string_view& fname, int nParallel) {
 
 void MSR::Hop(double dTime, double dDelta) {
     struct inSmooth in;
-    struct inHopLink h;
-    struct outHopJoin j;
-    struct inHopFinishUp inFinish;
     struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
@@ -3470,13 +3468,19 @@ void MSR::Hop(double dTime, double dDelta) {
 
     ssec = MSR::Time();
 
-    h.nSmooth = in.nSmooth = 80;
-    h.bPeriodic = in.bPeriodic = parameters.get_bPeriodic();
-    h.bSymmetric = in.bSymmetric = 0;
-    h.dHopTau = parameters.get_dHopTau();
-    h.smf.a = in.smf.a = dTime;
-    h.smf.dTau2 = in.smf.dTau2 = 0.0;
-    h.smf.nMinMembers = in.smf.nMinMembers = parameters.get_nMinMembers();
+    ServiceHopLink::input h{.dHopTau = parameters.get_dHopTau(),
+                            .nSmooth = 80,
+                            .bPeriodic = parameters.get_bPeriodic(),
+                            .bSymmetric = 0,
+                            .iSmoothType = SMX_GRADIENT_M3,
+                            .smf = {.a = dTime, .dTau2 = 0.0, .nMinMembers = int(parameters.get_nMinMembers())}};
+
+    in.nSmooth = 80;
+    in.bPeriodic = parameters.get_bPeriodic();
+    in.bSymmetric = 0;
+    in.smf.a = dTime;
+    in.smf.dTau2 = 0.0;
+    in.smf.nMinMembers = int(parameters.get_nMinMembers());
     SmoothSetSMF(&(in.smf), dTime, dDelta, in.nSmooth);
     SmoothSetSMF(&(h.smf), dTime, dDelta, in.nSmooth);
 
@@ -3494,7 +3498,7 @@ void MSR::Hop(double dTime, double dDelta) {
     h.iSmoothType = SMX_GRADIENT_M3;
     sec = MSR::Time();
     nGroups = 0;
-    pstHopLink(pst, &h, sizeof(h), &nGroups, sizeof(nGroups));
+    mdl->RunService<ServiceHopLink>(h, nGroups);
     dsec = MSR::Time() - sec;
     if (parameters.get_bVStep()) print("Chain search complete in {:.5f} secs, building minimal tree...\n", dsec);
 
@@ -3507,65 +3511,50 @@ void MSR::Hop(double dTime, double dDelta) {
     h.iSmoothType = SMX_HOP_LINK;
     sec = MSR::Time();
     i = 0;
+    ServiceHopJoin::output j;
     do {
         ++i;
         assert(i < 100);
-        pstHopJoin(pst, &h, sizeof(h), &j, sizeof(j));
+        mdl->RunService<ServiceHopJoin>(h, j);
         if (parameters.get_bVStep()) print("... {} iteration{}, {} chains remain\n", i, i == 1 ? "" : "s", j.nGroups);
     } while (!j.bDone);
     nGroups = j.nGroups;
     dsec = MSR::Time() - sec;
     if (parameters.get_bVStep()) print("Chain merge complete in {:.5f} secs, {} groups\n", dsec, nGroups);
-    inFinish.nMinGroupSize = parameters.get_nMinMembers();
-    inFinish.bPeriodic = parameters.get_bPeriodic();
-    inFinish.fPeriod = parameters.get_dPeriod();
-    pstHopFinishUp(pst, &inFinish, sizeof(inFinish), &nGroups, sizeof(nGroups));
+    ServiceHopFinishUp::input inFinish{
+        .fPeriod = parameters.get_dPeriod(), .nMinGroupSize = static_cast<int>(parameters.get_nMinMembers()), .bPeriodic = parameters.get_bPeriodic()};
+    mdl->RunService<ServiceHopFinishUp>(inFinish, nGroups);
     if (parameters.get_bVStep()) print("Removed groups with fewer than {} particles, {} remain\n", inFinish.nMinGroupSize, nGroups);
 #if 0
-    if (parameters.get_bVStep())
-        print("Unbinding\n");
+    if (parameters.get_bVStep()) print("Unbinding\n");
 
-    struct inHopUnbind inUnbind;
-    inUnbind.dTime = dTime;
-    inUnbind.bPeriodic = parameters.get_bPeriodic();
-    inUnbind.fPeriod = parameters.get_dPeriod();
-    inUnbind.nMinGroupSize = parameters.get_nMinMembers();
-    inUnbind.iIteration = 0;
-    struct inHopGravity inGravity;
-    inGravity.dTime = dTime;
-    inGravity.bPeriodic = parameters.get_bPeriodic();
-    inGravity.nGroup = parameters.get_nGroup();
-    inGravity.dEwCut = parameters.get_dEwCut();
-    inGravity.dEwhCut = parameters.get_dEwhCut();
-    inGravity.uRungLo = 0;
-    inGravity.uRungHi = MAX_RUNG;
-    inGravity.dTheta = dThetaMin;
+    ServiceHopUnbind::input inUnbind{.dTime = dTime,
+                                     .bPeriodic = parameters.get_bPeriodic(),
+                                     .fPeriod = parameters.get_dPeriod(),
+                                     .nMinGroupSize = static_cast<int>(parameters.get_nMinMembers())};
+    ServiceHopUnbind::output outUnbind;
+    ServiceHopGravity::input inGravity{.dTime = dTime, .dTheta = dThetaMin};
 
-    inUnbind.iIteration=0;
+    int iIteration = 0;
     do {
         sec = MSR::Time();
-        struct inHopTreeBuild inTreeBuild;
-        inTreeBuild.nBucket = parameters.get_nBucket();
-        inTreeBuild.nGroup = parameters.get_nGroup();
-        pstHopTreeBuild(pst,&inTreeBuild,sizeof(inTreeBuild),NULL,0);
+        ServiceHopTreeBuild::input inTreeBuild{.nBucket = parameters.get_nBucket(), .nGroup = parameters.get_nGroup()};
+        mdl->RunService<ServiceHopTreeBuild>(inTreeBuild);
         dsec = MSR::Time() - sec;
-        if (parameters.get_bVStep())
-            print("... group trees built, Wallclock: {:.5f} secs\n", dsec);
+        if (parameters.get_bVStep()) print("... group trees built, Wallclock: {:.5f} secs\n", dsec);
 
         sec = MSR::Time();
-        pstHopGravity(pst,&inGravity,sizeof(inGravity),NULL,0);
+        mdl->RunService<ServiceHopGravity>(inGravity);
         dsec = MSR::Time() - sec;
-        if (parameters.get_bVStep())
-            print("... gravity complete, Wallclock: {:.5f} secs\n", dsec);
+        if (parameters.get_bVStep()) print("... gravity complete, Wallclock: {:.5f} secs\n", dsec);
 
         sec = MSR::Time();
-        struct outHopUnbind outUnbind;
-        pstHopUnbind(pst,&inUnbind,sizeof(inUnbind),&outUnbind,sizeof(outUnbind));
+        mdl->RunService<ServiceHopUnbind>(inUnbind, outUnbind);
         nGroups = outUnbind.nGroups;
         dsec = MSR::Time() - sec;
         if (parameters.get_bVStep())
             print("... unbinding complete in {:.5f} secs, {} particles evaporated, {} groups remain\n", dsec, outUnbind.nEvaporated, nGroups);
-    } while (++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
+    } while (++iIteration < 100 && outUnbind.nEvaporated);
 #endif
     /*
     ** This should be done as a separate msr function.

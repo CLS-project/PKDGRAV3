@@ -21,7 +21,7 @@
     #include "pkd_config.h"
 #endif
 #include "hop.h"
-#include <math.h>
+#include "smooth/smooth.h"
 #include <algorithm>
 
 class HelperJoinLoops : public mdl::arrayCACHEhelper {
@@ -112,7 +112,7 @@ static int traverseLink(PKD pkd, struct smGroupArray* ga, int pi, int* iPid2, in
 ** Chains still need to be joined if their terminating loops are close together.
 ** Prerequisites: Density and fBall from smooth
 */
-int smHopLink(SMX smx, SMF* smf) {
+static int smHopLink(SMX smx, SMF* smf) {
     PKD pkd = smx->pkd;
     auto mdl = pkd->mdl;
     int pi, j, gid, nLoop, nSpur;
@@ -374,13 +374,25 @@ int smHopLink(SMX smx, SMF* smf) {
     return nLocal;
 }
 
+auto ServiceHopLink::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto pkd = pst->lcl()->pkd;
+    auto in = reinterpret_cast</*const*/ input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+
+    SMX smx;
+    smInitialize(&smx, pkd, &in->smf, in->nSmooth, in->bPeriodic, in->bSymmetric, in->iSmoothType);
+    *out = smHopLink(smx, &in->smf);
+    smFinish(smx, &in->smf);
+    return sizeof(output);
+}
+
 /*
 ** Join together chains if their terminating loops are withing a linking length.
 **
 ** OPTIMIZATION: we should mark individual groups as done/not done so we can skip
 **               subsequent iterations for those groups.
 */
-int smHopJoin(SMX smx, SMF* smf, double dHopTau, int* nLocal) {
+static int smHopJoin(SMX smx, SMF* smf, double dHopTau, int* nLocal) {
     PKD pkd = smx->pkd;
     auto mdl = pkd->mdl;
     auto pRoot = pkd->tree[ROOT];
@@ -442,22 +454,53 @@ int smHopJoin(SMX smx, SMF* smf, double dHopTau, int* nLocal) {
     return smf->bDone;
 }
 
-int pkdHopFinishUp(PKD pkd, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) {
-    auto mdl = pkd->mdl;
-    struct smGroupArray* ga = pkd->Ephemeral<smGroupArray>();
+auto ServiceHopJoin::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto pkd = pst->lcl()->pkd;
+    auto in = reinterpret_cast</*const*/ input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    SMX smx;
+    smInitialize(&smx, pkd, &in->smf, in->nSmooth, in->bPeriodic, in->bSymmetric, in->iSmoothType);
+    int nLocal;
+    out->bDone = smHopJoin(smx, &in->smf, in->dHopTau, &nLocal);
+    smFinish(smx, &in->smf);
+    out->nGroups = nLocal;
+    return sizeof(output);
+}
+
+auto ServiceHopFinishUp::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    assert(vout.size() == sizeof(output));
+    *out = pst->lcl()->pkd->HopFinishUp(in->nMinGroupSize, in->bPeriodic, in->fPeriod);
+    pst->nLowerGroups = 0;
+    return sizeof(output);
+}
+
+auto ServiceHopFinishUp::Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST pst) -> int {
+    auto out1 = reinterpret_cast<output*>(vout1.data());
+    assert(vout1.size() == sizeof(output));
+    auto out2 = reinterpret_cast<const output*>(vout2.data());
+    assert(vout2.size() == sizeof(output));
+    pst->nLowerGroups = *out1;
+    *out1 += *out2;
+    return sizeof(output);
+}
+
+auto pkdContext::HopFinishUp(int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) -> int {
+    struct smGroupArray* ga = Ephemeral<smGroupArray>();
     int i;
 
-    for (i = 1; i < pkd->nGroups; ++i) {
+    for (i = 1; i < nGroups; ++i) {
         ga[i].iGid = i;
-        ga[i].id.iPid = pkd->tmpHopGroups[i].iPid;
-        ga[i].id.iIndex = pkd->tmpHopGroups[i].iIndex;
+        ga[i].id.iPid = tmpHopGroups[i].iPid;
+        ga[i].id.iIndex = tmpHopGroups[i].iIndex;
     }
-    mdl->Free(pkd->tmpHopGroups);
-    pkd->tmpHopGroups = NULL;
+    mdl->Free(tmpHopGroups);
+    tmpHopGroups = NULL;
 
-    pkd->nGroups = pkdPurgeSmallGroups(pkd, pkd->nGroups, ga, nMinGroupSize);
-    pkd->hopSavedRoots = 0;
-    return pkd->nLocalGroups;
+    nGroups = pkdPurgeSmallGroups(this, nGroups, ga, nMinGroupSize);
+    hopSavedRoots = 0;
+    return nLocalGroups;
 }
 
 class HelperHopGetRoots : public mdl::arrayCACHEhelper {
@@ -485,8 +528,14 @@ class HelperHopGetRoots : public mdl::arrayCACHEhelper {
     explicit HelperHopGetRoots(pkdContext* pkd) : arrayCACHEhelper(pkd->hopRoots, pkd->nGroups, true), pkd(pkd) {}
 };
 
-void pkdHopTreeBuild(PKD pkd, int nBucket, int nGroup) {
-    auto mdl = pkd->mdl;
+auto ServiceHopTreeBuild::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    pkd->HopTreeBuild(in->nBucket, in->nGroup);
+    return 0;
+}
+
+void pkdContext::HopTreeBuild(int nBucket, int nGroup) {
     int i, gid, iRoot;
     int nRootsTotal;
 
@@ -494,52 +543,51 @@ void pkdHopTreeBuild(PKD pkd, int nBucket, int nGroup) {
     ** The remote groups should be sorted by processor and remote group id,
     ** but we will rely on this behaviour later so we verify it now.
     */
-    for (i = 2 + pkd->nLocalGroups; i < pkd->nGroups; ++i) {
-        assert(pkd->hopGroups[i - 1].id.iPid < pkd->hopGroups[i].id.iPid ||
-               (pkd->hopGroups[i - 1].id.iPid == pkd->hopGroups[i].id.iPid && pkd->hopGroups[i - 1].id.iIndex < pkd->hopGroups[i].id.iIndex));
+    for (i = 2 + nLocalGroups; i < nGroups; ++i) {
+        assert(hopGroups[i - 1].id.iPid < hopGroups[i].id.iPid ||
+               (hopGroups[i - 1].id.iPid == hopGroups[i].id.iPid && hopGroups[i - 1].id.iIndex < hopGroups[i].id.iIndex));
     }
 
     /* Setup the buffer for tree roots */
-    pkd->hopRootIndex = new int[pkd->nGroups + 1];
-
+    hopRootIndex = new int[nGroups + 1];
     /* Calculate the index into the tree roots table */
     nRootsTotal = 0;
-    for (i = 1; i < pkd->nGroups; ++i) {
-        pkd->hopRootIndex[i] = nRootsTotal;
-        pkd->hopGroups[i].iAllRoots = nRootsTotal;
-        nRootsTotal += 1 + pkd->hopGroups[i].nRemote;
+    for (i = 1; i < nGroups; ++i) {
+        hopRootIndex[i] = nRootsTotal;
+        hopGroups[i].iAllRoots = nRootsTotal;
+        nRootsTotal += 1 + hopGroups[i].nRemote;
     }
 
-    pkd->hopRoots = new remoteID[nRootsTotal + 1];
+    hopRoots = new remoteID[nRootsTotal + 1];
 
     /* Invalidate all entries (for debug checks) */
-    for (iRoot = 0; iRoot <= nRootsTotal; ++iRoot) pkd->hopRoots[iRoot].iPid = pkd->hopRoots[iRoot].iIndex = -1;
+    for (iRoot = 0; iRoot <= nRootsTotal; ++iRoot) hopRoots[iRoot].iPid = hopRoots[iRoot].iIndex = -1;
 
     /* We build a tree of each group of particles - hopGroups[].iTreeRoot is set */
-    pkd->TreeBuildByGroup(nBucket, nGroup);
+    TreeBuildByGroup(nBucket, nGroup);
 
     /* Add ourselves for local groups */
-    for (gid = 1; gid < pkd->nLocalGroups; ++gid) {
-        iRoot = pkd->hopRootIndex[gid]++;
+    for (gid = 1; gid < nLocalGroups; ++gid) {
+        iRoot = hopRootIndex[gid]++;
         assert(iRoot < nRootsTotal);
-        assert(pkd->hopRoots[iRoot].iPid == -1 && pkd->hopRoots[iRoot].iIndex == -1);
-        pkd->hopRoots[iRoot].iPid = mdl->Self();
-        pkd->hopRoots[iRoot].iIndex = i;
+        assert(hopRoots[iRoot].iPid == -1 && hopRoots[iRoot].iIndex == -1);
+        hopRoots[iRoot].iPid = mdl->Self();
+        hopRoots[iRoot].iIndex = i;
     }
 
     /*
     ** Let the group master know about the remote tree roots. We can use the
     ** combiner cache because there is at most 1 root per group per node.
     */
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperHopGetRoots>(pkd));
-    for (i = 1 + pkd->nLocalGroups; i < pkd->nGroups; ++i) {
-        assert(pkd->hopGroups[i].id.iPid != pkd->Self());
-        //  if (pkd->hopNumRoots[i] == 0) continue;
-        auto g = mdl->Acquire<HopGroupTable>(CID_GROUP, pkd->hopGroups[i].id.iIndex, pkd->hopGroups[i].id.iPid);
-        g->rmt.iPid = pkd->Self();
-        g->rmt.iIndex = pkd->hopGroups[i].iTreeRoot;
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperHopGetRoots>(this));
+    for (i = 1 + nLocalGroups; i < nGroups; ++i) {
+        assert(hopGroups[i].id.iPid != mdl->Self());
+        //  if (hopNumRoots[i] == 0) continue;
+        auto g = mdl->Acquire<HopGroupTable>(CID_GROUP, hopGroups[i].id.iIndex, hopGroups[i].id.iPid);
+        g->rmt.iPid = mdl->Self();
+        g->rmt.iIndex = hopGroups[i].iTreeRoot;
         g->iGlobalId = i;
-        pkd->hopGroups[i].iAllRoots = g->iAllRoots; /* We will fix this later! */
+        hopGroups[i].iAllRoots = g->iAllRoots; /* We will fix this later! */
         mdl->Release(CID_GROUP, g);
     }
     mdl->FinishCache(CID_GROUP);
@@ -547,47 +595,64 @@ void pkdHopTreeBuild(PKD pkd, int nBucket, int nGroup) {
     /*
     ** Now we just need to fetch all of the roots for remote groups
     */
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(pkd->hopRoots, nRootsTotal));
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(hopRoots, nRootsTotal));
 
-    for (gid = 1 + pkd->nLocalGroups; gid < pkd->nGroups; ++gid) {
-        int iIndex = pkd->hopGroups[gid].iAllRoots;
-        for (i = 0; i < pkd->hopGroups[gid].nRemote + 1; ++i) {
-            auto pRoot = mdl->Fetch<remoteID>(CID_GROUP, iIndex + i, pkd->hopGroups[gid].id.iPid);
-            int iRoot = pkd->hopRootIndex[gid]++;
-            assert(pkd->hopRoots[iRoot].iPid == -1 && pkd->hopRoots[iRoot].iIndex == -1);
-            pkd->hopRoots[iRoot].iPid = pRoot->iPid;
-            pkd->hopRoots[iRoot].iIndex = pRoot->iIndex;
+    for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+        int iIndex = hopGroups[gid].iAllRoots;
+        for (i = 0; i < hopGroups[gid].nRemote + 1; ++i) {
+            auto pRoot = mdl->Fetch<remoteID>(CID_GROUP, iIndex + i, hopGroups[gid].id.iPid);
+            int iRoot = hopRootIndex[gid]++;
+            assert(hopRoots[iRoot].iPid == -1 && hopRoots[iRoot].iIndex == -1);
+            hopRoots[iRoot].iPid = pRoot->iPid;
+            hopRoots[iRoot].iIndex = pRoot->iIndex;
         }
     }
     mdl->FinishCache(CID_GROUP);
 
     /* Fix the indexes */
     nRootsTotal = 0;
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
-        pkd->hopGroups[gid].iAllRoots = nRootsTotal;
-        nRootsTotal += 1 + pkd->hopGroups[gid].nRemote;
+    for (gid = 1; gid < nGroups; ++gid) {
+        hopGroups[gid].iAllRoots = nRootsTotal;
+        nRootsTotal += 1 + hopGroups[gid].nRemote;
     }
 
-    for (iRoot = 1; iRoot < nRootsTotal; ++iRoot) assert(pkd->hopRoots[iRoot].iPid >= 0 && pkd->hopRoots[iRoot].iIndex > 0);
+    for (iRoot = 1; iRoot < nRootsTotal; ++iRoot) assert(hopRoots[iRoot].iPid >= 0 && hopRoots[iRoot].iIndex > 0);
 
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
-        int iRootUs = pkd->hopRootIndex[gid];
-        for (iRoot = pkd->hopRootIndex[gid]; iRoot < pkd->hopRootIndex[gid + 1]; ++iRoot) {
+    for (gid = 1; gid < nGroups; ++gid) {
+        int iRootUs = hopRootIndex[gid];
+        for (iRoot = hopRootIndex[gid]; iRoot < hopRootIndex[gid + 1]; ++iRoot) {
             assert(iRoot < nRootsTotal);
-            assert(pkd->hopRoots[iRoot].iPid >= 0 && pkd->hopRoots[iRoot].iIndex > 0);
+            assert(hopRoots[iRoot].iPid >= 0 && hopRoots[iRoot].iIndex > 0);
             /* Move our local root to the start */
-            if (pkd->hopRoots[iRoot].iPid == pkd->Self() && iRoot > iRootUs) {
+            if (hopRoots[iRoot].iPid == mdl->Self() && iRoot > iRootUs) {
                 remoteID t;
-                assert(pkd->hopRoots[iRootUs].iPid != pkd->Self());
-                t = pkd->hopRoots[iRootUs];
-                pkd->hopRoots[iRootUs] = pkd->hopRoots[iRoot];
-                pkd->hopRoots[iRoot] = t;
+                assert(hopRoots[iRootUs].iPid != mdl->Self());
+                t = hopRoots[iRootUs];
+                hopRoots[iRootUs] = hopRoots[iRoot];
+                hopRoots[iRoot] = t;
             }
         }
     }
-    delete[] pkd->hopRootIndex;
-    pkd->hopRootIndex = NULL;
+    delete[] hopRootIndex;
+    hopRootIndex = NULL;
     /* free: We have allocated pkd->hopRoots -- needed for gravity */
+}
+
+auto ServiceHopGravity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    double dFlop = 0, dPartSum = 0, dCellSum = 0;
+    pkd->HopGravity(in->dTime, in->dTheta, &dFlop, &dPartSum, &dCellSum);
+    return 0;
+}
+
+auto ServiceHopUnbind::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto out = reinterpret_cast<output*>(vout.data());
+    auto pkd = pst->lcl()->pkd;
+    out->nEvaporated = pkd->HopUnbind(in->dTime, in->nMinGroupSize, in->bPeriodic, in->fPeriod);
+    out->nGroups = pkd->nLocalGroups;
+    return sizeof(output);
 }
 
 struct EE { /*EnergyElement*/
@@ -609,22 +674,21 @@ class HelperMaxHopEnergy : public mdl::arrayCACHEhelper {
     explicit HelperMaxHopEnergy(pkdContext* pkd) : arrayCACHEhelper(pkd->hopGroups, pkd->nGroups, true) {}
 };
 
-int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) {
-    auto mdl = pkd->mdl;
-    auto ee = pkd->Ephemeral<EE>();
+auto pkdContext::HopUnbind(double dTime, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double, 3> dPeriod) -> int {
+    auto ee = Ephemeral<EE>();
     int gid, iRoot, i, j;
     int nEvaporated;
-    double a = csmTime2Exp(pkd->csm, dTime);
+    double a = csmTime2Exp(csm, dTime);
     double ia = 1.0 / a;
     double a2 = a * a;
     double dv, dv2;
     double dEnergy;
 
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperMaxHopEnergy>(pkd));
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
-        if (pkd->hopGroups[gid].bComplete) continue;
-        iRoot = pkd->hopGroups[gid].iTreeRoot;
-        auto pNode = pkd->tree[iRoot];
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<HelperMaxHopEnergy>(this));
+    for (gid = 1; gid < nGroups; ++gid) {
+        if (hopGroups[gid].bComplete) continue;
+        iRoot = hopGroups[gid].iTreeRoot;
+        auto pNode = tree[iRoot];
         // n = pNode->pUpper - pNode->pLower + 1;
         /* Calculate kinetic energy & total energy */
         for (auto& P : *pNode) {
@@ -632,12 +696,12 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz:
             auto v = P.velocity();
             dv2 = 0.0;
             for (j = 0; j < 3; ++j) {
-                dv = v[j] - pkd->hopGroups[gid].vcom[j];
+                dv = v[j] - hopGroups[gid].vcom[j];
                 dv2 += dv * dv;
             }
             ee[i].i = i;
             ee[i].dPot = P.potential() * ia;
-            if (P.is_gas() && pkd->particles.present(PKD_FIELD::oSph)) { /* TODO: is this correct? */
+            if (P.is_gas() && particles.present(PKD_FIELD::oSph)) { /* TODO: is this correct? */
                 const auto& sph = P.sph();
                 ee[i].dPot += sph.Uint / P.mass();
             }
@@ -649,53 +713,53 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, blitz:
         while (i <= pNode->upper() && ee[i].dTot <= 0.0) ++i;
         if (i > pNode->upper()) dEnergy = 0.0;
         else dEnergy = ee[i].dTot;
-        pkd->hopGroups[gid].dEnergy = dEnergy;
+        hopGroups[gid].dEnergy = dEnergy;
 
-        if (pkd->hopGroups[gid].id.iPid != pkd->Self()) {
-            auto g = mdl->Acquire<HopGroupTable>(CID_GROUP, pkd->hopGroups[gid].id.iIndex, pkd->hopGroups[gid].id.iPid);
+        if (hopGroups[gid].id.iPid != Self()) {
+            auto g = mdl->Acquire<HopGroupTable>(CID_GROUP, hopGroups[gid].id.iIndex, hopGroups[gid].id.iPid);
             g->dEnergy = dEnergy;
             mdl->Release(CID_GROUP, g);
         }
     }
     mdl->FinishCache(CID_GROUP);
 
-    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(pkd->hopGroups, pkd->nGroups));
-    for (gid = 1 + pkd->nLocalGroups; gid < pkd->nGroups; ++gid) {
-        if (pkd->hopGroups[gid].bComplete) continue;
-        assert(pkd->hopGroups[gid].id.iPid != pkd->Self());
-        auto g = mdl->Acquire<HopGroupTable>(CID_GROUP, pkd->hopGroups[gid].id.iIndex, pkd->hopGroups[gid].id.iPid);
-        assert(pkd->hopGroups[gid].id.iIndex == g->id.iIndex && pkd->hopGroups[gid].id.iPid == g->id.iPid);
-        pkd->hopGroups[gid].dEnergy = g->dEnergy;
+    mdl->CacheInitialize(CID_GROUP, std::make_shared<mdl::arrayCACHEhelper>(hopGroups, nGroups));
+    for (gid = 1 + nLocalGroups; gid < nGroups; ++gid) {
+        if (hopGroups[gid].bComplete) continue;
+        assert(hopGroups[gid].id.iPid != Self());
+        auto g = mdl->Acquire<HopGroupTable>(CID_GROUP, hopGroups[gid].id.iIndex, hopGroups[gid].id.iPid);
+        assert(hopGroups[gid].id.iIndex == g->id.iIndex && hopGroups[gid].id.iPid == g->id.iPid);
+        hopGroups[gid].dEnergy = g->dEnergy;
         mdl->Release(CID_GROUP, g);
     }
     mdl->FinishCache(CID_GROUP);
     nEvaporated = 0;
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
-        if (pkd->hopGroups[gid].bComplete) continue;
-        iRoot = pkd->hopGroups[gid].iTreeRoot;
-        dEnergy = pkd->hopGroups[gid].dEnergy;
-        auto pNode = pkd->tree[iRoot];
+    for (gid = 1; gid < nGroups; ++gid) {
+        if (hopGroups[gid].bComplete) continue;
+        iRoot = hopGroups[gid].iTreeRoot;
+        dEnergy = hopGroups[gid].dEnergy;
+        auto pNode = tree[iRoot];
         // n = pNode->count();
         for (i = pNode->upper(); i >= pNode->lower() && ee[i].dTot >= dEnergy; --i) {
-            auto P = pkd->particles[ee[i].i];
+            auto P = particles[ee[i].i];
             P.set_group(0);
             ++nEvaporated;
         }
-        if (i == pNode->upper()) pkd->hopGroups[gid].bComplete = 1;
+        if (i == pNode->upper()) hopGroups[gid].bComplete = 1;
         /* Move evaporated particles to the end */
         else
             for (i = pNode->lower(); i <= pNode->upper();) {
-                auto P = pkd->particles[i];
+                auto P = particles[i];
                 if (P.group()) ++i;
                 else {
-                    auto Q = pkd->particles[pNode->upper()--];
+                    auto Q = particles[pNode->upper()--];
                     swap(P, Q);
                 }
             }
     }
 
     assert(0); /* the purge small groups below must work on ga... */
-    pkd->nGroups = pkdPurgeSmallGroups(pkd, pkd->nGroups, pkd->ga, nMinGroupSize);
+    nGroups = pkdPurgeSmallGroups(this, nGroups, ga, nMinGroupSize);
 
     return nEvaporated;
 }

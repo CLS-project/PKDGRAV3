@@ -661,7 +661,7 @@ static void initGravWalk(PKD pkd, double dTime, double dThetaMin, int bPeriodic,
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalkHop(PKD pkd, double dTime, double dThetaMin, double* pdFlop, double* pdPartSum, double* pdCellSum) {
+int pkdContext::HopGravity(double dTime, double dThetaMin, double* pdFlop, double* pdPartSum, double* pdCellSum) {
     int id, iRoot, iRootSelf;
     float fOffset[3];
     int nActive;
@@ -669,31 +669,31 @@ int pkdGravWalkHop(PKD pkd, double dTime, double dThetaMin, double* pdFlop, doub
     SMX smx;
     SMF smf;
 
-    pkd->mdl->CacheInitialize(CID_PARTICLE, std::make_shared<particleCACHEhelper>(pkd));
+    mdl->CacheInitialize(CID_PARTICLE, std::make_shared<particleCACHEhelper>(this));
 
-    initGravWalk(pkd, dTime, dThetaMin, 0, 0, 0, 0, &smx, &smf);
+    initGravWalk(this, dTime, dThetaMin, 0, 0, 0, 0, &smx, &smf);
     nActive = 0;
-    for (gid = 1; gid < pkd->nGroups; ++gid) {
-        if (!pkd->hopGroups[gid].bNeedGrav) continue;
-        pkd->hopGroups[gid].bNeedGrav = 0;
-        pkd->ilp.clear();
-        pkd->ilc.clear();
-        pkd->cl.clear();
-        iRootSelf = pkd->hopGroups[gid].iAllRoots;
-        for (i = iRootSelf; i < iRootSelf + pkd->hopGroups[gid].nRemote + 1; ++i) {
+    for (gid = 1; gid < nGroups; ++gid) {
+        if (!hopGroups[gid].bNeedGrav) continue;
+        hopGroups[gid].bNeedGrav = 0;
+        ilp.clear();
+        ilc.clear();
+        cl.clear();
+        iRootSelf = hopGroups[gid].iAllRoots;
+        for (i = iRootSelf; i < iRootSelf + hopGroups[gid].nRemote + 1; ++i) {
             for (j = 0; j < 3; ++j) fOffset[j] = 0.0f;
-            id = pkd->hopRoots[i].iPid;
-            iRoot = pkd->hopRoots[i].iIndex;
+            id = hopRoots[i].iPid;
+            iRoot = hopRoots[i].iIndex;
             assert(iRoot > 0);
-            addChild(pkd, CID_CELL, pkd->cl, iRoot, id, fOffset);
+            addChild(this, CID_CELL, cl, iRoot, id, fOffset);
         }
-        assert(pkd->hopRoots[iRootSelf].iPid == pkd->Self());
+        assert(hopRoots[iRootSelf].iPid == Self());
         // nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
         //     NULL,NULL,1.0,dTime,
         //     0, dThetaMin, 0, 0, pdFlop, pdPartSum, pdCellSum);
     }
-    doneGravWalk(pkd, smx, &smf);
-    pkd->mdl->FinishCache(CID_PARTICLE);
+    doneGravWalk(this, smx, &smf);
+    mdl->FinishCache(CID_PARTICLE);
     return nActive;
 }
 

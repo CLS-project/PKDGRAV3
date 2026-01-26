@@ -145,12 +145,6 @@ inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
 inline constexpr std::string_view StellarEvolutionInit = "StellarEvolutionInit";
 inline constexpr std::string_view SetWriteStart = "SetWriteStart";
 inline constexpr std::string_view AddWriteStart = "AddWriteStart";
-inline constexpr std::string_view HopLink = "HopLink";
-inline constexpr std::string_view HopJoin = "HopJoin";
-inline constexpr std::string_view HopFinishUp = "HopFinishUp";
-inline constexpr std::string_view HopTreeBuild = "HopTreeBuild";
-inline constexpr std::string_view HopGravity = "HopGravity";
-inline constexpr std::string_view HopUnbind = "HopUnbind";
 inline constexpr std::string_view GroupRelocate = "GroupRelocate";
 inline constexpr std::string_view GroupStats = "GroupStats";
 inline constexpr std::string_view InitializePStore = "InitializePStore";
@@ -215,12 +209,6 @@ enum pst_service {
 #endif
     PST_SETWRITESTART,
     PST_ADDWRITESTART,
-    PST_HOP_LINK,
-    PST_HOP_JOIN,
-    PST_HOP_FINISH_UP,
-    PST_HOP_TREE_BUILD,
-    PST_HOP_GRAVITY,
-    PST_HOP_UNBIND,
     PST_GROUP_RELOCATE,
     PST_GROUP_STATS,
     PST_INITIALIZEPSTORE,
@@ -350,66 +338,6 @@ int pstCheckpoint(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
-
-/* PST_HOP_LINK */
-struct inHopLink {
-    double dHopTau;
-    int nSmooth;
-    int bPeriodic;
-    int bSymmetric;
-    int iSmoothType;
-    SMF smf;
-};
-int pstHopLink(PST, void*, int, void*, int);
-
-/* PST_HOP_JOIN */
-struct outHopJoin {
-    uint64_t nGroups;
-    int bDone;
-};
-int pstHopJoin(PST, void*, int, void*, int);
-
-/* PST_HOP_FINISH_UP */
-struct inHopFinishUp {
-    blitz::TinyVector<double, 3> fPeriod;
-    int bPeriodic;
-    int nMinGroupSize;
-};
-int pstHopFinishUp(PST, void*, int, void*, int);
-
-/* PST_HOP_TREE_BUILD */
-/* PST_BUILDTREE */
-struct inHopTreeBuild {
-    int nBucket;
-    int nGroup;
-};
-int pstHopTreeBuild(PST, void*, int, void*, int);
-
-/* PST_HOP_GRAVITY */
-struct inHopGravity {
-    double dTime;
-    double dEwCut;
-    double dEwhCut;
-    double dTheta;
-    int bPeriodic;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-};
-int pstHopGravity(PST, void*, int, void*, int);
-
-/* PST_HOP_UNBIND */
-struct inHopUnbind {
-    double dTime;
-    blitz::TinyVector<double, 3> fPeriod;
-    int bPeriodic;
-    int nMinGroupSize;
-    int iIteration;
-};
-struct outHopUnbind {
-    uint64_t nEvaporated;
-    uint64_t nGroups;
-};
-int pstHopUnbind(PST, void*, int, void*, int);
 
 /* PST_GROUP_RELOCATE */
 int pstGroupRelocate(PST, void*, int, void*, int);
