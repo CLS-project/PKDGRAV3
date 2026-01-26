@@ -109,8 +109,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_ONENODEREADINIT, pst, (fcnService_t*)pstOneNodeReadInit,
                     sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), nThreads * sizeof(fioSpeciesList),
                     Legacy::OneNodeReadInit);
-    mdl->AddService(PST_DENSITYSTEP, pst, (fcnService_t*)pstDensityStep, sizeof(struct inDensityStep), 0, Legacy::DensityStep);
-    mdl->AddService(PST_ACCELSTEP, pst, (fcnService_t*)pstAccelStep, sizeof(struct inAccelStep), 0, Legacy::AccelStep);
     mdl->AddService(PST_RESMOOTH, pst, (fcnService_t*)pstReSmooth, sizeof(struct inSmooth), sizeof(struct outSmooth), Legacy::ReSmooth);
 #ifdef OPTIM_SMOOTH_NODE
     mdl->AddService(PST_RESMOOTHNODE, pst, (fcnService_t*)pstReSmoothNode, sizeof(struct inSmooth), sizeof(struct outSmooth), Legacy::ReSmoothNode);
@@ -921,39 +919,6 @@ int pstKickTree(PST pst, void* vin, int nIn, void* vout, int nOut) {
     }
     else {
         pkdKickTree(plcl->pkd, in->dTime, in->dDelta, in->dDeltaVPred, in->dDeltaU, in->dDeltaUPred, in->iRoot);
-    }
-    return 0;
-}
-
-int pstAccelStep(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inAccelStep*>(vin);
-
-    assert(nIn == sizeof(struct inAccelStep));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_ACCELSTEP, vin, nIn);
-        pstAccelStep(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdAccelStep(plcl->pkd, in->uRungLo, in->uRungHi, in->dDelta, in->iMaxRung, in->dEta, in->dVelFac, in->dAccFac, in->bDoGravity, in->bEpsAcc,
-                     in->dhMinOverSoft);
-    }
-    return 0;
-}
-
-int pstDensityStep(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    auto in = static_cast<struct inDensityStep*>(vin);
-
-    assert(nIn == sizeof(*in));
-    if (pst->NotCore()) {
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_DENSITYSTEP, vin, nIn);
-        pstDensityStep(pst->lower(), vin, nIn, NULL, 0);
-        pst->mdl()->GetReply(rID);
-    }
-    else {
-        pkdDensityStep(plcl->pkd, in->uRungLo, in->uRungHi, in->iMaxRung, in->dDelta, in->dEta, in->dRhoFac);
     }
     return 0;
 }

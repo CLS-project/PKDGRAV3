@@ -120,8 +120,6 @@ inline constexpr std::string_view Kick = "Kick";
 inline constexpr std::string_view KickTree = "KickTree";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-inline constexpr std::string_view AccelStep = "AccelStep";
-inline constexpr std::string_view DensityStep = "DensityStep";
 inline constexpr std::string_view ReSmooth = "ReSmooth";
 inline constexpr std::string_view ReSmoothNode = "ReSmoothNode";
 inline constexpr std::string_view ReorderInNodes = "ReorderInNodes";
@@ -165,8 +163,6 @@ enum pst_service {
     PST_KICKTREE,
     PST_PHYSICALSOFT,
     PST_ONENODEREADINIT,
-    PST_ACCELSTEP,
-    PST_DENSITYSTEP,
     PST_RESMOOTH,
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
@@ -477,32 +473,6 @@ struct outDensCheck {
 };
 
 void pstDensCheck(PST, void*, int, void*, int*);
-
-/* PST_ACCELSTEP */
-struct inAccelStep {
-    double dEta;
-    double dVelFac;
-    double dAccFac;
-    double dDelta;
-    int iMaxRung;
-    int bDoGravity;
-    int bEpsAcc;
-    double dhMinOverSoft;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-};
-int pstAccelStep(PST, void*, int, void*, int);
-
-/* PST_DENSITYSTEP */
-struct inDensityStep {
-    double dDelta;
-    double dEta;
-    double dRhoFac;
-    int iMaxRung;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-};
-int pstDensityStep(PST, void*, int, void*, int);
 
 /* PST_MEMSTATUS */
 struct outMemStatus {

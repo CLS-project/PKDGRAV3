@@ -583,6 +583,9 @@ class pkdContext : public Integerize {
                  blitz::TinyVector<double, 3>& vcm, blitz::TinyVector<double, 3>& L, double& M, uint64_t& N);
     uint8_t MaxRung();
     void SetGlobalRung(uint8_t minDt);
+    void DensityStep(uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac);
+    void AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dDelta, int iMaxRung, double dEta, double dVelFac, double dAccFac, int bDoGravity, int bEpsAcc,
+                   double dhMinOverSoft);
 
     void swap_classes(int id);
 
@@ -874,15 +877,12 @@ void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo);
 void pkdInitLightcone(PKD pkd, int bBowtie, int bLightConeParticles, double dBoxSize, double dRedshiftLCP, double alphaLCP, blitz::TinyVector<double, 3> hLCP,
                       int mOctants);
 void pkdZeroNewRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
-void pkdAccelStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dDelta, int iMaxRung, double dEta, double dVelFac, double dAccFac, int bDoGravity,
-                  int bEpsAcc, double dhMinOverSoft);
 void pkdCooling(PKD pkd, double, double, int, int, int, int);
 void pkdChemCompInit(PKD pkd, struct inChemCompInit in);
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3
 #define CORRECTENERGY_IC_MESHLESS 4
-void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung, int iMaxRung, uint64_t* nRungCount);
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung);
 static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRung) {

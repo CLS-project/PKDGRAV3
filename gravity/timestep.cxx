@@ -42,3 +42,67 @@ auto ServiceSetGlobalRung::Service(PST pst, std::span<std::byte> vin, std::span<
 void pkdContext::SetGlobalRung(uint8_t minDt) {
     for (auto& p : particles) p.set_new_rung(minDt);
 }
+
+static inline auto DtToRung(double dT, double dDelta, uint8_t uMaxRung) -> uint8_t {
+    union {
+        double d;
+        struct {
+            uint64_t mantisa : 52;
+            uint64_t exponent : 11;
+            uint64_t sign : 1;
+        } ieee;
+    } T;
+    T.d = fabs(dDelta) / dT;
+    if (T.d <= 1.0) return 0;
+    int iRung = T.ieee.exponent - 1023; /* log2(d) */
+    if (iRung > uMaxRung) return uMaxRung;
+    else return iRung;
+}
+
+auto ServiceAccelStep::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    pkd->AccelStep(in->uRungLo, in->uRungHi, in->dDelta, in->iMaxRung, in->dEta, in->dVelFac, in->dAccFac, in->bDoGravity, in->bEpsAcc, in->dhMinOverSoft);
+    return 0;
+}
+
+void pkdContext::AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dDelta, int iMaxRung, double dEta, double dVelFac, double dAccFac, int bDoGravity,
+                           int bEpsAcc, double dhMinOverSoft) {
+    assert(particles.present(PKD_FIELD::oVelocity));
+    assert(particles.present(PKD_FIELD::oAcceleration));
+    assert(!bNoParticleOrder);
+
+    for (auto& p : particles) {
+        if (p.is_active()) {
+            const auto& v = p.velocity();
+            const auto& a = p.acceleration();
+            double fSoft = p.soft();
+            double vel = dot(v, v);
+            double acc = dot(a, a);
+            assert(vel >= 0);
+            vel = sqrt(vel) * dVelFac;
+            assert(acc >= 0);
+            acc = sqrt(acc) * dAccFac;
+            double dT = (acc > 0 && bEpsAcc) ? dEta * sqrt(fSoft / acc) : FLOAT_MAXVAL;
+            uint8_t uNewRung = DtToRung(dT, dDelta, iMaxRung);
+            if (uNewRung > p.new_rung()) p.set_new_rung(uNewRung);
+        }
+    }
+}
+
+auto ServiceDensityStep::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
+    auto pkd = pst->lcl()->pkd;
+    pkd->DensityStep(in->uRungLo, in->uRungHi, in->iMaxRung, in->dDelta, in->dEta, in->dRhoFac);
+    return 0;
+}
+
+void pkdContext::DensityStep(uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac) {
+    assert(!bNoParticleOrder);
+    for (auto& p : particles) {
+        if (p.is_active()) {
+            double dT = dEta / sqrt(p.density() * dRhoFac);
+            p.set_new_rung(DtToRung(dT, dDelta, iMaxRung));
+        }
+    }
+}

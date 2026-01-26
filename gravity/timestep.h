@@ -45,3 +45,43 @@ class ServiceSetGlobalRung : public TraversePST {
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
+
+class ServiceAccelStep : public TraversePST {
+  public:
+    static constexpr std::string_view name = "AccelStep";
+    struct input {
+        double dEta;
+        double dVelFac;
+        double dAccFac;
+        double dDelta;
+        double dhMinOverSoft;
+        int iMaxRung;
+        uint8_t uRungLo;
+        uint8_t uRungHi;
+        bool bDoGravity;
+        bool bEpsAcc;
+    };
+    using output = void;
+    explicit ServiceAccelStep(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceDensityStep : public TraversePST {
+  public:
+    static constexpr std::string_view name = "DensityStep";
+    struct input {
+        double dDelta;
+        double dEta;
+        double dRhoFac;
+        int iMaxRung;
+        uint8_t uRungLo;
+        uint8_t uRungHi;
+    };
+    using output = void;
+    explicit ServiceDensityStep(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};

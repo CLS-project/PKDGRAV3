@@ -2697,25 +2697,19 @@ int MSR::CountRungs(uint64_t* nRungs) {
 }
 
 void MSR::AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelta) {
-    struct inAccelStep in;
-    double a;
-
-    in.dEta = Eta();
-    a = csmTime2Exp(csm, dTime);
-    if (csm->val.bComove) {
-        in.dVelFac = 1.0 / (a * a);
-    }
-    else {
-        in.dVelFac = 1.0;
-    }
-    in.dAccFac = 1.0 / (a * a * a);
-    in.bDoGravity = DoGravity();
-    in.bEpsAcc = parameters.get_bEpsAccStep();
-    in.dDelta = dDelta;
-    in.iMaxRung = parameters.get_iMaxRung();
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    pstAccelStep(pst, &in, sizeof(in), NULL, 0);
+    auto a = csmTime2Exp(csm, dTime);
+    auto dVelFac = csm->val.bComove ? 1.0 / (a * a) : 1.0;
+    ServiceAccelStep::input in{.dEta = Eta(),
+                               .dVelFac = dVelFac,
+                               .dAccFac = 1.0 / (a * a * a),
+                               .dDelta = dDelta,
+                               .dhMinOverSoft = parameters.get_dhMinOverSoft(),
+                               .iMaxRung = static_cast<int>(parameters.get_iMaxRung()),
+                               .uRungLo = uRungLo,
+                               .uRungHi = uRungHi,
+                               .bDoGravity = static_cast<bool>(DoGravity()),
+                               .bEpsAcc = parameters.get_bEpsAccStep()};
+    mdl->RunService<ServiceAccelStep>(in);
 }
 
 auto MSR::GetMaxRung() -> uint8_t {
@@ -2730,21 +2724,19 @@ void MSR::SetGlobalRung(uint8_t uRung) {
 }
 
 void MSR::DensityStep(uint8_t uRungLo, uint8_t uRungHi, double dTime, double dDelta) {
-    struct inDensityStep in;
-    double expand;
-    int bSymmetric;
 
     print_detail("Calculating Rung Densities...\n");
-    bSymmetric = 0;
+    int bSymmetric = 0;
     Smooth(dTime, dDelta, SMX_DENSITY, bSymmetric, parameters.get_nSmooth());
-    in.dDelta = dDelta;
-    in.iMaxRung = parameters.get_iMaxRung();
-    in.dEta = Eta();
-    expand = csmTime2Exp(csm, dTime);
-    in.dRhoFac = 1.0 / (expand * expand * expand);
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    pstDensityStep(pst, &in, sizeof(in), NULL, 0);
+    auto expand = csmTime2Exp(csm, dTime);
+
+    ServiceDensityStep::input in{.dDelta = dDelta,
+                                 .dEta = Eta(),
+                                 .dRhoFac = 1.0 / (expand * expand * expand),
+                                 .iMaxRung = static_cast<int>(parameters.get_iMaxRung()),
+                                 .uRungLo = uRungLo,
+                                 .uRungHi = uRungHi};
+    mdl->RunService<ServiceDensityStep>(in);
 }
 
 /*

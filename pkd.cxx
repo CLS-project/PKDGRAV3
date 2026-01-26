@@ -2392,30 +2392,6 @@ void pkdZeroNewRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) { 
     }
 }
 
-void pkdAccelStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dDelta, int iMaxRung, double dEta, double dVelFac, double dAccFac, int bDoGravity,
-                  int bEpsAcc, double dhMinOverSoft) {
-    assert(pkd->particles.present(PKD_FIELD::oVelocity));
-    assert(pkd->particles.present(PKD_FIELD::oAcceleration));
-    assert(!pkd->bNoParticleOrder);
-
-    for (auto& p : pkd->particles) {
-        if (p.is_active()) {
-            const auto& v = p.velocity();
-            const auto& a = p.acceleration();
-            double fSoft = p.soft();
-            double vel = dot(v, v);
-            double acc = dot(a, a);
-            mdlassert(pkd->mdl, vel >= 0);
-            vel = sqrt(vel) * dVelFac;
-            mdlassert(pkd->mdl, acc >= 0);
-            acc = sqrt(acc) * dAccFac;
-            double dT = (acc > 0 && bEpsAcc) ? dEta * sqrt(fSoft / acc) : FLOAT_MAXVAL;
-            int uNewRung = pkdDtToRung(dT, dDelta, iMaxRung);
-            if (uNewRung > p.new_rung()) p.set_new_rung(uNewRung);
-        }
-    }
-}
-
 void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
 
     for (auto& p : pkd->particles) {
@@ -2455,16 +2431,6 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
             if (Star.fMetalAbun < 0.0f) Star.fMetalAbun = in.dInitialMetallicity;
         }
 #endif // STELLAR_EVOLUTION
-    }
-}
-
-void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac) {
-    assert(!pkd->bNoParticleOrder);
-    for (auto& p : pkd->particles) {
-        if (p.is_active()) {
-            double dT = dEta / sqrt(p.density() * dRhoFac);
-            p.set_new_rung(pkdDtToRung(dT, dDelta, iMaxRung));
-        }
     }
 }
 

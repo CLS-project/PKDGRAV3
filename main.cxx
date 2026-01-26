@@ -213,6 +213,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSetClasses>(pst);
     mdl->AddService<ServiceMaxRung>(pst);
     mdl->AddService<ServiceSetGlobalRung>(pst);
+    mdl->AddService<ServiceAccelStep>(pst);
+    mdl->AddService<ServiceDensityStep>(pst);
     mdl->AddService<ServiceAddWriteStart>(pst);
     mdl->AddService<ServiceCompressASCII>(pst);
 #ifdef HAVE_ROCKSTAR
