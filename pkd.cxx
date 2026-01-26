@@ -1360,11 +1360,11 @@ void pkdLocalOrder(PKD pkd, uint64_t iMinOrder, uint64_t iMaxOrder) {
 
 #define MAX_IO_BUFFER_SIZE (8 * 1024 * 1024)
 
-void pkdCheckpoint(PKD pkd, const char* fname, const char* fname_decorator) {
+void pkdContext::Checkpoint(const char* fname, const char* fname_decorator) {
     // Order particles by type to prepare for checkpoint
-    auto ii = std::partition(pkd->particles.begin(), pkd->particles.end(), [](auto& p) { return !p.have_decorator(); });
-    auto split = ii - pkd->particles.begin();
-    pkdReorderDecorator(pkd);
+    auto ii = std::partition(particles.begin(), particles.end(), [](auto& p) { return !p.have_decorator(); });
+    auto split = ii - particles.begin();
+    pkdReorderDecorator(this);
 
     asyncFileInfo info;
     size_t nFileSize;
@@ -1375,8 +1375,8 @@ void pkdCheckpoint(PKD pkd, const char* fname, const char* fname_decorator) {
         perror(fname);
         abort();
     }
-    nFileSize = pkd->particles.ParticleSize() * split;
-    char* pBuffer = (char*)pkd->particles.Element(0);
+    nFileSize = particles.ParticleSize() * split;
+    char* pBuffer = (char*)particles.Element(0);
     while (nFileSize) {
         size_t count = nFileSize > MAX_IO_BUFFER_SIZE ? MAX_IO_BUFFER_SIZE : nFileSize;
         io_write(&info, pBuffer, count);
@@ -1386,11 +1386,11 @@ void pkdCheckpoint(PKD pkd, const char* fname, const char* fname_decorator) {
     io_close(&info);
 
     // Repeat for particles with decorators
-    auto nElements = pkd->Local() - split;
-    for (auto i = split; i < pkd->Local(); i++) assert(pkd->particles[i].have_decorator());
-    auto pDecorators = static_cast<void*>(pkd->decorators.Element(0));
-    auto pParticles = static_cast<void*>(pkd->particles.Element(split));
-    io_staggered_write(fname_decorator, pParticles, pDecorators, nElements, pkd->particles.ParticleSize(), pkd->decorators.DecoratorSize());
+    auto nElements = Local() - split;
+    for (auto i = split; i < Local(); i++) assert(particles[i].have_decorator());
+    auto pDecorators = static_cast<void*>(decorators.Element(0));
+    auto pParticles = static_cast<void*>(particles.Element(split));
+    io_staggered_write(fname_decorator, pParticles, pDecorators, nElements, particles.ParticleSize(), decorators.DecoratorSize());
 }
 
 /*****************************************************************************\

@@ -107,7 +107,6 @@ inline constexpr std::string_view ReadFile = "ReadFile";
 inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
-inline constexpr std::string_view Checkpoint = "Checkpoint";
 inline constexpr std::string_view Gravity = "Gravity";
 inline constexpr std::string_view CalcEandL = "CalcEandL";
 inline constexpr std::string_view PhysicalSoft = "PhysicalSoft";
@@ -127,7 +126,6 @@ enum pst_service {
     PST_WRITE,
     PST_OUTPUT,
     PST_OUTPUT_SEND,
-    PST_CHECKPOINT,
     PST_GRAVITY,
     PST_CALCEANDL,
     PST_PHYSICALSOFT,
@@ -213,9 +211,6 @@ struct inWrite {
     char achOutFile[PATH_MAX];
 };
 int pstWrite(PST, void*, int, void*, int);
-
-/* PST_CHECKPOINT */
-int pstCheckpoint(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);

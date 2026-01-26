@@ -480,6 +480,7 @@ class pkdContext : public Integerize {
     void Restore(uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd);
     void RestoreDecorator(uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd);
     void GroupStatsSave(int iGroup, const std::string& filename, int iSegment, int nSegment);
+    void Checkpoint(const char* fname, const char* fname_decorator);
 
     // Rockstar Analysis
   protected:
@@ -868,7 +869,6 @@ int pkdInactive(PKD);
 
 std::pair<int, int> pkdColOrdRejects(PKD, uint64_t, int);
 void pkdLocalOrder(PKD, uint64_t iMinOrder, uint64_t iMaxOrder);
-void pkdCheckpoint(PKD pkd, const char* fname, const char* fname_decorator);
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, fioSpeciesList nTotal, fioSpeciesList nThisFile, double dBoxSize, double h,
                        int nProcessors, UNITS units);
 uint32_t pkdWriteFIO(PKD pkd, FIO fio, double dvFac, double dTuFac, Bound bnd, fioSpeciesList nWritten);

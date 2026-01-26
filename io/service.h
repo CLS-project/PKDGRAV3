@@ -45,6 +45,14 @@ class ServiceIO : public TraversePST {
   protected:
     virtual int do_lower(PST pst, std::span<std::byte> in, std::span<std::byte> out);
     virtual int do_upper(PST pst, std::span<std::byte> in);
+    /// @brief Perform the I/O operation
+    /// @param pst The left PST
+    /// @param in Input data
+    /// @param iGroup The group index between 0 and nSimultaneous-1 (on service start)
+    /// @param iSegment The segment within this group (0 to nSegment-1)
+    /// @param nSegment The total number of segments in this group (at least one)
+    /// This function is called on every thread, but only one segment at a time per group.
+    /// Groups are independent and will run in parallel.
     virtual void IO(PST pst, std::span<std::byte> in, int iGroup, int iSegment, int nSegment) = 0;
 };
 

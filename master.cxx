@@ -121,6 +121,7 @@ struct fmt::formatter<DeferFormat> {
 #include "services/reorderinnodes.h"
 #include "services/chemcompinit.h"
 #include "services/sendarray.h"
+#include "services/checkpoint.h"
 #include "core/setadd.h"
 #include "core/swapall.h"
 #include "core/hostname.h"
@@ -986,14 +987,11 @@ void MSR::writeParameters(const std::string& baseName, int iStep, int nSteps, do
 }
 
 void MSR::Checkpoint(int iStep, int nSteps, double dTime, double dDelta) {
-    struct inWrite in;
     double dsec;
 
     auto filename = BuildCpName(iStep);
     auto pattern = filename + ".{i}";
-    abort_assert(1003, pattern.size() < sizeof(in.achOutFile));
-    marshal_string(in.achOutFile, pattern);
-    in.nProcessors = parallel_write_count();
+
     if (csm->val.bComove) {
         double dExp = csmTime2Exp(csm, dTime);
         print_detail("Writing checkpoint for Step: {step} Time:{time:g} Redshift:{z:g}\n", "step"_a = iStep, "time"_a = dTime, "z"_a = (1.0 / dExp - 1.0));
@@ -1004,7 +1002,14 @@ void MSR::Checkpoint(int iStep, int nSteps, double dTime, double dDelta) {
 
     TimerStart(TIMER_IO);
 
-    pstCheckpoint(pst, &in, sizeof(in), NULL, 0);
+    ServiceCheckpoint::input in{
+        .nSimultaneous = static_cast<uint32_t>(parallel_write_count()),
+        .iReaderWriter = 0,
+        .iThread = 0,
+    };
+    abort_assert(1003, pattern.size() < sizeof(in.filename));
+    marshal_string(in.filename, pattern);
+    mdl->RunService<ServiceCheckpoint>(in);
 
     writeParameters(filename, iStep, nSteps, dTime, dDelta);
 

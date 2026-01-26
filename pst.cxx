@@ -78,7 +78,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_READFILE, pst, (fcnService_t*)pstReadFile, sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), 0,
                     Legacy::ReadFile);
     mdl->AddService(PST_WRITE, pst, (fcnService_t*)pstWrite, sizeof(struct inWrite), 0, Legacy::Write);
-    mdl->AddService(PST_CHECKPOINT, pst, (fcnService_t*)pstCheckpoint, sizeof(struct inWrite), 0, Legacy::Checkpoint);
     mdl->AddService(PST_OUTPUT, pst, (fcnService_t*)pstOutput, sizeof(struct inOutput), 0, Legacy::Output);
     mdl->AddService(PST_OUTPUT_SEND, pst, (fcnService_t*)pstOutputSend, sizeof(struct inOutputSend), 0, Legacy::OutputSend);
     /*
@@ -281,38 +280,6 @@ int pstReadFile(PST pst, void* vin, int nIn, void* vout, int nOut) {
 
 static std::string makeName(std::string_view inName, int iIndex) {
     return fmt::format(inName, fmt::arg("i", iIndex));
-}
-
-int pstCheckpoint(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inWrite*>(vin);
-
-    assert(nIn == sizeof(struct inWrite));
-    if (pst->NotCore()) {
-        uint64_t nProcessors = in->nProcessors;
-        if (nProcessors > 1) { /* Keep going parallel */
-            int nLower, nUpper;
-            nLower = nProcessors * pst->n_lower() / pst->n_total();
-            if (nLower == 0) nLower = 1;
-            nUpper = nProcessors - nLower;
-            in->nProcessors = nUpper;
-            int rID = pst->mdl()->ReqService(pst->upper(), PST_CHECKPOINT, in, nIn);
-            in->nProcessors = nLower;
-            pstCheckpoint(pst->lower(), in, nIn, NULL, 0);
-            pst->mdl()->GetReply(rID);
-        }
-        else { /* Serialize these processors now */ pstCheckpoint(pst->lower(), in, nIn, NULL, 0);
-            int rID = pst->mdl()->ReqService(pst->upper(), PST_CHECKPOINT, in, nIn);
-            pst->mdl()->GetReply(rID);
-        }
-    }
-    else {
-        PKD pkd = pst->lcl()->pkd;
-        auto achOutFile = makeName(in->achOutFile, pkd->mdl->Self());
-        auto achOutDecoratorFile = makeName(in->achOutFile, pkd->mdl->Self()) + ".dec";
-        // Need to add prefix as with previous "makeName" implementation
-        pkdCheckpoint(pkd, achOutFile.c_str(), achOutDecoratorFile.c_str());
-    }
-    return 0;
 }
 
 int pstWrite(PST pst, void* vin, int nIn, void* vout, int nOut) {
