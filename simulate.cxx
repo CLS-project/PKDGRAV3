@@ -689,7 +689,7 @@ int MSR::ValidateParameters() {
             return 0;
         }
         if (parameters.get_iSeed() == 0) {
-            // print_error("ERROR: Random seed for IC not specified"\n);
+            print_warning("WARNING: Random seed for IC not specified, using time()\n");
             parameters.set(parameters.str_iSeed, time(NULL));
         }
         if (!parameters.has_dBoxSize() || parameters.get_dBoxSize() <= 0) {

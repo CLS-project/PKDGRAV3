@@ -2003,7 +2003,7 @@ uint64_t MSR::ReSmooth(double dTime, double dDelta, int iSmoothType, int bSymmet
 }
 
 void MSR::ReorderDecorator() {
-    printf("Reordering decorator...\n");
+    print("Reordering decorator...\n");
     mdl->RunService<ServiceReorderDecorator>();
 }
 
@@ -4186,7 +4186,7 @@ auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
         else {
             SPHoptions.VelocityDamper = 2.0 / dDelta * dVelocityDamper;
         }
-        printf("Velocity Damper active, VelocityDamper = %g\n", SPHoptions.VelocityDamper * dDelta * 0.5);
+        print("Velocity Damper active, VelocityDamper = {}\n", SPHoptions.VelocityDamper * dDelta * 0.5);
     }
     SPHoptions.nSmooth = parameters.get_nSmooth();
     SPHoptions.ballSizeLimit = parameters.get_dBallSizeLimit();
@@ -4703,11 +4703,11 @@ MSR::MeasurePk(int iAssignment, int bInterlace, int nGrid, double a, int nBins, 
 void MSR::AssignMass(int iAssignment, int iGrid, float fDelta, int fold) {
     static const char* schemes[] = {"Nearest Grid Point (NGP)", "Cloud in Cell (CIC)", "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)"};
     assert(iAssignment >= 0 && iAssignment <= 3);
-    printf("Assigning mass using %s (order %d)\n", schemes[iAssignment], iAssignment);
+    print("Assigning mass using {} (order {})\n", schemes[iAssignment], iAssignment);
     ServiceAssignMass::input mass{.iAssignment = iAssignment, .iGrid = iGrid, .fDelta = fDelta, .fold = fold};
     auto sec = MSR::Time();
     mdl->RunService<ServiceAssignMass>(mass);
-    printf("Mass assignment complete, Wallclock: %f secs\n", MSR::Time() - sec);
+    print("Mass assignment complete, Wallclock: {} secs\n", MSR::Time() - sec);
 }
 
 void MSR::DensityContrast(int iGrid, bool k) {
@@ -5031,11 +5031,11 @@ void MSR::SetEOSParam() {
 
 auto MSR::ValidateEOSParam() -> int {
     if (!parameters.has_dOmegab() && parameters.has_dEOSFloorMinOD()) {
-        fprintf(stderr, "ERROR: dEOSFloorMinOD is specified but dOmegab is not set\n");
+        print_error("ERROR: dEOSFloorMinOD is specified but dOmegab is not set\n");
         return 0;
     }
     if (!parameters.has_dOmegab() && parameters.has_dEOSPolyFloorMinOD()) {
-        fprintf(stderr, "ERROR: dEOSPolyFloorMinOD is specified but dOmegab is not set\n");
+        print_error("ERROR: dEOSPolyFloorMinOD is specified but dOmegab is not set\n");
         return 0;
     }
     return 1;
@@ -5094,31 +5094,31 @@ void MSR::SetBlackholeParam() {
 int MSR::ValidateBlackholeParam() {
     if (parameters.get_bBHAccretion()) {
         if (parameters.get_dBHAccretionAlpha() <= 0) {
-            fprintf(stderr, "ERROR: dBHAccretionAlpha should be positive."
-                            "If you want to avoid boosting the Bondi accretion rate,"
-                            "just set dBHAccretionAlpha=1.0\n");
+            print_error("ERROR: dBHAccretionAlpha should be positive."
+                        "If you want to avoid boosting the Bondi accretion rate,"
+                        "just set dBHAccretionAlpha=1.0\n");
             return 0;
         }
     }
     if (parameters.get_bBHPlaceSeed() && !parameters.get_bFindGroups()) {
         parameters.set_bFindGroups(true);
-        fprintf(stderr, "WARNING: Blackhole seeding requires Friends-of-friends group finding. "
-                        "Setting bFindGroups to true\n");
+        print_warning("WARNING: Blackhole seeding requires Friends-of-friends group finding. "
+                      "Setting bFindGroups to true\n");
     }
     if (!parameters.get_bMemPotential()) {
         parameters.set_bMemPotential(true);
-        fprintf(stderr, "WARNING: The blackhole module requires bMemPotential. "
-                        "Setting bMemPotential to true\n");
+        print_warning("WARNING: The blackhole module requires bMemPotential. "
+                      "Setting bMemPotential to true\n");
     }
     if (!parameters.get_bMemMass()) {
         parameters.set_bMemMass(true);
-        fprintf(stderr, "WARNING: The blackhole module requires bMemMass. "
-                        "Setting bMemMass to true\n");
+        print_warning("WARNING: The blackhole module requires bMemMass. "
+                      "Setting bMemMass to true\n");
     }
     if ((parameters.get_bBHMerger() || parameters.get_bBHAccretion()) && !parameters.get_bAddDelete()) {
         parameters.set_bAddDelete(true);
-        fprintf(stderr, "WARNING: Blackhole mergers and gas accretion require bAddDelete. "
-                        "Setting bAddDelete to true\n");
+        print_warning("WARNING: Blackhole mergers and gas accretion require bAddDelete. "
+                      "Setting bAddDelete to true\n");
     }
     return 1;
 }
@@ -5130,7 +5130,7 @@ void MSR::BlackholeInit(uint8_t uRungMax) {
 
 void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     assert(parameters.get_bFindGroups());
-    printf("Planting seeds...\n");
+    print("Planting seeds...\n");
     TimerStart(TIMER_BHS);
     ServicePlaceBHSeed::input in{
         .dTime = dTime,
@@ -5147,7 +5147,7 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
 
     nGas -= nBH;
     nBH += nBH;
-    printf("Planted %lu BH seeds \n", nBH);
+    print("Planted {} BH seeds \n", nBH);
 #ifdef OPTIM_REORDER_IN_NODES
     ReorderInNodes();
 #endif
@@ -5184,7 +5184,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
     uint64_t nSmoothed;
     int it = 0, maxit = 100;
 
-    printf("Computing density... \n");
+    print("Computing density... \n");
     TimerStart(TIMER_DENSITY);
     ServiceHydroDensity::input in{
         .dNeighborsStd = parameters.get_dNeighborsStd(),
@@ -5207,12 +5207,12 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
             // density and other variables with the latest fBall
             ServiceHydroDensityFinal::input inFinal{.nSmooth = static_cast<int>(parameters.get_nSmooth()), .bPeriodic = parameters.get_bPeriodic()};
             mdl->RunService<ServiceHydroDensityFinal>(inFinal, nSmoothed);
-            printf("Smoothing length did not converge for %" PRIu64 " particles\n", nSmoothed);
+            print("Smoothing length did not converge for {} particles\n", nSmoothed);
         }
 
         TimerStop(TIMER_DENSITY);
         double dsec = TimerGet(TIMER_DENSITY);
-        printf("Computing h took %d iterations and %.5f seconds \n", it, dsec);
+        print("Computing h took {} iterations and {:.5f} seconds \n", it, dsec);
     }
     else {
         mdl->RunService<ServiceHydroDensity>(in, nSmoothed);
@@ -5221,7 +5221,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 
 void MSR::MeshlessFluxes(double dTime, double dDelta) {
     double dsec;
-    printf("Computing fluxes... ");
+    print("Computing fluxes... ");
     TimerStart(TIMER_FLUXES);
 #ifdef OPTIM_AVOID_IS_ACTIVE
     SelActives();
@@ -5241,12 +5241,12 @@ void MSR::MeshlessFluxes(double dTime, double dDelta) {
 
     TimerStop(TIMER_FLUXES);
     dsec = TimerGet(TIMER_FLUXES);
-    printf("took %.5f seconds\n", dsec);
+    print("took {:.5f} seconds\n", dsec);
 }
 
 void MSR::MeshlessGradients(double dTime, double dDelta) {
     double dsec;
-    printf("Computing gradients... ");
+    print("Computing gradients... ");
 
     TimerStart(TIMER_GRADIENTS);
 #ifdef OPTIM_AVOID_IS_ACTIVE
@@ -5263,13 +5263,13 @@ void MSR::MeshlessGradients(double dTime, double dDelta) {
 
     TimerStop(TIMER_GRADIENTS);
     dsec = TimerGet(TIMER_GRADIENTS);
-    printf("took %.5f seconds\n", dsec);
+    print("took {:.5f} seconds\n", dsec);
 }
 
 void MSR::HydroStep(double dTime, double dDelta) {
     double dsec;
 
-    printf("Computing hydro time step... ");
+    print("Computing hydro time step... ");
 
     TimerStart(TIMER_TIMESTEP);
 #ifdef OPTIM_AVOID_IS_ACTIVE
@@ -5293,7 +5293,7 @@ void MSR::HydroStep(double dTime, double dDelta) {
 
     TimerStop(TIMER_TIMESTEP);
     dsec = TimerGet(TIMER_TIMESTEP);
-    printf("took %.5f seconds\n", dsec);
+    print("took {:.5f} seconds\n", dsec);
 
     if (parameters.get_bWakeUpParticles()) {
         ServiceWakeParticles::input in{dTime};
@@ -5455,7 +5455,7 @@ void MSR::StarFormInit(double dTime) {
     ServiceStarFormInit::output out;
     mdl->RunService<ServiceStarFormInit>(in, out);
 
-    printf("%lu star particles are about to explode in this IC\n", out);
+    print("{} star particles are about to explode in this IC\n", out);
 }
 
 void MSR::StarForm(double dTime, double dDelta, int iRung) {
@@ -5494,11 +5494,11 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
         .bSNIaFeedback = parameters.get_bSNIaFeedback(),
         .eEOS = get_eEOS(),
     };
-    if (parameters.get_bVDetails()) printf("Star Form (rung: %d) ... ", iRung);
+    if (parameters.get_bVDetails()) print("Star Form (rung: {}) ... ", iRung);
 
     ActiveRung(iRung, 1);
     mdl->RunService<ServiceStarForm>(in, out);
-    if (parameters.get_bVDetails()) printf("%d Stars formed with mass %g, %d gas deleted\n", out.nFormed, out.dMassFormed, out.nDeleted);
+    if (parameters.get_bVDetails()) print("{} Stars formed with mass {}, {} gas deleted\n", out.nFormed, out.dMassFormed, out.nDeleted);
     massFormed += out.dMassFormed;
     starFormed += out.nFormed;
 
@@ -5507,7 +5507,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
 
     TimerStop(TIMER_STARFORM);
     auto dsec = TimerGet(TIMER_STARFORM);
-    printf("Star Formation Calculated, Wallclock: %f secs\n\n", dsec);
+    print("Star Formation Calculated, Wallclock: {:.5f} secs\n\n", dsec);
 }
 
 void MSR::SetStarFormationParam() {
@@ -5543,7 +5543,7 @@ void MSR::SetCoolingParam() {
  * Initialises properties stored in the cooling_function_data struct
  */
 void MSR::CoolingInit(float redshift) {
-    printf("Initializing cooling \n");
+    print("Initializing cooling \n");
 
     /* Allocate the needed structs */
     cooling = (struct cooling_function_data*)malloc(sizeof(struct cooling_function_data));
@@ -5648,7 +5648,7 @@ void MSR::CoolingInit(float redshift) {
  *
  */
 void MSR::CoolingUpdate(float redshift) {
-    printf("Updating cooling.. z=%f\n", redshift);
+    print("Updating cooling.. z={}\n", redshift);
 
     /* Current redshift */
     // const float redshift = cosmo->z;
@@ -5683,7 +5683,7 @@ void MSR::CoolingUpdate(float redshift) {
 
         /* Extra energy for reionization */
         if (!cooling->H_reion_done) {
-            printf("Hydrogen reionization! Injecting %.1f eV per proton\n", parameters.get_fH_reion_eV_p_H());
+            print("Hydrogen reionization! Injecting {:.1f} eV per proton\n", parameters.get_fH_reion_eV_p_H());
             mdl->RunService<ServiceCoolingHydReionization>();
 
             /* Flag that reionization happened */
@@ -5694,7 +5694,7 @@ void MSR::CoolingUpdate(float redshift) {
     /* Store the currently loaded index */
     cooling->z_index = z_index;
     // We send the newly loaded table
-    printf("Sending cooling tables...\n");
+    print("Sending cooling tables...\n");
     ServiceCoolingUpdate::input in;
     in.z_index = cooling->z_index;
     in.previous_z_index = cooling->previous_z_index;
