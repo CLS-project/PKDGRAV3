@@ -1129,7 +1129,7 @@ mpiClass::~mpiClass() {
 
 // While FFTW does its thing we need to wait without spinning. This function does that.
 void mpiClass::ThreadBarrierWait() {
-    barrier->wait();
+    barrier->arrive_and_wait();
 }
 
 /// @brief Swap elements between MPI ranks
@@ -1737,9 +1737,9 @@ int mpiClass::Launch() {
     char *p, ach[256];
     int exit_code = 0;
 #ifdef USE_HWLOC
-    hwloc_topology_t topology = NULL;
-    hwloc_cpuset_t set_proc = NULL, set_thread = NULL;
-    hwloc_obj_t t = NULL;
+    hwloc_topology_t topology = nullptr;
+    hwloc_cpuset_t set_proc = nullptr;
+    hwloc_obj_t mpi_core = nullptr;
 #endif
 
 #ifdef USE_ITT
@@ -1834,16 +1834,25 @@ int mpiClass::Launch() {
         hwloc_topology_init(&topology);
         hwloc_topology_load(topology);
         set_proc = hwloc_bitmap_alloc();
-        set_thread = hwloc_bitmap_alloc();
-        n = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
-        if (n != Cores()) n = 1;
-        else if (hwloc_get_cpubind(topology, set_proc, HWLOC_CPUBIND_PROCESS) != 0) n = 1;
+        // If we cannot get the CPU binding, then we cannot figure out which core to reserve/bind.
+        // In this case we assume that the MPI thread will use one of the available threads.
+        if (hwloc_get_cpubind(topology, set_proc, HWLOC_CPUBIND_PROCESS) != 0) n = 1;
+        // If the number of cores bound is different than the number of cores we think we have, then
+        // it means that the MPI was not instructed to bind us to a specific set of cores.
+        // It would be unsafe to try and reserve or bind cores.
+        else if (hwloc_bitmap_weight(set_proc) != Cores()) n = 1;
         else {
-            // Get the first core and reserve it for our MDL use
-            t = hwloc_get_obj_inside_cpuset_by_type(topology, set_proc, HWLOC_OBJ_CORE, 0);
-            if (t != NULL) {
-                hwloc_bitmap_andnot(set_proc, set_proc, t->cpuset);
-                n = hwloc_bitmap_weight(t->cpuset);
+            // Get the first physical core and reserve it for our MDL use (if possible)
+            mpi_core = hwloc_get_obj_inside_cpuset_by_type(topology, set_proc, HWLOC_OBJ_CORE, 0);
+            // Optionally we could reserve the last core instead (may be better for noise/interrupts?)
+            // hwloc_obj_t core = nullptr;
+            // while ((core = hwloc_get_next_obj_inside_cpuset_by_type(topology, set_proc, HWLOC_OBJ_CORE, core)) != nullptr)
+            //     mpi_core = core; // last one seen
+            // }
+            if (mpi_core) {
+                // Remove the core from the CPU set. We will bind the MPI thread to it later.
+                hwloc_bitmap_andnot(set_proc, set_proc, mpi_core->cpuset);
+                n = hwloc_bitmap_weight(mpi_core->cpuset);
             }
             else n = 1;
         }
@@ -1953,24 +1962,46 @@ int mpiClass::Launch() {
 
         barrier.emplace(Cores() + (bDedicated ? 1 : 0));
         for (i = iCoreMPI + 1; i < Cores(); ++i) {
-            auto thread = worker_threads.create_thread([this, i]() { pmdl[i]->WorkerThread(); });
 #ifdef USE_HWLOC
-            if (t && bDedicated == 1) { // If requested, bind the new thread to the specific core
-                icpu = hwloc_bitmap_next(set_proc, icpu);
-                hwloc_bitmap_only(set_thread, icpu);
-                hwloc_set_thread_cpubind(topology, thread->native_handle(), set_thread, HWLOC_CPUBIND_THREAD);
-            }
+            // If we are dedicating cores then get the next one from the set.
+            // Otherwise icpu will remain -1 and no binding will be done.
+            if (mpi_core) icpu = hwloc_bitmap_next(set_proc, icpu);
 #endif
+            // Create the i-th worker thread
+            worker_threads.emplace_back([this, i
+#ifdef USE_HWLOC
+                                         ,
+                                         topology, icpu
+#endif
+
+            ]() {
+#ifdef USE_HWLOC
+                if (icpu >= 0) {
+                    // Restrict this thread to the specified logical core
+                    hwloc_bitmap_t set_thread = hwloc_bitmap_alloc();
+                    hwloc_bitmap_only(set_thread, icpu);
+                    hwloc_set_thread_cpubind(topology, pthread_self(), set_thread, HWLOC_CPUBIND_THREAD);
+                    hwloc_bitmap_free(set_thread);
+                }
+#endif
+                barrier->arrive_and_wait();
+                pmdl[i]->WorkerThread();
+            });
             ++nActiveCores;
         }
+        // We rendezvous here to make sure that all threads have started before we destroy the HWLOC topology
+        barrier->arrive_and_wait();
     }
 #ifdef USE_ITT
     __itt_task_end(domain);
     __itt_task_end(domain);
 #endif
 #ifdef USE_HWLOC
+    if (mpi_core) {
+        // Bind the MPI thread to the reserved core
+        hwloc_set_thread_cpubind(topology, pthread_self(), mpi_core->cpuset, HWLOC_CPUBIND_THREAD);
+    }
     if (bDedicated == 1) {
-        hwloc_bitmap_free(set_thread);
         hwloc_bitmap_free(set_proc);
         hwloc_topology_destroy(topology);
     }
@@ -1986,7 +2017,7 @@ int mpiClass::Launch() {
     }
     drainMPI();
 
-    worker_threads.join_all();
+    worker_threads.clear(); // Join all worker threads
     for (i = iCoreMPI + 1; i < Cores(); ++i) {
         delete pmdl[i];
     }

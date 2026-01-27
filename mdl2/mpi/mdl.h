@@ -19,9 +19,9 @@
 #define MDL_HINCLUDED
 #include <boost/circular_buffer.hpp>
 #include <boost/container/small_vector.hpp>
-#include <boost/thread.hpp>
-#include <boost/thread/barrier.hpp>
 #include <boost/qvm/vec.hpp>
+#include <thread>
+#include <barrier>
 #include "mdlstubs.h"
 #include "mdlbase.h"
 #include <stdio.h>
@@ -518,9 +518,9 @@ class mpiClass : public mdlClass {
     #endif
   protected:
     MPI_Comm commMDL; /* Current active communicator */
-    std::optional<boost::barrier> barrier;
-    boost::thread_group worker_threads; // Worker threads
-    mdlMessageQueue queueMPInew;        // Queue of work sent to MPI task
+    std::optional<std::barrier<>> barrier;
+    std::vector<std::jthread> worker_threads; // Worker threads
+    mdlMessageQueue queueMPInew;              // Queue of work sent to MPI task
     std::vector<mdlMessageCacheRequest*> CacheRequestMessages;
     std::vector<bool> CacheRequestRendezvous;
 
