@@ -21,10 +21,8 @@
 
 #include <cstddef>
 #include <array>
-#include <stdint.h>
-#include <queue>
-#include <vector>
-#include "blitz/array.h"
+#include <cstdint>
+#include "blitz/tinyvec2.h"
 
 struct basicParticle {
     blitz::TinyVector<float, 3> dr;
@@ -106,34 +104,6 @@ struct gridInfoLPT {
 };
 #endif
 
-/* PLT_MOVEIC */
-struct inMoveIC {
-    overlayedParticle* pBase;
-    uint64_t iStart;
-    uint64_t nMove;
-    float fMass;
-    float fSoft;
-    int nGrid;
-    int bICgas;
-    int nBucket;
-    double dInitialT;
-    double dInitialH;
-    double dInitialHe;
-    double dInitialC;
-    double dInitialN;
-    double dInitialO;
-    double dInitialNe;
-    double dInitialMg;
-    double dInitialSi;
-    double dInitialFe;
-    double dInitialMetallicity;
-    double dExpansion;
-    double dBaryonFraction;
-    double dTuFac;
-};
-int pltMoveIC(PST, void*, int, void*, int);
-int pstMoveIC(PST, void*, int, void*, int);
-
 class ServiceGenerateIC : public TraverseCount<ServiceGenerateIC> {
   public:
     static constexpr std::string_view name = "GenerateIC";
@@ -184,6 +154,56 @@ class ServiceGenerateIC : public TraverseCount<ServiceGenerateIC> {
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
     auto AtNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceMoveIC : public TraversePST {
+  public:
+    static constexpr std::string_view name = "MoveIC";
+    struct input {
+        // We don't normally allow pointers in MDL messages, but this is only used
+        // at the node level where we know the memory layout is the same between threads.
+        overlayedParticle* pBase{};
+        uint64_t iStart{};
+        uint64_t nMove{};
+        float fMass;
+        float fSoft;
+        int nGrid;
+        int bICgas;
+        int nBucket;
+        double dInitialT;
+        double dInitialH;
+        double dInitialHe;
+        double dInitialC;
+        double dInitialN;
+        double dInitialO;
+        double dInitialNe;
+        double dInitialMg;
+        double dInitialSi;
+        double dInitialFe;
+        double dInitialMetallicity;
+        double dExpansion;
+        double dBaryonFraction;
+        double dTuFac;
+    };
+    using output = void;
+    explicit ServiceMoveIC(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto AtNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+};
+
+class ServiceExpandIC : public TraversePST {
+  public:
+    static constexpr std::string_view name = "ExpandIC";
+    using input = ServiceMoveIC::input;
+    using output = void;
+    explicit ServiceExpandIC(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto OffNode(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
+    auto Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
 #endif

@@ -16,6 +16,7 @@
  */
 
 #include "pkd_config.h"
+#include <cstdint>
 #include <math.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_errno.h>
@@ -868,308 +869,245 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
     /* Done with LPT */
     return nLocal;
 }
+auto ServiceExpandIC::OffNode(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    throw std::runtime_error("ServiceExpandIC::OffNode not allowed");
+}
 
-int pltMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
+auto ServiceExpandIC::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto pkd = pst->lcl()->pkd;
-    struct inMoveIC* in = reinterpret_cast<struct inMoveIC*>(vin);
-    int i;
-    auto mdl = pst->mdl();
+    auto in = reinterpret_cast<input*>(vin.data());
+    // Split the work according to the number of particles in upper and lower
+    auto up = *in;
+    up.nMove = pst->n_upper() * in->nMove / pst->n_total();
+    in->nMove -= up.nMove;
+    up.iStart = in->iStart + in->nMove;
+    // Serially process each thread starting from the upper.
+    auto rID = ReqService(pst, up);
+    pst->mdl()->GetReply(rID, vout);
+    return Traverse(pst->lower(), vin, vout);
+}
 
-    mdlassert(mdl, nIn == sizeof(struct inMoveIC));
-    assert(pst->OnNode()); /* We pass around pointers! */
-    if (pst->NotCore()) {
-        struct inMoveIC icUp;
+auto ServiceExpandIC::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto pkd = pst->lcl()->pkd;
+    auto in = reinterpret_cast<input*>(vin.data());
 
-        icUp.pBase = in->pBase;
-        icUp.nMove = pst->n_upper() * in->nMove / pst->n_total();
-        in->nMove -= icUp.nMove;
-        icUp.iStart = in->iStart + in->nMove;
-        icUp.fMass = in->fMass;
-        icUp.fSoft = in->fSoft;
-        icUp.nGrid = in->nGrid;
-        icUp.bICgas = in->bICgas;
-        icUp.dInitialT = in->dInitialT;
-        icUp.dInitialH = in->dInitialH;
-        icUp.dInitialHe = in->dInitialHe;
-        icUp.dInitialC = in->dInitialC;
-        icUp.dInitialN = in->dInitialN;
-        icUp.dInitialO = in->dInitialO;
-        icUp.dInitialNe = in->dInitialNe;
-        icUp.dInitialMg = in->dInitialMg;
-        icUp.dInitialSi = in->dInitialSi;
-        icUp.dInitialFe = in->dInitialFe;
-        icUp.dInitialMetallicity = in->dInitialMetallicity;
-        icUp.dExpansion = in->dExpansion;
-        icUp.dBaryonFraction = in->dBaryonFraction;
-        icUp.dTuFac = in->dTuFac;
-
-        int rID = mdl->ReqService(pst->upper(), PLT_MOVEIC, &icUp, nIn);
-        mdl->GetReply(rID);
-        pltMoveIC(pst->lower(), in, nIn, NULL, 0);
+    pkd->particles.clearClasses();
+    double inGrid = 1.0 / in->nGrid;
+    float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
+    if (in->bICgas) {
+        fGasMass = in->fMass * in->dBaryonFraction;
+        fDarkMass = in->fMass * (1.0 - in->dBaryonFraction);
+        fGasSoft = in->fSoft * pow(in->dBaryonFraction, 1. / 3.);
+        fDarkSoft = in->fSoft * pow(1.0 - in->dBaryonFraction, 1. / 3.);
     }
     else {
-        pkd->particles.clearClasses();
-        double inGrid = 1.0 / in->nGrid;
-        float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
-        if (in->bICgas) {
-            fGasMass = in->fMass * in->dBaryonFraction;
-            fDarkMass = in->fMass * (1.0 - in->dBaryonFraction);
-            fGasSoft = in->fSoft * pow(in->dBaryonFraction, 1. / 3.);
-            fDarkSoft = in->fSoft * pow(1.0 - in->dBaryonFraction, 1. / 3.);
+        fDarkMass = in->fMass;
+        fDarkSoft = in->fSoft;
+    }
+    for (int i = in->nMove - 1; i >= 0; --i) {
+        auto p = pkd->particles[i];
+        auto& Vel = p.velocity();
+        // If we have no particle order convert directly to Integerized positions.
+        // We do this to save space as an "Integer" particle is small.
+        if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
+            integerParticle temp = reinterpret_cast<integerParticle*>(in->pBase)[in->iStart + i];
+            Vel[2] = temp.v[2];
+            Vel[1] = temp.v[1];
+            Vel[0] = temp.v[0];
+            auto& r = p.raw_position<int32_t>();
+            r[2] = temp.r[2];
+            r[1] = temp.r[1];
+            r[0] = temp.r[0];
         }
         else {
-            fDarkMass = in->fMass;
-            fDarkSoft = in->fSoft;
+            expandParticle temp = reinterpret_cast<expandParticle*>(in->pBase)[in->iStart + i];
+            Vel[2] = temp.v[2];
+            Vel[1] = temp.v[1];
+            Vel[0] = temp.v[0];
+            blitz::TinyVector<double, 3> r(temp.dr[0] + (temp.ix + 0.5) * inGrid - 0.5, temp.dr[1] + (temp.iy + 0.5) * inGrid - 0.5,
+                                           temp.dr[2] + (temp.iz + 0.5) * inGrid - 0.5);
+            p.set_position(r);
+            if (pkd->particles.present(PKD_FIELD::oParticleID)) {
+                auto& ID = p.ParticleID();
+                ID = temp.ix + in->nGrid * (temp.iy + 1ul * in->nGrid * temp.iz);
+            }
+            if (!pkd->bNoParticleOrder) p.set_order(temp.ix + in->nGrid * (temp.iy + 1ul * in->nGrid * temp.iz));
         }
-        for (i = in->nMove - 1; i >= 0; --i) {
-            auto p = pkd->particles[i];
-            auto& Vel = p.velocity();
-            // If we have no particle order convert directly to Integerized positions.
-            // We do this to save space as an "Integer" particle is small.
-            if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
-                integerParticle temp = reinterpret_cast<integerParticle*>(in->pBase)[in->iStart + i];
-                Vel[2] = temp.v[2];
-                Vel[1] = temp.v[1];
-                Vel[0] = temp.v[0];
-                auto& r = p.raw_position<int32_t>();
-                r[2] = temp.r[2];
-                r[1] = temp.r[1];
-                r[0] = temp.r[0];
+        pkd->particles.setClass(fDarkMass, fDarkSoft, 0, 1.0, FIO_SPECIES_DARK, &p);
+        p.set_marked(true);
+        p.set_rung(0);
+        if (pkd->bNoParticleOrder) p.set_group(0);
+        else p.set_new_rung(0);
+        if (pkd->particles.present(PKD_FIELD::oPotential)) p.potential() = 0;
+        if (in->bICgas) {
+            auto pgas = pkd->particles[i + in->nMove];
+            pgas = p;
+            pkd->particles.setClass(fGasMass, fGasSoft, 0, 1.0, FIO_SPECIES_SPH, &pgas);
+
+            if (pkd->particles.present(PKD_FIELD::oParticleID)) {
+                auto& ID = pgas.ParticleID();
+                ID += uint64_t(1) * in->nGrid * in->nGrid * in->nGrid;
             }
-            else {
-                expandParticle temp = reinterpret_cast<expandParticle*>(in->pBase)[in->iStart + i];
-                Vel[2] = temp.v[2];
-                Vel[1] = temp.v[1];
-                Vel[0] = temp.v[0];
-                blitz::TinyVector<double, 3> r(temp.dr[0] + (temp.ix + 0.5) * inGrid - 0.5, temp.dr[1] + (temp.iy + 0.5) * inGrid - 0.5,
-                                               temp.dr[2] + (temp.iz + 0.5) * inGrid - 0.5);
-                p.set_position(r);
-                if (pkd->particles.present(PKD_FIELD::oParticleID)) {
-                    auto& ID = p.ParticleID();
-                    ID = temp.ix + in->nGrid * (temp.iy + 1ul * in->nGrid * temp.iz);
-                }
-                if (!pkd->bNoParticleOrder) p.set_order(temp.ix + in->nGrid * (temp.iy + 1ul * in->nGrid * temp.iz));
-            }
-            pkd->particles.setClass(fDarkMass, fDarkSoft, 0, 1.0, FIO_SPECIES_DARK, &p);
-            p.set_marked(true);
-            p.set_rung(0);
-            if (pkd->bNoParticleOrder) p.set_group(0);
-            else p.set_new_rung(0);
-            if (pkd->particles.present(PKD_FIELD::oPotential)) p.potential() = 0;
-            if (in->bICgas) {
-                auto pgas = pkd->particles[i + in->nMove];
-                pgas = p;
-                pkd->particles.setClass(fGasMass, fGasSoft, 0, 1.0, FIO_SPECIES_SPH, &pgas);
+            if (!pkd->bNoParticleOrder) pgas.set_order(pgas.order() + uint64_t(1) * in->nGrid * in->nGrid * in->nGrid);
 
-                if (pkd->particles.present(PKD_FIELD::oParticleID)) {
-                    auto& ID = pgas.ParticleID();
-                    ID += uint64_t(1) * in->nGrid * in->nGrid * in->nGrid;
-                }
-                if (!pkd->bNoParticleOrder) pgas.set_order(pgas.order() + uint64_t(1) * in->nGrid * in->nGrid * in->nGrid);
+            // Use N-GenIC trick to keep the centre of mass of the original
+            // particle at its original position. This is needed for displaced
+            // dark matter and gas particles in case the tree is built down to
+            // one particle per leaf. Here we displace the particles by a length
+            // proportional to half the grid cell size and weighted by
+            // the particle mass to preserve the centre of mass and conserve
+            // linear and angular momentum and kinetic energy.
+            p.set_position(p.position() - inGrid * 0.5 * in->dBaryonFraction);
+            pgas.set_position(pgas.position() + inGrid * 0.5 * (1.0 - in->dBaryonFraction));
 
-                // Use N-GenIC trick to keep the centre of mass of the original
-                // particle at its original position. This is needed for displaced
-                // dark matter and gas particles in case the tree is built down to
-                // one particle per leaf. Here we displace the particles by a length
-                // proportional to half the grid cell size and weighted by
-                // the particle mass to preserve the centre of mass and conserve
-                // linear and angular momentum and kinetic energy.
-                p.set_position(p.position() - inGrid * 0.5 * in->dBaryonFraction);
-                pgas.set_position(pgas.position() + inGrid * 0.5 * (1.0 - in->dBaryonFraction));
+            auto& VelGas = pgas.velocity();
+            // Change the scale factor dependency
+            double a_m1 = 1. / in->dExpansion;
+            VelGas *= a_m1;
 
-                auto& VelGas = pgas.velocity();
-                // Change the scale factor dependency
-                double a_m1 = 1. / in->dExpansion;
-                VelGas *= a_m1;
-
-                /* Fill the decorators::MFM with some initial values */
-                double u = in->dInitialT * in->dTuFac;
-                assert(pkd->decorators.present(DECORATOR_FIELD::oMFM));
-                pgas.set_decorator_index(pkd->decorators.append());
-                auto& Sph = pgas.sph();
-                Sph.ElemMass[ELEMENT_H] = in->dInitialH * fGasMass;
-                Sph.ElemMass[ELEMENT_He] = in->dInitialHe * fGasMass;
-                Sph.ElemMass[ELEMENT_C] = in->dInitialC * fGasMass;
-                Sph.ElemMass[ELEMENT_N] = in->dInitialN * fGasMass;
-                Sph.ElemMass[ELEMENT_O] = in->dInitialO * fGasMass;
-                Sph.ElemMass[ELEMENT_Ne] = in->dInitialNe * fGasMass;
-                Sph.ElemMass[ELEMENT_Mg] = in->dInitialMg * fGasMass;
-                Sph.ElemMass[ELEMENT_Si] = in->dInitialSi * fGasMass;
-                Sph.ElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
-                Sph.fMetalMass = in->dInitialMetallicity * fGasMass;
-                Sph.Frho = 0.0;
-                Sph.Fmom = 0.0;
-                Sph.Fene = 0.0;
-                Sph.E = u + 0.5 * blitz::dot(VelGas, VelGas);
-                Sph.E *= fGasMass;
-                Sph.Uint = u * fGasMass;
-                assert(Sph.E > 0);
-                Sph.mom = fGasMass * VelGas;
-                Sph.lastMom = 0.;
-                Sph.lastE = Sph.E;
+            /* Fill the decorators::MFM with some initial values */
+            double u = in->dInitialT * in->dTuFac;
+            assert(pkd->decorators.present(DECORATOR_FIELD::oMFM));
+            pgas.set_decorator_index(pkd->decorators.append());
+            auto& Sph = pgas.sph();
+            Sph.ElemMass[ELEMENT_H] = in->dInitialH * fGasMass;
+            Sph.ElemMass[ELEMENT_He] = in->dInitialHe * fGasMass;
+            Sph.ElemMass[ELEMENT_C] = in->dInitialC * fGasMass;
+            Sph.ElemMass[ELEMENT_N] = in->dInitialN * fGasMass;
+            Sph.ElemMass[ELEMENT_O] = in->dInitialO * fGasMass;
+            Sph.ElemMass[ELEMENT_Ne] = in->dInitialNe * fGasMass;
+            Sph.ElemMass[ELEMENT_Mg] = in->dInitialMg * fGasMass;
+            Sph.ElemMass[ELEMENT_Si] = in->dInitialSi * fGasMass;
+            Sph.ElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
+            Sph.fMetalMass = in->dInitialMetallicity * fGasMass;
+            Sph.Frho = 0.0;
+            Sph.Fmom = 0.0;
+            Sph.Fene = 0.0;
+            Sph.E = u + 0.5 * blitz::dot(VelGas, VelGas);
+            Sph.E *= fGasMass;
+            Sph.Uint = u * fGasMass;
+            assert(Sph.E > 0);
+            Sph.mom = fGasMass * VelGas;
+            Sph.lastMom = 0.;
+            Sph.lastE = Sph.E;
 #ifdef ENTROPY_SWITCH
-                Sph.S = 0.0;
-                Sph.lastS = 0.0;
-                Sph.maxEkin = 0.0;
+            Sph.S = 0.0;
+            Sph.lastS = 0.0;
+            Sph.maxEkin = 0.0;
 #endif
-                Sph.lastUint = Sph.Uint;
-                Sph.lastHubble = 0.0;
-                Sph.lastMass = fGasMass;
-                Sph.lastAcc = 0.;
-                Sph.omega = 0.0;
-                Sph.spheom = 0.;
-                if (pgas.have_mfv()) {
-                    auto& mfv = pgas.mfv();
-                    mfv.lastDrDotFrho = 0.;
-                    mfv.drDotFrho = 0.;
-                }
-                // Sph.fLastBall = 0.0;
-                Sph.lastUpdateTime = -1.;
-                // Sph.nLastNeighs = 100;
-                Sph.SFR = -1.;
-                Sph.fAccFBEnergy = 0.;
-                Sph.uWake = 0;
-                Sph.BHAccretor.iIndex = NOT_ACCRETED;
-                Sph.BHAccretor.iPid = NOT_ACCRETED;
+            Sph.lastUint = Sph.Uint;
+            Sph.lastHubble = 0.0;
+            Sph.lastMass = fGasMass;
+            Sph.lastAcc = 0.;
+            Sph.omega = 0.0;
+            Sph.spheom = 0.;
+            if (pgas.have_mfv()) {
+                auto& mfv = pgas.mfv();
+                mfv.lastDrDotFrho = 0.;
+                mfv.drDotFrho = 0.;
             }
+            // Sph.fLastBall = 0.0;
+            Sph.lastUpdateTime = -1.;
+            // Sph.nLastNeighs = 100;
+            Sph.SFR = -1.;
+            Sph.fAccFBEnergy = 0.;
+            Sph.uWake = 0;
+            Sph.BHAccretor.iIndex = NOT_ACCRETED;
+            Sph.BHAccretor.iPid = NOT_ACCRETED;
         }
-        if (in->bICgas) pkd->SetLocal(pkd->nActive = in->nMove * 2);
-        else pkd->SetLocal(pkd->nActive = in->nMove);
     }
+    if (in->bICgas) pkd->SetLocal(pkd->nActive = in->nMove * 2);
+    else pkd->SetLocal(pkd->nActive = in->nMove);
     return 0;
 }
 
-int pstMoveIC(PST pst, void* vin, int nIn, void* vout, int nOut) {
+// We stop at the node level for MoveIC, so Service does nothing.
+auto ServiceMoveIC::Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int {
+    return 0;
+}
+
+// Because of the slab decomposition, the particle seeds may be quite imbalanced across nodes.
+// This function makes sure that each node has exactly the same number on each node +/- 1.
+auto ServiceMoveIC::AtNode(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<input*>(vin.data());
     auto pkd = pst->lcl()->pkd;
-    auto in = reinterpret_cast<ServiceGenerateIC::input*>(vin);
     auto mdl = pst->mdl();
 
-    if (pst->OffNode()) {
-        int rID = mdl->ReqService(pst->upper(), PST_MOVEIC, vin, nIn);
-        pstMoveIC(pst->lower(), vin, nIn, NULL, 0);
-        mdl->GetReply(rID);
+    auto OnNode = [grid = pkd->fft->rgrid](int proc) -> uint64_t { return uint64_t(1) * grid->rn[proc] * grid->n2 * grid->n1; };
+    const auto n_total = pkd->fft->rgrid->total();
+    const auto myProc = mdl->Proc();
+    const auto nPerNode = (n_total + mdl->Procs() - 1) / mdl->Procs(); // Ceiling division
+
+    uint64_t iUnderBeg = 0, iOverBeg = 0;
+    uint64_t iUnderEnd, iOverEnd;
+
+    std::vector<int> scount(mdl->Procs(), 0);
+    std::vector<int> sdisps(mdl->Procs(), 0);
+    std::vector<int> rcount(mdl->Procs(), 0);
+    std::vector<int> rdisps(mdl->Procs(), 0);
+
+    auto nLocal = OnNode(myProc);
+
+    /* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
+    iUnderBeg = iOverBeg = 0;
+    for (auto iProc = 0; iProc < myProc; ++iProc) {
+        uint64_t nOnNode = OnNode(iProc);
+        if (nOnNode > nPerNode) iOverBeg += nOnNode - nPerNode;
+        else iUnderBeg += nPerNode - nOnNode;
     }
-    else {
-        MDLFFT fft = pkd->fft;
-        int myProc = mdl->Proc();
-        int iProc;
-        uint64_t iUnderBeg = 0, iOverBeg = 0;
-        uint64_t iUnderEnd, iOverEnd;
-        uint64_t iBeg, iEnd;
-
-        int* scount = reinterpret_cast<int*>(malloc(sizeof(int) * mdl->Procs()));
-        assert(scount != NULL);
-        int* sdisps = reinterpret_cast<int*>(malloc(sizeof(int) * mdl->Procs()));
-        assert(sdisps != NULL);
-        int* rcount = reinterpret_cast<int*>(malloc(sizeof(int) * mdl->Procs()));
-        assert(rcount != NULL);
-        int* rdisps = reinterpret_cast<int*>(malloc(sizeof(int) * mdl->Procs()));
-        assert(rdisps != NULL);
-
-        assert(pst->AmNode());
-        assert(fft != NULL);
-
-        uint64_t nPerNode = (uint64_t)mdl->Cores() * pkd->FreeStore();
-        uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * fft->rgrid->n2 * fft->rgrid->n1;
-
-        /* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
-        iUnderBeg = iOverBeg = 0;
-        for (iProc = 0; iProc < myProc; ++iProc) {
-            uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * fft->rgrid->n2 * fft->rgrid->n1;
-            if (nOnNode > nPerNode) iOverBeg += nOnNode - nPerNode;
-            else iUnderBeg += nPerNode - nOnNode;
-        }
-        size_t nSize = sizeof(expandParticle);
-        if (pkd->bIntegerPosition && pkd->bNoParticleOrder) nSize = sizeof(integerParticle);
-        char* pBase = (char*)pkd->particles.Element(0);
-        char* pRecv = pBase + nSize * nLocal;
-        // char *eBase;
-        if (nLocal > nPerNode) { /* Too much here: send extra particles to other nodes */
-            // eBase = pBase + nSize*nPerNode;
-            iUnderBeg = 0;
-            iOverEnd = iOverBeg + nLocal - nPerNode;
-            for (iProc = 0; iProc < mdl->Procs(); ++iProc) {
-                rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
-                uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * fft->rgrid->n2 * fft->rgrid->n1;
-                if (nOnNode < nPerNode) {
-                    iUnderEnd = iUnderBeg + nPerNode - nOnNode;
-                    /* The transfer condition */
-                    if (iUnderEnd > iOverBeg && iUnderBeg < iOverEnd) {
-                        iBeg = iOverBeg > iUnderBeg ? iOverBeg : iUnderBeg;
-                        iEnd = iOverEnd < iUnderEnd ? iOverEnd : iUnderEnd;
-                        scount[iProc] = (iEnd - iBeg);
-                        sdisps[iProc] = (iBeg - iOverBeg);
-                        nLocal -= iEnd - iBeg;
-                    }
-                    else scount[iProc] = sdisps[iProc] = 0;
-                    iUnderBeg = iUnderEnd;
+    size_t nSize = sizeof(expandParticle);
+    if (pkd->bIntegerPosition && pkd->bNoParticleOrder) nSize = sizeof(integerParticle);
+    char* pBase = (char*)pkd->particles.Element(0);
+    char* pRecv = pBase + nSize * nLocal;
+    if (nLocal > nPerNode) { /* Too much here: send extra particles to other nodes */
+        iUnderBeg = 0;
+        iOverEnd = iOverBeg + nLocal - nPerNode;
+        for (auto iProc = 0; iProc < mdl->Procs(); ++iProc) {
+            rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
+            uint64_t nOnNode = OnNode(iProc);
+            if (nOnNode < nPerNode) {
+                iUnderEnd = iUnderBeg + nPerNode - nOnNode;
+                /* The transfer condition */
+                if (iUnderEnd > iOverBeg && iUnderBeg < iOverEnd) {
+                    auto iBeg = iOverBeg > iUnderBeg ? iOverBeg : iUnderBeg;
+                    auto iEnd = iOverEnd < iUnderEnd ? iOverEnd : iUnderEnd;
+                    scount[iProc] = (iEnd - iBeg);
+                    sdisps[iProc] = (iBeg - iOverBeg);
+                    nLocal -= iEnd - iBeg;
                 }
                 else scount[iProc] = sdisps[iProc] = 0;
+                iUnderBeg = iUnderEnd;
             }
-            assert(nLocal == nPerNode);
+            else scount[iProc] = sdisps[iProc] = 0;
         }
-        else if (nLocal < nPerNode) { /* We have room: *maybe* receive particles from other nodes */
-            // eBase = pBase + nSize*nLocal;
-            iOverBeg = 0;
-            iUnderEnd = iUnderBeg + nPerNode - nLocal;
-            for (iProc = 0; iProc < mdl->Procs(); ++iProc) {
-                scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
-                uint64_t nOnNode = uint64_t(1) * fft->rgrid->rn[iProc] * fft->rgrid->n2 * fft->rgrid->n1;
-                if (nOnNode > nPerNode) {
-                    iOverEnd = iOverBeg + nOnNode - nPerNode;
-                    if (iOverEnd > iUnderBeg && iOverBeg < iUnderEnd) {
-                        iBeg = iOverBeg > iUnderBeg ? iOverBeg : iUnderBeg;
-                        iEnd = iOverEnd < iUnderEnd ? iOverEnd : iUnderEnd;
-                        rcount[iProc] = (iEnd - iBeg);
-                        rdisps[iProc] = (iBeg - iUnderBeg);
-                        nLocal += iEnd - iBeg;
-                    }
-                    else rcount[iProc] = rdisps[iProc] = 0;
-                    iOverBeg = iOverEnd;
+        assert(nLocal == nPerNode);
+    }
+    else if (nLocal < nPerNode) { /* We have room: *maybe* receive particles from other nodes */ iOverBeg = 0;
+        iUnderEnd = iUnderBeg + nPerNode - nLocal;
+        for (auto iProc = 0; iProc < mdl->Procs(); ++iProc) {
+            scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
+            uint64_t nOnNode = OnNode(iProc);
+            if (nOnNode > nPerNode) {
+                iOverEnd = iOverBeg + nOnNode - nPerNode;
+                if (iOverEnd > iUnderBeg && iOverBeg < iUnderEnd) {
+                    auto iBeg = iOverBeg > iUnderBeg ? iOverBeg : iUnderBeg;
+                    auto iEnd = iOverEnd < iUnderEnd ? iOverEnd : iUnderEnd;
+                    rcount[iProc] = (iEnd - iBeg);
+                    rdisps[iProc] = (iBeg - iUnderBeg);
+                    nLocal += iEnd - iBeg;
                 }
                 else rcount[iProc] = rdisps[iProc] = 0;
+                iOverBeg = iOverEnd;
             }
-            assert(nLocal <= nPerNode);
+            else rcount[iProc] = rdisps[iProc] = 0;
         }
-        else {
-            for (iProc = 0; iProc < mdl->Procs(); ++iProc) {
-                rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
-                scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
-            }
-        }
-        mdl->Alltoallv(nSize, pBase + nSize * nPerNode, scount, sdisps, pRecv, rcount, rdisps);
-        free(scount);
-        free(sdisps);
-        free(rcount);
-        free(rdisps);
-
-        /* We need to relocate the particles */
-        struct inMoveIC move;
-        move.pBase = (overlayedParticle*)pkd->particles.Element(0);
-        move.iStart = 0;
-        move.nMove = nLocal;
-        move.fMass = in->dBoxMass;
-        move.fSoft = 1.0 / (50.0 * in->nGrid);
-        move.nGrid = in->nGrid;
-        move.bICgas = in->bICgas;
-        move.nBucket = in->nBucket;
-        move.dInitialT = in->dInitialT;
-        move.dInitialH = in->dInitialH;
-        move.dInitialHe = in->dInitialHe;
-        move.dInitialC = in->dInitialC;
-        move.dInitialN = in->dInitialN;
-        move.dInitialO = in->dInitialO;
-        move.dInitialNe = in->dInitialNe;
-        move.dInitialMg = in->dInitialMg;
-        move.dInitialSi = in->dInitialSi;
-        move.dInitialFe = in->dInitialFe;
-        move.dInitialMetallicity = in->dInitialMetallicity;
-        move.dExpansion = in->dExpansion;
-        move.dBaryonFraction = in->dBaryonFraction;
-        move.dTuFac = in->dTuFac;
-        pltMoveIC(pst, &move, sizeof(move), NULL, 0);
+        assert(nLocal <= nPerNode);
     }
-    return 0;
+    mdl->Alltoallv(nSize, pBase + nSize * nPerNode, scount.data(), sdisps.data(), pRecv, rcount.data(), rdisps.data());
+    in->pBase = (overlayedParticle*)pkd->particles.Element(0);
+    in->iStart = 0;
+    in->nMove = nLocal;
+    return Traverse<ServiceExpandIC>(pst, vin, vout);
 }
 
 auto ServiceGenerateIC::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {

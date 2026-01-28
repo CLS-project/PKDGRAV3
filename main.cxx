@@ -232,6 +232,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceGridCreateFFT>(pst);
     mdl->AddService<ServiceGridDeleteFFT>(pst);
     mdl->AddService<ServiceGenerateIC>(pst);
+    mdl->AddService<ServiceMoveIC>(pst);
+    mdl->AddService<ServiceExpandIC>(pst);
     mdl->AddService<ServiceLinearKick>(pst);
     mdl->AddService<ServiceMeasureLinearPk>(pst);
     mdl->AddService<ServiceAssignMass>(pst);

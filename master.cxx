@@ -3666,7 +3666,28 @@ double MSR::GenerateIC(int nGrid, int iSeed, double z, double L, CSM csm) {
     rms = sqrt(2 * out.noiseCSQ / N);
 
     print_detail("Transferring particles between/within nodes\n");
-    pstMoveIC(pst, &in, sizeof(in), NULL, 0);
+    ServiceMoveIC::input move{
+        .fMass = static_cast<float>(in.dBoxMass),
+        .fSoft = static_cast<float>(1.0 / (50.0 * in.nGrid)),
+        .nGrid = in.nGrid,
+        .bICgas = in.bICgas,
+        .nBucket = in.nBucket,
+        .dInitialT = in.dInitialT,
+        .dInitialH = in.dInitialH,
+        .dInitialHe = in.dInitialHe,
+        .dInitialC = in.dInitialC,
+        .dInitialN = in.dInitialN,
+        .dInitialO = in.dInitialO,
+        .dInitialNe = in.dInitialNe,
+        .dInitialMg = in.dInitialMg,
+        .dInitialSi = in.dInitialSi,
+        .dInitialFe = in.dInitialFe,
+        .dInitialMetallicity = in.dInitialMetallicity,
+        .dExpansion = in.dExpansion,
+        .dBaryonFraction = in.dBaryonFraction,
+        .dTuFac = in.dTuFac,
+    };
+    mdl->RunService<ServiceMoveIC>(move);
 
     mdl->RunService<ServiceGridDeleteFFT>();
 

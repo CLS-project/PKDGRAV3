@@ -5,7 +5,7 @@
 ** Grid Operations
 */
 
-typedef struct mdlGridContext {
+struct mdlGridContext {
     uint32_t n1, n2, n3;   /* Real dimensions */
     uint32_t a1;           /* Actual size of dimension 1 */
     uint32_t sSlab, nSlab; /* Start and number of slabs */
@@ -13,7 +13,10 @@ typedef struct mdlGridContext {
     uint32_t* rs;          /* Starting slab for each processor */
     uint32_t* rn;          /* Number of slabs on each processor */
     uint32_t* id;          /* Which processor has this slab */
-}* MDLGRID;
+    [[nodiscard]] auto total() const { return uint64_t(n1) * uint64_t(n2) * uint64_t(n3); }
+    [[nodiscard]] auto local() const { return uint64_t(n1) * uint64_t(n2) * uint64_t(nSlab); }
+};
+using MDLGRID = mdlGridContext*;
 
 typedef struct {
     MDLGRID grid;

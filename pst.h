@@ -104,8 +104,6 @@ inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-inline constexpr std::string_view MoveIC = "MoveIC";
-inline constexpr std::string_view LocalMoveIC = "LocalMoveIC";
 } // namespace Legacy
 
 // Legacy service IDs. These will be removed in the future.
@@ -116,8 +114,6 @@ enum pst_service {
     PST_OUTPUT,
     PST_OUTPUT_SEND,
     PST_ONENODEREADINIT,
-    PST_MOVEIC,
-    PLT_MOVEIC,
 };
 
 void pstAddServices(PST, mdl::mdlClass*);
