@@ -20,32 +20,50 @@
 #include "pkd.h"
 #include "io/service.h"
 
-typedef enum {
+enum outType {
     OUT_TINY_GROUP,
     OUT_KGRID,
     OUT_RGRID,
-} outType;
-
-struct inOutput {
-    int iProcessor;      /* Output number: 0 to nParaWrite */
-    int nProcessor;      /* Number of processors left in parallel */
-    int iPartner;        /* Who to send the data to */
-    int nPartner;        /* How many partners there are */
-    outType eOutputType; /* What kind of output */
-    int iGrid;           /* Which grid (for grid output) */
-    char achOutFile[PATH_MAX];
 };
 
-/* PST_OUTPUT */
-int pstOutput(PST, void*, int, void*, int);
-struct inOutputSend {
-    int iPartner; /* Who to send the data to */
-    int iGrid;
-    outType eOutputType; /* What kind of output */
+class ServiceOutputBinary : public TraversePST {
+  public:
+    static constexpr std::string_view name = "Output";
+    struct input {
+        int iProcessor;      /* Output number: 0 to nParaWrite */
+        int nProcessor;      /* Number of processors left in parallel */
+        int iPartner;        /* Who to send the data to */
+        int nPartner;        /* How many partners there are */
+        outType eOutputType; /* What kind of output */
+        int iGrid;           /* Which grid (for grid output) */
+        char achOutFile[PATH_MAX];
+    };
+    using output = void;
+    explicit ServiceOutputBinary(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override;
+    auto Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
 };
 
 void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner);
 void pkdOutput(PKD pkd, outType eOutputType, int iProcessor, int nProcessor, int iPartner, int nPartner, const char* fname);
+
+class ServiceOutputSend : public TraversePST {
+  public:
+    static constexpr std::string_view name = "OutputSend";
+    struct input {
+        int iPartner; /* Who to send the data to */
+        int iGrid;
+        outType eOutputType; /* What kind of output */
+    };
+    using output = void;
+    explicit ServiceOutputSend(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+  protected:
+    auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override;
+    auto Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override { return Service(pst, in, out); }
+};
 
 class ServiceSaveGroupStats : public ServiceOutput {
   public:

@@ -91,8 +91,6 @@ using PST = pstNode*;
 
 namespace Legacy {
 inline constexpr std::string_view ReadFile = "ReadFile";
-inline constexpr std::string_view Output = "Output";
-inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 } // namespace Legacy
 
@@ -100,8 +98,6 @@ inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 enum pst_service {
     PST_SRV_STOP = 0, /* service 0 is always STOP and handled by MDL */
     PST_READFILE,
-    PST_OUTPUT,
-    PST_OUTPUT_SEND,
     PST_ONENODEREADINIT,
 };
 
@@ -120,9 +116,6 @@ struct inReadFile {
 };
 typedef char inReadFileFilename[PATH_MAX];
 int pstReadFile(PST, void*, int, void*, int);
-
-/* PST_OUTPUT_SEND */
-int pstOutputSend(PST, void*, int, void*, int);
 
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut);

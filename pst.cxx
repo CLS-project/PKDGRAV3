@@ -77,8 +77,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
 
     mdl->AddService(PST_READFILE, pst, (fcnService_t*)pstReadFile, sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), 0,
                     Legacy::ReadFile);
-    mdl->AddService(PST_OUTPUT, pst, (fcnService_t*)pstOutput, sizeof(struct inOutput), 0, Legacy::Output);
-    mdl->AddService(PST_OUTPUT_SEND, pst, (fcnService_t*)pstOutputSend, sizeof(struct inOutputSend), 0, Legacy::OutputSend);
     /*
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.

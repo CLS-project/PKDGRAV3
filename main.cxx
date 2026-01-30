@@ -215,6 +215,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceSetTotal>(pst);
     mdl->AddService<ServiceSetWriteStart>(pst);
     mdl->AddService<ServiceWrite>(pst);
+    mdl->AddService<ServiceOutputBinary>(pst);
+    mdl->AddService<ServiceOutputSend>(pst);
     mdl->AddService<ServiceRestore>(pst);
     mdl->AddService<ServiceRestoreDecorator>(pst);
     mdl->AddService<ServiceBuildTree>(pst);

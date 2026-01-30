@@ -89,8 +89,8 @@ void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner, int iGrid) {
     }
 }
 
-int pstOutputSend(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = reinterpret_cast<struct inOutputSend*>(vin);
+auto ServiceOutputSend::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<const input*>(vin.data());
     pkdOutputSend(pst->lcl()->pkd, in->eOutputType, in->iPartner, in->iGrid);
     return 0;
 }
@@ -134,12 +134,12 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor, int nProcessor, int
         abort();
     }
     while (--nPartner) {
-        struct inOutputSend send;
+        ServiceOutputSend::input send;
         send.iPartner = pkd->Self();
         send.eOutputType = eOutputType;
         send.iGrid = iGrid;
         ++iPartner;
-        int rID = pkd->mdl->ReqService(iPartner, PST_OUTPUT_SEND, &send, sizeof(send));
+        auto rID = pkd->mdl->ReqService<ServiceOutputSend>(iPartner, send);
         pkd->mdl->Recv(iPartner, [&](std::span<std::byte> buffer) -> size_t {
             if (buffer.empty()) return 0;
             io_write(&info, buffer.data(), buffer.size());
@@ -152,48 +152,53 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor, int nProcessor, int
     io_free(&info);
 }
 
-int pstOutput(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = reinterpret_cast<struct inOutput*>(vin);
+auto ServiceOutputBinary::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<input*>(vin.data());
 
-    assert(nIn >= sizeof(struct inOutput));
-    if (pst->NotCore()) {
-        int nProcessor = in->nProcessor;
-        int iProcessor = in->iProcessor;
+    // auto mdl = pst->mdl();
+    // auto rID = ReqService(pst, vin);
+    // Traverse(pst->lower(), vin, vout);
+    // return mdl->GetReply(rID, vout);
 
-        /* Still allowed to write more in parallel */
-        if (nProcessor > 1) {
-            int nLower, nUpper;
-            nLower = nProcessor * pst->n_lower() / pst->n_total();
-            if (nLower == 0) nLower = 1;
-            nUpper = nProcessor - nLower;
-            in->nProcessor = nUpper;
-            in->iProcessor = iProcessor + nLower;
-            int rID = pst->mdl()->ReqService(pst->upper(), PST_OUTPUT, in, nIn);
-            in->nProcessor = nLower;
-            in->iProcessor = iProcessor;
-            pstOutput(pst->lower(), in, nIn, NULL, 0);
-            pst->mdl()->GetReply(rID);
-        }
-        /* We are the node that will be the writer for all of the pst children */
-        else if (nProcessor == 1) {
-            in->iPartner = pst->Self();
-            in->nPartner = pst->n_total();
-            in->nProcessor = 0;
-            pstOutput(pst->lower(), in, nIn, NULL, 0); /* Keep decending to write */
-        }
-        else {
-            pstOutput(pst->lower(), in, nIn, NULL, 0); /* Keep decending to write */
-        }
+    int nProcessor = in->nProcessor;
+    int iProcessor = in->iProcessor;
+
+    /* Still allowed to write more in parallel */
+    if (nProcessor > 1) {
+        int nLower, nUpper;
+        nLower = nProcessor * pst->n_lower() / pst->n_total();
+        if (nLower == 0) nLower = 1;
+        nUpper = nProcessor - nLower;
+        in->nProcessor = nUpper;
+        in->iProcessor = iProcessor + nLower;
+        auto rID = ReqService(pst, vin);
+        in->nProcessor = nLower;
+        in->iProcessor = iProcessor;
+        Traverse(pst->lower(), vin, vout);
+        pst->mdl()->GetReply(rID);
+    }
+    /* We are the node that will be the writer for all of the pst children */
+    else if (nProcessor == 1) {
+        in->iPartner = pst->Self();
+        in->nPartner = pst->n_total();
+        in->nProcessor = 0;
+        Traverse(pst->lower(), vin, vout); /* Keep decending to write */
     }
     else {
-        /* If it is fully parallel then there is just us writing. */
-        if (in->nProcessor > 0) {
-            in->iPartner = pst->Self();
-            in->nPartner = 1;
-        }
-        PKD pkd = pst->lcl()->pkd;
-        pkdOutput(pkd, in->eOutputType, in->iProcessor, in->nProcessor, in->iPartner, in->nPartner, in->achOutFile, in->iGrid);
+        Traverse(pst->lower(), vin, vout); /* Keep decending to write */
     }
+    return 0;
+}
+
+auto ServiceOutputBinary::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
+    auto in = reinterpret_cast<input*>(vin.data());
+    /* If it is fully parallel then there is just us writing. */
+    if (in->nProcessor > 0) {
+        in->iPartner = pst->Self();
+        in->nPartner = 1;
+    }
+    PKD pkd = pst->lcl()->pkd;
+    pkdOutput(pkd, in->eOutputType, in->iProcessor, in->nProcessor, in->iPartner, in->nPartner, in->achOutFile, in->iGrid);
     return 0;
 }
 

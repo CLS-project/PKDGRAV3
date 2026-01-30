@@ -3899,7 +3899,7 @@ void MSR::CalcBound() {
 }
 
 void MSR::OutputGrid(std::string_view filename, bool k, int iGrid, int nParaWrite) {
-    struct inOutput out;
+    ServiceOutputBinary::input out;
     double dsec, sec = MSR::Time();
     out.eOutputType = k ? OUT_KGRID : OUT_RGRID;
     out.iGrid = iGrid;
@@ -3909,7 +3909,7 @@ void MSR::OutputGrid(std::string_view filename, bool k, int iGrid, int nParaWrit
     out.nProcessor = nParaWrite > mdl->Procs() ? mdl->Procs() : nParaWrite;
     marshal_string(out.achOutFile, filename);
     print("Writing grid to {}\n", filename);
-    pstOutput(pst, &out, sizeof(out), NULL, 0);
+    mdl->RunService<ServiceOutputBinary>(out);
     dsec = MSR::Time() - sec;
     print_detail("Grid has been successfully written, Wallclock: {seconds:.5} secs.\n\n", "seconds"_a = dsec);
 }
