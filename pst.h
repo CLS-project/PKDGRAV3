@@ -32,7 +32,6 @@ struct LCL : private DataRegistryOwner {
     using DataRegistryOwner::data_present;
     PKD pkd;
     uint64_t nWriteStart;
-    PKDOUT pkdout;
 };
 
 class pstNode : private DataRegistryOwner {

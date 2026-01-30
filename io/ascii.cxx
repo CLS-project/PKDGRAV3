@@ -26,13 +26,13 @@ auto ServiceCompressASCII::Service(PST pst, std::span<std::byte> vin, std::span<
     auto plcl = pst->lcl();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    plcl->pkdout = pkdStartOutASCII(plcl->pkd, in->iFile, in->iType);
+    auto& pkdout = plcl->data_emplace<PKDOUT>(plcl->pkd, in->iFile, in->iType);
     if (pst->Self() == 0 && in->iDim == 0) {
-        pkdOutHdr(plcl->pkd, plcl->pkdout, in->nTotal);
+        pkdout.OutHdr(in->nTotal);
     }
-    pkdOutASCII(plcl->pkd, plcl->pkdout, in->iType, in->iDim);
-    pkdFinishOutASCII(plcl->pkd, plcl->pkdout);
-    *out = pkdCountOutASCII(plcl->pkd, plcl->pkdout);
+    pkdout.OutASCII(in->iType, in->iDim);
+    pkdout.FinishOutASCII();
+    *out = pkdout.CountOutASCII();
     plcl->nWriteStart = 0;
     return sizeof(output);
 }
@@ -49,14 +49,15 @@ auto ServiceCompressASCII::Combine(std::span<std::byte> vout1, std::span<const s
 
 auto ServiceWriteASCII::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto plcl = pst->lcl();
+    auto& pkdout = plcl->data<PKDOUT>();
     auto in = reinterpret_cast<const input*>(vin.data());
     FILE* fp = fopen(in->achOutFile, "r+");
 
     mdlassert(plcl->pkd->mdl, fp != NULL);
     setvbuf(fp, NULL, _IOFBF, PKDOUT_BUFFER_SIZE);
     fseeko(fp, in->nFileOffset + plcl->nWriteStart, SEEK_SET);
-    pkdDumpOutASCII(plcl->pkd, plcl->pkdout, fp);
-    pkdFreeOutASCII(plcl->pkd, plcl->pkdout);
+    pkdout.DumpOutASCII(fp);
+    plcl->data_erase<PKDOUT>();
     fclose(fp);
     return 0;
 }

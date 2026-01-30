@@ -1853,7 +1853,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
     LCL* plcl = pst->lcl();
     int id, iDim;
     ServiceSwapAll::input inswap;
-    PKDOUT pkdout;
+    PKDOUT* pkdout;
     const char* arrayOrVector;
     int rID;
 
@@ -1912,19 +1912,15 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
         }
     }
     else {
-        pkdout = pkdOpenOutASCII(plcl->pkd, achOutFile.c_str(), "wb", iFileType, iType);
-        if (!pkdout) {
-            print_error("Could not open {} Output File:{}\n", arrayOrVector, achOutFile);
-            Exit(1);
-        }
+        PKDOUT pkdout(plcl->pkd, achOutFile, iFileType, iType);
 
-        pkdOutHdr(plcl->pkd, pkdout, total);
+        pkdout.OutHdr(total);
 
         /*
          * First write our own particles.
          */
         for (iDim = 0; iDim < nDims; ++iDim) {
-            pkdOutASCII(plcl->pkd, pkdout, iType, iDim);
+            pkdout.OutASCII(iType, iDim);
             for (id = 1; id < nThreads; ++id) {
                 /*
                  * Swap particles with the remote processor.
@@ -1936,7 +1932,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
                 /*
                  * Write the swapped particles.
                  */
-                pkdOutASCII(plcl->pkd, pkdout, iType, iDim);
+                pkdout.OutASCII(iType, iDim);
                 /*
                  * Swap them back again.
                  */
@@ -1946,7 +1942,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
                 pst->mdl()->GetReply(rID);
             }
         }
-        pkdCloseOutASCII(plcl->pkd, pkdout);
+        pkdout.CloseOutASCII();
     }
 }
 

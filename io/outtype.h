@@ -77,8 +77,25 @@ typedef struct pkdOutBuffer {
     char data[PKDOUT_BUFFER_SIZE];
 } PKDOUTBUFFER;
 
-typedef struct pkdout {
-    FILE* fp;
+class PKDOUT {
+  public:
+    PKDOUT(PKD pkd, int iFile, int iType);
+    PKDOUT(PKD pkd, std::string_view filename, int iFile, int iType);
+    ~PKDOUT();
+
+    void OutHdr(uint64_t N);
+    void OutASCII(int iType, int iDim);
+    void FinishOutASCII();
+    void CloseOutASCII();
+    void DumpOutASCII(FILE* fp);
+    auto CountOutASCII() -> uint64_t;
+    void writeASCII(int final);
+    void closeASCII();
+
+  private:
+    using particle = particleStore::ParticleReference&;
+    PKD pkd;
+    FILE* fp = nullptr;
 #if defined(HAVE_LIBBZ2) || defined(HAVE_LIBZ)
     union {
     #ifdef HAVE_LIBBZ2
@@ -94,27 +111,41 @@ typedef struct pkdout {
     char* inOffset;
     PKDOUTBUFFER* outBuffer;
     PKDOUTBUFFER* headBuffer;
-    void (*fnOut)(PKD pkd, struct pkdout* ctx, PARTICLE* p, int iType, int iDim);
-    void (*fnHdr)(PKD pkd, struct pkdout* ctx, uint64_t N);
-    void (*fnWrite)(PKD pkd, struct pkdout* ctx);
-    void (*fnFlush)(PKD pkd, struct pkdout* ctx, int final);
-    void (*fnClose)(PKD pkd, struct pkdout* ctx);
-}* PKDOUT;
+    void (PKDOUT::*fnOut)(particle p, int iType, int iDim);
+    void (PKDOUT::*fnHdr)(uint64_t N);
+    void (PKDOUT::*fnWrite)();
+    void (PKDOUT::*fnFlush)(int final);
+    void (PKDOUT::*fnClose)();
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-PKDOUT pkdOpenOutASCII(PKD pkd, const char* pszFileName, const char* mode, int iFile, int iType);
-void pkdCloseOutASCII(PKD pkd, PKDOUT ctx);
-void pkdOutHdr(PKD pkd, PKDOUT ctx, uint64_t N);
-void pkdOutASCII(PKD pkd, PKDOUT ctx, int iType, int iDim);
+    auto fetchInteger(particle p, int iType, int iDim) -> uint64_t;
+    auto fetchFloat(particle p, int iType, int iDim) -> double;
 
-PKDOUT pkdStartOutASCII(PKD pkd, int iFile, int iType);
-void pkdFinishOutASCII(PKD pkd, PKDOUT ctx);
-uint64_t pkdCountOutASCII(PKD pkd, PKDOUT ctx);
-void pkdDumpOutASCII(PKD pkd, PKDOUT ctx, FILE* fp);
-void pkdFreeOutASCII(PKD pkd, PKDOUT ctx);
-#ifdef __cplusplus
-}
+    void storeHdr(uint64_t N);
+    void storeInteger(particle p, int iType, int iDim);
+    void storeFloat(particle p, int iType, int iDim);
+    void storeRungDest(particle p, int iType, int iDim);
+    void storePsGroup(particle p, int iType, int iDim);
+
+    void storeHdrBinary(uint64_t N);
+    void storeIntegerBinary(particle p, int iType, int iDim);
+    void storeFloatBinary(particle p, int iType, int iDim);
+    void storeRungDestBinary(particle p, int iType, int iDim);
+    void storePsGroupBinary(particle p, int iType, int iDim);
+
+#ifdef HAVE_LIBZ
+    void closeZ();
+    void outputZ();
+    void bufferZ();
+    void flushZ(int final);
+    void setupZ();
 #endif
+#ifdef HAVE_LIBBZ2
+    void closeBZ2();
+    void outputBZ2();
+    void bufferBZ2();
+    void flushBZ2(int final);
+    void setupBZ2();
+#endif
+    void finish();
+};
 #endif
