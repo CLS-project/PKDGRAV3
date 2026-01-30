@@ -143,6 +143,7 @@ struct fmt::formatter<DeferFormat> {
 #include "io/output.h"
 #include "io/classes.h"
 #include "io/ascii.h"
+#include "io/write.h"
 #include "ic/ic.h"
 #include "analysis/lightcone.h"
 #ifdef INSTRUMENT_MPI
@@ -1285,7 +1286,7 @@ void MSR::RecvArray(void* vBuffer, PKD_FIELD field, int iUnitSize, double dTime,
 */
 void MSR::AllNodeWrite(std::string_view FileName, double dTime, double dvFac, int bDouble) {
     int nProcessors;
-    struct inWrite in;
+    ServiceWrite::input in;
 
     /*
     ** Add Data Subpath for local and non-local names.
@@ -1345,7 +1346,7 @@ void MSR::AllNodeWrite(std::string_view FileName, double dTime, double dvFac, in
     in.iUpper = nThreads;
     in.iIndex = 0;
     in.nProcessorsTotal = in.nProcessors = nProcessors;
-    pstWrite(pst, &in, sizeof(in), NULL, 0);
+    mdl->RunService<ServiceWrite>(in);
 }
 
 auto MSR::SetTotal() -> uint64_t {

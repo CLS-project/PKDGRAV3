@@ -59,6 +59,7 @@
 #endif
 #include "io/service.h"
 #include "io/restore.h"
+#include "io/write.h"
 #include "ic/ic.h"
 
 #include "analysis/analysis.h"
@@ -213,6 +214,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceFileSizes>(pst);
     mdl->AddService<ServiceSetTotal>(pst);
     mdl->AddService<ServiceSetWriteStart>(pst);
+    mdl->AddService<ServiceWrite>(pst);
     mdl->AddService<ServiceRestore>(pst);
     mdl->AddService<ServiceRestoreDecorator>(pst);
     mdl->AddService<ServiceBuildTree>(pst);

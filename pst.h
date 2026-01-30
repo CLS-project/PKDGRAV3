@@ -91,7 +91,6 @@ using PST = pstNode*;
 
 namespace Legacy {
 inline constexpr std::string_view ReadFile = "ReadFile";
-inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
@@ -101,7 +100,6 @@ inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
 enum pst_service {
     PST_SRV_STOP = 0, /* service 0 is always STOP and handled by MDL */
     PST_READFILE,
-    PST_WRITE,
     PST_OUTPUT,
     PST_OUTPUT_SEND,
     PST_ONENODEREADINIT,
@@ -122,36 +120,6 @@ struct inReadFile {
 };
 typedef char inReadFileFilename[PATH_MAX];
 int pstReadFile(PST, void*, int, void*, int);
-
-/* PST_WRITE */
-struct inWrite {
-    Bound bnd;
-    UNITS units;
-    double dTime;
-    double dExp;
-    double dEcosmo;
-    double dTimeOld;
-    double dUOld;
-    double dvFac;
-    double dTuFac;
-    double dBoxSize;
-    double Omega0;
-    double OmegaLambda;
-    double HubbleParam;
-    uint64_t nGas;
-    uint64_t nDark;
-    uint64_t nStar;
-    uint64_t nBH;
-    int bStandard;
-    int iIndex;
-    int nProcessors;
-    int nProcessorsTotal;
-    int iLower, iUpper;
-    int bHDF5;
-    int mFlags;
-    char achOutFile[PATH_MAX];
-};
-int pstWrite(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);

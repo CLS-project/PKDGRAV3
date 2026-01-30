@@ -77,7 +77,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
 
     mdl->AddService(PST_READFILE, pst, (fcnService_t*)pstReadFile, sizeof(struct inReadFile) + PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX), 0,
                     Legacy::ReadFile);
-    mdl->AddService(PST_WRITE, pst, (fcnService_t*)pstWrite, sizeof(struct inWrite), 0, Legacy::Write);
     mdl->AddService(PST_OUTPUT, pst, (fcnService_t*)pstOutput, sizeof(struct inOutput), 0, Legacy::Output);
     mdl->AddService(PST_OUTPUT_SEND, pst, (fcnService_t*)pstOutputSend, sizeof(struct inOutputSend), 0, Legacy::OutputSend);
     /*
@@ -235,93 +234,5 @@ int pstReadFile(PST pst, void* vin, int nIn, void* vout, int nOut) {
         delete[] nSpeciesParts;
         fioClose(fio);
     }
-    return 0;
-}
-
-static std::string makeName(std::string_view inName, int iIndex) {
-    return fmt::format(inName, fmt::arg("i", iIndex));
-}
-
-int pstWrite(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    auto in = static_cast<struct inWrite*>(vin);
-    FIO fio;
-    int i;
-
-    assert(nIn == sizeof(struct inWrite));
-
-    if (pst->NotCore()) {
-        int nProcessors = in->nProcessors;
-        /* If we are the writer (nProcessors==1) or a producer (==1) keep requesting */
-        if (nProcessors <= 1) {
-            pstWrite(pst->lower(), in, nIn, NULL, 0);
-        }
-        /* Split writing tasks between child nodes */
-        else {
-            int nLeft = nProcessors / 2;
-            assert(in->iLower == pst->mdl()->Self());
-            in->iLower = pst->upper();
-            in->nProcessors -= nLeft;
-            in->iIndex += nLeft;
-            int rID = pst->mdl()->ReqService(pst->upper(), PST_WRITE, in, nIn);
-            in->iLower = pst->mdl()->Self();
-            in->iUpper = pst->upper();
-            in->iIndex -= nLeft;
-            in->nProcessors = nLeft;
-            pstWrite(pst->lower(), in, nIn, NULL, 0);
-            pst->mdl()->GetReply(rID);
-        }
-    }
-    else {
-        LCL* plcl = pst->lcl();
-        if (in->nProcessors != 0) {
-            auto achOutFile = makeName(in->achOutFile, in->iIndex);
-            if (in->bHDF5) {
-#ifdef USE_HDF5
-                fio = fioHDF5Create(achOutFile.c_str(), in->mFlags);
-#else
-                fio = NULL; /* Should never happen */
-#endif
-            }
-            else {
-                auto nWriteStart = plcl->data<ServiceSetWriteStart::InfoLCL>().nWriteStart;
-                if (achOutFile != makeName(in->achOutFile, in->iIndex + 1)) {
-                    fio = fioTipsyCreatePart(achOutFile.c_str(), 0, in->mFlags & FIO_FLAG_CHECKPOINT, in->bStandard,
-                                             pst->lcl()->pkd->particles.present(PKD_FIELD::oNewSph) ? in->dTime : in->dExp, in->nGas, in->nDark, in->nStar,
-                                             nWriteStart);
-                }
-                else {
-                    fio = fioTipsyAppend(achOutFile.c_str(), in->mFlags & FIO_FLAG_CHECKPOINT, in->bStandard);
-                    if (fio) {
-                        fioSeek(fio, nWriteStart, FIO_SPECIES_ALL);
-                    }
-                }
-            }
-            if (fio == NULL) {
-                fprintf(stderr, "ERROR: unable to create file for output\n");
-                perror(achOutFile.c_str());
-                assert(fio != NULL);
-            }
-
-            fioSpeciesList nTotal, nThisFile{0};
-            nTotal[FIO_SPECIES_DARK] = in->nDark;
-            nTotal[FIO_SPECIES_SPH] = in->nGas;
-            nTotal[FIO_SPECIES_STAR] = in->nStar;
-            nTotal[FIO_SPECIES_BH] = in->nBH;
-
-            pkdWriteFIO(plcl->pkd, fio, in->dvFac, in->dTuFac, in->bnd, nThisFile);
-            for (i = in->iLower + 1; i < in->iUpper; ++i) {
-                auto me = pst->Self();
-                auto rID = pst->mdl()->ReqService<ServiceSendParticles>(i, me);
-                pkdWriteFromNode(plcl->pkd, i, fio, in->dvFac, in->dTuFac, in->bnd, nThisFile);
-                pst->mdl()->GetReply(rID);
-            }
-
-            pkdWriteHeaderFIO(plcl->pkd, fio, 1. / sqrt(in->dvFac), in->dTime, nTotal, nThisFile, in->dBoxSize, in->HubbleParam, in->nProcessorsTotal,
-                              in->units);
-
-            fioClose(fio);
-        }
-    }
-
     return 0;
 }
