@@ -17,17 +17,6 @@
 #include "TraversePST.h"
 #include <cstdint>
 
-class ServiceAddWriteStart : public TraversePST {
-  public:
-    static constexpr std::string_view name = "AddWriteStart";
-    using input = uint64_t;
-    using output = void;
-    explicit ServiceAddWriteStart(PST pst) : TraversePST(pst, name, sizeof(input)) {}
-
-  protected:
-    auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
-};
-
 class ServiceCompressASCII : public TraverseCombinePST {
   public:
     static constexpr std::string_view name = "CompressASCII";

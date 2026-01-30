@@ -1905,7 +1905,12 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
         for (iDim = 0; iDim < nDims; iDim++) {
             ServiceCompressASCII::input in{.nTotal = total, .iFile = iFileType, .iType = iType, .iDim = iDim};
             ServiceCompressASCII::output out;
+            // Compresses the data into a buffer. Sets nTotal like ServiceSetTotal (in bytes).
             mdl->RunService<ServiceCompressASCII>(in, out);
+            // Set the starting offset for writing using nTotal from above
+            ServiceSetWriteStart::input nWriteStart = 0;
+            mdl->RunService<ServiceSetWriteStart>(nWriteStart);
+            // Write out the compresses buffers to the file
             ServiceWriteASCII::input inWrite;
             marshal_string(inWrite.achOutFile, achOutFile);
             mdl->RunService<ServiceWriteASCII>(inWrite);

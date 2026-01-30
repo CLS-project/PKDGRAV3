@@ -15,12 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "ascii.h"
-
-auto ServiceAddWriteStart::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto in = reinterpret_cast<input*>(vin.data());
-    pst->lcl()->nWriteStart += *in;
-    return 0;
-}
+#include "io/service.h"
 
 auto ServiceCompressASCII::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto plcl = pst->lcl();
@@ -32,8 +27,8 @@ auto ServiceCompressASCII::Service(PST pst, std::span<std::byte> vin, std::span<
     }
     pkdout.OutASCII(in->iType, in->iDim);
     pkdout.FinishOutASCII();
-    *out = pkdout.CountOutASCII();
-    plcl->nWriteStart = 0;
+    *out = pkdout.CountOutASCII(); // total number of bytes to write
+    pst->data_emplace<ServiceSetTotal::InfoPST>(ServiceSetTotal::InfoPST{.nTotal = *out});
     return sizeof(output);
 }
 
@@ -41,21 +36,21 @@ auto ServiceCompressASCII::Combine(std::span<std::byte> vout1, std::span<const s
     auto out1 = reinterpret_cast<output*>(vout1.data());
     auto out2 = reinterpret_cast<const output*>(vout2.data());
     mdl::mdlClass* mdl = pst->mdl();
-    auto rID = mdl->ReqService<ServiceAddWriteStart>(pst->upper(), vout1);
-    mdl->GetReply(rID);
-    *out1 += *out2;
+    *out1 += *out2; // cumulative total number of bytes to write
+    pst->data_emplace<ServiceSetTotal::InfoPST>(ServiceSetTotal::InfoPST{.nTotal = *out1});
     return sizeof(output);
 }
 
 auto ServiceWriteASCII::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto plcl = pst->lcl();
+    auto nWriteStart = plcl->data<ServiceSetWriteStart::InfoLCL>().nWriteStart;
     auto& pkdout = plcl->data<PKDOUT>();
     auto in = reinterpret_cast<const input*>(vin.data());
     FILE* fp = fopen(in->achOutFile, "r+");
 
     mdlassert(plcl->pkd->mdl, fp != NULL);
     setvbuf(fp, NULL, _IOFBF, PKDOUT_BUFFER_SIZE);
-    fseeko(fp, in->nFileOffset + plcl->nWriteStart, SEEK_SET);
+    fseeko(fp, in->nFileOffset + nWriteStart, SEEK_SET);
     pkdout.DumpOutASCII(fp);
     plcl->data_erase<PKDOUT>();
     fclose(fp);

@@ -17,6 +17,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "TraversePST.h"
+#include <cstdint>
 #include <string>
 
 class ServiceIO : public TraversePST {
@@ -143,6 +144,10 @@ class ServiceSetTotal : public TraverseCombinePST {
     using output = uint64_t;
     explicit ServiceSetTotal(PST pst) : TraverseCombinePST(pst, name, 0, sizeof(output)) {}
 
+    struct InfoPST {
+        uint64_t nTotal = 0; // Total number of particles at this PST node or below
+    };
+
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
     auto Combine(std::span<std::byte> vout1, std::span<const std::byte> vout2, std::span<const std::byte>, PST) -> int override;
@@ -154,6 +159,10 @@ class ServiceSetWriteStart : public TraversePST {
     using input = uint64_t;
     using output = void;
     explicit ServiceSetWriteStart(PST pst) : TraversePST(pst, name, sizeof(input)) {}
+
+    struct InfoLCL {
+        uint64_t nWriteStart = 0; // Write start offset for this thread
+    };
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;

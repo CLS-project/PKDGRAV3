@@ -31,7 +31,6 @@ struct LCL : private DataRegistryOwner {
     using DataRegistryOwner::data_erase;
     using DataRegistryOwner::data_present;
     PKD pkd;
-    uint64_t nWriteStart;
 };
 
 class pstNode : private DataRegistryOwner {

@@ -283,15 +283,16 @@ int pstWrite(PST pst, void* vin, int nIn, void* vout, int nOut) {
 #endif
             }
             else {
+                auto nWriteStart = plcl->data<ServiceSetWriteStart::InfoLCL>().nWriteStart;
                 if (achOutFile != makeName(in->achOutFile, in->iIndex + 1)) {
                     fio = fioTipsyCreatePart(achOutFile.c_str(), 0, in->mFlags & FIO_FLAG_CHECKPOINT, in->bStandard,
                                              pst->lcl()->pkd->particles.present(PKD_FIELD::oNewSph) ? in->dTime : in->dExp, in->nGas, in->nDark, in->nStar,
-                                             plcl->nWriteStart);
+                                             nWriteStart);
                 }
                 else {
                     fio = fioTipsyAppend(achOutFile.c_str(), in->mFlags & FIO_FLAG_CHECKPOINT, in->bStandard);
                     if (fio) {
-                        fioSeek(fio, plcl->nWriteStart, FIO_SPECIES_ALL);
+                        fioSeek(fio, nWriteStart, FIO_SPECIES_ALL);
                     }
                 }
             }
