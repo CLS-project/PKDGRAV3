@@ -37,7 +37,8 @@ auto ServiceGroupStats::Recurse(PST pst, std::span<std::byte> vin, std::span<std
     auto in = reinterpret_cast<const input*>(vin.data());
     auto mdl = pst->mdl();
     input inUpper = *in;
-    inUpper.iGlobalStart += pst->nLowerGroups; /* for the upper subset the global id starting point is more by the number of lower groups */
+    // for the upper subset the global id starting point is more by the number of lower groups
+    inUpper.iGlobalStart += pst->data<ServiceGroupStats::InfoPST>().nLowerGroups;
     auto rID = ReqService(pst, inUpper);
     Traverse(pst->lower(), vin, vout);
     return mdl->GetReply(rID, vout);

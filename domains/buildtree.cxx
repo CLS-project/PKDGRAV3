@@ -44,7 +44,7 @@ auto ServiceBuildTree::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
     auto pCell1 = pTop + 1;
     auto pCell2 = pTop + pst->n_lower() * 2;
     pTop->bMax() = HUGE_VAL; /* initialize bMax for CombineCells */
-    auto minside = pst->bnd.minside();
+    auto minside = pst->data<Bound>().minside();
     pkd->CombineCells1(pTop, pCell1, pCell2);
     pTop->calc_open(minside);
     pkd->CombineCells2(pTop, pCell1, pCell2);

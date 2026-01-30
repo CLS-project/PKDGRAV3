@@ -32,6 +32,11 @@ class ServiceGroupStats : public TraversePST {
     using output = void;
     explicit ServiceGroupStats(PST pst) : TraversePST(pst, name, sizeof(input)) {}
 
+    // This is information attached to each PST node and stored in the DataRegistry
+    struct InfoPST {
+        uint64_t nLowerGroups; // count of number of groups in the lower sub-tree, used for making global group ids.
+    };
+
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;
     auto Recurse(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override;

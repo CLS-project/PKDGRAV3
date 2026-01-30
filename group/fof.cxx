@@ -17,6 +17,7 @@
 
 #include "pkd_config.h"
 #include "fof.h"
+#include "groupstats.h"
 #include "basetype.h"
 #include "pkd.h"
 #include "group.h"
@@ -775,7 +776,7 @@ auto ServiceFofFinishUp::Service(PST pst, std::span<std::byte> vin, std::span<st
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vout.size() == sizeof(output));
     *out = pst->lcl()->pkd->FofFinishUp(in->nMinGroupSize);
-    pst->nLowerGroups = 0;
+    pst->data_emplace<ServiceGroupStats::InfoPST>(ServiceGroupStats::InfoPST{.nLowerGroups = 0});
     return sizeof(output);
 }
 
@@ -784,7 +785,7 @@ auto ServiceFofFinishUp::Combine(std::span<std::byte> vout1, std::span<const std
     assert(vout1.size() == sizeof(output));
     auto out2 = reinterpret_cast<const output*>(vout2.data());
     assert(vout2.size() == sizeof(output));
-    pst->nLowerGroups = *out1;
+    pst->data_emplace<ServiceGroupStats::InfoPST>(ServiceGroupStats::InfoPST{.nLowerGroups = *out1});
     *out1 += *out2;
     return sizeof(output);
 }

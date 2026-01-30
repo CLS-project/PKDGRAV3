@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "getordsplits.h"
+#include "orderinfo.h"
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
@@ -24,6 +25,6 @@ static_assert(std::is_void_v<ServiceGetOrdSplits::output> || std::is_standard_la
 int ServiceGetOrdSplits::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     assert(vout.size() >= sizeof(output));
     auto out = reinterpret_cast<output*>(vout.data());
-    *out = pst->iOrdSplit;
+    *out = pst->data<OrderInfoPST>().iOrdSplit;
     return sizeof(output);
 }

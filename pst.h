@@ -38,9 +38,7 @@ struct LCL : private DataRegistryOwner {
 class pstNode : private DataRegistryOwner {
   public:
     pstNode() = delete;
-    explicit pstNode(mdl::mdlClass* mdl, LCL* lcl)
-        : pstLower_(nullptr), mdl_(mdl), lcl_(lcl), idUpper_(-1), nLeaves_(1), nLower_(0), nUpper_(0), iLvl_(0), iSplitDim(-1), iOrdSplit(0), fSplit(0.0),
-          fSplitInactive(0.0), nLowerGroups(0) {}
+    explicit pstNode(mdl::mdlClass* mdl, LCL* lcl) : pstLower_(nullptr), mdl_(mdl), lcl_(lcl), idUpper_(-1), nLeaves_(1), nLower_(0), nUpper_(0), iLvl_(0) {}
     using DataRegistryOwner::data;
     using DataRegistryOwner::data_emplace;
     using DataRegistryOwner::data_ensure;
@@ -58,13 +56,6 @@ class pstNode : private DataRegistryOwner {
     int iLvl_;           // Depth in the PST tree
 
   public:
-    Bound bnd;
-    int iSplitDim;
-    uint64_t iOrdSplit;
-    double fSplit;
-    double fSplitInactive;
-    uint64_t nLowerGroups; /* count of number of groups in the lower sub-tree, used for making global group ids. */
-
     [[nodiscard]] auto OffNode() const { return nLeaves_ > mdl_->Cores(); }
     [[nodiscard]] auto OnNode() const { return nLeaves_ <= mdl_->Cores(); }
     [[nodiscard]] auto AmNode() const { return nLeaves_ == mdl_->Cores(); }
@@ -83,6 +74,8 @@ class pstNode : private DataRegistryOwner {
     [[nodiscard]] auto mdl() const { return mdl_; }
     [[nodiscard]] auto lcl() const { return lcl_; }
 
+  private:
+    friend class ServiceSetAdd;
     auto create_lower(int idMiddle, int idUp) {
         assert(pstLower_ == nullptr);
         idUpper_ = idMiddle;
@@ -96,7 +89,6 @@ class pstNode : private DataRegistryOwner {
 };
 using PST = pstNode*;
 
-#define PST_SERVICES 100
 #define PST_MAX_FILES 16384
 
 namespace Legacy {

@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "olddd.h"
+#include "orderinfo.h"
 #include "freestore.h"
 #include "pkd.h"
 #include <cstdint>
@@ -41,6 +42,12 @@ struct WeightInfo {
     double fHigh{};
 };
 
+struct DomainInfo {
+    double fSplit = 0.0;
+    double fSplitInactive{};
+    int iSplitDim = -1; // -1 means no split choosen yet
+};
+
 /*****************************************************************************\
 * ServiceDomainDecomp
 \*****************************************************************************/
@@ -53,7 +60,8 @@ int ServiceDomainDecomp::Recurse(PST pst, std::span<std::byte> vin, std::span<st
     auto in = reinterpret_cast<input*>(vin.data());
     static_assert(std::is_void_v<output>);
     assert(vin.size() == sizeof(input));
-    Bound bnd = pst->bnd = in->bnd;
+    auto& dinfo = pst->data_ensure<DomainInfo>();
+    auto bnd = pst->data_emplace<Bound>(in->bnd);
 
     int /*nBndWrapd,*/ d = 0;
     mdlTimer t;
@@ -63,7 +71,7 @@ int ServiceDomainDecomp::Recurse(PST pst, std::span<std::byte> vin, std::span<st
     __itt_string_handle* shMyTask = __itt_string_handle_create("Domain Decomposition");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    if (pst->iSplitDim != -1 && in->nActive < NMINFORROOTFIND) {
+    if (dinfo.iSplitDim != -1 && in->nActive < NMINFORROOTFIND) {
         mdlprintf(pst->mdl(), "Aborting RootFind -- too few actives.\n");
         in->bDoSplitDimFind = 0;
         in->bDoRootFind = 0;
@@ -79,9 +87,9 @@ int ServiceDomainDecomp::Recurse(PST pst, std::span<std::byte> vin, std::span<st
         d = bnd.maxdim(); // Find the longest axis
         // If we already have a split, and the new size isn't significantly different
         // then just keep the existing split dimension (so less data movement)
-        if (pst->iSplitDim >= 0 && bnd.width(d) < bnd.width(pst->iSplitDim) * NEWSPLITDIMCUT) d = pst->iSplitDim;
+        if (dinfo.iSplitDim >= 0 && bnd.width(d) < bnd.width(dinfo.iSplitDim) * NEWSPLITDIMCUT) d = dinfo.iSplitDim;
 #if 0
-        d = pst->iSplitDim;
+        d = dinfo.iSplitDim;
         double dimsize;
         if (d==-1) {
             dimsize = -1;
@@ -101,7 +109,7 @@ int ServiceDomainDecomp::Recurse(PST pst, std::span<std::byte> vin, std::span<st
         }
 #endif
     }
-    else d = pst->iSplitDim;
+    else d = dinfo.iSplitDim;
     assert(d >= 0);
 
     mdlPrintTimer(pst->mdl(), "TIME Mass Check done in pstDomainDecomp", &t);
@@ -115,12 +123,12 @@ int ServiceDomainDecomp::Recurse(PST pst, std::span<std::byte> vin, std::span<st
     auto l = bnd.lower();
     auto u = bnd.upper();
     // in->nBndWrap[d] = nBndWrapd;
-    if (pst->fSplitInactive <= l[d] || pst->fSplitInactive >= u[d]) {
-        l[d] = pst->fSplit;
+    if (dinfo.fSplitInactive <= l[d] || dinfo.fSplitInactive >= u[d]) {
+        l[d] = dinfo.fSplit;
     }
-    else if (pst->fSplitInactive > pst->fSplit) {
-        l[d] = pst->fSplit;
-        u[d] = pst->fSplitInactive;
+    else if (dinfo.fSplitInactive > dinfo.fSplit) {
+        l[d] = dinfo.fSplit;
+        u[d] = dinfo.fSplitInactive;
     }
     else in->nBndWrap[d]++;
 
@@ -130,12 +138,12 @@ int ServiceDomainDecomp::Recurse(PST pst, std::span<std::byte> vin, std::span<st
     l = bnd.lower();
     u = bnd.upper();
     // in->nBndWrap[d] = nBndWrapd;
-    if (pst->fSplitInactive <= l[d] || pst->fSplitInactive >= u[d]) {
-        u[d] = pst->fSplit;
+    if (dinfo.fSplitInactive <= l[d] || dinfo.fSplitInactive >= u[d]) {
+        u[d] = dinfo.fSplit;
     }
-    else if (pst->fSplitInactive < pst->fSplit) {
-        u[d] = pst->fSplit;
-        l[d] = pst->fSplitInactive;
+    else if (dinfo.fSplitInactive < dinfo.fSplit) {
+        u[d] = dinfo.fSplit;
+        l[d] = dinfo.fSplitInactive;
     }
     else in->nBndWrap[d]++;
 
@@ -155,21 +163,17 @@ int ServiceDomainDecomp::Service(PST pst, std::span<std::byte> vin, std::span<st
     static_assert(std::is_void_v<output>);
     auto pkd = pst->lcl()->pkd;
 
-    // We always set pkd->bnd from pst->bnd.
     pkd->bnd = in->bnd;
 
     float offs = 0.5f / (pkd->Local() * 1.0f - 1.0f);
-    pst->bnd = Bound(in->bnd.lower() - offs, in->bnd.upper() + offs);
-    //    pst->bnd = in->bnd;
-    //    for (auto j=0; j < 3; j++) {
-    // pst->bnd.fMax[j] += offs;
-    // }
+    pst->data_emplace<Bound>(Bound(in->bnd.lower() - offs, in->bnd.upper() + offs));
 
     return 0;
 }
 
 void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int bDoSplitDimFind) {
     auto mdl = pst->mdl();
+    auto& dinfo = pst->data_ensure<DomainInfo>();
     int NUM_SAFETY = 4; /* slop space when filling up memory */
     uint64_t nSafeTot;  /* total slop space we have to play with */
     uint64_t margin;    /* more slop */
@@ -209,22 +213,22 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
 
     mdlprintf(pst->mdl(), "_pstRootSplit: id %d Level %d\n", pst->Self(), pst->depth());
     mdlPrintTimer(pst->mdl(), "TIME START _pstRootSplit ", &t);
-    mdlprintf(pst->mdl(), "_pstRootSplit: fA0 %f fIA0 %f RS? %d DC? %d\n", pst->fSplit, pst->fSplitInactive, bDoRootFind, bDoSplitDimFind);
+    mdlprintf(pst->mdl(), "_pstRootSplit: fA0 %f fIA0 %f RS? %d DC? %d\n", dinfo.fSplit, dinfo.fSplitInactive, bDoRootFind, bDoSplitDimFind);
     /* Debug */
     /*
       sprintf(ach,"id: %d _pstRootSplit\n", pst->Self() );
       mdlDiag(pst->mdl(),ach);
     */
 
-    if (bDoSplitDimFind || pst->iSplitDim == -1) {
-        pst->iSplitDim = iSplitDim;
+    if (bDoSplitDimFind || dinfo.iSplitDim == -1) {
+        dinfo.iSplitDim = iSplitDim;
     }
 
-    Bound bnd = pst->bnd;
-    d = dBnd = pst->iSplitDim;
+    auto bnd = pst->data<Bound>();
+    d = dBnd = dinfo.iSplitDim;
     fl = bnd.lower(dBnd);
     fu = bnd.upper(dBnd);
-    fm = pst->fSplit;
+    fm = dinfo.fSplit;
     ittr = -1;
 
     if (bDoRootFind || fm < fl || fm > fu) {
@@ -304,7 +308,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
         mdlPrintTimer(pst->mdl(), "TIME active split _pstRootSplit ", &t);
     }
 
-    pst->fSplit = fm;
+    dinfo.fSplit = fm;
 
     mdlprintf(pst->mdl(), "id: %d (%d) Chose split: %f (%f,%f) %d %d\n", pst->Self(), pst->depth(), fm, bnd.lower(dBnd), bnd.upper(dBnd), pst->n_lower(),
               pst->n_upper());
@@ -324,10 +328,10 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
     */
     ServiceWeightWrap::input inWtWrap;
     inWtWrap.iSplitDim = d;
-    fl = pst->fSplit + 1e-6 * bnd.width(dBnd);
-    fu = pst->fSplit - 1e-6 * bnd.width(dBnd);
+    fl = dinfo.fSplit + 1e-6 * bnd.width(dBnd);
+    fu = dinfo.fSplit - 1e-6 * bnd.width(dBnd);
 
-    if (!bDoSplitDimFind) fm = pst->fSplitInactive;
+    if (!bDoSplitDimFind) fm = dinfo.fSplitInactive;
     else {
         fm = 0.5 * (fl + fu);
         if (fm < bnd.center(dBnd)) fm = bnd.upper(dBnd) + 1.000001 * bnd.width(dBnd);
@@ -335,7 +339,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
     }
     mdlprintf(pst->mdl(), "id: %d (%d) Zeroeth guess reverse split: %f (%f,%f)\n", pst->Self(), pst->depth(), fm, bnd.lower(dBnd), bnd.upper(dBnd));
     inWtWrap.fSplit = fm;
-    inWtWrap.fSplit2 = pst->fSplit;
+    inWtWrap.fSplit2 = dinfo.fSplit;
     inWtWrap.ittr = 0;
     inWtWrap.iSplitSide = 1;
     rID = mdl->ReqService<ServiceWeightWrap>(pst->upper(), inWtWrap);
@@ -383,7 +387,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
             fm = fmm;
             inWtWrap.iSplitDim = d;
             inWtWrap.fSplit = fm;
-            inWtWrap.fSplit2 = pst->fSplit;
+            inWtWrap.fSplit2 = dinfo.fSplit;
             inWtWrap.ittr = ittr;
             inWtWrap.iSplitSide = 1;
             rID = mdl->ReqService<ServiceWeightWrap>(pst->upper(), inWtWrap);
@@ -446,7 +450,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
             fm = fmm;
             inWtWrap.iSplitDim = d;
             inWtWrap.fSplit = fm;
-            inWtWrap.fSplit2 = pst->fSplit;
+            inWtWrap.fSplit2 = dinfo.fSplit;
             inWtWrap.ittr = ittr;
             inWtWrap.iSplitSide = 1;
             rID = mdl->ReqService<ServiceWeightWrap>(pst->upper(), inWtWrap);
@@ -502,7 +506,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
             fm = fmm;
             inWtWrap.iSplitDim = d;
             inWtWrap.fSplit = fm;
-            inWtWrap.fSplit2 = pst->fSplit;
+            inWtWrap.fSplit2 = dinfo.fSplit;
             inWtWrap.ittr = ittr;
             inWtWrap.iSplitSide = 1;
             rID = mdl->ReqService<ServiceWeightWrap>(pst->upper(), inWtWrap);
@@ -557,7 +561,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
             fm = fmm;
             inWtWrap.iSplitDim = d;
             inWtWrap.fSplit = fm;
-            inWtWrap.fSplit2 = pst->fSplit;
+            inWtWrap.fSplit2 = dinfo.fSplit;
             inWtWrap.ittr = ittr;
             inWtWrap.iSplitSide = 1;
             rID = mdl->ReqService<ServiceWeightWrap>(pst->upper(), inWtWrap);
@@ -602,7 +606,7 @@ void ServiceDomainDecomp::RootSplit(PST pst, int iSplitDim, int bDoRootFind, int
 
     mdlPrintTimer(pst->mdl(), "TIME Total Split _pstRootSplit ", &t);
     mdlprintf(pst->mdl(), "id: %d (%d) Chose reverse split: %f (%f,%f)\n", pst->Self(), pst->depth(), fm, bnd.lower(dBnd), bnd.upper(dBnd));
-    pst->fSplitInactive = fm;
+    dinfo.fSplitInactive = fm;
 
     std::vector<ServiceColRejects::output> lowerRej(pst->n_lower());
     std::vector<ServiceColRejects::output> upperRej(pst->n_upper());
@@ -774,8 +778,8 @@ int ServiceColRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
 int ServiceColRejects::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pkd = pst->lcl()->pkd;
     auto pOutRej = reinterpret_cast<output*>(vout.data());
-    auto& info = pst->lcl()->data<WeightInfo>();
-    std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdColRejects(pkd, info.nSplit);
+    auto& winfo = pst->lcl()->data<WeightInfo>();
+    std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdColRejects(pkd, winfo.nSplit);
     pOutRej->nSpace = pkdSwapSpace(pkd);
     pOutRej->nDecoratorSpace = pkdSwapDecoratorSpace(pkd);
     pOutRej->id = pst->Self();
@@ -873,7 +877,7 @@ int ServiceDomainOrder::Recurse(PST pst, std::span<std::byte> vin, std::span<std
 
 int ServiceDomainOrder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
-    pst->iOrdSplit = in->iMinOrder;
+    pst->data_emplace<OrderInfoPST>(OrderInfoPST{.iOrdSplit = in->iMinOrder});
     return 0;
 }
 
@@ -886,6 +890,7 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst, uint64_t iMinOrder, uint64_t iMax
     ServiceColOrdRejects::input inCol;
     int iRet, nOut, ittr;
     int rID;
+    auto& winfo = pst->data_ensure<OrderInfoPST>();
 
     /*
     ** First find out how much free storage there is available for particles
@@ -939,14 +944,14 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst, uint64_t iMinOrder, uint64_t iMax
     }
     mdlassert(pst->mdl(), nLow <= nLowerStore);
     mdlassert(pst->mdl(), nHigh <= nUpperStore);
-    pst->iOrdSplit = im;
+    winfo.iOrdSplit = im;
     /*
     ** Collect rejects.
     */
     std::vector<ServiceColRejects::output> lowerRej(pst->n_lower());
     std::vector<ServiceColRejects::output> upperRej(pst->n_upper());
     std::vector<int> pidSwap(mdl->Threads());
-    inCol.iOrdSplit = pst->iOrdSplit;
+    inCol.iOrdSplit = winfo.iOrdSplit;
     inCol.iSplitSide = 1;
     rID = mdl->ReqService<ServiceColOrdRejects>(pst->upper(), inCol);
     inCol.iSplitSide = 0;
@@ -963,7 +968,7 @@ uint64_t ServiceDomainOrder::OrdSplit(PST pst, uint64_t iMinOrder, uint64_t iMax
         nOut = GetReply(rID, upperRej);
         mdlassert(pst->mdl(), nOut / sizeof(ServiceSwapRejects::output) == pst->n_upper());
     }
-    return pst->iOrdSplit;
+    return winfo.iOrdSplit;
 }
 
 /*****************************************************************************\
@@ -978,7 +983,7 @@ int ServiceLocalOrder::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
     auto in = reinterpret_cast<input*>(vin.data());
     auto iMinOrder = in->iMinOrder;
     auto iMaxOrder = in->iMaxOrder;
-    auto iMidOrder = pst->iOrdSplit;
+    auto iMidOrder = pst->data<OrderInfoPST>().iOrdSplit;
     assert(iMidOrder >= iMinOrder && iMidOrder <= iMaxOrder);
     in->iMinOrder = iMidOrder;
     auto rID = mdl->ReqService<ServiceLocalOrder>(pst->upper(), vin);
@@ -1032,60 +1037,60 @@ int ServiceWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::byt
     auto out = reinterpret_cast<output*>(vout.data());
     auto fSplit = in->fSplit;
     auto iSplitSide = in->iSplitSide;
-    auto& info = plcl->data_ensure<WeightInfo>();
+    auto& winfo = plcl->data_ensure<WeightInfo>();
     if (in->ittr == 0) {
         /*
         ** Initialize.
         */
-        info.fSplit = fSplit;
+        winfo.fSplit = fSplit;
         if (in->pFlag == 0) {
-            info.iWtFrom = 0;
-            info.iWtTo = pkd->Local() - 1;
+            winfo.iWtFrom = 0;
+            winfo.iWtTo = pkd->Local() - 1;
         }
         else if (in->pFlag > 0) {
             /*
             ** Particles must be in the active-inactive order here!
             */
-            info.iWtFrom = 0;
-            info.iWtTo = pkdActive(pkd) - 1;
+            winfo.iWtFrom = 0;
+            winfo.iWtTo = pkdActive(pkd) - 1;
         }
         else {
             /*
             ** Particles must be in the active-inactive order here!
             */
-            info.iWtFrom = pkdActive(pkd);
-            info.iWtTo = pkd->Local() - 1;
+            winfo.iWtFrom = pkdActive(pkd);
+            winfo.iWtTo = pkd->Local() - 1;
         }
-        info.fWtLow = 0.0;
-        info.fWtHigh = 0.0;
+        winfo.fWtLow = 0.0;
+        winfo.fWtHigh = 0.0;
     }
     else {
         /*
         ** Update the Weight Sums and use smaller weight region.
         */
-        if (fSplit < info.fSplit) {
-            info.fWtHigh += info.fHigh;
-            if (iSplitSide) info.iWtFrom = info.iPart;
-            else info.iWtTo = info.iPart - 1;
+        if (fSplit < winfo.fSplit) {
+            winfo.fWtHigh += winfo.fHigh;
+            if (iSplitSide) winfo.iWtFrom = winfo.iPart;
+            else winfo.iWtTo = winfo.iPart - 1;
         }
         else {
-            info.fWtLow += info.fLow;
-            if (iSplitSide) info.iWtTo = info.iPart - 1;
-            else info.iWtFrom = info.iPart;
+            winfo.fWtLow += winfo.fLow;
+            if (iSplitSide) winfo.iWtTo = winfo.iPart - 1;
+            else winfo.iWtFrom = winfo.iPart;
         }
-        info.fSplit = fSplit;
+        winfo.fSplit = fSplit;
     }
 
     int nLow, nHigh;
     double fLow, fHigh;
-    info.iPart = pkdWeight(pkd, in->iSplitDim, fSplit, iSplitSide, info.iWtFrom, info.iWtTo, &nLow, &nHigh, &fLow, &fHigh);
+    winfo.iPart = pkdWeight(pkd, in->iSplitDim, fSplit, iSplitSide, winfo.iWtFrom, winfo.iWtTo, &nLow, &nHigh, &fLow, &fHigh);
 
     out->nLow = nLow;
     out->nHigh = nHigh;
-    out->fLow = fLow + info.fWtLow;
-    out->fHigh = fHigh + info.fWtHigh;
-    info.fLow = fLow;
-    info.fHigh = fHigh;
+    out->fLow = fLow + winfo.fWtLow;
+    out->fHigh = fHigh + winfo.fWtHigh;
+    winfo.fLow = fLow;
+    winfo.fHigh = fHigh;
     if (in->pFlag > 0) {
         if (iSplitSide) out->nLow -= pkdInactive(pkd);
         else out->nHigh -= pkdInactive(pkd);

@@ -15,6 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "reorder.h"
+#include "orderinfo.h"
 
 namespace NewDD {
 
@@ -23,7 +24,7 @@ int ServiceReorder::OffNode(PST pst, std::span<std::byte> vin, std::span<std::by
     auto in = reinterpret_cast<input*>(vin.data());
     auto thread = mdl->Self() + pst->n_lower();
     auto proc = mdl->ThreadToProc(thread);
-    pst->iOrdSplit = in->nPerProc * proc;
+    pst->data_emplace<OrderInfoPST>(OrderInfoPST{.iOrdSplit = in->nPerProc * proc});
     auto rID = ReqService(pst, vin);
     Traverse(pst->lower(), vin, vout);
     GetReply(rID);
@@ -41,7 +42,7 @@ int ServiceReorder::AtNode(PST pst, std::span<std::byte> vin, std::span<std::byt
 int ServiceReorder::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto mdl = pst->mdl();
     auto in = reinterpret_cast<input*>(vin.data());
-    pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * (pst->n_lower() + mdl->Core());
+    pst->data_emplace<OrderInfoPST>(OrderInfoPST{.iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * (pst->n_lower() + mdl->Core())});
     auto rID = ReqService(pst, vin);
     Traverse(pst->lower(), vin, vout);
     GetReply(rID);
@@ -53,7 +54,7 @@ int ServiceReorder::Service(PST pst, std::span<std::byte> vin, std::span<std::by
     auto pkd = pst->lcl()->pkd;
     auto mdl = pst->mdl();
 
-    pst->iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * mdl->Core();
+    pst->data_emplace<OrderInfoPST>(OrderInfoPST{.iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * mdl->Core()});
 
     auto reorder = [](auto& particles, auto base) {
         auto get_bin = [base](auto& p) { return p.order() - base; };
