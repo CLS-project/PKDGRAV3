@@ -154,6 +154,8 @@ class TraverseGatherPST : public TraversePST {
   public:
     explicit TraverseGatherPST(PST node_pst, std::string_view service_name, int nInBytes, int nOutBytes)
         : TraversePST(node_pst, service_name, nInBytes, nOutBytes) {}
+    explicit TraverseGatherPST(PST node_pst, std::string_view service_name, int nInBytes = 0)
+        : TraversePST(node_pst, service_name, nInBytes, node_pst->mdl()->Threads() * sizeof(typename Derived::output)) {}
     virtual ~TraverseGatherPST() = default;
 
   protected:

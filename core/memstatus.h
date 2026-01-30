@@ -16,7 +16,7 @@ class ServiceMemStatus : public TraverseGatherPST<ServiceMemStatus> {
         uint64_t nBytesIlp;
         uint64_t nBytesIlc;
     };
-    explicit ServiceMemStatus(PST pst) : TraverseGatherPST(pst, name, 0, sizeof(output) * pst->mdl()->Threads()) {}
+    explicit ServiceMemStatus(PST pst) : TraverseGatherPST(pst, name) {}
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int final;
