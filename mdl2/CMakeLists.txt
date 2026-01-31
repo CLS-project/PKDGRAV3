@@ -3,11 +3,14 @@ cmake_policy(VERSION 3.12...3.22)
 if(POLICY CMP0144)
     cmake_policy(SET CMP0144 NEW)
 endif()
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
 # Find Boost in the old way for now
 # Not sure how the new way can work with spack
-if(POLICY CMP0167)
-    cmake_policy(SET CMP0167 OLD)
-endif()
+# if(POLICY CMP0167)
+#     cmake_policy(SET CMP0167 OLD)
+# endif()
 include(CheckLanguage)
 include(FindPkgConfig)
 
@@ -80,7 +83,18 @@ check_symbol_exists(clock_gettime time.h HAVE_CLOCK_GETTIME)
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
 find_package(elfutils QUIET)
-find_package(Boost REQUIRED)
+
+if (NOT TARGET Boost::boost AND NOT TARGET Boost::headers)
+  set(BOOST_INCLUDE_LIBRARIES headers)
+  include(FetchContent)
+  FetchContent_Declare(
+      Boost
+      URL https://github.com/boostorg/boost/releases/download/boost-1.90.0/boost-1.90.0-cmake.tar.xz
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+      FIND_PACKAGE_ARGS
+  )
+  FetchContent_MakeAvailable(Boost)
+endif()
 
 add_library(${PROJECT_NAME} STATIC "")
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
@@ -172,7 +186,11 @@ if(HAVE_MEMKIND)
 find_library(MEMKIND_LIBRARY memkind)
 target_link_libraries(${PROJECT_NAME} ${MEMKIND_LIBRARY})
 endif()
-target_link_libraries(${PROJECT_NAME} Boost::boost)
+if(TARGET Boost::boost)
+  target_link_libraries(${PROJECT_NAME} Boost::boost)
+else()
+  target_link_libraries(${PROJECT_NAME} Boost::headers)
+endif()
 
 if (APPLE AND METAL AND FOUNDATION AND QUARTZCORE)
   target_link_libraries(${PROJECT_NAME} mdlmetal)

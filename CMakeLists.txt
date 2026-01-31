@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.14)
 cmake_policy(VERSION 3.14...3.22)
 if(POLICY CMP0144)
-    cmake_policy(SET CMP0144 NEW)
+    cmake_policy(SET CMP0144 NEW) # 3.27
 endif()
 if(POLICY CMP0094)
-    cmake_policy(SET CMP0094 NEW)
+    cmake_policy(SET CMP0094 NEW) # 3.15
+endif()
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW) # 3.30
 endif()
 include(CheckLanguage)
 include(CheckFunctionExists)
@@ -123,6 +126,27 @@ check_c_source_compiles("
 " _GNU_SOURCE)
 if (_GNU_SOURCE)
   set(CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
+endif()
+
+include(FetchContent)
+#set(FETCHCONTENT_QUIET OFF)
+set(BOOST_INCLUDE_LIBRARIES
+    headers
+    unordered
+)
+FetchContent_Declare(
+    Boost
+    URL https://github.com/boostorg/boost/releases/download/boost-1.90.0/boost-1.90.0-cmake.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    FIND_PACKAGE_ARGS 1.81.0
+)
+FetchContent_MakeAvailable(Boost)
+add_library(pkdgrav3_boost INTERFACE)
+add_library(PKDGRAV3::boost ALIAS pkdgrav3_boost)
+if (TARGET Boost::boost)
+  target_link_libraries(pkdgrav3_boost INTERFACE Boost::boost)
+else()
+  target_link_libraries(pkdgrav3_boost INTERFACE Boost::headers Boost::unordered)
 endif()
 
 # Check for restrict keyword
@@ -642,6 +666,7 @@ target_link_libraries(${PROJECT_NAME} mdl2 pkdcuda pkdmetal)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} blitz fmt)
+target_link_libraries(${PROJECT_NAME} PKDGRAV3::boost)
 
 enable_testing()
 add_test(NAME cosmology   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}      ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test-files)
