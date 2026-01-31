@@ -58,6 +58,7 @@
     #include "core/cachestats.h"
 #endif
 #include "io/service.h"
+#include "io/readfile.h"
 #include "io/restore.h"
 #include "io/write.h"
 #include "ic/ic.h"
@@ -146,7 +147,6 @@ void* worker_init(MDL vmdl) {
     LCL* plcl = new LCL;
     plcl->pkd = NULL;
     auto pst = new pstNode(mdl, plcl);
-    pstAddServices(pst, mdl);
     mdl->AddService<ServiceSmooth>(pst);
     mdl->AddService<ServiceReSmooth>(pst);
 #ifdef OPTIM_REORDER_IN_NODES
@@ -213,6 +213,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceRemoveDeleted>(pst);
     mdl->AddService<ServiceFileSizes>(pst);
     mdl->AddService<ServiceSetTotal>(pst);
+    mdl->AddService<ServiceReadFile>(pst);
+    mdl->AddService<ServiceOneNodeReadInit>(pst);
     mdl->AddService<ServiceSetWriteStart>(pst);
     mdl->AddService<ServiceWrite>(pst);
     mdl->AddService<ServiceOutputBinary>(pst);

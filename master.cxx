@@ -139,10 +139,12 @@ struct fmt::formatter<DeferFormat> {
 #include "core/countspecies.h"
 #include "core/removedeleted.h"
 #include "core/decorator_reorder.h"
+#include "io/readfile.h"
 #include "io/restore.h"
 #include "io/output.h"
 #include "io/classes.h"
 #include "io/ascii.h"
+#include "io/readfile.h"
 #include "io/write.h"
 #include "ic/ic.h"
 #include "analysis/lightcone.h"
@@ -1164,69 +1166,6 @@ void MSR::SetClasses() {
 void MSR::SwapClasses(int id) {
     auto pkd = pst->lcl()->pkd;
     pkd->swap_classes(id);
-}
-
-void MSR::OneNodeRead(struct inReadFile* in, FIO fio) {
-    int id;
-    LCL* plcl = pst->lcl();
-    ServiceSwapAll::input inswap;
-    int rID;
-    fioSpeciesList nRead, nStart, nBasePart;
-    for (auto s = FIO_SPECIES(0); s < FIO_SPECIES_LAST; s = FIO_SPECIES(s + 1)) {
-        // NB: The first nBasePart particles are read by this thread at the end
-        // of this function
-        nBasePart[s] = (in->nSpeciesEnd[s] - in->nSpeciesStart[s]) / nThreads;
-        nStart[s] = in->nSpeciesStart[s] + nBasePart[s];
-        nRead[s] = 0;
-    }
-
-    for (id = 1; id < nThreads; ++id) {
-        for (auto s = FIO_SPECIES(0); s < FIO_SPECIES_LAST; s = FIO_SPECIES(s + 1)) {
-            if (nBasePart[s] == 0) continue;
-            auto mod = (in->nSpeciesEnd[s] - in->nSpeciesStart[s]) % nThreads;
-
-            auto nPart = nBasePart[s];
-            if (id >= nThreads - mod) nPart++;
-            /*
-             * Read particles into the local storage.
-             */
-            assert(plcl->pkd->FreeStore() >= nPart);
-            pkdReadFIO(plcl->pkd, fio, nStart[s], nPart, in->dvFac, in->dTuFac, FIO_SPECIES(s));
-            nStart[s] += nPart;
-            nRead[s] += nPart;
-        }
-        /*
-         * Now shove them over to the remote processor.
-         */
-        SwapClasses(id);
-        inswap.idSwap = 0;
-        rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
-        pkdSwapAll(plcl->pkd, id);
-        pst->mdl()->GetReply(rID);
-    }
-    for (auto s = FIO_SPECIES(0); s < FIO_SPECIES_LAST; s = FIO_SPECIES(s + 1)) {
-        if (nBasePart[s] == 0) {
-            // It may happen that we have so little particles that we can
-            // not divide them by threads, so we just load it here
-            auto mod = (in->nSpeciesEnd[s] - in->nSpeciesStart[s]) % nThreads;
-            if (mod) {
-                nBasePart[s] = mod;
-            }
-            else {
-                continue;
-            }
-        }
-        /*
-         * Now read our own particles.
-         */
-        pkdReadFIO(plcl->pkd, fio, 0, nBasePart[s], in->dvFac, in->dTuFac, FIO_SPECIES(s));
-        nRead[s] += nBasePart[s];
-    }
-
-    assert(nRead[FIO_SPECIES_DARK] == nDark);
-    assert(nRead[FIO_SPECIES_SPH] == nGas);
-    assert(nRead[FIO_SPECIES_STAR] == nStar);
-    assert(nRead[FIO_SPECIES_BH] == nBH);
 }
 
 double MSR::SwitchDelta(double dTime, int iStep) {
@@ -3708,24 +3647,22 @@ double MSR::Read(std::string_view achInFile) {
     FIO fio;
     double dsec;
     fioSpeciesList nSpecies;
-    inReadFileFilename achFilename;
     uint64_t mMemoryModel = 0;
 
     mMemoryModel = getMemoryModel();
 
     TimerStart(TIMER_NONE);
 
-    auto nBytes = PST_MAX_FILES * (sizeof(fioSpeciesList) + PATH_MAX);
-    std::unique_ptr<char[]> buffer{new char[sizeof(inReadFile) + nBytes]};
-    auto read = new (buffer.get()) inReadFile;
+    auto nBytes = ServiceReadFile::max_files * (sizeof(fioSpeciesList) + PATH_MAX);
+    std::unique_ptr<std::byte[]> buffer{new std::byte[sizeof(ServiceReadFile::input) + nBytes]};
+    auto read = new (buffer.get()) ServiceReadFile::input;
 
     /* Add Data Subpath for local and non-local names. */
-    marshal_string(achFilename, achInFile);
-    print("Reading from {}\n", achFilename);
-    fio = fioOpen(achFilename, csm->val.dOmega0, csm->val.dOmegab);
+    print("Reading from {}\n", achInFile);
+    fio = fioOpen(achInFile.data(), csm->val.dOmega0, csm->val.dOmegab);
     if (fio == NULL) {
         print_error("ERROR: unable to open input file\n");
-        perror(achFilename);
+        perror(achInFile.data());
         Exit(1);
     }
     nBytes = fioDump(fio, nBytes, read + 1);
@@ -3789,22 +3726,15 @@ double MSR::Read(std::string_view achInFile) {
     SetDerivedParameters();
     read->dTuFac = dTuFac;
 
-    if (read->nProcessors > 1) {
-        fioClose(fio);
-        // NB: For the parallel read, the nSpeciesEnd is the index of the last
-        // element to be read, whereas for the serial read (OneNodeRead) it holds
-        // the number of elements to read (always per-species)
-        for (auto s = FIO_SPECIES(0); s <= FIO_SPECIES_LAST; s = FIO_SPECIES(s + 1)) {
-            if (nSpecies[s] > 0) {
-                read->nSpeciesEnd[s] -= 1;
-            }
+    fioClose(fio);
+    // NB: For the parallel read, the nSpeciesEnd is the index of the last
+    // element to be read.
+    for (auto s = FIO_SPECIES(0); s <= FIO_SPECIES_LAST; s = FIO_SPECIES(s + 1)) {
+        if (nSpecies[s] > 0) {
+            read->nSpeciesEnd[s] -= 1;
         }
-        pstReadFile(pst, read, sizeof(struct inReadFile) + nBytes, NULL, 0);
     }
-    else {
-        OneNodeRead(read, fio);
-        fioClose(fio);
-    }
+    mdl->RunService<ServiceReadFile>(std::span<std::byte>(buffer.get(), sizeof(ServiceReadFile::input) + nBytes));
 
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);

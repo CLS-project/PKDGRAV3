@@ -14,15 +14,11 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef PST_HINCLUDED
-#define PST_HINCLUDED
+#pragma once
 
 #include "pkd.h"
 #include "mdl.h"
-#include "io/outtype.h"
 #include "core/dataregistry.h"
-#include <cstdint>
 
 struct LCL : private DataRegistryOwner {
     using DataRegistryOwner::data;
@@ -86,38 +82,3 @@ class pstNode : private DataRegistryOwner {
     }
 };
 using PST = pstNode*;
-
-#define PST_MAX_FILES 16384
-
-namespace Legacy {
-inline constexpr std::string_view ReadFile = "ReadFile";
-inline constexpr std::string_view OneNodeReadInit = "OneNodeReadInit";
-} // namespace Legacy
-
-// Legacy service IDs. These will be removed in the future.
-enum pst_service {
-    PST_SRV_STOP = 0, /* service 0 is always STOP and handled by MDL */
-    PST_READFILE,
-    PST_ONENODEREADINIT,
-};
-
-void pstAddServices(PST, mdl::mdlClass*);
-
-/* PST_READFILE */
-struct inReadFile {
-    fioSpeciesList nSpeciesStart;
-    fioSpeciesList nSpeciesEnd;
-    double dvFac;
-    double dTuFac;
-    double dOmega0;
-    double dOmegab;
-    int nProcessors;
-    /*char achFilename[PATH_MAX];*/
-};
-typedef char inReadFileFilename[PATH_MAX];
-int pstReadFile(PST, void*, int, void*, int);
-
-/* PST_ONENODEREADINIT */
-int pstOneNodeReadInit(PST pst, void* vin, int nIn, void* vout, int nOut);
-
-#endif

@@ -16,6 +16,7 @@
  */
 #include "ascii.h"
 #include "io/service.h"
+#include "io/outtype.h"
 
 auto ServiceCompressASCII::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto plcl = pst->lcl();

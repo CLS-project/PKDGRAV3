@@ -411,7 +411,6 @@ class MSR {
     auto GetClasses() -> std::vector<PARTCLASS>;
     void SetClasses();
     void SwapClasses(int id);
-    void OneNodeRead(struct inReadFile* in, FIO fio);
     void AllNodeWrite(std::string_view FileName, double dTime, double dvFac, int bDouble);
     auto SetTotal() -> uint64_t;
     auto CalcWriteStart() -> uint64_t;
