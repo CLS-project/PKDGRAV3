@@ -36,7 +36,7 @@ auto ServiceSwapClasses::Recurse(PST pst, std::span<std::byte> vin, std::span<st
 auto ServiceSwapClasses::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = span_cast<const PARTCLASS>(vin);
     auto out = span_cast<PARTCLASS>(vout);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto classes = pkd->particles.getClasses();
     std::ranges::copy(classes, out.begin());
     pkd->particles.setClasses(in, false);
@@ -45,7 +45,7 @@ auto ServiceSwapClasses::Service(PST pst, std::span<std::byte> vin, std::span<st
 
 auto ServiceGetClasses::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto out = span_cast<PARTCLASS>(vout);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     // Get the list of particle classes, copy to output and sort
     auto classes = pkd->particles.getClasses();
     assert(out.size() >= classes.size());
@@ -70,7 +70,7 @@ auto ServiceGetClasses::Combine(std::span<std::byte> vout1, std::span<const std:
 
 auto ServiceSetClasses::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = span_cast<const PARTCLASS>(vin);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->particles.setClasses(in, true); // update existing particles
     return 0;
 }

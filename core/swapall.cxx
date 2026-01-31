@@ -26,7 +26,7 @@ static_assert(std::is_void_v<ServiceSwapAll::output> || std::is_trivial_v<Servic
 int ServiceSwapAll::operator()(std::span<std::byte> In, std::span<std::byte> Out) {
     auto in = reinterpret_cast<input*>(In.data());
     static_assert(std::is_void_v<output>);
-    auto pkd = node_pst->lcl()->pkd;
+    auto pkd = node_pst->pkd();
     assert(In.size() == sizeof(input));
     pkdSwapAll(pkd, in->idSwap);
     return 0;

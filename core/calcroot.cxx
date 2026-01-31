@@ -41,7 +41,7 @@ int ServiceCalcRoot::Service(PST pst, std::span<std::byte> vin, std::span<std::b
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vin.size() == sizeof(input));
     assert(vout.size() == sizeof(output));
-    pkdCalcRoot(pst->lcl()->pkd, in->uRoot, in->com, out->momc);
+    pkdCalcRoot(pst->pkd(), in->uRoot, in->com, out->momc);
     return sizeof(output);
 }
 

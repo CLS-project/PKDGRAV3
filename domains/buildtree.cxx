@@ -19,8 +19,7 @@
 #include "buildtree.h"
 
 auto ServiceBuildTree::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
+    auto pkd = pst->pkd();
     auto pTop = pkd->tree[reinterpret_cast<KDN*>(vout.data())];
 
     auto out = vout.subspan(pkd->tree.ElementSize());                  // The two subtrees
@@ -56,8 +55,7 @@ auto ServiceBuildTree::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
 }
 
 auto ServiceBuildTree::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
+    PKD pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto pTop = pkd->tree[reinterpret_cast<KDN*>(vout.data())];
 
@@ -81,7 +79,7 @@ auto ServiceTreeUpdateFlagBounds::build_tree(PKD pkd, std::span<std::byte> in) -
 }
 
 auto ServiceTreeInitMarked::Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->TreeInitMarked();
     return 0;
 }

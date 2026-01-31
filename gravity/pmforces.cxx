@@ -28,7 +28,7 @@ auto ServiceLinearKick::Service(PST pst, std::span<std::byte> vin, std::span<std
     auto in = reinterpret_cast<const input*>(vin.data());
     assert(vin.size() == sizeof(input));
     assert(vout.size() == 0);
-    pst->lcl()->pkd->LinearKick(in->dtOpen, in->dtClose);
+    pst->pkd()->LinearKick(in->dtOpen, in->dtClose);
     return 0;
 }
 
@@ -139,7 +139,7 @@ auto ServiceSetLinearGrid::Service(PST pst, std::span<std::byte> vin, std::span<
     auto in = reinterpret_cast<const input*>(vin.data());
     assert(vin.size() == sizeof(input));
     assert(vout.size() == 0);
-    pst->lcl()->pkd->SetLinearGrid(in->a0, in->a, in->a1, in->dBSize, in->nGrid, in->iSeed, in->bFixed, in->fPhase);
+    pst->pkd()->SetLinearGrid(in->a0, in->a, in->a1, in->dBSize, in->nGrid, in->iSeed, in->bFixed, in->fPhase);
     return 0;
 }
 
@@ -415,7 +415,7 @@ void pkdContext::MeasureLinearPk(int nGrid, double dA, double dBoxSize, int nBin
 }
 
 auto ServiceMeasureLinearPk::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vin.size() == sizeof(input));

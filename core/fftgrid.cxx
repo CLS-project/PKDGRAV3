@@ -34,7 +34,7 @@ auto ServiceGridCreateFFT::Service(PST pst, std::span<std::byte> vin, std::span<
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vin.size() == sizeof(input));
     assert(vout.size() == sizeof(output));
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto [nMaxLocal, rs, rn, ks, kn] = pkd->GridCreateFFT(in->nGrid);
     *out = {.nMaxLocal = nMaxLocal, .nMaxZ = rn, .nMaxY = kn};
     return sizeof(output);
@@ -49,7 +49,7 @@ auto pkdContext::GridCreateFFT(int nGrid) -> std::tuple<size_t, int, int, int, i
 auto ServiceGridDeleteFFT::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     assert(vin.size() == 0);
     assert(vout.size() == 0);
-    pst->lcl()->pkd->GridDeleteFFT();
+    pst->pkd()->GridDeleteFFT();
     return 0;
 }
 

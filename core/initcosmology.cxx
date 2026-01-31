@@ -25,6 +25,6 @@ int ServiceInitCosmology::Service(PST pst, std::span<std::byte> vin, std::span<s
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
     assert(vin.size() == sizeof(input));
-    pkdInitCosmology(pst->lcl()->pkd, in);
+    pkdInitCosmology(pst->pkd(), in);
     return 0;
 }

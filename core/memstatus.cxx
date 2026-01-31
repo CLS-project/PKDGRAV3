@@ -4,7 +4,7 @@
 #include "memstatus.h"
 
 auto ServiceMemStatus::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto out = reinterpret_cast<output*>(vout.data());
 #ifdef __linux__
     FILE* fp;

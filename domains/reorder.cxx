@@ -51,7 +51,7 @@ int ServiceReorder::Recurse(PST pst, std::span<std::byte> vin, std::span<std::by
 
 int ServiceReorder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto mdl = pst->mdl();
 
     pst->data_emplace<OrderInfoPST>(OrderInfoPST{.iOrdSplit = in->nPerProc * mdl->Proc() + in->nPerCore * mdl->Core()});

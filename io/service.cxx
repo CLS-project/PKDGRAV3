@@ -183,7 +183,7 @@ void ServiceOutput::IO(PST pst, std::span<std::byte> vin, int iGroup, int iSegme
 
 auto ServiceSetTotal::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto out = reinterpret_cast<ServiceSetTotal::output*>(vout.data());
-    *out = pst->lcl()->pkd->Local();
+    *out = pst->pkd()->Local();
     pst->data_emplace<InfoPST>(InfoPST{.nTotal = *out});
     return sizeof(output);
 }

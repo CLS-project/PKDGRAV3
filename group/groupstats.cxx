@@ -29,7 +29,7 @@ using blitz::where;
 
 auto ServiceGroupStats::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->CalculateGroupStats(in->bPeriodic, in->dPeriod, in->rEnvironment, in->iGlobalStart);
     return 0;
 }

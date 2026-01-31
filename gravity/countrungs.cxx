@@ -24,7 +24,7 @@ static_assert(std::is_void_v<ServiceCountRungs::output> || std::is_standard_layo
 int ServiceCountRungs::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     static_assert(std::is_void_v<input>);
     auto& out = *reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     out = 0;
     for (auto& p : pkd->particles) ++out[p.rung()];
     pkd->nRung = out;

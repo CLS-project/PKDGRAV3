@@ -7,7 +7,7 @@ using blitz::TinyVector;
 auto ServiceHydroGradients::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto helper = std::make_shared<SmoothHelperHydroGradients>(pkd, in->bConditionedBarthJespersen, in->bStricterSlopeLimiter);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
 #ifdef OPTIM_SMOOTH_NODE

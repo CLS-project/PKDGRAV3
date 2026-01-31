@@ -27,7 +27,7 @@ static_assert(std::is_void_v<ServiceUpdateGasValues::output> || std::is_trivial_
 int ServiceUpdateGasValues::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast</*const*/ input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->UpdateGasValues(&in->kick, &in->SPHoptions);
     return 0;
 }

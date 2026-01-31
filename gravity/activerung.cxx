@@ -24,7 +24,7 @@ static_assert(std::is_void_v<ServiceActiveRung::output> || std::is_trivial_v<Ser
 int ServiceActiveRung::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->ActiveRung(in->iRung, in->bGreater != 0);
     return 0;
 }

@@ -20,9 +20,10 @@
 
 auto ServiceCompressASCII::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto plcl = pst->lcl();
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto& pkdout = plcl->data_emplace<PKDOUT>(plcl->pkd, in->iFile, in->iType);
+    auto& pkdout = plcl->data_emplace<PKDOUT>(pkd, in->iFile, in->iType);
     if (pst->Self() == 0 && in->iDim == 0) {
         pkdout.OutHdr(in->nTotal);
     }
@@ -44,12 +45,13 @@ auto ServiceCompressASCII::Combine(std::span<std::byte> vout1, std::span<const s
 
 auto ServiceWriteASCII::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto plcl = pst->lcl();
+    auto pkd = pst->pkd();
     auto nWriteStart = plcl->data<ServiceSetWriteStart::InfoLCL>().nWriteStart;
     auto& pkdout = plcl->data<PKDOUT>();
     auto in = reinterpret_cast<const input*>(vin.data());
     FILE* fp = fopen(in->achOutFile, "r+");
 
-    mdlassert(plcl->pkd->mdl, fp != NULL);
+    mdlassert(pkd->mdl, fp != NULL);
     setvbuf(fp, NULL, _IOFBF, PKDOUT_BUFFER_SIZE);
     fseeko(fp, in->nFileOffset + nWriteStart, SEEK_SET);
     pkdout.DumpOutASCII(fp);

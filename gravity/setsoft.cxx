@@ -24,7 +24,7 @@ static_assert(std::is_void_v<ServiceSetSoft::output> || std::is_trivial_v<Servic
 int ServiceSetSoft::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkdSetSoft(pkd, in->dSoft);
     return 0;
 }

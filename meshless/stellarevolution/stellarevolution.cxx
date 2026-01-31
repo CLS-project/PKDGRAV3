@@ -55,7 +55,7 @@ struct SmoothChemEnrich : smooth::policy::OnlyGas {
 auto ServiceChemEnrich::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto helper = std::make_shared<SmoothHelperChemEnrich>(pkd, in->dTime, in->dWindSpecificEkin, in->dCCSNMinMass, in->dSNIaNorm, in->dSNIaScale);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
     *out = smx.Smooth<SmoothChemEnrich>({
@@ -520,7 +520,7 @@ auto pkdStellarEvolutionInit(PKD pkd, const ServiceStellarEvolutionInit::input* 
 }
 
 auto ServiceStellarEvolutionInit::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const struct input*>(vin.data());
     pkdStellarEvolutionInit(pkd, in);
     return 0;

@@ -18,7 +18,7 @@
 #include "io/iochunk.h"
 
 void ServiceRsSaveIds::Write(PST pst, std::span<std::byte> vin, int iGroup, const std::string& filename, int iSegment, int nSegment) {
-    pst->lcl()->pkd->RsIdSave(iGroup, filename, iSegment, nSegment);
+    pst->pkd()->RsIdSave(iGroup, filename, iSegment, nSegment);
 }
 
 void pkdContext::RsIdSave(int iGroup, const std::string& filename, int iSegment, int nSegment) {

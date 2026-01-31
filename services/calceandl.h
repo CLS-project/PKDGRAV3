@@ -28,7 +28,7 @@ class ServiceCalcEandL : public TraverseCount<ServiceCalcEandL> {
   protected:
     auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
         auto* out = reinterpret_cast<output*>(vout.data());
-        pst->lcl()->pkd->CalcEandL(out->T, out->U, out->Eth, out->L, out->F, out->W);
+        pst->pkd()->CalcEandL(out->T, out->U, out->Eth, out->L, out->F, out->W);
         return sizeof(output);
     }
 };

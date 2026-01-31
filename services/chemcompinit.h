@@ -23,7 +23,7 @@ class ServiceChemCompInit : public TraversePST {
   protected:
     auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
         auto* in = reinterpret_cast<const input*>(vin.data());
-        pst->lcl()->pkd->ChemCompInit(in->H, in->He, in->C, in->N, in->O, in->Ne, in->Mg, in->Si, in->Fe, in->Metallicity);
+        pst->pkd()->ChemCompInit(in->H, in->He, in->C, in->N, in->O, in->Ne, in->Mg, in->Si, in->Fe, in->Metallicity);
         return 0;
     }
 };

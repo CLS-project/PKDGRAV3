@@ -21,7 +21,7 @@
 using blitz::TinyVector;
 
 auto ServiceMaxRung::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto& out = *reinterpret_cast<output*>(vout.data());
     out.uMaxRung = pkd->MaxRung();
     return sizeof(output);
@@ -34,7 +34,7 @@ auto pkdContext::MaxRung() -> uint8_t {
 }
 
 auto ServiceSetGlobalRung::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     pkd->SetGlobalRung(in->uMaxRung);
     return 0;
@@ -62,7 +62,7 @@ static inline auto DtToRung(double dT, double dDelta, uint8_t uMaxRung) -> uint8
 
 auto ServiceAccelStep::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->AccelStep(in->uRungLo, in->uRungHi, in->dDelta, in->iMaxRung, in->dEta, in->dVelFac, in->dAccFac, in->bDoGravity, in->bEpsAcc, in->dhMinOverSoft);
     return 0;
 }
@@ -93,7 +93,7 @@ void pkdContext::AccelStep(uint8_t uRungLo, uint8_t uRungHi, double dDelta, int 
 
 auto ServiceDensityStep::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->DensityStep(in->uRungLo, in->uRungHi, in->iMaxRung, in->dDelta, in->dEta, in->dRhoFac);
     return 0;
 }
@@ -110,7 +110,7 @@ void pkdContext::DensityStep(uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, dou
 
 auto ServiceKick::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->Kick(in->dTime, in->dDelta, in->bDoGas, in->dDeltaVPred, in->dDeltaU, in->dDeltaUPred, in->uRungLo, in->uRungHi);
     return 0;
 }
@@ -143,7 +143,7 @@ void pkdContext::Kick(double dTime, double dDelta, int bDoGas, double dDeltaVPre
 
 auto ServiceDrift::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->Drift(in->iRoot, in->dTime, in->dDelta, in->dDeltaVPred, in->dDeltaUPred, in->bDoGas, in->bGasEvolveDensity);
     return 0;
 }

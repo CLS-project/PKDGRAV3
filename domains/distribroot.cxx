@@ -24,7 +24,7 @@ static_assert(std::is_void_v<ServiceDistribRoot::output> || std::is_trivial_v<Se
 int ServiceDistribRoot::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->DistribRoot(in->r, &in->momc);
     return 0;
 }

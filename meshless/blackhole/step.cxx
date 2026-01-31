@@ -5,7 +5,7 @@
 auto ServiceBHStep::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto helper = std::make_shared<SmoothHelperBHstep>(pkd);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
     *out = smx.Smooth<smooth::policy::OnlyBH>();

@@ -18,14 +18,14 @@
 #include "io/iochunk.h"
 
 void ServiceRsLoadIds::Read(PST pst, uint64_t iElement, const std::string& filename, uint64_t iBeg, uint64_t iEnd) {
-    pst->lcl()->pkd->RsIdRead(iElement, filename, iBeg, iEnd);
+    pst->pkd()->RsIdRead(iElement, filename, iBeg, iEnd);
 }
 void ServiceRsLoadIds::start(PST pst, uint64_t nElements, std::span<std::byte> vin) {
     auto in = reinterpret_cast<input*>(vin.data());
-    pst->lcl()->pkd->RsIdStart(nElements, in->bAppend);
+    pst->pkd()->RsIdStart(nElements, in->bAppend);
 }
 void ServiceRsLoadIds::finish(PST pst, uint64_t nElements, std::span<std::byte> vin) {
-    pst->lcl()->pkd->RsIdFinish(nElements);
+    pst->pkd()->RsIdFinish(nElements);
 }
 void pkdContext::RsIdStart(uint64_t nElements, bool bAppend) {
     if (!bAppend) nRsElements = 0;

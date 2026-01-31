@@ -537,7 +537,7 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
 
     ServiceInitializePStore::output pout;
     mdl->RunService<ServiceInitializePStore>(ps, pout);
-    PKD pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     print("Allocated {} MB for {} particles on each processor.\n", pkd->ParticleMemory() / (1024 * 1024), pkd->FreeStore());
     print("Allocated {} MB for {} decorators on each processor.\n", pkd->DecoratorMemory() / (1024 * 1024), pkd->FreeDecoratorStore());
     print("Particles: {} bytes (persistent) + {} bytes (decorator) + {} bytes (ephemeral) , Nodes: {} bytes\n", pkd->particles.ParticleSize(),
@@ -1059,7 +1059,6 @@ void MSR::SetDerivedParameters(bool bRestart) {
 }
 
 void MSR::Initialize() {
-    lcl.pkd = NULL;
     nThreads = mdl->Threads();
     lStart = time(0);
     fCenter = 0; // Center is at (0,0,0)
@@ -1164,7 +1163,7 @@ void MSR::SetClasses() {
 }
 
 void MSR::SwapClasses(int id) {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->swap_classes(id);
 }
 
@@ -1193,7 +1192,7 @@ double MSR::getVfactor(double dExpansion) {
 }
 
 void MSR::RecvArray(void* vBuffer, PKD_FIELD field, int iUnitSize, double dTime, bool bMarked) {
-    PKD pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     ServiceSendArray::input in{
         .dvFac =
             [&] {
@@ -1590,8 +1589,7 @@ void MSR::DomainDecomp(int iRung) {
 void MSR::BuildTree(int bNeedEwald, uint32_t uRoot, uint32_t utRoot) {
     ServiceBuildTree::input in;
     const double ddHonHLimit = parameters.get_ddHonHLimit();
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
+    auto pkd = pst->pkd();
     double dsec;
 
     auto nTopTree = pkd->NodeSize() * (2 * nThreads - 1);
@@ -1791,6 +1789,7 @@ void MSR::Reorder() {
 
 void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
     LCL* plcl = pst->lcl();
+    auto pkd = pst->pkd();
     int id, iDim;
     ServiceSwapAll::input inswap;
     PKDOUT* pkdout;
@@ -1857,7 +1856,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
         }
     }
     else {
-        PKDOUT pkdout(plcl->pkd, achOutFile, iFileType, iType);
+        PKDOUT pkdout(pkd, achOutFile, iFileType, iType);
 
         pkdout.OutHdr(total);
 
@@ -1872,7 +1871,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
                  */
                 inswap.idSwap = 0;
                 rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
-                pkdSwapAll(plcl->pkd, id);
+                pkdSwapAll(pkd, id);
                 pst->mdl()->GetReply(rID);
                 /*
                  * Write the swapped particles.
@@ -1883,7 +1882,7 @@ void MSR::OutASCII(std::string_view File, int iType, int nDims, int iFileType) {
                  */
                 inswap.idSwap = 0;
                 rID = mdl->ReqService<ServiceSwapAll>(id, inswap);
-                pkdSwapAll(plcl->pkd, id);
+                pkdSwapAll(pkd, id);
                 pst->mdl()->GetReply(rID);
             }
         }
@@ -4372,8 +4371,7 @@ void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double d
 void MSR::TreeUpdateFlagBounds(int bNeedEwald, uint32_t uRoot, uint32_t utRoot, SPHOptions SPHoptions) {
     ServiceTreeUpdateFlagBounds::input in;
     const double ddHonHLimit = parameters.get_ddHonHLimit();
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
+    auto pkd = pst->pkd();
     double sec, dsec;
 
     auto nTopTree = pkd->NodeSize() * (2 * nThreads - 1);
@@ -4463,6 +4461,7 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, blitz::TinyVector<doub
     int nBinsInner;
     total_t N, n;
     LCL* plcl = pst->lcl();
+    auto pkd = pst->pkd();
 
     assert(dMinRadius <= dLogRadius);
     assert(dLogRadius <= dMaxRadius);
@@ -4580,7 +4579,7 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, blitz::TinyVector<doub
     /*
     ** Finalize bin values
     */
-    pBins = plcl->pkd->profileBins;
+    pBins = pkd->profileBins;
     for (i = 0; i < nBins + 1; i++) {
         if (pBins[i].dMassInBin > 0.0) {
             pBins[i].vel_radial /= pBins[i].dMassInBin;
@@ -4598,7 +4597,7 @@ void MSR::Profile(const PROFILEBIN** ppBins, int* pnBins, blitz::TinyVector<doub
     dsec = Time() - sec;
     print_detail("Profiling complete, Wallclock: {:.5} secs\n\n", dsec);
 
-    if (ppBins) *ppBins = plcl->pkd->profileBins;
+    if (ppBins) *ppBins = pkd->profileBins;
     if (pnBins) *pnBins = nBins + 1;
 }
 

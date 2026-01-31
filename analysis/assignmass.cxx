@@ -166,7 +166,7 @@ void pkdContext::AssignMass(uint32_t iLocalRoot, int iAssignment, int iGrid, flo
 }
 
 auto ServiceAssignMass::Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto input = reinterpret_cast<const struct input*>(in.data());
     pkd->AssignMass(ROOT, input->iAssignment, input->iGrid, input->fDelta, input->fold);
     return 0;
@@ -194,7 +194,7 @@ void pkdContext::WindowCorrection(int iAssignment, int iGrid) {
 }
 
 auto ServiceWindowCorrection::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const struct input*>(vin.data());
     pkd->WindowCorrection(in->iAssignment, in->iGrid);
     return 0;

@@ -161,7 +161,7 @@ int ServiceDomainDecomp::Recurse(PST pst, std::span<std::byte> vin, std::span<st
 int ServiceDomainDecomp::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
 
     pkd->bnd = in->bnd;
 
@@ -661,7 +661,7 @@ int ServiceDomain::RejMatch(PST pst, int n1, ServiceColRejects::output* p1, int 
         s2 += p2[i].nSpace;
         r2 += p2[i].nRejects;
     }
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     // printf("%d\t %d \t %d\n", pkd->Self(), r1, s2);
     // printf("%d\t %d \t %d\n", pkd->Self(), r2, s1);
     assert(r1 <= s2);
@@ -776,7 +776,7 @@ int ServiceColRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
 }
 
 int ServiceColRejects::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto pOutRej = reinterpret_cast<output*>(vout.data());
     auto& winfo = pst->lcl()->data<WeightInfo>();
     std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdColRejects(pkd, winfo.nSplit);
@@ -806,7 +806,7 @@ int ServiceSwapRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<std
 }
 
 int ServiceSwapRejects::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto pidSwap = reinterpret_cast<const input*>(vin.data());
     auto pOutRej = reinterpret_cast<output*>(vout.data());
     auto idSwap = pidSwap[pst->Self()];
@@ -836,7 +836,7 @@ int ServiceColOrdRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<s
 }
 
 int ServiceColOrdRejects::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto pOutRej = reinterpret_cast<output*>(vout.data());
     std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdColOrdRejects(pkd, in->iOrdSplit, in->iSplitSide);
@@ -995,7 +995,7 @@ int ServiceLocalOrder::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
 }
 
 int ServiceLocalOrder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     pkdLocalOrder(pkd, in->iMinOrder, in->iMaxOrder);
     return 0;
@@ -1032,7 +1032,7 @@ int ServiceWeight::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byt
 
 int ServiceWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto plcl = pst->lcl();
-    auto pkd = plcl->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto fSplit = in->fSplit;
@@ -1131,7 +1131,7 @@ int ServiceWeightWrap::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
 
 int ServiceWeightWrap::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto plcl = pst->lcl();
-    auto pkd = plcl->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto& info = plcl->data_ensure<WeightInfo>();
@@ -1192,7 +1192,7 @@ int ServiceOrdWeight::Recurse(PST pst, std::span<std::byte> vin, std::span<std::
 
 int ServiceOrdWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto plcl = pst->lcl();
-    auto pkd = plcl->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto& info = plcl->data_ensure<WeightInfo>();
@@ -1227,7 +1227,7 @@ int ServiceOrdWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::
 
 auto ServiceActiveOrder::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     *out = pkd->ActiveOrder();
     return sizeof(output);
 }

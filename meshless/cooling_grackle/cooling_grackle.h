@@ -16,7 +16,7 @@ class ServiceGrackleInit : public TraversePST {
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override {
-        pst->lcl()->pkd->GrackleInit(in->bComove, in->dScaleFactor, in->achCoolingTable, in->units);
+        pst->pkd()->GrackleInit(in->bComove, in->dScaleFactor, in->achCoolingTable, in->units);
         return 0;
     }
 };

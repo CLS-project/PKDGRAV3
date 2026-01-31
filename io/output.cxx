@@ -27,7 +27,7 @@
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 void ServiceSaveGroupStats::Write(PST pst, std::span<std::byte> vin, int iGroup, const std::string& filename, int iSegment, int nSegment) {
-    pst->lcl()->pkd->GroupStatsSave(iGroup, filename, iSegment, nSegment);
+    pst->pkd()->GroupStatsSave(iGroup, filename, iSegment, nSegment);
 }
 
 void pkdContext::GroupStatsSave(int iGroup, const std::string& filename, int iSegment, int nSegment) {
@@ -91,7 +91,7 @@ void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner, int iGrid) {
 
 auto ServiceOutputSend::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    pkdOutputSend(pst->lcl()->pkd, in->eOutputType, in->iPartner, in->iGrid);
+    pkdOutputSend(pst->pkd(), in->eOutputType, in->iPartner, in->iGrid);
     return 0;
 }
 
@@ -197,14 +197,14 @@ auto ServiceOutputBinary::Service(PST pst, std::span<std::byte> vin, std::span<s
         in->iPartner = pst->Self();
         in->nPartner = 1;
     }
-    PKD pkd = pst->lcl()->pkd;
+    PKD pkd = pst->pkd();
     pkdOutput(pkd, in->eOutputType, in->iProcessor, in->nProcessor, in->iPartner, in->nPartner, in->achOutFile, in->iGrid);
     return 0;
 }
 
 auto ServiceSendParticles::Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int {
     auto iTo = *reinterpret_cast<const uint32_t*>(in.data());
-    pst->lcl()->pkd->WriteViaNode(iTo);
+    pst->pkd()->WriteViaNode(iTo);
     return 0;
 }
 

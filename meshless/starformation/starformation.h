@@ -69,7 +69,7 @@ class ServiceStarForm : public TraverseCount<ServiceStarForm> {
 
   protected:
     virtual int Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) override {
-        auto pkd = pst->lcl()->pkd;
+        auto pkd = pst->pkd();
         auto& out = *reinterpret_cast<output*>(vout.data());
         auto& in = *reinterpret_cast<input*>(vin.data());
         pkdStarForm(pkd, in, &(out.nFormed), &(out.dMassFormed), &(out.nFormed));

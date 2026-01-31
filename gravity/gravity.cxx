@@ -4,7 +4,7 @@
 #include "gravity.h"
 
 auto ServiceGravity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<input*>(vin.data());
     auto outr = reinterpret_cast<output*>(vout.data());
 

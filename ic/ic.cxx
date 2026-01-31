@@ -874,7 +874,7 @@ auto ServiceExpandIC::OffNode(PST pst, std::span<std::byte> vin, std::span<std::
 }
 
 auto ServiceExpandIC::Recurse(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<input*>(vin.data());
     // Split the work according to the number of particles in upper and lower
     auto up = *in;
@@ -888,7 +888,7 @@ auto ServiceExpandIC::Recurse(PST pst, std::span<std::byte> vin, std::span<std::
 }
 
 auto ServiceExpandIC::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<input*>(vin.data());
 
     pkd->particles.clearClasses();
@@ -1030,7 +1030,7 @@ auto ServiceMoveIC::Service(PST pst, std::span<std::byte> in, std::span<std::byt
 // This function makes sure that each node has exactly the same number on each node +/- 1.
 auto ServiceMoveIC::AtNode(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto mdl = pst->mdl();
 
     auto OnNode = [grid = pkd->fft->rgrid](int proc) -> uint64_t { return uint64_t(1) * grid->rn[proc] * grid->n2 * grid->n1; };
@@ -1113,7 +1113,7 @@ auto ServiceMoveIC::AtNode(PST pst, std::span<std::byte> vin, std::span<std::byt
 auto ServiceGenerateIC::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
 
     out->N = pkdGenerateIC(pkd, pkd->fft, in->iSeed, in->bFixed, in->fPhase, in->nGrid, in->iLPT, in->dBoxSize, in->dExpansion, in->nTf, in->k.data(),
                            in->tf.data(), &out->noiseMean, &out->noiseCSQ);
@@ -1124,7 +1124,7 @@ auto ServiceGenerateIC::AtNode(PST pst, std::span<std::byte> vin, std::span<std:
     auto nBytes = Recurse(pst, vin, vout);
     auto in = reinterpret_cast<input*>(vin.data());
     // auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
 
     int myProc = pst->mdl()->Proc();
     uint64_t nLocal = (int64_t)pkd->fft->rgrid->rn[myProc] * in->nGrid * in->nGrid;

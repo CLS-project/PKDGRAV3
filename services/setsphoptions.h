@@ -13,7 +13,7 @@ class ServiceSetSPHoptions : public TraversePST {
   protected:
     auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
         auto in = reinterpret_cast<input*>(vin.data());
-        auto pkd = pst->lcl()->pkd;
+        auto pkd = pst->pkd();
         pkd->SPHoptions = *in;
         return 0;
     }

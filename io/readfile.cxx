@@ -109,7 +109,7 @@ auto ServiceReadFile::Service(PST pst, std::span<std::byte> vin, std::span<std::
     // Number of particles to be read per core per species
     std::vector<SpeciesList> nSpeciesParts(pst->n_total());
 
-    PKD pkd = pst->lcl()->pkd;
+    PKD pkd = pst->pkd();
     auto mdl = pkd->mdl;
 
     Traverse<ServiceOneNodeReadInit>(pst, *in, nSpeciesParts);

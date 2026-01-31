@@ -73,7 +73,7 @@ void LinearSignal::update(complex_vector_t& pencil, complex_vector_t& noise, int
 }
 
 auto ServiceAddLinearSignal::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     assert(vin.size() == sizeof(input));
     assert(vout.size() == 0);
@@ -95,7 +95,7 @@ void pkdContext::AddLinearSignal(int iGrid, int iSeed, bool bFixed, float fPhase
 }
 
 auto ServiceGridBinK::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vin.size() == sizeof(input));
@@ -168,7 +168,7 @@ void pkdContext::GridBinK(int nBins, int iGrid, std::span<double> fK, std::span<
 }
 
 auto ServiceDensityContrast::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     assert(vin.size() == sizeof(input));
     pkd->DensityContrast(in->dTotalMass, in->iGrid, in->k);
@@ -194,7 +194,7 @@ void pkdContext::DensityContrast(double dTotalMass, int iGrid, bool k) {
 }
 
 auto ServiceInterlace::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast<const input*>(vin.data());
     assert(vin.size() == sizeof(input));
     pkd->Interlace(in->iGridTarget, in->iGridSource);

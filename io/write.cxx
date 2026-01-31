@@ -36,6 +36,7 @@ static auto makeName(std::string_view inName, int iIndex) -> std::string {
 
 auto ServiceWrite::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<input*>(vin.data());
+    auto pkd = pst->pkd();
 
     LCL* plcl = pst->lcl();
     if (in->nProcessors != 0) {
@@ -53,8 +54,7 @@ auto ServiceWrite::Service(PST pst, std::span<std::byte> vin, std::span<std::byt
             auto nWriteStart = plcl->data<ServiceSetWriteStart::InfoLCL>().nWriteStart;
             if (achOutFile != makeName(in->achOutFile, in->iIndex + 1)) {
                 fio = fioTipsyCreatePart(achOutFile.c_str(), 0, in->mFlags & FIO_FLAG_CHECKPOINT, in->bStandard,
-                                         pst->lcl()->pkd->particles.present(PKD_FIELD::oNewSph) ? in->dTime : in->dExp, in->nGas, in->nDark, in->nStar,
-                                         nWriteStart);
+                                         pkd->particles.present(PKD_FIELD::oNewSph) ? in->dTime : in->dExp, in->nGas, in->nDark, in->nStar, nWriteStart);
             }
             else {
                 fio = fioTipsyAppend(achOutFile.c_str(), in->mFlags & FIO_FLAG_CHECKPOINT, in->bStandard);
@@ -75,16 +75,15 @@ auto ServiceWrite::Service(PST pst, std::span<std::byte> vin, std::span<std::byt
         nTotal[FIO_SPECIES_STAR] = in->nStar;
         nTotal[FIO_SPECIES_BH] = in->nBH;
 
-        pkdWriteFIO(plcl->pkd, fio, in->dvFac, in->dTuFac, in->bnd, nThisFile);
+        pkdWriteFIO(pkd, fio, in->dvFac, in->dTuFac, in->bnd, nThisFile);
         for (auto i = in->iLower + 1; i < in->iUpper; ++i) {
             auto me = pst->Self();
             auto rID = pst->mdl()->ReqService<ServiceSendParticles>(i, me);
-            pkdWriteFromNode(plcl->pkd, i, fio, in->dvFac, in->dTuFac, in->bnd, nThisFile);
+            pkdWriteFromNode(pkd, i, fio, in->dvFac, in->dTuFac, in->bnd, nThisFile);
             pst->mdl()->GetReply(rID);
         }
 
-        pkdWriteHeaderFIO(plcl->pkd, fio, 1. / sqrt(in->dvFac), in->dTime, nTotal, nThisFile, in->dBoxSize, in->HubbleParam, in->nProcessorsTotal, in->units);
-
+        pkdWriteHeaderFIO(pkd, fio, 1. / sqrt(in->dvFac), in->dTime, nTotal, nThisFile, in->dBoxSize, in->HubbleParam, in->nProcessorsTotal, in->units);
         fioClose(fio);
     }
 

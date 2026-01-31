@@ -396,7 +396,7 @@ void updateInteriorBound(Bound &ibnd,const Bound &bnd) {
 auto ServiceNewFof::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     assert(vin.size() == sizeof(input));
-    pst->lcl()->pkd->NewFof(in->dTau2, in->nMinMembers, in->bPeriodic, in->nReplicas, in->nBucket);
+    pst->pkd()->NewFof(in->dTau2, in->nMinMembers, in->bPeriodic, in->nReplicas, in->nBucket);
     return 0;
 }
 
@@ -655,7 +655,7 @@ class PropagateNames : public mdl::arrayCACHEhelper {
 auto ServiceFofPhases::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vout.size() == sizeof(output));
-    out->bMadeProgress = pst->lcl()->pkd->FofPhases();
+    out->bMadeProgress = pst->pkd()->FofPhases();
     return sizeof(output);
 }
 
@@ -775,7 +775,7 @@ auto ServiceFofFinishUp::Service(PST pst, std::span<std::byte> vin, std::span<st
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vout.size() == sizeof(output));
-    *out = pst->lcl()->pkd->FofFinishUp(in->nMinGroupSize);
+    *out = pst->pkd()->FofFinishUp(in->nMinGroupSize);
     pst->data_emplace<ServiceGroupStats::InfoPST>(ServiceGroupStats::InfoPST{.nLowerGroups = 0});
     return sizeof(output);
 }

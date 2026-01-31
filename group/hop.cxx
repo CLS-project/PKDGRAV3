@@ -378,7 +378,7 @@ static int smHopLink(SMX smx, std::shared_ptr<SmoothHelperGradientM3> helper) {
 }
 
 auto ServiceHopLink::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast</*const*/ input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto helper = std::make_shared<SmoothHelperGradientM3>(pkd);
@@ -456,7 +456,7 @@ static int smHopJoin(SMX smx, double dHopTau, int* nLocal) {
 }
 
 auto ServiceHopJoin::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto in = reinterpret_cast</*const*/ input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     auto helper = std::make_shared<SmoothHelperHopChains>(pkd);
@@ -471,7 +471,7 @@ auto ServiceHopFinishUp::Service(PST pst, std::span<std::byte> vin, std::span<st
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
     assert(vout.size() == sizeof(output));
-    *out = pst->lcl()->pkd->HopFinishUp(in->nMinGroupSize, in->bPeriodic, in->fPeriod);
+    *out = pst->pkd()->HopFinishUp(in->nMinGroupSize, in->bPeriodic, in->fPeriod);
     pst->data_emplace<ServiceGroupStats::InfoPST>(ServiceGroupStats::InfoPST{.nLowerGroups = 0});
     return sizeof(output);
 }
@@ -530,7 +530,7 @@ class HelperHopGetRoots : public mdl::arrayCACHEhelper {
 
 auto ServiceHopTreeBuild::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->HopTreeBuild(in->nBucket, in->nGroup);
     return 0;
 }
@@ -640,7 +640,7 @@ void pkdContext::HopTreeBuild(int nBucket, int nGroup) {
 
 auto ServiceHopGravity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     double dFlop = 0, dPartSum = 0, dCellSum = 0;
     pkd->HopGravity(in->dTime, in->dTheta, &dFlop, &dPartSum, &dCellSum);
     return 0;
@@ -649,7 +649,7 @@ auto ServiceHopGravity::Service(PST pst, std::span<std::byte> vin, std::span<std
 auto ServiceHopUnbind::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     out->nEvaporated = pkd->HopUnbind(in->dTime, in->nMinGroupSize, in->bPeriodic, in->fPeriod);
     out->nGroups = pkd->nLocalGroups;
     return sizeof(output);

@@ -8,7 +8,7 @@ using blitz::TinyVector;
 auto ServiceHydroDensityFinal::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto helper = std::make_shared<SmoothHelperHydroDensityFinal>(pkd);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
 #ifdef OPTIM_SMOOTH_NODE
@@ -382,7 +382,7 @@ void SmoothHelperHydroDensity::Smooth(particleStore::ParticleReference& p, float
 auto ServiceHydroDensity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     auto helper = std::make_shared<SmoothHelperHydroDensity>(pkd, in->dNeighborsStd, in->bIterativeSmoothingLength);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);
     if (in->bIterativeSmoothingLength) {

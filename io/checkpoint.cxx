@@ -5,7 +5,7 @@
 
 void ServiceCheckpoint::IO(PST pst, std::span<std::byte> vin, int iGroup, int iSegment, int nSegment) {
     auto in = reinterpret_cast<input*>(vin.data());
-    PKD pkd = pst->lcl()->pkd;
+    PKD pkd = pst->pkd();
     auto achOutFile = fmt::format(in->filename, fmt::arg("i", pkd->mdl->Self()));
     auto achOutDecoratorFile = fmt::format(in->filename, fmt::arg("i", pkd->mdl->Self())) + ".dec";
 

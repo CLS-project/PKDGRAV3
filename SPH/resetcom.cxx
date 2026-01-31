@@ -21,7 +21,7 @@ auto ServiceResetCOM::Service(PST pst, std::span<std::byte> vin, std::span<std::
     auto in = reinterpret_cast<const input*>(vin.data());
     assert(vin.size() == sizeof(input));
     assert(vout.size() == 0);
-    pst->lcl()->pkd->ResetCOM(in->r_com, in->v_com);
+    pst->pkd()->ResetCOM(in->r_com, in->v_com);
     return 0;
 }
 

@@ -20,7 +20,7 @@ class ServiceSendArray : public mdl::BasicService {
   protected:
     auto operator()(std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
         auto in = reinterpret_cast<input*>(vin.data());
-        node_pst->lcl()->pkd->SendArray(in->iTo, in->field, in->iUnitSize, in->dvFac, in->bMarked);
+        node_pst->pkd()->SendArray(in->iTo, in->field, in->iUnitSize, in->dvFac, in->bMarked);
         return 0;
     }
 };

@@ -18,7 +18,7 @@ class ServiceStarFormInit : public TraverseCount<ServiceStarFormInit> {
 
   protected:
     auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
-        auto pkd = pst->lcl()->pkd;
+        auto pkd = pst->pkd();
         auto& out = *reinterpret_cast<output*>(vout.data());
         auto& in = *reinterpret_cast<const input*>(vin.data());
         out = pkd->StarFormInit(in.dTime, in.dCCSNFBDelay, in.dSNIaFBDelay, in.bCCSNFeedback, in.bSNIaFeedback, in.bFeedback);

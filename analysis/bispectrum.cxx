@@ -21,7 +21,7 @@ using namespace gridinfo;
 
 auto ServiceBispectrumSelect::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     if (in->iGridSource < 0) pkd->BispectrumNormalize(in->iGridTarget, in->kmin, in->kmax);
     else pkd->BispectrumSelect(in->iGridTarget, in->iGridSource, in->kmin, in->kmax);
     return 0;
@@ -80,7 +80,7 @@ void pkdContext::BispectrumSelect(int iGridTarget, int iGridSource, double kmin,
 auto ServiceBispectrumCalculate::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     *out = pkd->BispectrumCalculate(in->iGrid1, in->iGrid2, in->iGrid3);
     return sizeof(output);
 }

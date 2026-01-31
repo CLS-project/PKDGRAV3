@@ -37,28 +37,28 @@ int ServiceInitLightcone::Service(PST pst, std::span<std::byte> vin, std::span<s
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
     abort_assert(1002, vin.size() == sizeof(input));
-    pkdInitLightcone(pst->lcl()->pkd, in->bBowtie, in->bLightConeParticles, in->dBoxSize, in->dRedshiftLCP, in->alphaLCP, in->hLCP, in->mOctants);
+    pkdInitLightcone(pst->pkd(), in->bBowtie, in->bLightConeParticles, in->dBoxSize, in->dRedshiftLCP, in->alphaLCP, in->hLCP, in->mOctants);
     return 0;
 }
 
 int ServiceLightConeOpen::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    pst->lcl()->pkd->LightConeOpen(in->achOutFileLcp, in->nSideHealpix);
+    pst->pkd()->LightConeOpen(in->achOutFileLcp, in->nSideHealpix);
     return 0;
 }
 
 int ServiceLightConeClose::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    pst->lcl()->pkd->LightConeClose(in->achOutFileHpb);
+    pst->pkd()->LightConeClose(in->achOutFileHpb);
     return 0;
 }
 
 int ServiceLightConeVel::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    pst->lcl()->pkd->LightConeVel(in->dBoxSize);
+    pst->pkd()->LightConeVel(in->dBoxSize);
     return 0;
 }
 

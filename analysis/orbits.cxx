@@ -21,7 +21,7 @@
 int ServiceGetOrbits::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = span_cast<const input>(vin);
     auto out = span_cast<output>(vout, in.size());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     assert(!pkd->bNoParticleOrder);     // We need particle IDs
     assert(std::ranges::is_sorted(in)); // input IDs must be sorted
     size_t nOut = 0;

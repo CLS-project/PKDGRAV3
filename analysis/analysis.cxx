@@ -208,7 +208,7 @@ struct distance {
 auto ServiceCalcDistance::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     assert(vin.size() == sizeof(input));
     auto in = reinterpret_cast<const input*>(vin.data());
-    pst->lcl()->pkd->CalcDistance(in->dCenter, in->bPeriodic);
+    pst->pkd()->CalcDistance(in->dCenter, in->bPeriodic);
     return 0;
 }
 
@@ -236,7 +236,7 @@ auto ServiceCalcCOM::Service(PST pst, std::span<std::byte> vin, std::span<std::b
     assert(vout.size() == sizeof(output));
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    pst->lcl()->pkd->CalcCOM(in->dCenter, in->dRadius, in->bPeriodic, out->com, out->vcm, out->L, out->M, out->N);
+    pst->pkd()->CalcCOM(in->dCenter, in->dRadius, in->bPeriodic, out->com, out->vcm, out->L, out->M, out->N);
     return sizeof(output);
 }
 
@@ -275,7 +275,7 @@ auto ServiceTotalMass::Service(PST pst, std::span<std::byte> in, std::span<std::
     assert(in.size() == 0);
     assert(out.size() == sizeof(double));
     auto pOut = reinterpret_cast<double*>(out.data());
-    *pOut = pst->lcl()->pkd->TotalMass();
+    *pOut = pst->pkd()->TotalMass();
     return sizeof(double);
 }
 
@@ -287,7 +287,7 @@ auto pkdContext::TotalMass() -> double {
 int ServiceCountDistance::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     assert(vin.size() == sizeof(input));
     assert(vout.size() == sizeof(output));
     decltype(distance::d2) r2i = in->dRadius2Inner, r2o = in->dRadius2Outer; // Avoid potential type conversions below
@@ -482,7 +482,7 @@ void pkdShapes(PKD pkd, int nBins, const double* dCenter, const double* dRadii) 
 
 auto ServiceProfile::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkd->Profile(in->uRungLo, in->uRungHi, in->dCenter, in->dRadii.data(), in->nBins, in->com, in->vcm, in->L);
     return 0;
 }

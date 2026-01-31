@@ -21,12 +21,15 @@
 #include "core/dataregistry.h"
 
 struct LCL : private DataRegistryOwner {
+    friend class pstNode;
     using DataRegistryOwner::data;
     using DataRegistryOwner::data_emplace;
     using DataRegistryOwner::data_ensure;
     using DataRegistryOwner::data_erase;
     using DataRegistryOwner::data_present;
-    PKD pkd;
+
+  public:
+    PKD pkd = nullptr;
 };
 
 class pstNode : private DataRegistryOwner {
@@ -67,6 +70,7 @@ class pstNode : private DataRegistryOwner {
 
     [[nodiscard]] auto mdl() const { return mdl_; }
     [[nodiscard]] auto lcl() const { return lcl_; }
+    [[nodiscard]] auto pkd() const { return lcl_->pkd; }
 
   private:
     friend class ServiceSetAdd;

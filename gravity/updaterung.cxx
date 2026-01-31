@@ -25,7 +25,7 @@ static_assert(std::is_void_v<ServiceUpdateRung::output> || std::is_standard_layo
 int ServiceUpdateRung::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto const& in = *reinterpret_cast<const input*>(vin.data());
     auto& out = *reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
 
     assert(pkd->particles.present(PKD_FIELD::oNewRung) || !pkd->bNoParticleOrder);
     out = 0;

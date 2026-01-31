@@ -15,7 +15,7 @@ class ServicePhysicalSoft : public TraversePST {
   protected:
     auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
         auto in = reinterpret_cast<input*>(vin.data());
-        auto pkd = pst->lcl()->pkd;
+        auto pkd = pst->pkd();
         pkd->PhysicalSoft(in->dSoftMax, in->dFac, in->bSoftMaxMul);
         return 0;
     }

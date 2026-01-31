@@ -145,7 +145,6 @@ static inline void USR2_handler(int signo) {
 void* worker_init(MDL vmdl) {
     auto mdl = reinterpret_cast<mdl::mdlClass*>(vmdl);
     LCL* plcl = new LCL;
-    plcl->pkd = NULL;
     auto pst = new pstNode(mdl, plcl);
     mdl->AddService<ServiceSmooth>(pst);
     mdl->AddService<ServiceReSmooth>(pst);
@@ -326,7 +325,7 @@ void worker_done(MDL mdl, void* ctx) {
 
     while (pst) {
         auto pstKill = pst;
-        if (pst->AmCore() && pst->lcl()->pkd) delete pst->lcl()->pkd;
+        if (pst->AmCore() && pst->pkd()) delete pst->pkd();
         pst = pst->lower();
         delete pstKill;
     }

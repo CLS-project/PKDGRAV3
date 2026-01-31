@@ -11,7 +11,7 @@ class ServiceBHReposition : public TraversePST {
   protected:
     auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
         auto in = reinterpret_cast<const input*>(vin.data());
-        auto pkd = pst->lcl()->pkd;
+        auto pkd = pst->pkd();
         pkd->BHReposition();
         return 0;
     }

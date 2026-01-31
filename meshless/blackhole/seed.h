@@ -20,7 +20,7 @@ class ServicePlaceBHSeed : public TraverseCount<ServicePlaceBHSeed> {
     auto Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int override {
         auto in = reinterpret_cast<const input*>(vin.data());
         auto out = reinterpret_cast<output*>(vout.data());
-        auto pkd = pst->lcl()->pkd;
+        auto pkd = pst->pkd();
         *out = pkd->PlaceBHSeed(in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin, in->dBHMhaloMin, in->dTau, in->dBHSeedMass);
         return 0;
     }

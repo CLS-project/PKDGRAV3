@@ -24,7 +24,7 @@ static_assert(std::is_void_v<ServiceEnforcePeriodic::output> || std::is_standard
 int ServiceEnforcePeriodic::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     const auto& in = *reinterpret_cast<const input*>(vin.data());
     static_assert(std::is_void_v<output>);
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     pkdEnforcePeriodic(pkd, in);
     return 0;
 }

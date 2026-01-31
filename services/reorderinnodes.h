@@ -11,7 +11,7 @@ class ServiceReorderInNodes : public TraversePST {
 
   protected:
     auto Service(PST pst, std::span<std::byte> in, std::span<std::byte> out) -> int override {
-        pst->lcl()->pkd->ReorderInNodes();
+        pst->pkd()->ReorderInNodes();
         return 0;
     }
 };

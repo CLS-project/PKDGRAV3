@@ -877,7 +877,7 @@ struct SmoothBallOptimisedFluxes : smooth::policy::ball {
 auto ServiceHydroFluxes::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
-    auto pkd = pst->lcl()->pkd;
+    auto pkd = pst->pkd();
     assert(pkd->decorators.present(DECORATOR_FIELD::oMFM)); /* Validate memory model */
     auto helper = std::make_shared<SmoothHelperHydroFluxes>(pkd, in->dTime, in->dDelta, in->a, in->H, in->dConstGamma, in->eEOS);
     smContext smx(pkd, helper, in->nSmooth, in->bPeriodic);

@@ -266,8 +266,6 @@ class MSR {
     struct CALC calc;
 
   public:
-    LCL lcl;
-
     blitz::TinyVector<double, 3> fCenter;
 
   public:
