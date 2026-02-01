@@ -144,8 +144,7 @@ static inline void USR2_handler(int signo) {
 */
 void* worker_init(MDL vmdl) {
     auto mdl = reinterpret_cast<mdl::mdlClass*>(vmdl);
-    LCL* plcl = new LCL;
-    auto pst = new pstNode(mdl, plcl);
+    auto pst = new pstNode(mdl, std::make_shared<LCL>());
     mdl->AddService<ServiceSmooth>(pst);
     mdl->AddService<ServiceReSmooth>(pst);
 #ifdef OPTIM_REORDER_IN_NODES
@@ -321,15 +320,7 @@ void* worker_init(MDL vmdl) {
 */
 void worker_done(MDL mdl, void* ctx) {
     PST pst = reinterpret_cast<PST>(ctx);
-    LCL* plcl = pst->lcl();
-
-    while (pst) {
-        auto pstKill = pst;
-        if (pst->AmCore() && pst->pkd()) delete pst->pkd();
-        pst = pst->lower();
-        delete pstKill;
-    }
-    delete plcl;
+    delete pst;
 }
 
 /*

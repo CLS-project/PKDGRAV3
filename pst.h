@@ -19,6 +19,8 @@
 #include "pkd.h"
 #include "mdl.h"
 #include "core/dataregistry.h"
+#include <utility>
+#include <memory>
 
 struct LCL : private DataRegistryOwner {
     friend class pstNode;
@@ -28,14 +30,15 @@ struct LCL : private DataRegistryOwner {
     using DataRegistryOwner::data_erase;
     using DataRegistryOwner::data_present;
 
-  public:
-    PKD pkd = nullptr;
+  private:
+    std::unique_ptr<pkdContext> pkd_;
 };
 
 class pstNode : private DataRegistryOwner {
   public:
     pstNode() = delete;
-    explicit pstNode(mdl::mdlClass* mdl, LCL* lcl) : pstLower_(nullptr), mdl_(mdl), lcl_(lcl), idUpper_(-1), nLeaves_(1), nLower_(0), nUpper_(0), iLvl_(0) {}
+    explicit pstNode(mdl::mdlClass* mdl, std::shared_ptr<LCL> lcl)
+        : lcl_(std::move(lcl)), mdl_(mdl), idUpper_(-1), nLeaves_(1), nLower_(0), nUpper_(0), iLvl_(0) {}
     using DataRegistryOwner::data;
     using DataRegistryOwner::data_emplace;
     using DataRegistryOwner::data_ensure;
@@ -43,14 +46,14 @@ class pstNode : private DataRegistryOwner {
     using DataRegistryOwner::data_present;
 
   private:
-    pstNode* pstLower_;  // Left child node: found locally
-    mdl::mdlClass* mdl_; // MDL class
-    LCL* lcl_;           // Variables that are identical on all PST nodes
-    int idUpper_;        // ID of the thread with the right child node
-    int nLeaves_;        // Number of leaves in this subtree (nLower_ + nUpper_, or 1 for a leaf)
-    int nLower_;         // Number of leaves in the lower subtree (0 if leaf)
-    int nUpper_;         // Number of leaves in the upper subtree (0 if leaf)
-    int iLvl_;           // Depth in the PST tree
+    std::unique_ptr<pstNode> pstLower_; // Left child node: found locally
+    std::shared_ptr<LCL> lcl_;          // Variables that are identical on all PST nodes
+    mdl::mdlClass* mdl_;                // MDL class
+    int idUpper_;                       // ID of the thread with the right child node
+    int nLeaves_;                       // Number of leaves in this subtree (nLower_ + nUpper_, or 1 for a leaf)
+    int nLower_;                        // Number of leaves in the lower subtree (0 if leaf)
+    int nUpper_;                        // Number of leaves in the upper subtree (0 if leaf)
+    int iLvl_;                          // Depth in the PST tree
 
   public:
     [[nodiscard]] auto OffNode() const { return nLeaves_ > mdl_->Cores(); }
@@ -64,25 +67,30 @@ class pstNode : private DataRegistryOwner {
     [[nodiscard]] auto n_lower() const { return nLower_; }
     [[nodiscard]] auto n_upper() const { return nUpper_; }
     [[nodiscard]] auto n_total() const { return nLeaves_; }
-    [[nodiscard]] auto lower() const { return pstLower_; }
+    [[nodiscard]] auto lower() const { return pstLower_.get(); }
     [[nodiscard]] auto upper() const { return idUpper_; }
     [[nodiscard]] auto depth() const { return iLvl_; }
 
     [[nodiscard]] auto mdl() const { return mdl_; }
-    [[nodiscard]] auto lcl() const { return lcl_; }
-    [[nodiscard]] auto pkd() const { return lcl_->pkd; }
+    [[nodiscard]] auto lcl() const { return lcl_.get(); }
+    [[nodiscard]] auto pkd() const { return lcl_->pkd_.get(); }
+
+    auto set_pkd(std::unique_ptr<pkdContext>&& pkd) {
+        lcl_->pkd_ = std::move(pkd);
+        return lcl_->pkd_.get();
+    }
 
   private:
     friend class ServiceSetAdd;
     auto create_lower(int idMiddle, int idUp) {
-        assert(pstLower_ == nullptr);
+        assert(!pstLower_);
         idUpper_ = idMiddle;
         nLower_ = idMiddle - Self();
         nUpper_ = idUp - idMiddle;
         nLeaves_ = nLower_ + nUpper_;
-        pstLower_ = new pstNode(mdl_, lcl_);
+        pstLower_ = std::make_unique<pstNode>(mdl_, lcl_);
         pstLower_->iLvl_ = iLvl_ + 1;
-        return pstLower_;
+        return pstLower_.get();
     }
 };
 using PST = pstNode*;
