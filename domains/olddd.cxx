@@ -26,6 +26,21 @@ constexpr double NEWSPLITDIMCUT = 0.707;
 constexpr int NMINFORROOTFIND = 16;
 constexpr int MAX_ITTR = 64;
 
+// Stored the LCL registry for weight finding
+struct WeightInfo {
+    WeightInfo() = default;
+    int iWtFrom{};
+    int iWtTo{};
+    int iPart{};
+    int nSplit{};
+    uint64_t iOrdSplit{};
+    double fSplit{};
+    double fWtLow{};
+    double fWtHigh{};
+    double fLow{};
+    double fHigh{};
+};
+
 /*****************************************************************************\
 * ServiceDomainDecomp
 \*****************************************************************************/
@@ -759,7 +774,8 @@ int ServiceColRejects::Recurse(PST pst, std::span<std::byte> vin, std::span<std:
 int ServiceColRejects::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto pkd = pst->lcl()->pkd;
     auto pOutRej = reinterpret_cast<output*>(vout.data());
-    std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdColRejects(pkd, pst->lcl()->nSplit);
+    auto& info = pst->lcl()->data<WeightInfo>();
+    std::tie(pOutRej->nRejects, pOutRej->nDecoratorRejects) = pkdColRejects(pkd, info.nSplit);
     pOutRej->nSpace = pkdSwapSpace(pkd);
     pOutRej->nDecoratorSpace = pkdSwapDecoratorSpace(pkd);
     pOutRej->id = pst->Self();
@@ -1016,59 +1032,60 @@ int ServiceWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::byt
     auto out = reinterpret_cast<output*>(vout.data());
     auto fSplit = in->fSplit;
     auto iSplitSide = in->iSplitSide;
+    auto& info = plcl->data_ensure<WeightInfo>();
     if (in->ittr == 0) {
         /*
         ** Initialize.
         */
-        plcl->fSplit = fSplit;
+        info.fSplit = fSplit;
         if (in->pFlag == 0) {
-            plcl->iWtFrom = 0;
-            plcl->iWtTo = pkd->Local() - 1;
+            info.iWtFrom = 0;
+            info.iWtTo = pkd->Local() - 1;
         }
         else if (in->pFlag > 0) {
             /*
             ** Particles must be in the active-inactive order here!
             */
-            plcl->iWtFrom = 0;
-            plcl->iWtTo = pkdActive(pkd) - 1;
+            info.iWtFrom = 0;
+            info.iWtTo = pkdActive(pkd) - 1;
         }
         else {
             /*
             ** Particles must be in the active-inactive order here!
             */
-            plcl->iWtFrom = pkdActive(pkd);
-            plcl->iWtTo = pkd->Local() - 1;
+            info.iWtFrom = pkdActive(pkd);
+            info.iWtTo = pkd->Local() - 1;
         }
-        plcl->fWtLow = 0.0;
-        plcl->fWtHigh = 0.0;
+        info.fWtLow = 0.0;
+        info.fWtHigh = 0.0;
     }
     else {
         /*
         ** Update the Weight Sums and use smaller weight region.
         */
-        if (fSplit < plcl->fSplit) {
-            plcl->fWtHigh += plcl->fHigh;
-            if (iSplitSide) plcl->iWtFrom = plcl->iPart;
-            else plcl->iWtTo = plcl->iPart - 1;
+        if (fSplit < info.fSplit) {
+            info.fWtHigh += info.fHigh;
+            if (iSplitSide) info.iWtFrom = info.iPart;
+            else info.iWtTo = info.iPart - 1;
         }
         else {
-            plcl->fWtLow += plcl->fLow;
-            if (iSplitSide) plcl->iWtTo = plcl->iPart - 1;
-            else plcl->iWtFrom = plcl->iPart;
+            info.fWtLow += info.fLow;
+            if (iSplitSide) info.iWtTo = info.iPart - 1;
+            else info.iWtFrom = info.iPart;
         }
-        plcl->fSplit = fSplit;
+        info.fSplit = fSplit;
     }
 
     int nLow, nHigh;
     double fLow, fHigh;
-    plcl->iPart = pkdWeight(pkd, in->iSplitDim, fSplit, iSplitSide, plcl->iWtFrom, plcl->iWtTo, &nLow, &nHigh, &fLow, &fHigh);
+    info.iPart = pkdWeight(pkd, in->iSplitDim, fSplit, iSplitSide, info.iWtFrom, info.iWtTo, &nLow, &nHigh, &fLow, &fHigh);
 
     out->nLow = nLow;
     out->nHigh = nHigh;
-    out->fLow = fLow + plcl->fWtLow;
-    out->fHigh = fHigh + plcl->fWtHigh;
-    plcl->fLow = fLow;
-    plcl->fHigh = fHigh;
+    out->fLow = fLow + info.fWtLow;
+    out->fHigh = fHigh + info.fWtHigh;
+    info.fLow = fLow;
+    info.fHigh = fHigh;
     if (in->pFlag > 0) {
         if (iSplitSide) out->nLow -= pkdInactive(pkd);
         else out->nHigh -= pkdInactive(pkd);
@@ -1112,37 +1129,38 @@ int ServiceWeightWrap::Service(PST pst, std::span<std::byte> vin, std::span<std:
     auto pkd = plcl->pkd;
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
+    auto& info = plcl->data_ensure<WeightInfo>();
     if (in->ittr == 0) {
         /*
         ** Initialize.
         */
-        plcl->fSplit = in->fSplit;
-        plcl->iWtFrom = 0;
-        plcl->iWtTo = pkd->Local() - 1;
+        info.fSplit = in->fSplit;
+        info.iWtFrom = 0;
+        info.iWtTo = pkd->Local() - 1;
     }
     else {
         /*
         ** Update the Weight Sums and use smaller weight region.
         */
-        if ((in->fSplit < plcl->fSplit && in->fSplit < in->fSplit2 && plcl->fSplit < in->fSplit2) ||
-            (in->fSplit < plcl->fSplit && in->fSplit > in->fSplit2 && plcl->fSplit > in->fSplit2) ||
-            (in->fSplit > plcl->fSplit && in->fSplit > in->fSplit2 && plcl->fSplit < in->fSplit2)) {
-            if (!in->iSplitSide) plcl->iWtFrom = plcl->iPart;
-            else plcl->iWtTo = plcl->iPart - 1;
+        if ((in->fSplit < info.fSplit && in->fSplit < in->fSplit2 && info.fSplit < in->fSplit2) ||
+            (in->fSplit < info.fSplit && in->fSplit > in->fSplit2 && info.fSplit > in->fSplit2) ||
+            (in->fSplit > info.fSplit && in->fSplit > in->fSplit2 && info.fSplit < in->fSplit2)) {
+            if (!in->iSplitSide) info.iWtFrom = info.iPart;
+            else info.iWtTo = info.iPart - 1;
         }
         else {
-            if (!in->iSplitSide) plcl->iWtTo = plcl->iPart - 1;
-            else plcl->iWtFrom = plcl->iPart;
+            if (!in->iSplitSide) info.iWtTo = info.iPart - 1;
+            else info.iWtFrom = info.iPart;
         }
-        plcl->fSplit = in->fSplit;
+        info.fSplit = in->fSplit;
     }
     int nLow, nHigh;
-    plcl->iPart = pkdWeightWrap(pkd, in->iSplitDim, in->fSplit, in->fSplit2, in->iSplitSide, plcl->iWtFrom, plcl->iWtTo, &nLow, &nHigh);
+    info.iPart = pkdWeightWrap(pkd, in->iSplitDim, in->fSplit, in->fSplit2, in->iSplitSide, info.iWtFrom, info.iWtTo, &nLow, &nHigh);
 
     out->nLow = nLow;
     out->nHigh = nHigh;
     /* For collect rejects */
-    plcl->nSplit = plcl->iPart;
+    info.nSplit = info.iPart;
 
     return sizeof(output);
 }
@@ -1172,30 +1190,31 @@ int ServiceOrdWeight::Service(PST pst, std::span<std::byte> vin, std::span<std::
     auto pkd = plcl->pkd;
     auto in = reinterpret_cast<const input*>(vin.data());
     auto out = reinterpret_cast<output*>(vout.data());
+    auto& info = plcl->data_ensure<WeightInfo>();
     if (in->ittr == 0) {
         /*
         ** Initialize.
         */
-        plcl->iOrdSplit = in->iOrdSplit;
-        plcl->iWtFrom = 0;
-        plcl->iWtTo = pkd->Local() - 1;
+        info.iOrdSplit = in->iOrdSplit;
+        info.iWtFrom = 0;
+        info.iWtTo = pkd->Local() - 1;
     }
     else {
         /*
         ** Update the Weight Sums and use smaller weight region.
         */
-        if (in->iOrdSplit < plcl->iOrdSplit) {
-            if (in->iSplitSide) plcl->iWtFrom = plcl->iPart;
-            else plcl->iWtTo = plcl->iPart - 1;
+        if (in->iOrdSplit < info.iOrdSplit) {
+            if (in->iSplitSide) info.iWtFrom = info.iPart;
+            else info.iWtTo = info.iPart - 1;
         }
         else {
-            if (in->iSplitSide) plcl->iWtTo = plcl->iPart - 1;
-            else plcl->iWtFrom = plcl->iPart;
+            if (in->iSplitSide) info.iWtTo = info.iPart - 1;
+            else info.iWtFrom = info.iPart;
         }
-        plcl->iOrdSplit = in->iOrdSplit;
+        info.iOrdSplit = in->iOrdSplit;
     }
     int nLow, nHigh;
-    plcl->iPart = pkdOrdWeight(pkd, in->iOrdSplit, in->iSplitSide, plcl->iWtFrom, plcl->iWtTo, &nLow, &nHigh);
+    info.iPart = pkdOrdWeight(pkd, in->iOrdSplit, in->iSplitSide, info.iWtFrom, info.iWtTo, &nLow, &nHigh);
     out->nLow = nLow;
     out->nHigh = nHigh;
     return sizeof(output);

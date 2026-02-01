@@ -39,6 +39,7 @@
 #include "units.h"
 #include "io/fio.h"
 #include "basetype.h"
+#include "core/dataregistry.h"
 #include "core/ephemeral.h"
 #include "core/integerize.h"
 #include "core/treenode.h"
@@ -388,13 +389,19 @@ using mass_t = float;
 using mass_array_t = blitz::Array<mass_t, 3>;
 } // namespace base_type
 
-class pkdContext : public Integerize {
+class pkdContext : public Integerize, private DataRegistryOwner {
   public:
     explicit pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int nBucket, uint64_t nMinTotalStore, uint64_t nMinEphemeral,
                         uint32_t nEphemeralBytes, int nTreeBitsLo, int nTreeBitsHi, int iCacheSize, int iCacheMaxInflight, int iWorkQueueSize,
                         mdl::MPI_RECV_MODE mpi_recv_mode, int mpi_recv_count, bool mpi_RDMA, const blitz::TinyVector<double, 3>& fPeriod, uint64_t nDark,
                         uint64_t nGas, uint64_t nStar, uint64_t nBH, uint64_t mMemoryModel, uint32_t nIntegerFactor);
     virtual ~pkdContext();
+    using DataRegistryOwner::data;
+    using DataRegistryOwner::data_emplace;
+    using DataRegistryOwner::data_ensure;
+    using DataRegistryOwner::data_erase;
+    using DataRegistryOwner::data_present;
+
     void set_factor(std::uint32_t factor);
 
   public:

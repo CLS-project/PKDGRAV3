@@ -21,29 +21,31 @@
 #include "pkd.h"
 #include "mdl.h"
 #include "io/outtype.h"
+#include "core/dataregistry.h"
 #include <cstdint>
 
-struct LCL {
+struct LCL : private DataRegistryOwner {
+    using DataRegistryOwner::data;
+    using DataRegistryOwner::data_emplace;
+    using DataRegistryOwner::data_ensure;
+    using DataRegistryOwner::data_erase;
+    using DataRegistryOwner::data_present;
     PKD pkd;
-    int iWtFrom;
-    int iWtTo;
-    int iPart;
-    uint64_t iOrdSplit;
-    double fSplit;
-    double fWtLow;
-    double fWtHigh;
-    double fLow;
-    double fHigh;
-    int nSplit;
     uint64_t nWriteStart;
     PKDOUT pkdout;
 };
 
-struct pstNode {
+class pstNode : private DataRegistryOwner {
+  public:
     pstNode() = delete;
     explicit pstNode(mdl::mdlClass* mdl, LCL* lcl)
         : pstLower_(nullptr), mdl_(mdl), lcl_(lcl), idUpper_(-1), nLeaves_(1), nLower_(0), nUpper_(0), iLvl_(0), iSplitDim(-1), iOrdSplit(0), fSplit(0.0),
-          fSplitInactive(0.0), nTotal(0), nLowerGroups(0) {}
+          fSplitInactive(0.0), nLowerGroups(0) {}
+    using DataRegistryOwner::data;
+    using DataRegistryOwner::data_emplace;
+    using DataRegistryOwner::data_ensure;
+    using DataRegistryOwner::data_erase;
+    using DataRegistryOwner::data_present;
 
   private:
     pstNode* pstLower_;  // Left child node: found locally
@@ -61,7 +63,6 @@ struct pstNode {
     uint64_t iOrdSplit;
     double fSplit;
     double fSplitInactive;
-    uint64_t nTotal;
     uint64_t nLowerGroups; /* count of number of groups in the lower sub-tree, used for making global group ids. */
 
     [[nodiscard]] auto OffNode() const { return nLeaves_ > mdl_->Cores(); }
