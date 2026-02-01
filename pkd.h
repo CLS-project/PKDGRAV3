@@ -23,6 +23,7 @@
 #include <string.h>
 #include <optional>
 #include <vector>
+#include <array>
 
 #include "mdl.h"
 #ifdef USE_CUDA
@@ -504,16 +505,13 @@ class pkdContext : public Integerize, private DataRegistryOwner {
     void RsReorder(const uint64_t* pOrds);
     void RsExtract(const std::string& filename, int iSegment, uint64_t* pOrds);
 
-    // Lightcone
-  protected:
-    void flushLightCone(int octant);
-    void addToLightCone(double dvFac, double* r, float fPot, PARTICLE* p, int bParticleOutput);
-
   public:
+    void InitLightcone(int bBowtie, int bLightConeParticles, double dBoxSize, double dRedshiftLCP, double alphaLCP, blitz::TinyVector<double, 3> hLCP,
+                       int mOctants);
     void LightConeOpen(const char* name_template, int nSideHealpix);
     void LightConeClose(const char* healpixname_template);
-    void ProcessLightCone(PARTICLE* p, float fPot, double dLookbackFac, double dLookbackFacLCP, double dDriftDelta, double dKickDelta, double dBoxSize,
-                          int bLightConeParticles, blitz::TinyVector<double, 3> hlcp, double tanalpha2);
+    void ProcessLightCone(particleStore::ParticleReference& p, float fPot, double dLookbackFac, double dLookbackFacLCP, double dDriftDelta, double dKickDelta,
+                          double dBoxSize, int bLightConeParticles, blitz::TinyVector<double, 3> hlcp, double tanalpha2);
     void LightConeVel(double dBoxSize);
 
   protected:
@@ -647,19 +645,22 @@ class pkdContext : public Integerize, private DataRegistryOwner {
     /*
     ** Light cone variables.
     */
-    int nLayerMax;
-    std::vector<int> nBoxLC;
-    std::vector<double> lcOffset0, lcOffset1, lcOffset2;
-    asyncFileInfo afiLightCone[8];
-    int nLightConeMax, mLightConeOctants;
-    blitz::TinyVector<LIGHTCONEP*, 8> pLightCone;
-    blitz::TinyVector<int, 8> nLightCone;
-    int64_t nHealpixPerDomain;
-    int64_t nSideHealpix;
-    healpixData* pHealpixData;
-    gsl_spline* interp_scale = nullptr; // interpolation table for 1/a given r in the lightcone
-    gsl_interp_accel* interp_accel = nullptr;
-
+    struct LightConeInfo {
+        int nLayerMax;
+        std::vector<int> nBoxLC;
+        std::vector<double> lcOffset0, lcOffset1, lcOffset2;
+        std::array<asyncFileInfo, 8> afiLightCone;
+        int nLightConeMax, mLightConeOctants;
+        blitz::TinyVector<LIGHTCONEP*, 8> pLightCone;
+        blitz::TinyVector<int, 8> nLightCone;
+        int64_t nHealpixPerDomain;
+        int64_t nSideHealpix;
+        healpixData* pHealpixData = nullptr;
+        gsl_spline* interp_scale = nullptr; // interpolation table for 1/a given r in the lightcone
+        gsl_interp_accel* interp_accel = nullptr;
+        LightConeInfo();
+        ~LightConeInfo();
+    } lcinfo;
     /*
     ** Advanced memory models
     */
@@ -895,8 +896,6 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
 void pkdReorderDecorator(PKD pkd);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo);
-void pkdInitLightcone(PKD pkd, int bBowtie, int bLightConeParticles, double dBoxSize, double dRedshiftLCP, double alphaLCP, blitz::TinyVector<double, 3> hLCP,
-                      int mOctants);
 void pkdZeroNewRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdCooling(PKD pkd, double, double, int, int, int, int);
 #define CORRECTENERGY_IN 1
@@ -934,9 +933,6 @@ void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
 float getLinAcc(PKD pkd, MDLFFT fft, int cid, double r[3]);
 #endif
 void pkdOutPsGroup(PKD pkd, char* pszFileName, int iType);
-
-void pkdLightCone(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dLookbackFac, double dLookbackFacLCP, double* dtLCDrift, double* dtLCKick);
-void pkdSetupInterpScale(PKD pkd, double dBoxSize, double mrMax);
 
 #define matrix_vector_mult(b, mat, a)                                                                                                                          \
     do {                                                                                                                                                       \

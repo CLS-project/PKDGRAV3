@@ -101,153 +101,6 @@ using blitz::max;
 using blitz::min;
 using blitz::TinyVector;
 
-static void initLightBallOffsets(PKD pkd, double mrLCP) {
-    Bound bnd(TinyVector<double, 3>(-0.5), TinyVector<double, 3>(0.5));
-    double min2;
-    int ix, iy, iz, l;
-
-    pkd->nLayerMax = ceil(mrLCP);
-    pkd->nBoxLC.clear();
-
-    pkd->lcOffset0.clear();
-    pkd->lcOffset1.clear();
-    pkd->lcOffset2.clear();
-    /*
-    ** Set up the light cone offsets such that they proceed from the inner 8
-    ** unit boxes outward layer by layer so that we can skip checks of the
-    ** outer layers if we want.
-    */
-    for (l = 0; l < pkd->nLayerMax; ++l) {
-        for (ix = -l; ix <= l + 1; ++ix) {
-            for (iy = -l; iy <= l + 1; ++iy) {
-                for (iz = -l; iz <= l + 1; ++iz) {
-                    if ((ix > -l) && (ix < l + 1) && (iy > -l) && (iy < l + 1) && (iz > -l) && (iz < l + 1)) continue;
-                    TinyVector<double, 3> r(ix - 0.5, iy - 0.5, iz - 0.5);
-                    min2 = bnd.mindist(r);
-                    if (min2 < mrLCP * mrLCP) {
-                        if (pkd->Self() == 0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f> min2:%f\n", pkd->lcOffset0.size(), l, r[0], r[1], r[2], min2);
-                        pkd->lcOffset0.push_back(r[0]);
-                        pkd->lcOffset1.push_back(r[1]);
-                        pkd->lcOffset2.push_back(r[2]);
-                    }
-                }
-            }
-        }
-        /*
-        ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
-        */
-        pkd->nBoxLC.push_back(pkd->lcOffset0.size());
-    }
-}
-
-static void initLightConeOffsets(PKD pkd, int bBowtie, blitz::TinyVector<double, 3> h, double alpha, double mrLCP) {
-    int l, ix, iy, iz;
-    double hm = sqrt(h[0] * h[0] + h[1] * h[1] + h[2] * h[2]);
-    double min2;
-
-    pkd->nLayerMax = ceil(mrLCP);
-    for (int j = 0; j < 3; ++j) h[j] /= hm;
-    if (pkd->Self() == 0) printf("mrLCP:%f nLayerMax:%d vector width:%d h:<%f %f %f>\n", mrLCP, pkd->nLayerMax, dvec::width(), h[0], h[1], h[2]);
-    /*
-    ** Check that all the components of h are positive and that h is not too close to the
-    ** walls!
-    */
-    assert(h[0] > 0);
-    assert(h[1] > 0);
-    assert(h[2] > 0);
-
-    pkd->nBoxLC.clear();
-
-    // by default all projected cells need to be checked
-    std::vector<char> xy(pkd->nLayerMax * pkd->nLayerMax, true);
-    std::vector<char> xz(pkd->nLayerMax * pkd->nLayerMax, true);
-    std::vector<char> yz(pkd->nLayerMax * pkd->nLayerMax, true);
-
-    double alpha_xy = atan2(tan(alpha), sqrt(h[0] * h[0] + h[1] * h[1])); // angle projected onto the xy plane
-    double alpha_xz = atan2(tan(alpha), sqrt(h[0] * h[0] + h[2] * h[2])); // angle projected onto the xz plane
-    double alpha_yz = atan2(tan(alpha), sqrt(h[1] * h[1] + h[2] * h[2])); // angle projected onto the xy plane
-    double beta_yx = atan2(h[0], h[1]);
-    assert(beta_yx > alpha_xy); // make sure it is far enough from the walls
-    double beta_zx = atan2(h[0], h[2]);
-    assert(beta_zx > alpha_xz); // make sure it is far enough from the walls
-    double beta_zy = atan2(h[1], h[2]);
-    assert(beta_zy > alpha_yz); // make sure it is far enough from the walls
-
-    double beta_xy = atan2(h[1], h[0]);
-    assert(beta_xy > alpha_xy); // make sure it is far enough from the walls
-    double beta_xz = atan2(h[2], h[0]);
-    assert(beta_xz > alpha_xz); // make sure it is far enough from the walls
-    double beta_yz = atan2(h[2], h[1]);
-    assert(beta_yz > alpha_yz); // make sure it is far enough from the walls
-    if (pkd->Self() == 0)
-        printf("alpha:%f beta_xy:%f alpha_xy:%f beta_xz:%f alpha_xz:%f beta_yz:%f alpha_yz:%f\n", alpha, beta_xy, alpha_xy, beta_xz, alpha_xz, beta_yz,
-               alpha_yz);
-    for (int j = 0; j < pkd->nLayerMax; ++j) {
-        for (int i = 0; i < pkd->nLayerMax; ++i) {
-            double a1 = atan2(j, i + 1);
-            double a2 = atan2(j + 1, i);
-            if (beta_xy > a2 + alpha_xy || beta_xy < a1 - alpha_xy) xy[j * pkd->nLayerMax + i] = false; // doesn't intersect
-            if (beta_xz > a2 + alpha_xz || beta_xz < a1 - alpha_xz) xz[j * pkd->nLayerMax + i] = false; // doesn't intersect
-            if (beta_yz > a2 + alpha_yz || beta_yz < a1 - alpha_yz) yz[j * pkd->nLayerMax + i] = false; // doesn't intersect
-        }
-    }
-    pkd->lcOffset0.clear();
-    pkd->lcOffset1.clear();
-    pkd->lcOffset2.clear();
-    /*
-    ** Set up the light cone offsets such that they proceed from the inner 8
-    ** unit boxes outward layer by layer so that we can skip checks of the
-    ** outer layers if we want.
-    */
-    for (l = 0; l < pkd->nLayerMax; ++l) {
-        for (ix = 0; ix <= l; ++ix) {
-            for (iy = 0; iy <= l; ++iy) {
-                for (iz = 0; iz <= l; ++iz) {
-                    if (ix < l && iy < l && iz < l) continue;
-                    if (xy[iy * pkd->nLayerMax + ix] && xz[iz * pkd->nLayerMax + ix] && yz[iz * pkd->nLayerMax + iy]) {
-                        double r[3] = {ix + 0.5, iy + 0.5, iz + 0.5};
-                        Bound bnd(TinyVector<double, 3>(-0.5), TinyVector<double, 3>(0.5));
-                        min2 = bnd.mindist(r);
-                        if (min2 > mrLCP * mrLCP) continue;
-                        if (pkd->Self() == 0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n", pkd->lcOffset0.size(), l, r[0], r[1], r[2]);
-                        pkd->lcOffset0.push_back(r[0]);
-                        pkd->lcOffset1.push_back(r[1]);
-                        pkd->lcOffset2.push_back(r[2]);
-                        if (bBowtie) {
-                            /*
-                            ** Now include also the -,-,- octant for checks, as we will be producing a bowtie.
-                            */
-                            for (int j = 0; j < 3; ++j) r[j] = -r[j];
-                            if (pkd->Self() == 0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n", pkd->lcOffset0.size(), l, r[0], r[1], r[2]);
-                            pkd->lcOffset0.push_back(r[0]);
-                            pkd->lcOffset1.push_back(r[1]);
-                            pkd->lcOffset2.push_back(r[2]);
-                        }
-                    }
-                }
-            }
-        }
-        /*
-        ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
-        */
-        pkd->nBoxLC.push_back(pkd->lcOffset0.size());
-    }
-    /*
-    ** Add more boxes to get to a multiple of the vector width.
-    ** Just make sure the added boxes far enough away to not get
-    ** included.
-    */
-    l = pkd->nLayerMax - 1;
-    double r[3] = {2 * l + 0.5, 2 * l + 0.5, 2 * l + 0.5};
-    while (pkd->lcOffset0.size() % dvec::width()) {
-        if (pkd->Self() == 0) printf("Lightcone replica:%zu layer:%d r:<%f %f %f>\n", pkd->lcOffset0.size(), l, r[0], r[1], r[2]);
-        pkd->lcOffset0.push_back(r[0]);
-        pkd->lcOffset1.push_back(r[1]);
-        pkd->lcOffset2.push_back(r[2]);
-    }
-    pkd->nBoxLC.push_back(pkd->lcOffset0.size());
-}
-
 void pkdContext::set_factor(std::uint32_t factor) {
     assert(particles.size() == 0); // Must be called before any particles are allocated
     assert(tree.size() == 0);      // Must be called before any nodes are allocated
@@ -260,13 +113,12 @@ pkdContext::pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int 
                        uint32_t nEphemeralBytes, int nTreeBitsLo, int nTreeBitsHi, int iCacheSize, int iCacheMaxInflight, int iWorkQueueSize,
                        mdl::MPI_RECV_MODE mpi_recv_mode, int mpi_recv_count, bool mpi_RDMA, const TinyVector<double, 3>& fPeriod, uint64_t nDark, uint64_t nGas,
                        uint64_t nStar, uint64_t nBH, uint64_t mMemoryModel, uint32_t nIntegerFactor)
-    : mdl(mdl), pLightCone((LIGHTCONEP*)nullptr), pHealpixData(nullptr), csm(nullptr) {
+    : mdl(mdl), csm(nullptr) {
     PARTICLE* p;
     uint32_t pi;
     int j, ism;
 
     set_factor(nIntegerFactor);
-    for (auto o = 0; o < 8; ++o) io_init(&afiLightCone[o], 0, 0, IO_AIO | IO_LIBAIO);
 
 #define RANDOM_SEED 1
     srand(RANDOM_SEED);
@@ -569,16 +421,10 @@ pkdContext::~pkdContext() {
     mdl->ThreadBarrier();
     mdl->delete_shared_array(pSegments[0], storageSize);
     free(pTempPRIVATE);
-    for (auto octant = 0; octant < 8; ++octant)
-        if (pLightCone[octant]) free(pLightCone[octant]);
-    if (pHealpixData) free(pHealpixData);
-    for (auto o = 0; o < 8; ++o) io_free(&afiLightCone[o]);
     if (csm) {
         csmFinish(csm);
         csm = NULL;
     }
-    if (interp_scale) gsl_spline_free(interp_scale);
-    if (interp_accel) gsl_interp_accel_free(interp_accel);
     cooling_clean(cooling);
 #ifdef STELLAR_EVOLUTION
     free(StelEvolData);
@@ -2048,23 +1894,6 @@ void pkdContext::ReorderInNodes() {
 }
 #endif
 
-void pkdSetupInterpScale(PKD pkd, double dBoxSize, double mrMax) {
-    const int nTable = 1000;
-    const double dLightSpeed = dLightSpeedSim(dBoxSize);
-    double dr, rt[nTable], at_inv[nTable];
-    /*
-    ** Setup lookup table.
-    */
-    dr = mrMax / (nTable - 1);
-    for (int i = 0; i < nTable; ++i) {
-        rt[i] = i * dr;
-        at_inv[i] = 1.0 / csmComoveLookbackTime2Exp(pkd->csm, rt[i] / dLightSpeed);
-    }
-    pkd->interp_accel = gsl_interp_accel_alloc();
-    pkd->interp_scale = gsl_spline_alloc(gsl_interp_cspline, nTable);
-    gsl_spline_init(pkd->interp_scale, rt, at_inv, nTable);
-}
-
 void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo) {
     /*
     ** Need to be careful to correctly copy the cosmo
@@ -2076,57 +1905,6 @@ void pkdInitCosmology(PKD pkd, const struct csmVariables* cosmo) {
     if (pkd->csm->val.classData.bClass) {
         csmClassGslInitialize(pkd->csm);
     }
-}
-
-/*
-** Initialize Lightcone stuff.
-*/
-void pkdInitLightcone(PKD pkd, int bBowtie, int bLightConeParticles, double dBoxSize, double dRedshiftLCP, double alphaLCP, blitz::TinyVector<double, 3> hLCP,
-                      int mOctants) {
-#ifdef __linux__
-    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
-#else
-    uint64_t nPageSize = 512;
-#endif
-    pkd->mLightConeOctants = mOctants;
-    /*
-    ** Initialize Lookup table for converting lightcone velocities to physical (sim units)
-    */
-    double dTimeLCP = csmExp2Time(pkd->csm, 1.0 / (1.0 + dRedshiftLCP));
-    double mrLCP = dLightSpeedSim(dBoxSize) * csmComoveKickFac(pkd->csm, dTimeLCP, (csmExp2Time(pkd->csm, 1.0) - dTimeLCP));
-    pkdSetupInterpScale(pkd, dBoxSize, mrLCP);
-    /*
-    ** Initialize light cone offsets.
-    */
-    if (pkd->Self() == 0) printf("alphaLCP = %f\n", alphaLCP);
-    if (alphaLCP < 0) {
-        initLightBallOffsets(pkd, mrLCP);
-    }
-    else {
-        initLightConeOffsets(pkd, bBowtie, hLCP, alphaLCP, mrLCP);
-    }
-    /*
-    ** allocate enough space for light cone particle output
-    */
-    uint64_t nLightConeBytes = (1024 * 1024 * 2);
-    pkd->nLightConeMax = nLightConeBytes / sizeof(LIGHTCONEP);
-    pkd->nLightCone = 0; // array of 8 octants
-    auto mask = pkd->mLightConeOctants == 0 ? 1 : pkd->mLightConeOctants;
-    for (auto octant = 0; octant < 8; ++octant) {
-        if (bLightConeParticles && (mask & (1 << octant))) {
-            void* v;
-            if (posix_memalign(&v, nPageSize, nLightConeBytes)) pkd->pLightCone[octant] = NULL;
-            else pkd->pLightCone[octant] = static_cast<LIGHTCONEP*>(v);
-            mdlassert(pkd->mdl, pkd->pLightCone[octant] != NULL);
-            io_init(&pkd->afiLightCone[octant], 8, 2 * 1024 * 1024, IO_AIO | IO_LIBAIO);
-        }
-        else {
-            pkd->afiLightCone[octant].nBuffers = 0;
-            pkd->pLightCone[octant] = NULL;
-        }
-        pkd->afiLightCone[octant].fd = -1;
-    }
-    pkd->pHealpixData = NULL;
 }
 
 void pkdZeroNewRung(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) { /* JW: Ugly -- need to clean up */
