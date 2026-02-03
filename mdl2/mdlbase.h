@@ -207,6 +207,11 @@ class BasicService {
 };
 
 class mdlBASE : protected mdlbt {
+  protected:
+    void CommitServices(size_t nExtraInBytes = 0, size_t nExtraOutBytes = 0);
+    std::vector<std::byte> input_buffer;
+    std::vector<std::byte> reply_buffer;
+
   public:
 #ifdef USE_BT
     using mdlbt::ignore_SIGBUS;
@@ -293,15 +298,7 @@ class mdlBASE : protected mdlbt {
     /// @param in Input data as a span of bytes
     /// @param out Output data as a span of bytes
     /// @return Number of bytes written to output
-    int RunService(int sid, std::span<std::byte> in = {}, std::span<std::byte> out = {}) {
-        if (sid < 0 || sid >= services.size()) {
-            throw std::out_of_range("Service ID out of range: " + std::to_string(sid));
-        }
-        if (services[sid] == nullptr) {
-            throw std::runtime_error("Service ID not found: " + std::to_string(sid));
-        }
-        return (*services[sid])(in, out);
-    }
+    int RunService(int sid, std::span<std::byte> in = {}, std::span<std::byte> out = {});
 
     // Convert service name to ID and run it
     /// @brief Run a service by name with byte spans for input and output

@@ -328,11 +328,6 @@ class mdlClass : public mdlBASE {
     int cacheSize;
 
     /*
-     ** Services stuff!
-     */
-    int nMaxSrvBytes;
-    std::vector<char> input_buffer;
-    /*
      ** Swapping buffer.
      */
     std::vector<char> pszTrans;

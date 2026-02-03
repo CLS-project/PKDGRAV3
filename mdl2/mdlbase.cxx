@@ -151,6 +151,11 @@ int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
     return l - 1;
 }
 
+void mdlBASE::CommitServices(size_t nExtraInBytes, size_t nExtraOutBytes) {
+    input_buffer.resize(nMaxInBytes + nExtraInBytes);
+    reply_buffer.resize(nMaxOutBytes + nExtraOutBytes);
+}
+
 int mdlBASE::AddService(int sid, void* p1, fcnService_t* fcnService, int nInBytes, int nOutBytes, std::string_view service_name) {
     if (nInBytes > nMaxInBytes) nMaxInBytes = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
@@ -176,6 +181,31 @@ int mdlBASE::AddService(std::unique_ptr<BasicService> service) {
     }
     services.push_back(std::move(service));
     return sid;
+}
+
+int mdlBASE::RunService(int sid, std::span<std::byte> in, std::span<std::byte> out) {
+    if (sid < 0 || sid >= services.size()) {
+        throw std::out_of_range("Service ID out of range: " + std::to_string(sid));
+    }
+    auto& service = services[sid];
+    if (service == nullptr) {
+        throw std::runtime_error("Service ID not found: " + std::to_string(sid));
+    }
+    size_t nMaxOut = service->getMaxBytesOut();
+    if (out.size() > nMaxOut) {
+        throw std::out_of_range("Output buffer too large for service " + std::string(service->getServiceName()) + ": " + std::to_string(out.size()) + " > " +
+                                std::to_string(nMaxOut));
+    }
+    if (out.size() == 0) {
+        out = std::span<std::byte>{reply_buffer.data(), nMaxOut}; // allow output to be omitted
+    }
+    auto nOut = (*service)(in, out);
+    if (out.size() == 0) nOut = 0; // if output was omitted, return 0
+    if (nOut > out.size()) {
+        throw std::runtime_error("Service " + std::string(service->getServiceName()) + " wrote too much output: " + std::to_string(nOut) + " > " +
+                                 std::to_string(out.size()));
+    }
+    return nOut;
 }
 
 int mdlBASE::RunService(int sid, int nIn, void* pIn, void* pOut, int nOut) {

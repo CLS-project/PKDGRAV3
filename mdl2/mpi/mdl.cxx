@@ -1558,7 +1558,7 @@ void mpiClass::MessageSendReply(mdlMessageSendReply* send) {
 
     MPI_Aint disp[2];
     MPI_Get_address(&send->header, &disp[0]);
-    MPI_Get_address(&send->Buffer.front(), &disp[1]);
+    MPI_Get_address(send->buffer.data(), &disp[1]);
     disp[1] -= disp[0];
     disp[0] = 0;
     int blocklen[2] = {sizeof(ServiceHeader), send->header.nInBytes};
@@ -2228,12 +2228,6 @@ int mdlClass::mdl_MPI_Sendrecv(void* sendbuf, int sendcount, int dest, int sendt
 
 void mdlClass::init(bool bDiag) {
     /*
-    ** Set default "maximums" for structures. These are NOT hard
-    ** maximums, as the structures will be realloc'd when these
-    ** values are exceeded.
-    */
-    nMaxSrvBytes = -1;
-    /*
     ** Allocate service buffers.
     */
     /*
@@ -2485,12 +2479,8 @@ int mdlClass::Swap(int id, size_t nBufBytes, void* vBuf, size_t nOutBytes, size_
 }
 
 void mdlClass::CommitServices() {
+    mdlBASE::CommitServices(sizeof(SRVHEAD), sizeof(SRVHEAD));
     int nMaxBytes;
-    nMaxBytes = (nMaxInBytes > nMaxOutBytes) ? nMaxInBytes : nMaxOutBytes;
-    if (nMaxBytes > nMaxSrvBytes) {
-        nMaxSrvBytes = nMaxBytes;
-        input_buffer.resize(nMaxSrvBytes + sizeof(SRVHEAD));
-    }
     /* We need a thread barrier here because we share these buffers */
     ThreadBarrier();
 }
@@ -2523,14 +2513,14 @@ int mdlClass::ReqService(int id, std::string_view service_name, void* vin, int n
 }
 
 int mdlClass::GetReply(int rID, std::span<std::byte> vout) {
-    assert(vout.size() <= nMaxSrvBytes && vout.size() >= 0);
+    assert(vout.size() <= nMaxOutBytes);
     mdlMessageReceiveReply receive(vout.data(), vout.size(), rID, Core());
     enqueueAndWait(receive);
     return receive.getCount();
 }
 
 int mdlClass::GetReply(int rID, int nMaxBytes, void* vout) {
-    assert(nMaxBytes <= nMaxSrvBytes && nMaxBytes >= 0);
+    assert(nMaxBytes <= nMaxOutBytes && nMaxBytes >= 0);
     mdlMessageReceiveReply receive(vout, nMaxBytes, rID, Core());
     enqueueAndWait(receive);
     return receive.getCount();
@@ -2540,18 +2530,18 @@ void mdlClass::Handler() {
     SRVHEAD* phi = (SRVHEAD*)(&input_buffer.front());
     char* pszIn = (char*)(phi + 1);
     int sid, id, nOutBytes, nBytes;
-    mdlMessageSendReply reply(nMaxSrvBytes);
+    mdlMessageSendReply reply(reply_buffer);
 
     do {
         /* We ALWAYS use MPI to send requests. */
-        mdlMessageReceive receive(phi, nMaxSrvBytes + sizeof(SRVHEAD), MPI_ANY_SOURCE, MDL_TAG_REQ, Core());
+        mdlMessageReceive receive(phi, nMaxInBytes + sizeof(SRVHEAD), MPI_ANY_SOURCE, MDL_TAG_REQ, Core());
         enqueueAndWait(receive);
         nBytes = receive.getCount();
         assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
         id = phi->idFrom;
         sid = phi->sid;
 
-        nOutBytes = RunService(sid, phi->nInBytes, pszIn, &reply.Buffer.front(), reply.Buffer.size());
+        nOutBytes = RunService(sid, phi->nInBytes, pszIn, reply_buffer.data(), reply_buffer.size());
         enqueueAndWait(reply.makeReply(Self(), phi->replyTag, sid, id, nOutBytes));
     } while (sid != SRV_STOP);
 }

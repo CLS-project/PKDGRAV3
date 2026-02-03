@@ -97,7 +97,7 @@ mdlMessageSendRequest::mdlMessageSendRequest(int32_t idFrom, int16_t sid, int ta
     header.nInBytes = count;
     header.nOutBytes = 0;
 }
-mdlMessageSendReply::mdlMessageSendReply(int32_t count) : Buffer(count) {
+mdlMessageSendReply::mdlMessageSendReply(std::span<std::byte> replyBuffer) : buffer(replyBuffer) {
 }
 
 // Update message with correct "reply" parameters

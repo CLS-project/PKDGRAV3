@@ -2,6 +2,8 @@
 #define MPIMESSAGES_H
 #include "mdlmessages.h"
 #include "mpi.h"
+#include <cstddef>
+#include <span>
 namespace mdl {
 
 class mdlMessageMPI : public mdlMessage {
@@ -144,13 +146,13 @@ class mdlMessageSendReply : public mdlMessageMPI {
     friend class mdlClass;
     friend class mpiClass;
     ServiceHeader header;
-    std::vector<char> Buffer;
+    std::span<std::byte> buffer;
     int iThreadTo;
 
   public:
     virtual void action(class mpiClass* mpi) override;
     //    explicit mdlMessageSendReply(int32_t idFrom,int16_t replyTag, int16_t sid,int target,void *buf=0,int32_t count=0);
-    explicit mdlMessageSendReply(int32_t count = 0);
+    explicit mdlMessageSendReply(std::span<std::byte> replyBuffer);
     mdlMessageSendReply& makeReply(int32_t idFrom, int16_t replyTag, int16_t sid, int target, int32_t count);
 };
 
