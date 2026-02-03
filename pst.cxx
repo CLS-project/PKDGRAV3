@@ -88,8 +88,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
-    mdl->AddService(PST_BUILDTREE, pst, (fcnService_t*)pstBuildTree, sizeof(struct inBuildTree),
-                    (nThreads == 1 ? 1 : 2 * nThreads - 1) * pkdContext::MaxNodeSize(), Legacy::BuildTree);
     mdl->AddService(PST_TREEINITMARKED, pst, (fcnService_t*)pstTreeInitMarked, 0, 0, Legacy::TreeInitMarked);
     mdl->AddService(PST_HOP_LINK, pst, (fcnService_t*)pstHopLink, sizeof(struct inHopLink), sizeof(uint64_t), Legacy::HopLink);
     mdl->AddService(PST_HOP_JOIN, pst, (fcnService_t*)pstHopJoin, sizeof(struct inHopLink), sizeof(struct outHopJoin), Legacy::HopJoin);
@@ -168,8 +166,6 @@ void pstAddServices(PST pst, mdl::mdlClass* mdl) {
     mdl->AddService(PST_RESETCOM, pst, (fcnService_t*)pstResetCOM, sizeof(struct inResetCOM), 0, Legacy::ResetCOM);
     mdl->AddService(PST_INITIALIZEEOS, pst, (fcnService_t*)pstInitializeEOS, 0, 0, Legacy::InitializeEOS);
     mdl->AddService(PST_UPDATEGASVALUES, pst, (fcnService_t*)pstUpdateGasValues, sizeof(struct inUpdateGasValues), 0, Legacy::UpdateGasValues);
-    mdl->AddService(PST_TREEUPDATEFLAGBOUNDS, pst, (fcnService_t*)pstTreeUpdateFlagBounds, sizeof(struct inTreeUpdateFlagBounds),
-                    (nThreads == 1 ? 1 : 2 * nThreads - 1) * pkdContext::MaxNodeSize(), Legacy::TreeUpdateFlagBounds);
 #ifdef MDL_FFTW
     mdl->AddService(PST_GRID_CREATE_FFT, pst, (fcnService_t*)pstGridCreateFFT, sizeof(struct inGridCreateFFT), 0, Legacy::GridCreateFFT);
     mdl->AddService(PST_GRID_DELETE_FFT, pst, (fcnService_t*)pstGridDeleteFFT, 0, 0, Legacy::GridDeleteFFT);
@@ -620,53 +616,6 @@ int pstTreeInitMarked(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pkdTreeInitMarked(pkd);
     }
     return 0;
-}
-
-int pstBuildTree(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
-    auto in = static_cast<struct inBuildTree*>(vin);
-    uint32_t uRoot = in->uRoot;
-    auto pTop = pkd->tree[static_cast<KDN*>(vout)];
-    // double minside;
-
-    /* We need to save our cells so we can update them later */
-    if (pst->NotCore()) {
-        auto pCell1 = pTop + 1;
-        auto pCell2 = pTop + pst->n_lower() * 2;
-
-        /* We will accumulate the top tree here */
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_BUILDTREE, vin, nIn);
-        nOut = pstBuildTree(pst->lower(), vin, nIn, pCell1, (pst->n_lower() * 2 - 1) * pkd->tree.ElementSize());
-        assert(nOut == (pst->n_lower() * 2 - 1) * pkd->tree.ElementSize());
-        auto nOutUpper = pst->mdl()->GetReply(rID, (pst->n_upper() * 2 - 1) * pkd->tree.ElementSize(), pCell2);
-        assert(nOutUpper == (pst->n_upper() * 2 - 1) * pkd->tree.ElementSize());
-        nOut += nOutUpper + pkd->tree.ElementSize();
-
-        /*
-        ** Combine Cell1 and Cell2 into pCell
-        ** to find cell CoM, bounds and multipoles.
-        ** This also computes the opening radius for gravity.
-        */
-        pTop->bMax() = HUGE_VAL; /* initialize bMax for CombineCells */
-        auto minside = pst->bnd.minside();
-        pkdCombineCells1(pkd, pTop, pCell1, pCell2);
-        pTop->calc_open(minside);
-        pkdCombineCells2(pkd, pTop, pCell1, pCell2);
-
-        /* Get our cell ready */
-        pTop->set_top_tree(pst->n_lower() * 2);
-    }
-    else {
-        auto pRoot = pkd->tree[uRoot];
-        pkd->TreeAlignNode();
-        pkdTreeBuild(plcl->pkd, in->nBucket, in->nGroup, in->uRoot, in->utRoot, in->ddHonHLimit);
-        *pTop = *pRoot;
-        /* Get our cell ready */
-        pTop->set_remote(pst->Self());
-        nOut = pkd->tree.ElementSize();
-    }
-    return nOut;
 }
 
 int pstPhysicalSoft(PST pst, void* vin, int nIn, void* vout, int nOut) {
@@ -1808,54 +1757,6 @@ int pstUpdateGasValues(PST pst, void* vin, int nIn, void* vout, int nOut) {
         pkdUpdateGasValues(plcl->pkd, &in->kick, &in->SPHoptions);
     }
     return 0;
-}
-
-int pstTreeUpdateFlagBounds(PST pst, void* vin, int nIn, void* vout, int nOut) {
-    LCL* plcl = pst->lcl();
-    PKD pkd = plcl->pkd;
-    auto in = static_cast<struct inTreeUpdateFlagBounds*>(vin);
-    uint32_t uRoot = in->uRoot;
-    auto pTop = pkd->tree[static_cast<KDN*>(vout)];
-
-    /* We need to save our cells so we can update them later */
-    if (pst->NotCore()) {
-        auto pCell1 = pTop + 1;
-        auto pCell2 = pTop + pst->n_lower() * 2;
-        auto nRemoveLower = pst->n_lower() * 2 * pkd->tree.ElementSize();
-
-        /* We will accumulate the top tree here */
-        int rID = pst->mdl()->ReqService(pst->upper(), PST_TREEUPDATEFLAGBOUNDS, vin, nIn);
-        auto nOutLower = pstTreeUpdateFlagBounds(pst->lower(), vin, nIn, pCell1, (pst->n_lower() * 2 - 1) * pkd->tree.ElementSize());
-        assert(nOutLower == (pst->n_lower() * 2 - 1) * pkd->tree.ElementSize());
-        auto nOutUpper = pst->mdl()->GetReply(rID, nOut - nRemoveLower, pCell2);
-        assert(nOutUpper == (pst->n_upper() * 2 - 1) * pkd->tree.ElementSize());
-        nOut = nOutLower + nOutUpper + pkd->tree.ElementSize();
-
-        /*
-        ** Combine Cell1 and Cell2 into pCell
-        ** to find cell CoM, bounds and multipoles.
-        ** This also computes the opening radius for gravity.
-        */
-        pTop->bMax() = HUGE_VAL; /* initialize bMax for CombineCells */
-        auto minside = pst->bnd.minside();
-        pkdCombineCells1(pkd, pTop, pCell1, pCell2);
-        pTop->calc_open(minside);
-        pkdCombineCells2(pkd, pTop, pCell1, pCell2);
-
-        /* Get our cell ready */
-        pTop->set_top_tree(pst->n_lower() * 2);
-    }
-    else {
-        auto pRoot = pkd->tree[uRoot];
-        pkd->TreeAlignNode();
-        pkdTreeUpdateFlagBounds(plcl->pkd, uRoot, &in->SPHoptions);
-        *pTop = *pRoot;
-        /* Get our cell ready */
-        pTop->set_remote(pst->Self());
-        /* iLower is valid = ROOT */
-        nOut = pkd->tree.ElementSize();
-    }
-    return nOut;
 }
 
 #ifdef MDL_FFTW

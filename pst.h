@@ -112,7 +112,6 @@ inline constexpr std::string_view Write = "Write";
 inline constexpr std::string_view Output = "Output";
 inline constexpr std::string_view OutputSend = "OutputSend";
 inline constexpr std::string_view Checkpoint = "Checkpoint";
-inline constexpr std::string_view BuildTree = "BuildTree";
 inline constexpr std::string_view TreeInitMarked = "TreeInitMarked";
 inline constexpr std::string_view Smooth = "Smooth";
 inline constexpr std::string_view Gravity = "Gravity";
@@ -182,7 +181,6 @@ inline constexpr std::string_view SetSPHoptions = "SetSPHoptions";
 inline constexpr std::string_view ResetCOM = "ResetCOM";
 inline constexpr std::string_view InitializeEOS = "InitializeEOS";
 inline constexpr std::string_view UpdateGasValues = "UpdateGasValues";
-inline constexpr std::string_view TreeUpdateFlagBounds = "TreeUpdateFlagBounds";
 inline constexpr std::string_view GridCreateFFT = "GridCreateFFT";
 inline constexpr std::string_view GridDeleteFFT = "GridDeleteFFT";
 inline constexpr std::string_view AddLinearSignal = "AddLinearSignal";
@@ -217,7 +215,6 @@ enum pst_service {
     PST_OUTPUT,
     PST_OUTPUT_SEND,
     PST_CHECKPOINT,
-    PST_BUILDTREE,
     PST_TREEINITMARKED,
     PST_SMOOTH,
     PST_GRAVITY,
@@ -288,7 +285,6 @@ enum pst_service {
     PST_RESETCOM,
     PST_INITIALIZEEOS,
     PST_UPDATEGASVALUES,
-    PST_TREEUPDATEFLAGBOUNDS,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
     PST_GRID_DELETE_FFT,
@@ -420,16 +416,6 @@ int pstCheckpoint(PST, void*, int, void*, int);
 
 /* PST_OUTPUT_SEND */
 int pstOutputSend(PST, void*, int, void*, int);
-
-/* PST_BUILDTREE */
-struct inBuildTree {
-    int nBucket;     /* Bucket Size */
-    int nGroup;      /* Group Size */
-    uint32_t uRoot;  /* Which root node to use */
-    uint32_t utRoot; /* Template tree */
-    double ddHonHLimit;
-};
-int pstBuildTree(PST, void*, int, void*, int);
 
 /* PST_TREEINITMARKED */
 int pstTreeInitMarked(PST, void*, int, void*, int);
@@ -966,16 +952,6 @@ struct inUpdateGasValues {
     struct pkdKickParameters kick;
 };
 int pstUpdateGasValues(PST pst, void* vin, int nIn, void* vout, int nOut);
-/* PST_TREEUPDATEFLAGBOUNDS */
-struct inTreeUpdateFlagBounds {
-    int nBucket;     /* Bucket Size */
-    int nGroup;      /* Group Size */
-    uint32_t uRoot;  /* Which root node to use */
-    uint32_t utRoot; /* Template tree */
-    double ddHonHLimit;
-    SPHOptions SPHoptions;
-};
-int pstTreeUpdateFlagBounds(PST pst, void* vin, int nIn, void* vout, int nOut);
 
 /* PST_GRID_CREATE_FFT */
 struct inGridCreateFFT {

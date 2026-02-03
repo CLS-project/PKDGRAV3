@@ -144,21 +144,6 @@ void pkdDumpTrees(PKD pkd, int bOnlyVA, uint8_t uRungDD) {
     }
 }
 
-/// @brief Partition particles array between pLower and pUpper (inclusive).
-/// @tparam pivot_t Allows for floating point or integer positions.
-/// @param pkd pkdContext object.
-/// @param pLower Starting index of partition.
-/// @param pUpper End index of partition (inclusive).
-/// @param d Dimension to split in.
-/// @param pivot Values lower then pivot are sorted to the left of the array, values larger then pivot are sorted to the right of the array.
-/// @return The index of the split.
-template <class pivot_t>
-static int PartPart(PKD pkd, int pLower, int pUpper, int d, pivot_t pivot) {
-    auto pi = pkd->particles.begin() + pLower;
-    auto pj = pkd->particles.begin() + pUpper;
-    return std::partition(pi, pj + 1, [pivot, d](auto& p) { return p.template raw_position<pivot_t>(d) < pivot; }) - pkd->particles.begin();
-}
-
 /// @brief Build tree.
 ///
 /// This function assumes that the root node is correctly set up (particularly the bounds).
@@ -168,8 +153,8 @@ static int PartPart(PKD pkd, int pLower, int pUpper, int d, pivot_t pivot) {
 /// @param nGroup Maximum number of particles a node can have to be considered a group.
 /// @param maxBucketWidth Hacky parameter to control that the size of bucket is not too large.
 ///        Was used because sometimes the tree would not build correctly without this.
-void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketWidth) {
-    auto pNode = pkd->tree[iNode]; // Current node of the larger tree that spans across nodes.
+void pkdContext::BuildTemp(int iNode, int bucketSize, int nGroup, double maxBucketWidth) {
+    auto pNode = tree[iNode]; // Current node of the larger tree that spans across nodes.
 
     pNode->set_depth(0);
 
@@ -195,13 +180,13 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
         // Now start the partitioning of the particles about
         // split on dimension given by d.
         int i; // Partition index.
-        if (pkd->bIntegerPosition) {
-            int32_t split = pkd->convert(bnd.center(d));
-            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, split);
+        if (bIntegerPosition) {
+            int32_t split = convert(bnd.center(d));
+            i = PartPart(pNode->lower(), pNode->upper(), d, split);
         }
         else {
             double split = bnd.center(d);
-            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, split);
+            i = PartPart(pNode->lower(), pNode->upper(), d, split);
         }
 
         int nl = i - pNode->lower();     // Number of particles in the left partition.
@@ -213,16 +198,16 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
             bool allowGroup = true;
             bool allowRChildBucket = true;
             bool allowLChildBucket = true;
-            if (pkd->particles.present(PKD_FIELD::oNewSph) && pNode->count() <= nGroup) {
+            if (particles.present(PKD_FIELD::oNewSph) && pNode->count() <= nGroup) {
                 int minMaxGroupSizeL = 32768;
                 int minMaxGroupSizeR = 32768;
                 for (int pj = pLeft->lower(); pj <= pLeft->upper(); ++pj) {
-                    auto p = pkd->particles[pj];
+                    auto p = particles[pj];
                     auto& NewSph = p.newsph();
                     minMaxGroupSizeL = std::min(minMaxGroupSizeL, NewSph.maxGroupSize);
                 }
                 for (int pj = pRight->lower(); pj <= pRight->upper(); ++pj) {
-                    auto p = pkd->particles[pj];
+                    auto p = particles[pj];
                     auto& NewSph = p.newsph();
                     minMaxGroupSizeR = std::min(minMaxGroupSizeR, NewSph.maxGroupSize);
                 }
@@ -283,10 +268,10 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
                 pNode->set_bound(rbnd);
                 is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
             }
-            if (pkd->particles.present(PKD_FIELD::oNewSph) && is_bucket) {
+            if (particles.present(PKD_FIELD::oNewSph) && is_bucket) {
                 int minMaxGroupSize = 32768;
                 for (int pj = pNode->lower(); pj <= pNode->upper(); ++pj) {
-                    auto p = pkd->particles[pj];
+                    auto p = particles[pj];
                     auto& NewSph = p.newsph();
                     minMaxGroupSize = std::min(minMaxGroupSize, NewSph.maxGroupSize);
                 }
@@ -301,7 +286,7 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
         }
 
         // Get node and bound for next iteration.
-        pNode = pkd->tree[iNode];
+        pNode = tree[iNode];
         bnd = pNode->bound();
     }
 }
@@ -315,7 +300,7 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
 ** tree, then we can either create a bucket, or continue to create the
 ** new tree in the usual way.
 */
-void BuildFromTemplate(PKD pkd, int iNode, int M, int nGroup, int iTemplate) {
+void pkdContext::BuildFromTemplate(int iNode, int M, int nGroup, int iTemplate) {
     int d;
     int i, nr, nl;
     double dMaxMax;
@@ -327,7 +312,7 @@ void BuildFromTemplate(PKD pkd, int iNode, int M, int nGroup, int iTemplate) {
     };
     std::vector<buildStack> S;
     // If we have an empty tree root then we are "done"
-    auto pNode = pkd->tree[iNode];
+    auto pNode = tree[iNode];
     pNode->set_depth(0);
     pNode->set_leaf();
     pNode->set_group(true);
@@ -337,16 +322,16 @@ void BuildFromTemplate(PKD pkd, int iNode, int M, int nGroup, int iTemplate) {
     S.reserve(100); // Start with a sensible stack size
 
     S.emplace_back(iTemplate, iNode);
-    auto pTemp = pkd->tree[iTemplate];
+    auto pTemp = tree[iTemplate];
     dMaxMax = pTemp->bMax();
 
     while (!S.empty()) {
         // Pop the next cells to process
-        pTemp = pkd->tree[S.back().iTemp];
+        pTemp = tree[S.back().iTemp];
         iNode = S.back().iNode;
         S.pop_back();
 
-        pNode = pkd->tree[iNode];
+        pNode = tree[iNode];
         auto bnd = pNode->bound();
 
         // Follow the template tree to wherever it leads.
@@ -355,18 +340,18 @@ void BuildFromTemplate(PKD pkd, int iNode, int M, int nGroup, int iTemplate) {
             if (pTemp->depth() != pNode->depth() || d > 2) break;
 
             // Split is between left and right child nodes in the given dimension
-            auto ptLeft = pkd->tree[pTemp->lchild()];
-            auto ptRight = pkd->tree[pTemp->rchild()];
+            auto ptLeft = tree[pTemp->lchild()];
+            auto ptRight = tree[pTemp->rchild()];
             auto ltbnd = ptLeft->bound();
             auto rtbnd = ptRight->bound();
             auto dSplit = 0.5 * (ltbnd.upper(d) + rtbnd.lower(d));
 
             // Partition the particles on either side of the split
-            if (pkd->bIntegerPosition) {
-                int32_t Split = pkd->convert(dSplit);
-                i = PartPart(pkd, pNode->lower(), pNode->upper(), d, Split);
+            if (bIntegerPosition) {
+                int32_t Split = convert(dSplit);
+                i = PartPart(pNode->lower(), pNode->upper(), d, Split);
             }
-            else i = PartPart(pkd, pNode->lower(), pNode->upper(), d, dSplit);
+            else i = PartPart(pNode->lower(), pNode->upper(), d, dSplit);
             nl = i - pNode->lower();
             nr = pNode->upper() + 1 - i;
             assert(nl > 0 || nr > 0);
@@ -402,16 +387,16 @@ void BuildFromTemplate(PKD pkd, int iNode, int M, int nGroup, int iTemplate) {
             S.emplace_back(pTemp->rchild(), pNode->rchild());
             pTemp = ptLeft;
             iNode = pNode->lchild();
-            pNode = pkd->tree[iNode];
+            pNode = tree[iNode];
             bnd = pNode->bound();
         }
 
         // Bucket in the template tree: Now just build, but set a sensible maximum cell size
-        BuildTemp(pkd, iNode, M, nGroup, dMaxMax * pow(2.0, -pNode->depth() / 3.0));
+        BuildTemp(iNode, M, nGroup, dMaxMax * pow(2.0, -pNode->depth() / 3.0));
     }
 }
 
-void Create(PKD pkd, int iRoot, double ddHonHLimit) {
+void pkdContext::Create(int iRoot, double ddHonHLimit) {
     int iNode = iRoot;
     blitz::TinyVector<double, 3> kdn_r;
     double fSoft, d2, dih2, b;
@@ -420,7 +405,7 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
     int pj;
 
     /* If the tree is empty, we just create a sensible moment and we are done. */
-    auto pkdn = pkd->tree[iNode];
+    auto pkdn = tree[iNode];
     if (pkdn->count() == 0) {
         pkdn->bMax() = 1.0;
         pkdn->set_min_rung(MAX_RUNG);
@@ -435,7 +420,7 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
     std::vector<int> S;
     S.reserve(100); // Start with a sensible stack size
     while (1) {
-        while ((pkdn = pkd->tree[iNode])->is_cell()) {
+        while ((pkdn = tree[iNode])->is_cell()) {
             S.push_back(iNode);
             iNode = pkdn->lchild();
         }
@@ -443,7 +428,7 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
         // Now calculate all bucket quantities!
         // This includes M,CoM,Moments and special
         // bounds and iMaxRung.
-        pkdn = pkd->tree[iNode];
+        pkdn = tree[iNode];
         // Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
         // This gives us a better feel for the "size" of a bucket with only a single particle.
         auto bmin = pkdn->bound().minside();
@@ -451,7 +436,7 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
         auto bnd = pkdn->bound();
 
         pj = pkdn->lower();
-        auto p = pkd->particles[pj];
+        auto p = particles[pj];
         const auto a = p.have_acceleration() ? p.acceleration() : blitz::TinyVector<acc_t, 3>(0.0);
         const auto v = p.have_velocity() ? p.velocity() : blitz::TinyVector<vel_t, 3>(0.0);
         m = p.mass();
@@ -460,9 +445,9 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
         dih2 = fSoft;
         auto r = p.position();
 
-        if (pkd->particles.present(PKD_FIELD::oBall)) {
+        if (particles.present(PKD_FIELD::oBall)) {
             /* initialize ball or box of balls */
-            float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit, pkd->SPHoptions.fBallFactor * p.ball());
+            float limitedBallSize = std::min(SPHoptions.ballSizeLimit, SPHoptions.fBallFactor * p.ball());
             fBoB = SPHBOB(r, limitedBallSize);
         }
         /* initialize marked flag */
@@ -475,7 +460,7 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
         blitz::TinyVector<double, 3> ar = m * a;
         pkdn->set_rung(p.rung());
         for (++pj; pj <= pkdn->upper(); ++pj) {
-            auto p = pkd->particles[pj];
+            auto p = particles[pj];
             const auto a = p.have_acceleration() ? p.acceleration() : blitz::TinyVector<acc_t, 3>(0.0);
             const auto v = p.have_velocity() ? p.velocity() : blitz::TinyVector<vel_t, 3>(0.0);
             m = p.mass();
@@ -484,8 +469,8 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
             if (fSoft > dih2) dih2 = fSoft;
             auto ft = p.position();
 
-            if (pkd->particles.present(PKD_FIELD::oBall)) {
-                float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit, pkd->SPHoptions.fBallFactor * p.ball());
+            if (particles.present(PKD_FIELD::oBall)) {
+                float limitedBallSize = std::min(SPHoptions.ballSizeLimit, SPHoptions.fBallFactor * p.ball());
                 fBoB = fBoB.combine(ft, limitedBallSize);
             }
             if (p.marked()) pkdn->set_marked(true);
@@ -592,7 +577,7 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
             ** this cell to form the quantities for this cell.
             ** First find the CoM, just like for the bucket.
             */
-            pkdn = pkd->tree[iNode];
+            pkdn = tree[iNode];
             auto bnd = pkdn->bound();
             /*
             ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
@@ -600,17 +585,17 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
             */
             bmin = bnd.minside();
             pj = pkdn->lower();
-            auto pkdl = pkd->tree[pkdn->lchild()];
-            auto pkdu = pkd->tree[pkdn->rchild()];
-            pkdCombineCells1(pkd, pkdn, pkdl, pkdu);
+            auto pkdl = tree[pkdn->lchild()];
+            auto pkdu = tree[pkdn->rchild()];
+            pkdCombineCells1(this, pkdn, pkdl, pkdu);
             kdn_r = pkdn->position();
             if (pkdn->count() <= NMAX_OPENCALC) {
                 assert(pj <= pkdn->upper());
                 double d2Max = 0;
                 for (; pj <= pkdn->upper(); ++pj) {
-                    auto p = pkd->particles[pj];
+                    auto p = particles[pj];
                     // #if defined(__AVX__) && defined(USE_SIMD)
-                    //                     if (pkd->bIntegerPosition) {
+                    //                     if (bIntegerPosition) {
                     //                         __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
                     //                         v = _mm256_mul_pd(v,v);
                     //                         __m128d t0 = _mm256_extractf128_pd(v,0);
@@ -646,7 +631,7 @@ void Create(PKD pkd, int iRoot, double ddHonHLimit) {
             else {
                 pkdn->calc_open(bmin); // set bMax
             }
-            pkdCombineCells2(pkd, pkdn, pkdl, pkdu);
+            pkdCombineCells2(this, pkdn, pkdl, pkdu);
         }
         ++iNode;
     }
@@ -741,7 +726,7 @@ void pkdCombineCells2(PKD pkd, treeStore::NodePointer pkdn, treeStore::NodePoint
     }
 }
 
-void pkdTreeBuild(PKD pkd, int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit) {
+void pkdContext::TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit) {
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
     __itt_string_handle* shMyTask = __itt_string_handle_create("Tree Build");
@@ -756,18 +741,18 @@ void pkdTreeBuild(PKD pkd, int nBucket, int nGroup, uint32_t uRoot, uint32_t uTe
     ** For more information look a pkdDumpTrees and the Initialize*() routines above.
     */
 
-    if (uTemp == 0) BuildTemp(pkd, uRoot, nBucket, nGroup, HUGE_VAL);
-    else BuildFromTemplate(pkd, uRoot, nBucket, nGroup, uTemp);
-    Create(pkd, uRoot, ddHonHLimit);
+    if (uTemp == 0) BuildTemp(uRoot, nBucket, nGroup, HUGE_VAL);
+    else BuildFromTemplate(uRoot, nBucket, nGroup, uTemp);
+    Create(uRoot, ddHonHLimit);
 
     if (uRoot == FIXROOT) {
 #ifndef SINGLE_CACHES
-        pkd->mdl->CacheInitialize(CID_CELL2, std::make_shared<treeCACHEhelper>(pkd));
-        pkd->mdl->CacheInitialize(CID_PARTICLE2, std::make_shared<particleCACHEhelper>(pkd));
+        mdl->CacheInitialize(CID_CELL2, std::make_shared<treeCACHEhelper>(this));
+        mdl->CacheInitialize(CID_PARTICLE2, std::make_shared<particleCACHEhelper>(this));
 #endif
     }
     else {
-        pkd->mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(pkd));
+        mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(this));
     }
 
 #ifdef USE_ITT
@@ -810,7 +795,7 @@ void pkdGroupOrder(PKD pkd, uint32_t* iGrpOffset) {
     }
 }
 
-void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
+void pkdContext::TreeBuildByGroup(int nBucket, int nGroup) {
     int i, k, n, iRoot;
     int iTree;
 
@@ -820,57 +805,57 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
     ** groupstats functions.
     */
     assert(0); /* pLite is gone -- this code path needs to be tested */
-    if (pkd->Nodes() > 0) {
+    if (Nodes() > 0) {
         /*
         ** Close cell caching space and free up nodes.
         */
-        pkd->mdl->FinishCache(CID_CELL);
+        mdl->FinishCache(CID_CELL);
     }
 
     /*
     ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
     */
-    pkd->tree.resize(NRESERVED_NODES);
+    tree.resize(NRESERVED_NODES);
 
-    if (pkd->hopSavedRoots == 0) {
+    if (hopSavedRoots == 0) {
         /* Sort particle by group, but with group 0 at the end */
-        auto iGrpOffset = new int[pkd->nGroups + 1];
-        auto iGrpEnd = new int[pkd->nGroups + 1];
+        auto iGrpOffset = new int[nGroups + 1];
+        auto iGrpEnd = new int[nGroups + 1];
 
         /* Count the number of particles in each group */
-        for (i = 0; i <= pkd->nGroups; ++i) iGrpOffset[i] = 0;
-        for (i = 0; i < pkd->Local(); ++i) {
-            auto P = pkd->particles[i];
+        for (i = 0; i <= nGroups; ++i) iGrpOffset[i] = 0;
+        for (i = 0; i < Local(); ++i) {
+            auto P = particles[i];
             auto gid = P.group();
             ++iGrpOffset[gid + 1];
         }
         iGrpOffset[0] = iGrpOffset[1];
         iGrpOffset[1] = 0;
         /* Calculate starting offsets for particles in a group */
-        for (i = 2; i <= pkd->nGroups; ++i) {
+        for (i = 2; i <= nGroups; ++i) {
             iGrpOffset[i] += iGrpOffset[i - 1];
             iGrpEnd[i - 1] = iGrpOffset[i];
         }
 
         /* Now construct the top tree node for each group */
         i = 0;
-        for (auto gid = 1; gid < pkd->nGroups; ++gid) {
-            iRoot = pkd->TreeAllocRootNode();
-            pkd->hopGroups[gid].iTreeRoot = iRoot;
-            auto pNode = pkd->tree[iRoot];
+        for (auto gid = 1; gid < nGroups; ++gid) {
+            iRoot = TreeAllocRootNode();
+            hopGroups[gid].iTreeRoot = iRoot;
+            auto pNode = tree[iRoot];
             i = iGrpOffset[gid];
             pNode->set_local(i, i - 1);
         }
 
         /* Reorder the particles into group order */
-        for (iTree = 1; iTree < pkd->nGroups; ++iTree) {
+        for (iTree = 1; iTree < nGroups; ++iTree) {
             for (i = iGrpOffset[iTree]; i < iGrpEnd[iTree];) {
-                auto P = pkd->particles[i];
+                auto P = particles[i];
                 auto gid = P.group();
-                if (gid == 0) gid = pkd->nGroups;
+                if (gid == 0) gid = nGroups;
                 if (gid == iTree) ++i;
                 else {
-                    auto p2 = pkd->particles[iGrpOffset[gid]++];
+                    auto p2 = particles[iGrpOffset[gid]++];
                     swap(P, p2);
                 }
             }
@@ -880,20 +865,20 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
         delete[] iGrpEnd;
 
         /* Calculate the bounds for each group */
-        for (i = 0; i < pkd->Local();) {
-            auto P = pkd->particles[i];
+        for (i = 0; i < Local();) {
+            auto P = particles[i];
             auto r = P.position();
             auto gid = P.group();
             if (gid == 0) break;
-            iRoot = pkd->hopGroups[gid].iTreeRoot;
-            auto pNode = pkd->tree[iRoot];
+            iRoot = hopGroups[gid].iTreeRoot;
+            auto pNode = tree[iRoot];
 
             // pNode->iLower = 0;
             pNode->set_group(true);
             // assert(pNode->pLower == i);
 
             auto dMin = r, dMax = r;
-            for (auto p = pkd->particles[++i]; i < pkd->Local() && p.group() == gid; ++i) {
+            for (auto p = particles[++i]; i < Local() && p.group() == gid; ++i) {
                 r = p.position();
                 dMin = blitz::min(dMin, r);
                 dMax = blitz::max(dMax, r);
@@ -902,20 +887,20 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
             // assert(pNode->pUpper == i-1);
         }
         /* We can use this to quickly rebuild the trees */
-        pkd->hopSavedRoots = pkd->Nodes();
+        hopSavedRoots = Nodes();
     }
     else {
-        pkd->tree.resize(pkd->hopSavedRoots);
-        for (auto gid2 = 1; gid2 < pkd->nGroups; ++gid2) {
-            if (!pkd->hopGroups[gid2].bNeedGrav) continue;
-            iRoot = pkd->hopGroups[gid2].iTreeRoot;
-            auto pNode = pkd->tree[iRoot];
+        tree.resize(hopSavedRoots);
+        for (auto gid2 = 1; gid2 < nGroups; ++gid2) {
+            if (!hopGroups[gid2].bNeedGrav) continue;
+            iRoot = hopGroups[gid2].iTreeRoot;
+            auto pNode = tree[iRoot];
             // pNode->iLower = 0;
             pNode->set_group(true);
             n = pNode->upper();
             blitz::TinyVector<double, 3> dMin, dMax;
             for (i = pNode->lower(); i <= n;) {
-                auto p = pkd->particles[i];
+                auto p = particles[i];
                 auto r = p.position();
                 auto gid = p.group();
                 if (gid) {
@@ -928,7 +913,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
                     ++i;
                 }
                 else {
-                    auto p2 = pkd->particles[n--];
+                    auto p2 = particles[n--];
                     swap(p, p2);
                 }
             }
@@ -938,14 +923,14 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
         }
     }
 
-    for (auto gid = 1; gid < pkd->nGroups; ++gid)
-        if (pkd->hopGroups[gid].bNeedGrav) BuildTemp(pkd, pkd->hopGroups[gid].iTreeRoot, nBucket, nGroup, HUGE_VAL);
-    for (auto gid = 1; gid < pkd->nGroups; ++gid)
-        if (pkd->hopGroups[gid].bNeedGrav) Create(pkd, pkd->hopGroups[gid].iTreeRoot, 0.0);
+    for (auto gid = 1; gid < nGroups; ++gid)
+        if (hopGroups[gid].bNeedGrav) BuildTemp(hopGroups[gid].iTreeRoot, nBucket, nGroup, HUGE_VAL);
+    for (auto gid = 1; gid < nGroups; ++gid)
+        if (hopGroups[gid].bNeedGrav) Create(hopGroups[gid].iTreeRoot, 0.0);
     /*
     ** Finally activate a read only cache for remote access.
     */
-    pkd->mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(pkd));
+    mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(this));
 }
 
 void pkdDistribRoot(PKD pkd, const double* r, const MOMC* pmom) {
@@ -955,28 +940,27 @@ void pkdDistribRoot(PKD pkd, const double* r, const MOMC* pmom) {
     pkd->ew.mom = *pmom;
 }
 
-void pkdTreeUpdateFlagBoundsRecurse(PKD pkd, uint32_t uRoot, SPHOptions* SPHoptions) {
+void pkdContext::TreeUpdateFlagBoundsRecurse(uint32_t uRoot, const SPHOptions* SPHoptions) {
     int id = 0;
     int pj;
 
-    if (!pkd->tree.present(KDN_FIELD::oNodeBOB)) return; // We aren't keeping track of the bounds
-    float fBallFactor = (SPHoptions->dofBallFactor) ? pkd->SPHoptions.fBallFactor : 1.0f;
+    if (!tree.present(KDN_FIELD::oNodeBOB)) return; // We aren't keeping track of the bounds
+    float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
 
-    auto c = pkd->tree[uRoot];
-    auto& SPHbob = pkd->NodeBOB(c);
-
+    auto c = tree[uRoot];
+    auto& SPHbob = NodeBOB(c);
     if (c->is_bucket()) {
         pj = c->lower();
-        auto p = pkd->particles[pj];
+        auto p = particles[pj];
         auto ft = p.position();
-        float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit, fBallFactor * p.ball());
+        float limitedBallSize = std::min(SPHoptions->ballSizeLimit, fBallFactor * p.ball());
         SPHbob = SPHBOB(ft, limitedBallSize);
         if (p.marked()) c->set_marked(true);
         if (p.NN_flag()) c->set_NN(true);
         for (++pj; pj <= c->upper(); ++pj) {
-            auto p = pkd->particles[pj];
+            auto p = particles[pj];
             auto ft = p.position();
-            float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit, fBallFactor * p.ball());
+            float limitedBallSize = std::min(SPHoptions->ballSizeLimit, fBallFactor * p.ball());
             SPHbob = SPHbob.combine(ft, limitedBallSize);
             if (p.marked()) c->set_marked(true);
             if (p.NN_flag()) c->set_NN(true);
@@ -984,10 +968,10 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd, uint32_t uRoot, SPHOptions* SPHopti
     }
     else {
         auto [iCellLo, idLo, iCellUp, idUp] = c->get_child_cells(id);
-        pkdTreeUpdateFlagBoundsRecurse(pkd, iCellLo, SPHoptions);
-        pkdTreeUpdateFlagBoundsRecurse(pkd, iCellUp, SPHoptions);
-        auto cLow = pkd->tree[iCellLo];
-        auto cUp = pkd->tree[iCellUp];
+        TreeUpdateFlagBoundsRecurse(iCellLo, SPHoptions);
+        TreeUpdateFlagBoundsRecurse(iCellUp, SPHoptions);
+        auto cLow = tree[iCellLo];
+        auto cUp = tree[iCellUp];
         auto& SPHbobLow = cLow->BOB();
         auto& SPHbobUp = cUp->BOB();
         SPHbob = SPHbobLow.combine(SPHbobUp);
@@ -996,8 +980,8 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd, uint32_t uRoot, SPHOptions* SPHopti
     }
 }
 
-void pkdTreeUpdateFlagBounds(PKD pkd, uint32_t uRoot, SPHOptions* SPHoptions) {
-    if (pkd->mdl->CacheStatus(CID_CELL)) pkd->mdl->FinishCache(CID_CELL);
-    pkdTreeUpdateFlagBoundsRecurse(pkd, uRoot, SPHoptions);
-    pkd->mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(pkd));
+void pkdContext::TreeUpdateFlagBounds(uint32_t uRoot, const SPHOptions* SPHoptions) {
+    if (mdl->CacheStatus(CID_CELL)) mdl->FinishCache(CID_CELL);
+    TreeUpdateFlagBoundsRecurse(uRoot, SPHoptions);
+    mdl->CacheInitialize(CID_CELL, std::make_shared<treeCACHEhelper>(this));
 }

@@ -10,7 +10,7 @@ __pycache__
 /windows*/*\.filters
 /windows*/*\.user
 /windows*/*\.filters
-build*
+/build*
 **Testing*
 test-reports
 .vscode/

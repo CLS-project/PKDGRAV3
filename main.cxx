@@ -64,6 +64,7 @@
 
 #include "io/output.h"
 
+#include "domains/buildtree.h"
 #include "domains/calcbound.h"
 #include "domains/combinebound.h"
 #include "domains/distribtoptree.h"
@@ -145,6 +146,8 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceFileSizes>(pst);
     mdl->AddService<ServiceRestore>(pst);
     mdl->AddService<ServiceRestoreDecorator>(pst);
+    mdl->AddService<ServiceBuildTree>(pst);
+    mdl->AddService<ServiceTreeUpdateFlagBounds>(pst);
     mdl->AddService<ServiceCalcBound>(pst);
     mdl->AddService<ServiceCombineBound>(pst);
     mdl->AddService<ServiceDistribTopTree>(pst);

@@ -516,7 +516,7 @@ void pkdHopTreeBuild(PKD pkd, int nBucket, int nGroup) {
     for (iRoot = 0; iRoot <= nRootsTotal; ++iRoot) pkd->hopRoots[iRoot].iPid = pkd->hopRoots[iRoot].iIndex = -1;
 
     /* We build a tree of each group of particles - hopGroups[].iTreeRoot is set */
-    pkdTreeBuildByGroup(pkd, nBucket, nGroup);
+    pkd->TreeBuildByGroup(nBucket, nGroup);
 
     /* Add ourselves for local groups */
     for (gid = 1; gid < pkd->nLocalGroups; ++gid) {

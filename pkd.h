@@ -479,6 +479,7 @@ class pkdContext : public Integerize {
     void RsReorder(const uint64_t* pOrds);
     void RsExtract(const std::string& filename, int iSegment, uint64_t* pOrds);
 
+    // Lightcone
   protected:
     void flushLightCone(int octant);
     void addToLightCone(double dvFac, double* r, float fPot, PARTICLE* p, int bParticleOutput);
@@ -489,6 +490,32 @@ class pkdContext : public Integerize {
     void ProcessLightCone(PARTICLE* p, float fPot, double dLookbackFac, double dLookbackFacLCP, double dDriftDelta, double dKickDelta, double dBoxSize,
                           int bLightConeParticles, blitz::TinyVector<double, 3> hlcp, double tanalpha2);
     void LightConeVel(double dBoxSize);
+
+  protected:
+    /// @brief Partition particles array between pLower and pUpper (inclusive).
+    /// @tparam pivot_t Allows for floating point or integer positions.
+    /// @param pkd pkdContext object.
+    /// @param pLower Starting index of partition.
+    /// @param pUpper End index of partition (inclusive).
+    /// @param d Dimension to split in.
+    /// @param pivot Values lower then pivot are sorted to the left of the array, values larger then pivot are sorted to the right of the array.
+    /// @return The index of the split.
+    template <class pivot_t>
+    auto PartPart(int pLower, int pUpper, int d, pivot_t pivot) -> int {
+        auto pi = particles.begin() + pLower;
+        auto pj = particles.begin() + pUpper;
+        return std::partition(pi, pj + 1, [pivot, d](auto& p) { return p.template raw_position<pivot_t>(d) < pivot; }) - particles.begin();
+    }
+
+    void BuildTemp(int iNode, int bucketSize, int nGroup, double maxBucketWidth);
+    void Create(int iRoot, double ddHonHLimit);
+    void BuildFromTemplate(int iNode, int M, int nGroup, int iTemplate);
+    void TreeUpdateFlagBoundsRecurse(uint32_t uRoot, const SPHOptions* SPHoptions);
+
+  public:
+    void TreeBuild(int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
+    void TreeBuildByGroup(int nBucket, int nGroup);
+    void TreeUpdateFlagBounds(uint32_t uRoot, const SPHOptions* SPHoptions);
 
   public:
     mdl::mdlClass* mdl;
@@ -705,7 +732,6 @@ static inline int pkdIsNew(PKD pkd, PARTICLE* p) {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd, int nBucket);
-void pkdTreeBuild(PKD pkd, int nBucket, int nGroup, uint32_t uRoot, uint32_t uTemp, double ddHonHLimit);
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, const KDN* pTop, int allocateMemory);
 void pkdOpenCloseCaches(PKD pkd, int bOpen, int bFixed);
 void pkdTreeInitMarked(PKD pkd);
@@ -714,7 +740,6 @@ void pkdCombineCells1(PKD, treeStore::NodePointer pkdn, treeStore::NodePointer p
 void pkdCombineCells2(PKD, treeStore::NodePointer pkdn, treeStore::NodePointer p1, treeStore::NodePointer p2);
 void pkdDistribRoot(PKD, const double*, const MOMC*);
 void pkdGroupOrder(PKD pkd, uint32_t* iGrpOffset);
-void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup);
 
 /*
 ** From pkd.c:
@@ -843,7 +868,6 @@ void pkdResetCOM(PKD pkd, blitz::TinyVector<double, 3> r_com, blitz::TinyVector<
 void pkdInitializeEOS(PKD pkd);
 void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions* SPHoptions, int bGPU);
 void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters* kick, SPHOptions* SPHoptions);
-void pkdTreeUpdateFlagBounds(PKD pkd, uint32_t uRoot, SPHOptions* SPHoptions);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta, int fold);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);

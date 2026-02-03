@@ -18,6 +18,7 @@
 #include "analysis/orbits.h"
 #include "pkd_config.h"
 
+#include <memory>
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H
@@ -144,6 +145,7 @@ namespace rockstar {
 #include "analysis/rssaveids.h"
 #include "analysis/rsextract.h"
 
+#include "domains/buildtree.h"
 #include "domains/calcbound.h"
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
@@ -1607,7 +1609,7 @@ void MSR::DomainDecomp(int iRung) {
 ** functions in order to implement special features without recoding...
 */
 void MSR::BuildTree(int bNeedEwald, uint32_t uRoot, uint32_t utRoot) {
-    struct inBuildTree in;
+    ServiceBuildTree::input in;
     const double ddHonHLimit = parameters.get_ddHonHLimit();
     LCL* plcl = pst->lcl();
     PKD pkd = plcl->pkd;
@@ -1616,9 +1618,12 @@ void MSR::BuildTree(int bNeedEwald, uint32_t uRoot, uint32_t utRoot) {
     auto nTopTree = pkd->NodeSize() * (2 * nThreads - 1);
     auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
 
-    std::unique_ptr<char[]> buffer{new char[nMsgSize]};
+    auto buffer = std::make_unique<std::byte[]>(nMsgSize);
+    auto inDistribTop = std::span(buffer.get(), nMsgSize);
     auto pDistribTop = new (buffer.get()) ServiceDistribTopTree::input;
+    auto topTree = std::span(reinterpret_cast<std::byte*>(pDistribTop + 1), nTopTree);
     auto pkdn = pkd->tree[reinterpret_cast<KDN*>(pDistribTop + 1)];
+
     pDistribTop->uRoot = uRoot;
     pDistribTop->allocateMemory = 1;
 
@@ -1628,10 +1633,11 @@ void MSR::BuildTree(int bNeedEwald, uint32_t uRoot, uint32_t utRoot) {
     in.utRoot = utRoot;
     in.ddHonHLimit = ddHonHLimit;
     TimerStart(TIMER_TREE);
-    nTopTree = pstBuildTree(pst, &in, sizeof(in), pkdn, nTopTree);
+    nTopTree = mdl->RunService<ServiceBuildTree>(in, topTree);
+    // nTopTree = pstBuildTree(pst, &in, sizeof(in), pkdn, nTopTree);
     pDistribTop->nTop = nTopTree / pkd->NodeSize();
     assert(pDistribTop->nTop == (2 * nThreads - 1));
-    mdl->RunService<ServiceDistribTopTree>(std::span(reinterpret_cast<std::byte*>(pDistribTop), nMsgSize));
+    mdl->RunService<ServiceDistribTopTree>(inDistribTop);
     TimerStop(TIMER_TREE);
     dsec = TimerGet(TIMER_TREE);
     print("Tree built, Wallclock: {:.5} secs\n\n", dsec);
@@ -4515,34 +4521,37 @@ void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double d
 }
 
 void MSR::TreeUpdateFlagBounds(int bNeedEwald, uint32_t uRoot, uint32_t utRoot, SPHOptions SPHoptions) {
-    struct inTreeUpdateFlagBounds in;
+    ServiceTreeUpdateFlagBounds::input in;
     const double ddHonHLimit = parameters.get_ddHonHLimit();
     LCL* plcl = pst->lcl();
     PKD pkd = plcl->pkd;
     double sec, dsec;
 
-    print("Update local trees...\n\n");
-
     auto nTopTree = pkd->NodeSize() * (2 * nThreads - 1);
     auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
 
-    std::unique_ptr<char[]> buffer{new char[nMsgSize]};
+    auto buffer = std::make_unique<std::byte[]>(nMsgSize);
+    auto inDistribTop = std::span(buffer.get(), nMsgSize);
     auto pDistribTop = new (buffer.get()) ServiceDistribTopTree::input;
+    auto topTree = std::span(reinterpret_cast<std::byte*>(pDistribTop + 1), nTopTree);
     auto pkdn = pkd->tree[reinterpret_cast<KDN*>(pDistribTop + 1)];
+
+    print("Update local trees...\n\n");
+
     pDistribTop->uRoot = uRoot;
     pDistribTop->allocateMemory = 0;
 
-    in.nBucket = parameters.get_nBucket();
-    in.nGroup = parameters.get_nGroup();
-    in.uRoot = uRoot;
-    in.utRoot = utRoot;
-    in.ddHonHLimit = ddHonHLimit;
+    in.base.nBucket = parameters.get_nBucket();
+    in.base.nGroup = parameters.get_nGroup();
+    in.base.uRoot = uRoot;
+    in.base.utRoot = utRoot;
+    in.base.ddHonHLimit = ddHonHLimit;
     in.SPHoptions = SPHoptions;
     sec = MSR::Time();
-    nTopTree = pstTreeUpdateFlagBounds(pst, &in, sizeof(in), pkdn, nTopTree);
+    nTopTree = mdl->RunService<ServiceTreeUpdateFlagBounds>(in, topTree);
     pDistribTop->nTop = nTopTree / pkd->NodeSize();
     assert(pDistribTop->nTop == (2 * nThreads - 1));
-    mdl->RunService<ServiceDistribTopTree>(std::span(reinterpret_cast<std::byte*>(pDistribTop), nMsgSize));
+    mdl->RunService<ServiceDistribTopTree>(inDistribTop);
     dsec = MSR::Time() - sec;
     print("Tree updated, Wallclock: {:.5f} secs\n\n", dsec);
 }
