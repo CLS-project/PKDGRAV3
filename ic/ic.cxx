@@ -17,6 +17,7 @@
 
 #include "pkd_config.h"
 #include <cstdint>
+#include <queue>
 #include <math.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_errno.h>
