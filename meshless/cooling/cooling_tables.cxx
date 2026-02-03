@@ -31,6 +31,7 @@
 #include "cooling_tables.h"
 #include "interpolate.h"
 #include "pkd_config.h"
+#include "fmt/format.h"
 
 /**
  * @brief Reads in EAGLE table of redshift values
@@ -373,18 +374,18 @@ void get_redshift_invariant_table(struct cooling_function_data* restrict cooling
     }
 
     /* Decide which high redshift table to read. Indices set in cooling_update */
-    char filename[eagle_table_path_name_length + 21];
+    std::string filename;
     if (photodis) {
-        snprintf(filename, sizeof(filename), "%s/z_photodis.hdf5", cooling->cooling_table_path);
+        filename = fmt::format("{}/z_photodis.hdf5", cooling->cooling_table_path);
         printf("Reading cooling table 'z_photodis.hdf5'\n");
     }
     else {
-        snprintf(filename, sizeof(filename), "%s/z_8.989nocompton.hdf5", cooling->cooling_table_path);
+        filename = fmt::format("{}/z_8.989nocompton.hdf5", cooling->cooling_table_path);
         printf("Reading cooling table 'z_8.989nocompton.hdf5' \n");
     }
 
-    hid_t file_id = H5Fopen(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (file_id < 0) printf("unable to open file %s\n", filename);
+    hid_t file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) printf("unable to open file %s\n", filename.c_str());
 
     char set_name[64];
 
@@ -574,13 +575,11 @@ void get_cooling_table(struct cooling_function_data* restrict cooling, const int
     #endif
 
         /* Open table for this redshift index */
-        char fname[eagle_table_path_name_length + 12];
-        snprintf(fname, sizeof(fname), "%s/z_%1.3f.hdf5", cooling->cooling_table_path, cooling->Redshifts[z_index]);
+        std::string fname = fmt::format("{}/z_{:1.3f}.hdf5", cooling->cooling_table_path, cooling->Redshifts[z_index]);
         printf("Reading cooling table 'z_%1.3f.hdf5' \n", cooling->Redshifts[z_index]);
 
-        hid_t file_id = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
-        if (file_id < 0) printf("unable to open file %s", fname);
-
+        hid_t file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+        if (file_id < 0) printf("unable to open file %s", fname.c_str());
         char set_name[64];
 
         /* read in cooling rates due to metals */
