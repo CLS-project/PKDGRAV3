@@ -55,6 +55,8 @@ class ServiceTreeUpdateFlagBounds : public ServiceBuildTree {
 class ServiceTreeInitMarked : public TraversePST {
   public:
     static constexpr std::string_view name = "TreeInitMarked";
+    using input = void;
+    using output = void;
     explicit ServiceTreeInitMarked(PST pst) : TraversePST(pst, name) {}
 
   protected:

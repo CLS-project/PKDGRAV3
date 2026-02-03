@@ -16,6 +16,7 @@ class ServiceCoolingInit : public TraversePST {
         float SolarAbundances[eagle_cooling_N_temperature];
         float SolarAbundances_inv[eagle_cooling_N_temperature];
     };
+    using output = void;
     explicit ServiceCoolingInit(PST pst) : TraversePST(pst, name) {}
 
   protected:
@@ -35,6 +36,7 @@ class ServiceCoolingUpdate : public TraversePST {
         float temperature[eagle_cooling_N_loaded_redshifts * num_elements_temperature];
         float electron_abundance[eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance];
     };
+    using output = void;
     explicit ServiceCoolingUpdate(PST pst) : TraversePST(pst, name) {}
 
   protected:
@@ -47,6 +49,7 @@ class ServiceCoolingUpdateZ : public TraversePST {
     struct input {
         double dTime;
     };
+    using output = void;
     explicit ServiceCoolingUpdateZ(PST pst) : TraversePST(pst, name) {}
 
   protected:
@@ -56,9 +59,8 @@ class ServiceCoolingUpdateZ : public TraversePST {
 class ServiceCoolingHydReionization : public TraversePST {
   public:
     static constexpr std::string_view name = "CoolingHydReionization";
-    struct input {
-        double dTime;
-    };
+    using input = void;
+    using output = void;
     explicit ServiceCoolingHydReionization(PST pst) : TraversePST(pst, name) {}
 
   protected:

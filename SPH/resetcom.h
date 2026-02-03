@@ -23,6 +23,7 @@ class ServiceResetCOM : public TraversePST {
         blitz::TinyVector<double, 3> r_com;
         blitz::TinyVector<double, 3> v_com;
     };
+    using output = void;
     explicit ServiceResetCOM(PST pst) : TraversePST(pst, name, sizeof(input)) {}
 
   protected:

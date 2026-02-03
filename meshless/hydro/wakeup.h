@@ -22,6 +22,7 @@ class ServiceWakeParticles : public TraversePST {
     struct input {
         double dTime;
     };
+    using output = void;
     explicit ServiceWakeParticles(PST pst) : TraversePST(pst, name) {}
 
   protected:

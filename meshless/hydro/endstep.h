@@ -41,6 +41,7 @@ class ServiceEndTimestepIntegration : public TraversePST {
         int bChemEnrich;
 #endif
     };
+    using output = void;
     explicit ServiceEndTimestepIntegration(PST pst) : TraversePST(pst, name) {}
 
   protected:
