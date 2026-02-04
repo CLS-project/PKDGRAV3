@@ -1237,3 +1237,322 @@ auto pkdContext::ActiveOrder() -> uint64_t {
     auto i = std::partition(particles.begin(), particles.end(), [](auto& p) { return p.is_active(); });
     return (nActive = i - particles.begin());
 }
+
+int pkdLowerPart(PKD pkd, int d, double fSplit, int i, int j) {
+    auto pi = pkd->particles.begin() + i;
+    auto pj = pkd->particles.begin() + j;
+    auto ii = std::partition(pi, pj + 1, [d, fSplit](auto& p) { return p.position(d) >= fSplit; });
+    return ii - pkd->particles.begin();
+}
+
+int pkdUpperPart(PKD pkd, int d, double fSplit, int i, int j) {
+    auto pi = pkd->particles.begin() + i;
+    auto pj = pkd->particles.begin() + j;
+    auto ii = std::partition(pi, pj + 1, [d, fSplit](auto& p) { return p.position(d) < fSplit; });
+    return ii - pkd->particles.begin();
+}
+
+int pkdLowerPartWrap(PKD pkd, int d, double fSplit1, double fSplit2, int i, int j) {
+    auto pi = pkd->particles.begin() + i;
+    auto pj = pkd->particles.begin() + j;
+    if (fSplit1 > fSplit2) {
+        auto ii = std::partition(pi, pj + 1, [d, fSplit1, fSplit2](auto& p) {
+            auto r = p.position(d);
+            return r < fSplit2 || r >= fSplit1;
+        });
+        return ii - pkd->particles.begin();
+    }
+    else {
+        auto ii = std::partition(pi, pj + 1, [d, fSplit1, fSplit2](auto& p) {
+            auto r = p.position(d);
+            return r < fSplit2 && r >= fSplit1;
+        });
+        return ii - pkd->particles.begin();
+    }
+}
+
+int pkdUpperPartWrap(PKD pkd, int d, double fSplit1, double fSplit2, int i, int j) {
+    auto pi = pkd->particles.begin() + i;
+    auto pj = pkd->particles.begin() + j;
+
+    if (fSplit1 > fSplit2) {
+        auto ii = std::partition(pi, pj + 1, [d, fSplit1, fSplit2](auto& p) {
+            auto r = p.position(d);
+            return r >= fSplit2 && r < fSplit1;
+        });
+        return ii - pkd->particles.begin();
+    }
+    else {
+        auto ii = std::partition(pi, pj + 1, [d, fSplit1, fSplit2](auto& p) {
+            auto r = p.position(d);
+            return r >= fSplit2 || r < fSplit1;
+        });
+        return ii - pkd->particles.begin();
+    }
+}
+
+int pkdLowerOrdPart(PKD pkd, uint64_t nOrdSplit, int i, int j) {
+    auto pi = pkd->particles.begin() + i;
+    auto pj = pkd->particles.begin() + j;
+    auto split = [nOrdSplit](auto& p) { return p.order() >= nOrdSplit; };
+    auto ii = std::partition(pi, pj + 1, split);
+    // assert (std::all_of(pi,ii,split) && std::none_of(ii,pj+1,split));
+    return ii - pkd->particles.begin();
+}
+
+int pkdUpperOrdPart(PKD pkd, uint64_t nOrdSplit, int i, int j) {
+    auto pi = pkd->particles.begin() + i;
+    auto pj = pkd->particles.begin() + j;
+    auto split = [nOrdSplit](auto& p) { return p.order() < nOrdSplit; };
+    auto ii = std::partition(pi, pj + 1, split);
+    // assert (std::all_of(pi,ii,split) && std::none_of(ii,pj+1,split));
+    return ii - pkd->particles.begin();
+}
+
+/*
+** Partition particles between iFrom and iTo into those < fSplit and
+** those >= to fSplit.  Find number and weight in each partition.
+*/
+int pkdWeight(PKD pkd, int d, double fSplit, int iSplitSide, int iFrom, int iTo, int* pnLow, int* pnHigh, double* pfLow, double* pfHigh) {
+    int iPart;
+    double fLower, fUpper;
+
+    /*
+    ** First partition the memory about fSplit for particles iFrom to iTo.
+    */
+    if (iSplitSide) {
+        iPart = pkdLowerPart(pkd, d, fSplit, iFrom, iTo);
+        *pnLow = pkd->Local() - iPart;
+        *pnHigh = iPart;
+    }
+    else {
+        iPart = pkdUpperPart(pkd, d, fSplit, iFrom, iTo);
+        *pnLow = iPart;
+        *pnHigh = pkd->Local() - iPart;
+    }
+    /*
+    ** Calculate the lower weight and upper weight BETWEEN the particles
+    ** iFrom to iTo!
+    */
+    fLower = iPart - iFrom;
+    fUpper = iTo - iPart + 1;
+    if (iSplitSide) {
+        *pfLow = fUpper;
+        *pfHigh = fLower;
+    }
+    else {
+        *pfLow = fLower;
+        *pfHigh = fUpper;
+    }
+    return (iPart);
+}
+
+/*
+** Partition particles between iFrom and iTo into those < fSplit and
+** those >= to fSplit.  Find number and weight in each partition.
+*/
+int pkdWeightWrap(PKD pkd, int d, double fSplit, double fSplit2, int iSplitSide, int iFrom, int iTo, int* pnLow, int* pnHigh) {
+    int iPart;
+
+    /*
+    ** First partition the memory about fSplit for particles iFrom to iTo.
+    */
+    if (!iSplitSide) {
+        iPart = pkdLowerPartWrap(pkd, d, fSplit, fSplit2, iFrom, iTo);
+        *pnLow = iPart;
+        *pnHigh = pkd->Local() - iPart;
+    }
+    else {
+        iPart = pkdUpperPartWrap(pkd, d, fSplit, fSplit2, iFrom, iTo);
+        *pnHigh = iPart;
+        *pnLow = pkd->Local() - iPart;
+    }
+    return (iPart);
+}
+
+int pkdOrdWeight(PKD pkd, uint64_t iOrdSplit, int iSplitSide, int iFrom, int iTo, int* pnLow, int* pnHigh) {
+    int iPart;
+
+    /*
+    ** First partition the memory about fSplit for particles iFrom to iTo.
+    */
+    if (iSplitSide) {
+        iPart = pkdLowerOrdPart(pkd, iOrdSplit, iFrom, iTo);
+        *pnLow = pkd->Local() - iPart;
+        *pnHigh = iPart;
+    }
+    else {
+        iPart = pkdUpperOrdPart(pkd, iOrdSplit, iFrom, iTo);
+        *pnLow = iPart;
+        *pnHigh = pkd->Local() - iPart;
+    }
+    return (iPart);
+}
+
+std::pair<int, int> pkdColRejects(PKD pkd, int nSplit) {
+    int iRejects, iDecoratorRejects, i;
+
+    mdlassert(pkd->mdl, pkd->ddinfo.nRejects == 0);
+    mdlassert(pkd->mdl, pkd->ddinfo.nDecoratorRejects == 0);
+
+    pkd->ddinfo.nRejects = pkd->Local() - nSplit;
+    iRejects = pkd->FreeStore() - pkd->ddinfo.nRejects;
+    pkdReorderDecorator(pkd);
+
+    // Only for gas only sims
+    // assert(nSplit==nDecoratorSplit);
+
+    // We need to keep track of the decorator indeces of the particles to be swapped,
+    // for this we use the ephemeral storage
+    auto ephem = pkd->Ephemeral<bool>();
+    int nDecoratorRejects = 0;
+
+    /*
+    ** Move rejects to High memory.
+    */
+    if (pkd->Local() != pkd->FreeStore()) {
+        for (i = pkd->ddinfo.nRejects - 1; i >= 0; --i) {
+            pkd->particles[iRejects + i] = pkd->particles[nSplit + i];
+            ephem[pkd->ddinfo.nRejects - i - 1] = pkd->particles[iRejects + i].have_decorator();
+            if (ephem[pkd->ddinfo.nRejects - i - 1]) nDecoratorRejects++;
+            assert(pkd->particles[iRejects + i].mass() == pkd->particles[nSplit + i].mass());
+            assert(pkd->particles[iRejects + i].position(0) == pkd->particles[nSplit + i].position(0));
+        }
+    }
+    else {
+        // Even if there is no particle movements, we should still fill the
+        // decorator flag in the ephemeral storage
+        for (i = pkd->ddinfo.nRejects - 1; i >= 0; --i) {
+            ephem[pkd->ddinfo.nRejects - i - 1] = pkd->particles[nSplit + i].have_decorator();
+            if (ephem[pkd->ddinfo.nRejects - i - 1]) nDecoratorRejects++;
+        }
+    }
+
+    uint64_t nDecoratorSplit = nSplit == pkd->Local() ? pkd->DecoratorLocal() : pkd->DecoratorLocal() - nDecoratorRejects;
+    pkd->ddinfo.nDecoratorRejects = pkd->DecoratorLocal() - nDecoratorSplit;
+    iDecoratorRejects = pkd->FreeDecoratorStore() - pkd->ddinfo.nDecoratorRejects;
+
+    // Same for decorators
+    if (pkd->DecoratorLocal() != pkd->FreeDecoratorStore()) {
+        for (i = pkd->ddinfo.nDecoratorRejects - 1; i >= 0; --i) {
+            pkd->decorators[iDecoratorRejects + i] = pkd->decorators[nDecoratorSplit + i];
+            assert(pkd->decorators[nDecoratorSplit + i].mfm().Uint == pkd->decorators[iDecoratorRejects + i].mfm().Uint);
+        }
+    }
+
+    pkd->SetLocal(nSplit);
+    pkd->decorators.SetLocal(nDecoratorSplit);
+
+    return std::pair<int, int>(pkd->ddinfo.nRejects, pkd->ddinfo.nDecoratorRejects);
+}
+
+std::pair<int, int> pkdSwapRejects(PKD pkd, int idSwap) {
+    size_t nBuf;
+    size_t nOutBytes, nSndBytes, nRcvBytes;
+    size_t nOutDecoratorBytes, nSndDecoratorBytes, nRcvDecoratorBytes, nSkipBytes;
+
+    auto oldLocal = pkd->Local();
+    auto oldDecoratorLocal = pkd->DecoratorLocal();
+
+    if (idSwap != -1) {
+        // printf("%d have %d(%d) rejects\n", pkd->Self(), pkd->ddinfo.nRejects, pkd->ddinfo.nDecoratorRejects);
+        nBuf = (pkdSwapSpace(pkd)) * pkd->particles.ParticleSize();
+
+        nOutBytes = pkd->ddinfo.nRejects * pkd->particles.ParticleSize();
+
+        mdlassert(pkd->mdl, pkd->Local() + pkd->ddinfo.nRejects <= pkd->FreeStore());
+        // Swap the particles
+        auto outPart = pkd->mdl->Swap(idSwap, nBuf, pkd->Particle(pkd->Local()), nOutBytes, &nSndBytes, &nRcvBytes);
+
+        auto nNewPart = nRcvBytes / pkd->particles.ParticleSize();
+        auto nSentPart = nSndBytes / pkd->particles.ParticleSize();
+        // if (!outPart)
+        //     printf("%d tried to swap %d with %d, but only sent %d and received %d\n",
+        //            pkd->Self(), pkd->ddinfo.nRejects, idSwap, nSentPart, nNewPart);
+
+        pkd->AddLocal(nNewPart);
+
+        if (pkd->decorators.DecoratorSize() > 0) {
+
+            // Make sure that we have enough space for receiving the associated
+            // decorators to the newly arrived particles
+            int nNewDecorator = 0;
+            for (auto i = oldLocal; i < pkd->Local(); i++) {
+                if (pkd->particles[i].have_decorator()) {
+                    nNewDecorator++;
+                }
+            }
+            assert(nNewDecorator <= pkdSwapDecoratorSpace(pkd));
+            // Also only share now the associated decorators to the particles that
+            // we have just sent
+
+            int nToBeSendDecorator = 0;
+            auto ephem = pkd->Ephemeral<bool>();
+            for (auto i = 0; i < nSentPart; i++) {
+                // NB: We store this in reverse order so that if we need multiple
+                // swaps we no not need to know how many elements were copied before.
+                if (ephem[pkd->ddinfo.nRejects - i - 1]) {
+                    nToBeSendDecorator++;
+                }
+            }
+
+            // i.e., sanity check, we are not miscounting the decorators
+            //        printf("%d %d \t %d %d\n", pkd->Self(), nSentPart,nToBeSendDecorator, pkd->ddinfo.nDecoratorRejects);
+            assert(nToBeSendDecorator <= pkd->ddinfo.nDecoratorRejects);
+
+            // i.e., otherwise we can not be sure that we can get all the decorators
+            // assert(pkdSwapSpace(pkd) <= pkdSwapDecoratorSpace(pkd));
+
+            nOutDecoratorBytes = pkd->ddinfo.nDecoratorRejects * pkd->decorators.DecoratorSize();
+            nSkipBytes = (pkd->ddinfo.nDecoratorRejects - nToBeSendDecorator) * pkd->decorators.DecoratorSize();
+            nBuf = pkdSwapDecoratorSpace(pkd) * pkd->decorators.DecoratorSize();
+
+            auto outDecorator =
+                pkd->mdl->Swap(idSwap, nBuf, pkd->Decorator(pkd->DecoratorLocal()), nOutDecoratorBytes, &nSndDecoratorBytes, &nRcvDecoratorBytes, nSkipBytes);
+
+            auto nSentDecorator = nSndDecoratorBytes / pkd->decorators.DecoratorSize();
+
+            // i.e., the swap was completed
+            assert(nSndDecoratorBytes == nOutDecoratorBytes - nSkipBytes);
+            // which should be the same as
+            assert(outDecorator == 1);
+            // i.e., we received the correct amount of decorators
+            assert(nRcvDecoratorBytes == nNewDecorator * pkd->decorators.DecoratorSize());
+            // i.e., same amount of particles and decorators was exchanged (only for gas-only sims)
+            // assert(nRcvDecoratorBytes/pkd->decorators.DecoratorSize() == nRcvBytes/pkd->particles.ParticleSize());
+
+            // printf("%d %d \t %d \t %" PRIu64 "\t %" PRIu64 "\t %" PRIu64 "\n",
+            //         pkd->Self(), outPart, pkd->ddinfo.nRejects, nOutBytes, nSndBytes, nRcvBytes);
+
+            pkd->decorators.Add(nRcvDecoratorBytes / pkd->decorators.DecoratorSize());
+
+            // printf("%d (%d/%d) swapped with %d a total of %d(%d) elements, changing the count from %d(%d) to %d(%d)\n",
+            //        pkd->Self(), outPart, outDecorator, idSwap, nSentPart, nSentDecorator,
+            //        oldLocal, oldDecoratorLocal, pkd->Local(), pkd->DecoratorLocal());
+            // assert (nSentPart == nSentPart); // only for gas-only simulations
+
+            pkd->ddinfo.nDecoratorRejects -= nSentDecorator;
+            // printf("%d have %d(%d) remaining rejects\n", pkd->Self(), pkd->ddinfo.nRejects, pkd->ddinfo.nDecoratorRejects);
+
+            // Bookkeep so that newly arrived particles have the correct decorator index
+            uint64_t d = oldDecoratorLocal;
+            for (auto i = oldLocal; i < pkd->Local(); i++) {
+                auto P = pkd->particles[i];
+                if (P.have_decorator()) {
+                    P.set_decorator_index(d);
+                    d++;
+                }
+            }
+            assert(d == pkd->DecoratorLocal());
+        }
+        pkd->ddinfo.nRejects -= nSentPart;
+    }
+    return std::pair<int, int>(pkd->ddinfo.nRejects, pkd->ddinfo.nDecoratorRejects);
+}
+
+std::pair<int, int> pkdColOrdRejects(PKD pkd, uint64_t nOrdSplit, int iSplitSide) {
+    int nSplit;
+    if (iSplitSide) nSplit = pkdLowerOrdPart(pkd, nOrdSplit, 0, pkd->Local() - 1);
+    else nSplit = pkdUpperOrdPart(pkd, nOrdSplit, 0, pkd->Local() - 1);
+    return pkdColRejects(pkd, nSplit);
+}

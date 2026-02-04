@@ -629,8 +629,10 @@ class pkdContext : public Integerize, private DataRegistryOwner {
     auto RecvArray(int iNode, void* pDest, int iUnitSize) -> void*;
 
   public:
-    int nRejects;
-    int nDecoratorRejects;
+    struct OldDDInfo {
+        int nRejects = 0;
+        int nDecoratorRejects = 0;
+    } ddinfo;
     int nActive;
     blitz::TinyVector<uint64_t, MAX_RUNG + 1> nRung;
     uint64_t nDark;
