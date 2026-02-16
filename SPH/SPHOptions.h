@@ -133,6 +133,13 @@ struct SPHOptions {
     uint64_t doExternalAcceleration : 1;
     uint64_t disableShockHeating : 1;
     uint64_t trackPeakPressure : 1;
+    uint64_t doDEMForces : 1;
+    float Kn;
+    float MuS;
+    float MuR;
+    float MuT;
+    float EpsN;
+    float EpsT;
 };
 
 struct SPHOptionsGPU {

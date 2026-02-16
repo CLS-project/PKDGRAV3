@@ -1165,10 +1165,10 @@ help="Particles have ball"
 
 ["Gas".hydro_model]
 flag="hydro"
-enum = { NONE=0, SPH=1, MFM=2, MFV=3 }
+enum = { NONE=0, SPH=1, MFM=2, MFV=3, SSDEM=4 }
 default=0
 omitted="NONE"
-help="Hydro model to use: none, sph, meshless finite mass, meshless finite volume"
+help="Hydro model to use: none, sph, meshless finite mass, meshless finite volume, soft sphere discrete element method (in development)"
 docs='''
 Specifies which Hydro model to use. The models should be imported with::
 
@@ -1179,6 +1179,7 @@ Possible values are:
  - ``HYDRO_MODEL.SPH``: Smoothed-Particle Hydrodynamics (SPH)
  - ``HYDRO_MODEL.MFM``: Meshless Finite-Mass Hydrodynamics (MFM)
  - ``HYDRO_MODEL.MFV``: Meshless Finite-Volume Hydrodynamics (MFV)
+ - ``HYDRO_MODEL.SSDEM``: Soft Sphere Discrete Element Method (not hydrodynamics) (SSDEM)
 '''
 
 ["Gas".nSmooth]
@@ -1617,6 +1618,40 @@ help="Temperature at the density threshold for the effective EOS, K"
 flag="EOSNJeans"
 default=8.75
 help="Number of elements to resolve the Jeans length"
+
+################################################################################
+########## SSDEM
+################################################################################
+
+["SSDEM".Kn]
+flag="Kn"
+default=0.0
+help="Normal spring constant"
+
+["SSDEM".MuS]
+flag="MuS"
+default=0.0
+help="Sliding fricition coefficient"
+
+["SSDEM".MuR]
+flag="MuR"
+default=0.0
+help="Rolling fricition coefficient"
+
+["SSDEM".MuT]
+flag="MuT"
+default=0.0
+help="Twisting fricition coefficient"
+
+["SSDEM".EpsN]
+flag="EpsN"
+default=0.0
+help="Coefficient of restitution in the normal direction"
+
+["SSDEM".EpsT]
+flag="EpsT"
+default=0.0
+help="Coefficient of restitution in the tangential direction"
 
 ################################################################################
 ########## Star formation

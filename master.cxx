@@ -4190,6 +4190,13 @@ auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
     SPHoptions.maxGroupSize = parameters.get_nGroup();
     SPHoptions.lowerGroupSizeThreshold = parameters.get_iLowerGroupSizeThreshold();
     SPHoptions.upperGroupSizeThreshold = parameters.get_iUpperGroupSizeThreshold();
+    SPHoptions.doDEMForces = DoSSDEM();
+    SPHoptions.Kn = parameters.get_Kn();
+    SPHoptions.MuS = parameters.get_MuS();
+    SPHoptions.MuR = parameters.get_MuR();
+    SPHoptions.MuT = parameters.get_MuT();
+    SPHoptions.EpsN = parameters.get_EpsN();
+    SPHoptions.EpsT = parameters.get_EpsT();
     return SPHoptions;
 }
 
