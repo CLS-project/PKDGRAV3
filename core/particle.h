@@ -107,6 +107,18 @@ struct PEAKPRESSUREFIELDS {
 
 } // namespace sph
 
+namespace ssdem {
+namespace hana = boost::hana;
+struct FIELDS {
+    BOOST_HANA_DEFINE_STRUCT(FIELDS, (blitz::TinyVector<float, 3>, spin), // Spin vector
+                             (blitz::TinyVector<float, 3>, spinDot),      // Time derivative of the spin vector
+                             (blitz::TinyVector<float, 3>, spinPred),     // Predicted spin vector
+                             (blitz::TinyVector<float, 3>, vPred),        // Predicted velocity vector
+                             (blitz::TinyVector<float, 3>, lastPos)       // Position at the last time step
+    );
+}; // FIELDS
+} // namespace ssdem
+
 struct VELSMOOTH {
     BOOST_HANA_DEFINE_STRUCT(VELSMOOTH, (blitz::TinyVector<float, 3>, vmean), (float, divv), (float, veldisp2));
 };
@@ -130,6 +142,7 @@ enum PKD_FIELD {
     oNewSph,             /* NewSph structure */
     oNewSphStr,          /* NewSph strength structure */
     oNewSphPeakPressure, /* NewSph peak pressure fields */
+    oSSDEM,              /* SSDEM structure */
     oStar,               /* Star structure */
     oBH,                 /* BH structure */
     oVelSmooth,
@@ -346,6 +359,10 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
     auto& newsphpeakp(PARTICLE* p) const { return get<sph::PEAKPRESSUREFIELDS>(p, PKD_FIELD::oNewSphPeakPressure); }
     const auto& newsphpeakp(const PARTICLE* p) const { return get<sph::PEAKPRESSUREFIELDS>(p, PKD_FIELD::oNewSphPeakPressure); }
 
+    /* SSDEM variables */
+    auto& ssdem(PARTICLE* p) const { return get<ssdem::FIELDS>(p, PKD_FIELD::oSSDEM); }
+    const auto& ssdem(const PARTICLE* p) const { return get<ssdem::FIELDS>(p, PKD_FIELD::oSSDEM); }
+
     auto& star(PARTICLE* p) const {
         auto d = decorator_field(p);
         return decorator->get<decorators::STAR>(d, DECORATOR_FIELD::oStar);
@@ -392,6 +409,7 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
         bool have_newsph() const { return have(PKD_FIELD::oNewSph); }
         bool have_newsphstr() const { return have(PKD_FIELD::oNewSphStr); }
         bool have_newsphpeakp() const { return have(PKD_FIELD::oNewSphPeakPressure); }
+        bool have_ssdem() const { return have(PKD_FIELD::oSSDEM); }
         bool have_star() const { return store().decorator->present(DECORATOR_FIELD::oStar); }
         bool have_ball() const { return have(PKD_FIELD::oBall); }
         bool have_mass() const { return have(PKD_FIELD::oMass); }
@@ -458,6 +476,7 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
         auto& newsph() const { return store().newsph(p); }
         auto& newsphstr() const { return store().newsphstr(p); }
         auto& newsphpeakp() const { return store().newsphpeakp(p); }
+        auto& ssdem() const { return store().ssdem(p); }
         auto& star() const { return store().star(p); }
         auto& BH() const { return store().BH(p); }
         auto Timer() const { return store().Timer(p); }

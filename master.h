@@ -372,7 +372,7 @@ class MSR {
     [[nodiscard]] auto DoDensity() const -> bool { return parameters.get_bDoDensity(); }
     [[nodiscard]] auto DoGas() const -> bool { return parameters.get_hydro_model() != HYDRO_MODEL::NONE; }
     [[nodiscard]] auto NewSPH() const -> bool { return parameters.get_hydro_model() == HYDRO_MODEL::SPH; }
-    [[nodiscard]] auto DoSSDEM() const -> bool { return parameters.get_hydro_model() == HYDRO_MODEL::SSDEM; }
+    [[nodiscard]] auto SSDEM() const -> bool { return parameters.get_hydro_model() == HYDRO_MODEL::SSDEM; }
     [[nodiscard]] auto MeshlessFiniteMass() const -> bool {
         auto model = parameters.get_hydro_model();
         return model == HYDRO_MODEL::MFM;

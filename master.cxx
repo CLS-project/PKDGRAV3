@@ -3706,11 +3706,13 @@ double MSR::Read(std::string_view achInFile) {
     if (parameters.get_bInFileLC()) read->dvFac = 1.0;
     else read->dvFac = getVfactor(dExpansion);
 
-    if (nGas && !DoGas()) parameters.set_hydro_model(HYDRO_MODEL::SPH);
+    // if (nGas && !DoGas()) parameters.set_hydro_model(HYDRO_MODEL::SPH);
     if (NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH | PKD_MODEL_ACCELERATION | PKD_MODEL_VELOCITY | PKD_MODEL_DENSITY | PKD_MODEL_BALL | PKD_MODEL_NODE_BOB);
     if (NewSPH() && parameters.get_bShearStrengthModel()) mMemoryModel |= PKD_MODEL_STRENGTH;
     if (parameters.get_bTrackPeakPressure()) mMemoryModel |= PKD_MODEL_PEAKPRESSURE;
     if (nStar) mMemoryModel |= PKD_MODEL_STAR;
+
+    if (SSDEM()) mMemoryModel |= (PKD_MODEL_SSDEM | PKD_MODEL_ACCELERATION | PKD_MODEL_VELOCITY | PKD_MODEL_BALL | PKD_MODEL_NODE_BOB);
 
     for (auto s = FIO_SPECIES(0); s <= FIO_SPECIES_LAST; s = FIO_SPECIES(s + 1)) {
         nSpecies[s] = fioGetN(fio, s);
@@ -4190,7 +4192,7 @@ auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
     SPHoptions.maxGroupSize = parameters.get_nGroup();
     SPHoptions.lowerGroupSizeThreshold = parameters.get_iLowerGroupSizeThreshold();
     SPHoptions.upperGroupSizeThreshold = parameters.get_iUpperGroupSizeThreshold();
-    SPHoptions.doDEMForces = DoSSDEM();
+    SPHoptions.doDEMForces = SSDEM();
     SPHoptions.Kn = parameters.get_Kn();
     SPHoptions.MuS = parameters.get_MuS();
     SPHoptions.MuR = parameters.get_MuR();

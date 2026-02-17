@@ -195,6 +195,8 @@ pkdContext::pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int 
     if (mMemoryModel & PKD_MODEL_STRENGTH) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr, "strength");
     if (mMemoryModel & PKD_MODEL_PEAKPRESSURE) particles.add<sph::PEAKPRESSUREFIELDS>(PKD_FIELD::oNewSphPeakPressure, "peakpressure");
 
+    if (mMemoryModel & PKD_MODEL_SSDEM) particles.add<ssdem::FIELDS>(PKD_FIELD::oSSDEM, "ssdem");
+
     if (mMemoryModel & PKD_MODEL_VELSMOOTH) particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth, "vsmooth");
     if (mMemoryModel & PKD_MODEL_ACCELERATION) particles.add<float[3]>(PKD_FIELD::oAcceleration, "a");
 
@@ -517,6 +519,15 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
             NewSphStr.strainJ2 = 0.0f;
         }
 
+        if (p.have_ssdem()) {
+            auto& ssdem = p.ssdem();
+            ssdem.spin[0] = ssdem.spin[1] = ssdem.spin[2] = 0.0f;
+            ssdem.spinDot[0] = ssdem.spinDot[1] = ssdem.spinDot[2] = 0.0f;
+            ssdem.spinPred[0] = ssdem.spinPred[1] = ssdem.spinPred[2] = 0.0f;
+            ssdem.vPred[0] = ssdem.vPred[1] = ssdem.vPred[2] = 0.0f;
+            ssdem.lastPos[0] = ssdem.lastPos[1] = ssdem.lastPos[2] = 0.0f;
+        }
+
         eSpecies = fioSpecies(fio);
         if (species != FIO_SPECIES_ALL) {
             assert(eSpecies == species);
@@ -528,6 +539,11 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
             if (p.have_newsph()) {
                 fSoft = 1.0f; // Dummy value, because the field in the file is used as hSmooth
                 pkd->particles.setClass(fMass, fSoft, metals[0] >= 0.0 ? metals[0] : -metals[0], metals[0] >= 0.0 ? 1.0 : 0.0, eSpecies, &p);
+            }
+            else if (p.have_ssdem()) {
+                p.set_ball(fSoft); // fSoft is a physical particle radius
+                fSoft = 1.0f;      // Dummy value, because the field in the file is used as hSmooth
+                pkd->particles.setClass(fMass, fSoft, 0, metals[0] >= 0.0 ? 1.0 : 0.0, eSpecies, &p);
             }
             else {
                 pkd->particles.setClass(fMass, fSoft, 0, 1.0, eSpecies, &p);
@@ -979,6 +995,14 @@ static void writeParticle(PKD pkd, FIO fio, double dvFac, double dvFacGas, Bound
             metals[0] = p.imaterial();
             fSoft = p.ball() / 2.0f;
             fioWriteSph(fio, iParticleID, r.data(), v.data(), fMass, fSoft, fPot, fDensity, T, metals.data(), 0.0f, T, otherData);
+        }
+        else if (p.have_ssdem()) { // TODO: Add spins as 'w.data()'
+            fSoft = p.ball();
+            metals = 0.0f;
+            float otherData[3];
+            otherData[0] = otherData[1] = otherData[2] = 0.0f;
+            fDensity = fMass / (4.0f / 3.0f * M_PI * fSoft * fSoft * fSoft);
+            fioWriteSph(fio, iParticleID, r.data(), v.data(), fMass, fSoft, fPot, fDensity, 0.0f, metals.data(), 0.0f, 0.0f, otherData);
         }
         else {
             assert(p.have_mfm());
