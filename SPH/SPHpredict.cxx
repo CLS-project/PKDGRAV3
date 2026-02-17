@@ -37,6 +37,16 @@ float getDtPredDrift(struct pkdKickParameters* kick, int bMarked, int uRungLo, i
     }
 }
 
+void DEMpredictOnTheFly(PKD pkd, particleStore::ParticleReference& p, struct pkdKickParameters* kick, int uRungLo, float* vpred, float* wpred, SPHOptions* SPHoptions) {
+    auto& SSDEM = p.ssdem();
+    vpred[0] = SSDEM.vPred[0];
+    vpred[1] = SSDEM.vPred[1];
+    vpred[2] = SSDEM.vPred[2];
+    wpred[0] = SSDEM.spinPred[0];
+    wpred[1] = SSDEM.spinPred[1];
+    wpred[2] = SSDEM.spinPred[2];
+}
+
 void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference& p, struct pkdKickParameters* kick, int uRungLo, float* vpred, float* P, float* cs, float* T,
                         float* Spredxx, float* Spredyy, float* Spredxy, float* Spredxz, float* Spredyz, SPHOptions* SPHoptions) {
     auto& NewSph = p.newsph();

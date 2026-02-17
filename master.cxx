@@ -3010,7 +3010,7 @@ int MSR::NewTopStepKDK(double& dTime,                                           
         *puRungMax =
             Gravity(uRung, MaxRung(), ROOT, uRoot2, dTime, dDelta, *pdStep, dTheta, 1, bKickOpen, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
     }
-    else if (parameters.get_bDoGravity()) {
+    else if (parameters.get_bDoGravity() || SSDEM()) {
         SPHOptions SPHoptions = initializeSPHOptions(dTime, dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
         SPHoptions.nPredictRung = uRung;

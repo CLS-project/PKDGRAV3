@@ -72,7 +72,7 @@ static auto processCheckList(PKD pkd, smContext* smx, std::shared_ptr<SmoothHelp
     FMOMR monoPole;
     LOCR L;
     FLOCR Lf;
-    float vpred[3];
+    float vpred[3], wpred[3];
     blitz::TinyVector<float, 3> a;
     blitz::TinyVector<double, 3> r, k_r, c_r, dOffset, dx;
     double xParent, yParent, zParent;
@@ -227,13 +227,21 @@ static auto processCheckList(PKD pkd, smContext* smx, std::shared_ptr<SmoothHelp
                                             pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], blk.m[jTile],
                                                             blk.fourh2[jTile], vpred[0], vpred[1], vpred[2], pkdIsGas(pkd, &p) ? p.ball() : 1.0f, Omega,
                                                             pkdIsGas(pkd, &p) ? p.density() : 1.0f, P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2,
-                                                            pkdIsGas(pkd, &p) ? 1.0f : 0.0f, Sxx, Syy, Sxy, Sxz, Syz);
+                                                            pkdIsGas(pkd, &p) ? 1.0f : 0.0f, Sxx, Syy, Sxy, Sxz, Syz, 0.0f, 0.0f, 0.0f);
+                                        }
+                                        else if (pkd->particles.present(PKD_FIELD::oSSDEM)) {
+                                            const auto& ssdem = p.ssdem();
+                                            DEMpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, wpred, SPHoptions);
+                                            pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], blk.m[jTile],
+                                                            blk.fourh2[jTile], vpred[0], vpred[1], vpred[2], pkdIsGas(pkd, &p) ? p.ball() : 1.0f, 0.0f,
+                                                            0.0f, 0.0f, 0.0f, p.species(), p.rung(), p.imaterial(), 0.0f, 0.0f,
+                                                            pkdIsGas(pkd, &p) ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, wpred[0], wpred[1], wpred[2]);   // Added 3 fields for predicted spins in DEM
                                         }
                                         else {
                                             auto v = p.velocity();
                                             pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], blk.m[jTile],
                                                             blk.fourh2[jTile], v[0], v[1], v[2], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f, 0.0f,
-                                                            0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+                                                            0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
                                         }
                                     }
                                 }
@@ -281,13 +289,21 @@ static auto processCheckList(PKD pkd, smContext* smx, std::shared_ptr<SmoothHelp
                                                 pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], fMass,
                                                                 4 * fSoft * fSoft, vpred[0], vpred[1], vpred[2], pkdIsGas(pkd, &p) ? p.ball() : 1.0f, Omega,
                                                                 pkdIsGas(pkd, &p) ? p.density() : 1.0f, P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2,
-                                                                pkdIsGas(pkd, &p) ? 1.0f : 0.0f, Sxx, Syy, Sxy, Sxz, Syz);
+                                                                pkdIsGas(pkd, &p) ? 1.0f : 0.0f, Sxx, Syy, Sxy, Sxz, Syz, 0.0f, 0.0f, 0.0f);
+                                            }
+                                            else if (pkd->particles.present(PKD_FIELD::oSSDEM)) {
+                                            const auto& ssdem = p.ssdem();
+                                            DEMpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, wpred, SPHoptions);
+                                            pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], blk.m[jTile],
+                                                            blk.fourh2[jTile], vpred[0], vpred[1], vpred[2], pkdIsGas(pkd, &p) ? p.ball() : 1.0f, 0.0f,
+                                                            0.0f, 0.0f, 0.0f, p.species(), p.rung(), p.imaterial(), 0.0f, 0.0f,
+                                                            pkdIsGas(pkd, &p) ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, wpred[0], wpred[1], wpred[2]);   // Added 3 fields for predicted spins in DEM
                                             }
                                             else {
                                                 auto v = p.velocity();
                                                 pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], fMass,
                                                                 4 * fSoft * fSoft, v[0], v[1], v[2], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f,
-                                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+                                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
                                             }
                                         }
                                     }
