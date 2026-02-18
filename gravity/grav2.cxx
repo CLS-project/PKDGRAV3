@@ -737,6 +737,20 @@ static void queueEwald(PKD pkd, workParticle* wp, bool bGPU = true) {
     pkdParticleWorkDone(wp);
 }
 
+static void queueSSDEMForces(PKD pkd, workParticle* wp, ilpList& ilp, bool bGPU = true) {
+    for (auto& tile : ilp) {
+        ++pkd->nTilesTotal;
+        if (bGPU) {
+#ifdef USE_CUDA // No GPU implementation for SSDEM yet
+#endif
+        }
+        ++pkd->nTilesCPU;
+        for (auto i = 0; i < wp->nP; ++i) {
+            pkdSSDEMForcesEval(wp->pInfoIn[i], tile, wp->pInfoOut[i], wp->ts->dDelta, wp->SPHoptions);
+        }
+    }
+}
+
 static void extensiveILPTest(PKD pkd, workParticle* wp, ilpList& ilp) {
     std::stack<std::pair<int, int>> cellStack;
 

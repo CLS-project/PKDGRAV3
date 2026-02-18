@@ -251,4 +251,56 @@ void pkdSPHForcesEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOpti
     }
 }
 
+template <typename BLOCK> struct ilist::EvalBlock<ResultSSDEMForces<fvec>, BLOCK> {
+    typedef ResultSSDEMForces<fvec> result_type;
+    const fvec fx, fy, fz, fBall, vx, vy, vz, spinx, spiny, spinz, fMass, lastPosx, lastPosy, lastPosz;
+    const double dDelta;
+    const SPHOptions* const SPHoptions;
+    EvalBlock() = default;
+    EvalBlock(fvec fx, fvec fy, fvec fz, fvec fBall, fvec vx, fvec vy, fvec vz, fvec spinx, fvec spiny, fvec spinz, fvec fMass, fvec lastPosx, fvec lastPosy,
+              fvec lastPosz, double dDelta, SPHOptions* SPHoptions)
+        : fx(fx), fy(fy), fz(fz), fBall(fBall), vx(vx), vy(vy), vz(vz), spinx(spinx), spiny(spiny), spinz(spinz), fMass(fMass), lastPosx(lastPosx),
+          lastPosy(lastPosy), lastPosz(lastPosz), dDelta(dDelta), SPHoptions(SPHoptions) {}
+
+    result_type operator()(int n, BLOCK& blk) { // Block is part of ilp but may not be full
+        // Sentinal values
+        while (n & fvec::mask()) {
+            // This is a little trick to speed up the calculation. By setting
+            // unused entries in the list to have a zero mass, the resulting
+            // forces are zero. Setting the distance to a large value avoids
+            // softening the non-existent forces which is slightly faster.
+            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
+            blk.fBall.s[n] = 1.0f;
+            blk.vx.s[n] = blk.vy.s[n] = blk.vz.s[n] = 0.0f;
+            blk.spinx.s[n] = blk.spiny.s[n] = blk.spinz.s[n] = 0.0f;
+            blk.m.s[n] = 1.0f;
+            blk.lastPosx.s[n] = blk.lastPosy.s[n] = blk.lastPosz.s[n] = 1.0f;
+            ++n;
+        }
+        n /= fvec::width(); // Now number of blocks
+        result_type result;
+        result.zero();
+        for (auto i = 0; i < n; ++i) {
+            result += EvalSSDEMForces<fvec, fmask>(
+                fx, fy, fz, fBall, vx, vy, vz, spinx, spiny, spinz, fMass, lastPosx, lastPosy, lastPosz, blk.dx.v[i], blk.dy.v[i], blk.dz.v[i], blk.fBall.v[i],
+                blk.vx.v[i], blk.vy.v[i], blk.vz.v[i], blk.spinx.v[i], blk.spiny.v[i], blk.spinz.v[i], blk.m.v[i], blk.lastPosx.v[i], blk.lastPosy.v[i],
+                blk.lastPosz.v[i], (float)dDelta, SPHoptions->Kn, SPHoptions->MuS, SPHoptions->MuR, SPHoptions->MuT, SPHoptions->EpsN, SPHoptions->EpsT);
+        }
+        return result;
+    }
+};
+
+void pkdSSDEMForcesEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, double dDelta, SPHOptions* SPHoptions) {
+    ilist::EvalBlock<ResultSSDEMForces<fvec>, BlockPP<ILC_PART_PER_BLK>> eval(Part.r[0], Part.r[1], Part.r[2], Part.fBall, Part.v[0], Part.v[1], Part.v[2],
+                                                                              Part.spin[0], Part.spin[1], Part.spin[2], Part.fMass, Part.lastPos[0],
+                                                                              Part.lastPos[1], Part.lastPos[2], dDelta, SPHoptions);
+    auto result = EvalTile(tile, eval);
+    Out.a[0] += hadd(result.ax);
+    Out.a[1] += hadd(result.ay);
+    Out.a[2] += hadd(result.az);
+    Out.spinDot[0] += hadd(result.spinDotx);
+    Out.spinDot[1] += hadd(result.spinDoty);
+    Out.spinDot[2] += hadd(result.spinDotz);
+}
+
 #endif /*USE_SIMD_PP*/

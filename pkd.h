@@ -894,6 +894,7 @@ void pkdGravEvalPP(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out);
 void pkdDensityEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOptions* SPHoptions);
 void pkdDensityCorrectionEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOptions* SPHoptions);
 void pkdSPHForcesEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, SPHOptions* SPHoptions);
+void pkdSSDEMForcesEval(const PINFOIN& Part, ilpTile& tile, PINFOOUT& Out, double dDelta, SPHOptions* SPHoptions);
 void pkdGravEvalPC(const PINFOIN& pPart, ilcTile& tile, PINFOOUT& pOut);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
 void pkdReorderDecorator(PKD pkd);

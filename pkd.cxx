@@ -521,11 +521,10 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
 
         if (p.have_ssdem()) {
             auto& ssdem = p.ssdem();
-            ssdem.spin[0] = ssdem.spin[1] = ssdem.spin[2] = 0.0f;
+            ssdem.spin[0] = ssdem.spin[1] = ssdem.spin[2] = 0.0f; // Eventually will read spin from file
             ssdem.spinDot[0] = ssdem.spinDot[1] = ssdem.spinDot[2] = 0.0f;
             ssdem.spinPred[0] = ssdem.spinPred[1] = ssdem.spinPred[2] = 0.0f;
             ssdem.vPred[0] = ssdem.vPred[1] = ssdem.vPred[2] = 0.0f;
-            ssdem.lastPos[0] = ssdem.lastPos[1] = ssdem.lastPos[2] = 0.0f;
         }
 
         eSpecies = fioSpecies(fio);
@@ -541,9 +540,13 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
                 pkd->particles.setClass(fMass, fSoft, metals[0] >= 0.0 ? metals[0] : -metals[0], metals[0] >= 0.0 ? 1.0 : 0.0, eSpecies, &p);
             }
             else if (p.have_ssdem()) {
+                auto& ssdem = p.ssdem();
                 p.set_ball(fSoft); // fSoft is a physical particle radius
                 fSoft = 1.0f;      // Dummy value, because the field in the file is used as hSmooth
                 pkd->particles.setClass(fMass, fSoft, 0, metals[0] >= 0.0 ? 1.0 : 0.0, eSpecies, &p);
+                ssdem.lastPos[0] = r[0];
+                ssdem.lastPos[1] = r[1];
+                ssdem.lastPos[2] = r[2];
             }
             else {
                 pkd->particles.setClass(fMass, fSoft, 0, 1.0, eSpecies, &p);

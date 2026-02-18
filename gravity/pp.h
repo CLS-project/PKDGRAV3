@@ -453,4 +453,34 @@ EvalSPHForces(F Pdx, F Pdy, F Pdz, F PfBall, F POmega, // Particle
     }
     return result;
 }
+
+template <class F>
+struct ResultSSDEMForces {
+    F ax, ay, az;                   // Linear acceleration
+    F spinDotx, spinDoty, spinDotz; // Angular acceleration
+    PP_CUDA_BOTH void zero() { ax = ay = az = spinDotx = spinDoty = spinDotz = 0; }
+    PP_CUDA_BOTH ResultSSDEMForces<F> operator+=(const ResultSSDEMForces<F> rhs) {
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        spinDotx += rhs.spinDotx;
+        spinDoty += rhs.spinDoty;
+        spinDotz += rhs.spinDotz;
+        return *this;
+    }
+};
+template <class F, class M>
+PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F Pvx, F Pvy, F Pvz, F Pwx, F Pwy, F Pwz, F Pm, // Particle
+                                                  F PlastPosx, F PlastPosy, F PlastPosz,                                     // Last position of the particle
+                                                  F Idx, F Idy, F Idz, F Ir, F Ivx, F Ivy, F Ivz, F Iwx, F Iwy, F Iwz, F Im, // Interaction
+                                                  F IlastPosx, F IlastPosy, F IlastPosz, // Last position of the interaction partner
+                                                  float dDelta, float Kn, float MuS, float MuR, float MuT, float EpsN,
+                                                  float EpsT) { // TODO Add beta for direction-constant rolling friction
+
+    ResultSSDEMForces<F> result;
+
+    result.zero();
+
+    return result;
+}
 #undef PP_CUDA_BOTH
