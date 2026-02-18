@@ -114,7 +114,7 @@ struct FIELDS {
                              (blitz::TinyVector<float, 3>, spinDot),      // Time derivative of the spin vector
                              (blitz::TinyVector<float, 3>, spinPred),     // Predicted spin vector
                              (blitz::TinyVector<float, 3>, vPred),        // Predicted velocity vector
-                             (blitz::TinyVector<float, 3>, lastPos)       // Position at the last time step
+                             (blitz::TinyVector<double, 3>, lastPos)       // Position at the last time step
     );
 }; // FIELDS
 } // namespace ssdem
