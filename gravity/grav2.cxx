@@ -1102,6 +1102,13 @@ int pkdGravInteract(PKD pkd, struct pkdKickParameters* kick, struct pkdLightcone
         }
     }
 
+    if (SPHoptions->doDEMForces) {
+        /*
+        ** Evaluate the SSDEM forces on the P-P interactions
+        */
+        queueSSDEMForces(pkd, wp, pkd->ilp, bGPU);
+    }
+
     if (SPHoptions->doGravity) {
         /*
         ** Calculate the Ewald correction for this particle, if it is required.
