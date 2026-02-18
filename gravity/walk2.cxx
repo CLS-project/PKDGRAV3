@@ -235,7 +235,8 @@ static auto processCheckList(PKD pkd, smContext* smx, std::shared_ptr<SmoothHelp
                                             pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], blk.m[jTile],
                                                             blk.fourh2[jTile], vpred[0], vpred[1], vpred[2], pkdIsGas(pkd, &p) ? p.ball() : 1.0f, 0.0f, 0.0f,
                                                             0.0f, 0.0f, p.species(), p.rung(), p.imaterial(), 0.0f, 0.0f, pkdIsGas(pkd, &p) ? 1.0f : 0.0f, 0.0f,
-                                                            0.0f, 0.0f, 0.0f, 0.0f, wpred[0], wpred[1], wpred[2], lastPos[0], lastPos[1], lastPos[2]); // Added 3 fields for predicted spins in DEM
+                                                            0.0f, 0.0f, 0.0f, 0.0f, wpred[0], wpred[1], wpred[2], ssdem.lastPos[0], ssdem.lastPos[1],
+                                                            ssdem.lastPos[2]); // Added 3 fields for predicted spins in DEM
                                         }
                                         else {
                                             auto v = p.velocity();
@@ -297,8 +298,9 @@ static auto processCheckList(PKD pkd, smContext* smx, std::shared_ptr<SmoothHelp
                                                 pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], blk.m[jTile],
                                                                 blk.fourh2[jTile], vpred[0], vpred[1], vpred[2], pkdIsGas(pkd, &p) ? p.ball() : 1.0f, 0.0f,
                                                                 0.0f, 0.0f, 0.0f, p.species(), p.rung(), p.imaterial(), 0.0f, 0.0f,
-                                                                pkdIsGas(pkd, &p) ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, wpred[0], wpred[1],
-                                                                wpred[2], lastPos[0], lastPos[1], lastPos[2]); // Added 6 fields for predicted spins & position at previous step in DEM
+                                                                pkdIsGas(pkd, &p) ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, wpred[0], wpred[1], wpred[2],
+                                                                ssdem.lastPos[0], ssdem.lastPos[1],
+                                                                ssdem.lastPos[2]); // Added 6 fields for predicted spins & position at previous step in DEM
                                             }
                                             else {
                                                 auto v = p.velocity();
