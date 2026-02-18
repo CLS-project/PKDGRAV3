@@ -163,7 +163,7 @@ void iOpenOutcomeBlock(PKD pkd, treeStore::NodePointer k, int n, clBlock& blk, f
             if (SPHoptions->doDEMForces) {
                 // Ball-ball intersection
                 distc2 = 0.0f;
-                dx = blk.fBoBxCenter.v[i] + blk.xOffset.v[i] - SPHbob.fBoBCenter[0];    // Distance between centers
+                dx = blk.fBoBxCenter.v[i] + blk.xOffset.v[i] - SPHbob.fBoBCenter[0]; // Distance between centers
                 distc2 += dx * dx;
                 dx = blk.fBoByCenter.v[i] + blk.yOffset.v[i] - SPHbob.fBoBCenter[1];
                 distc2 += dx * dx;
@@ -184,8 +184,8 @@ void iOpenOutcomeBlock(PKD pkd, treeStore::NodePointer k, int n, clBlock& blk, f
                 box2yMax = blk.fBoByMax.v[i] + blk.yOffset.v[i];
                 box2zMin = blk.fBoBzMin.v[i] + blk.zOffset.v[i];
                 box2zMax = blk.fBoBzMax.v[i] + blk.zOffset.v[i];
-                fmask bIntersectBoxBox = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) &
-                                          (box1zMin < box2zMax) & (box2zMin < box1zMax);
+                fmask bIntersectBoxBox = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) &
+                                         (box2zMin < box1zMax);
 
                 // Box-ball intersection
                 blk_fBoBr2 = blk.fBoBr.v[i] * blk.fBoBr.v[i];
@@ -207,7 +207,7 @@ void iOpenOutcomeBlock(PKD pkd, treeStore::NodePointer k, int n, clBlock& blk, f
                 distc2 += maskz_mov(dx > 0, dx * dx);
 
                 fmask bIntersectBoxBall = distc2 < blk_fBoBr2;
-                
+
                 // Ball-box intersection
                 distc2 = 0.0f;
                 dx = SPHbob.fBoBCenter[0] - blk.xCenter.v[i] - box2xMin;

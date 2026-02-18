@@ -193,6 +193,7 @@ namespace rockstar {
 
 #include "SPH/gasvalues.h"
 #include "SPH/resetcom.h"
+#include "DEM/DEMvalues.h"
 #include "imf.h"
 #include "meshless/hydro/hydro.h"
 #include "meshless/hydro/endstep.h"
@@ -4375,6 +4376,20 @@ void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double d
     mdl->RunService<ServiceUpdateGasValues>(in);
     dsec = MSR::Time() - sec;
     print("Gas Values updated, Wallclock: {:.5f} secs\n\n", dsec);
+}
+
+void MSR::PredictDEMValues(uint8_t uRungLo, double dTime, double dDelta, double dStep, int bKickClose, int bKickOpen, SPHOptions SPHoptions) {
+    ServicePredictDEMValues::input in;
+    in.SPHoptions = SPHoptions;
+    double sec, dsec;
+    sec = MSR::Time();
+    print("Predict DEM Values ...\n");
+
+    CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
+
+    mdl->RunService<ServicePredictDEMValues>(in);
+    dsec = MSR::Time() - sec;
+    print("DEM Values predicted, Wallclock: {:.5f} secs\n\n", dsec);
 }
 
 void MSR::TreeUpdateFlagBounds(int bNeedEwald, uint32_t uRoot, uint32_t utRoot, SPHOptions SPHoptions) {

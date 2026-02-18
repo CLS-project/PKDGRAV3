@@ -37,17 +37,6 @@ float getDtPredDrift(struct pkdKickParameters* kick, int bMarked, int uRungLo, i
     }
 }
 
-void DEMpredictOnTheFly(PKD pkd, particleStore::ParticleReference& p, struct pkdKickParameters* kick, int uRungLo, float* vpred, float* wpred,
-                        SPHOptions* SPHoptions) {
-    auto& SSDEM = p.ssdem();
-    vpred[0] = SSDEM.vPred[0];
-    vpred[1] = SSDEM.vPred[1];
-    vpred[2] = SSDEM.vPred[2];
-    wpred[0] = SSDEM.spinPred[0];
-    wpred[1] = SSDEM.spinPred[1];
-    wpred[2] = SSDEM.spinPred[2];
-}
-
 void SPHpredictOnTheFly(PKD pkd, particleStore::ParticleReference& p, struct pkdKickParameters* kick, int uRungLo, float* vpred, float* P, float* cs, float* T,
                         float* Spredxx, float* Spredyy, float* Spredxy, float* Spredxz, float* Spredyz, SPHOptions* SPHoptions) {
     auto& NewSph = p.newsph();
@@ -177,6 +166,31 @@ void SPHpredictInDensity(PKD pkd, particleStore::ParticleReference& p, struct pk
             NewSphStr.Spredyz = NewSphStr.Syz + dtPredDrift * NewSphStr.SDotyz;
             SPHEOSApplyStrengthLimiter(pkd, p.density(), uPred, p.imaterial(), &NewSphStr.Spredxx, &NewSphStr.Spredyy, &NewSphStr.Spredxy, &NewSphStr.Spredxz,
                                        &NewSphStr.Spredyz, SPHoptions);
+        }
+    }
+}
+
+void DEMpredict(PKD pkd, particleStore::ParticleReference& p, struct pkdKickParameters* kick, int uRungLo, SPHOptions* SPHoptions) {
+    auto& ssdem = p.ssdem();
+
+    float dtPredDrift = getDtPredDrift(kick, 0, uRungLo, p.rung());
+    if (SPHoptions->doConsistentPrediction) {
+        const auto& v = p.velocity();
+        const auto& ap = p.acceleration();
+        ssdem.vPred[0] = v[0] + dtPredDrift * ap[0] * p.accFac();
+        ssdem.vPred[1] = v[1] + dtPredDrift * ap[1] * p.accFac();
+        ssdem.vPred[2] = v[2] + dtPredDrift * ap[2] * p.accFac();
+        ssdem.spinPred[0] = ssdem.spin[0] + dtPredDrift * ssdem.spinDot[0] * p.accFac();
+        ssdem.spinPred[1] = ssdem.spin[1] + dtPredDrift * ssdem.spinDot[1] * p.accFac();
+        ssdem.spinPred[2] = ssdem.spin[2] + dtPredDrift * ssdem.spinDot[2] * p.accFac();
+        if (SPHoptions->VelocityDamper > 0.0) {
+            double dampingTimestep = std::max(kick->dtOpen[p.rung()], kick->dtClose[p.rung()]);
+            ssdem.vPred[0] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            ssdem.vPred[1] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            ssdem.vPred[2] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            ssdem.spinPred[0] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            ssdem.spinPred[1] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
+            ssdem.spinPred[2] *= exp(-dampingTimestep * SPHoptions->VelocityDamper);
         }
     }
 }
