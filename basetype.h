@@ -115,8 +115,10 @@ typedef struct {
     float isGas;
     int isTooLarge;
     float Sxx, Syy, Sxy, Sxz, Syz;
-    /*    float v[3];*/
-    /*    float fMass;*/
+    /* SSDEM fields */
+    blitz::TinyVector<float, 3> spin;
+    blitz::TinyVector<float, 3> lastPos;
+    float fMass;
     /*    float fSoft;*/
 } PINFOIN;
 
@@ -137,6 +139,8 @@ typedef struct {
     float Cinvyx, Cinvyy, Cinvyz;
     float Cinvzx, Cinvzy, Cinvzz;
     float strainJ2Dot;
+    /* DEM field */
+    float spinDot[3];
 } PINFOOUT;
 
 #if defined(USE_SIMD)

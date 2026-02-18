@@ -316,8 +316,14 @@ void pkdParticleWorkDone(workParticle* wp) {
                     NewSph.maxGroupSize = std::min(wp->SPHoptions->maxGroupSize, std::max(1, newMaxGroupSize));
                 }
             }
+            else if (p.have_ssdem()) {
+                auto& ssdem = p.ssdem();
+                ssdem.spinDot[0] = wp->pInfoOut[i].spinDot[0];
+                ssdem.spinDot[1] = wp->pInfoOut[i].spinDot[1];
+                ssdem.spinDot[2] = wp->pInfoOut[i].spinDot[2];
+            }
 
-            if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces) {
+            if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces || wp->SPHoptions->doDEMForces) {
                 auto r = p.position();
                 auto m = p.mass();
 #ifdef EXTERNAL_POTENTIAL
@@ -498,6 +504,12 @@ void pkdParticleWorkDone(workParticle* wp) {
                                 }
                             }
                         }
+                        else if (wp->SPHoptions->doDEMForces) {
+                            auto& ssdem = p.ssdem();
+                            ssdem.spin[0] += wp->kick->dtClose[p.rung()] * ssdem.spinDot[0] * p.accFac();
+                            ssdem.spin[1] += wp->kick->dtClose[p.rung()] * ssdem.spinDot[1] * p.accFac();
+                            ssdem.spin[2] += wp->kick->dtClose[p.rung()] * ssdem.spinDot[2] * p.accFac();
+                        }
                     }
                     v2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
                     /*
@@ -532,6 +544,17 @@ void pkdParticleWorkDone(workParticle* wp) {
                                 NewSphStr.Syz += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotyz;
                                 NewSphStr.strainJ2 += wp->kick->dtOpen[p.rung()] * wp->pInfoOut[i].strainJ2Dot;
                             }
+                        }
+                        else if (wp->SPHoptions->doDEMForces) {
+                            auto& ssdem = p.ssdem();
+                            if (wp->SPHoptions->VelocityDamper > 0.0f) {
+                                ssdem.spin[0] *= exp(-wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
+                                ssdem.spin[1] *= exp(-wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
+                                ssdem.spin[2] *= exp(-wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
+                            }
+                            ssdem.spin[0] += wp->kick->dtOpen[p.rung()] * ssdem.spinDot[0] * p.accFac();
+                            ssdem.spin[1] += wp->kick->dtOpen[p.rung()] * ssdem.spinDot[1] * p.accFac();
+                            ssdem.spin[2] += wp->kick->dtOpen[p.rung()] * ssdem.spinDot[2] * p.accFac();
                         }
                         /*
                         ** On KickOpen we also always check for intersection with the lightcone
@@ -923,6 +946,22 @@ int pkdGravInteract(PKD pkd, struct pkdKickParameters* kick, struct pkdLightcone
                 wp->pInfoOut[nP].Cinvzy = 0.0f;
                 wp->pInfoOut[nP].Cinvzz = 0.0f;
             }
+        }
+        else if (p.have_ssdem()) {
+            const auto& ssdem = p.ssdem();
+            wp->pInfoIn[nP].fBall = p.ball();
+            wp->pInfoIn[nP].fMass = p.mass();
+            wp->pInfoIn[nP].v[0] = ssdem.vPred[0];
+            wp->pInfoIn[nP].v[1] = ssdem.vPred[1];
+            wp->pInfoIn[nP].v[2] = ssdem.vPred[2];
+            wp->pInfoIn[nP].spin[0] = ssdem.spinPred[0];
+            wp->pInfoIn[nP].spin[1] = ssdem.spinPred[1];
+            wp->pInfoIn[nP].spin[2] = ssdem.spinPred[2];
+            wp->pInfoIn[nP].lastPos = pkd->ilc.get_dr(ssdem.lastPos); // Automatically applies the reference shift for the ILP
+
+            wp->pInfoOut[nP].spinDot[0] = 0.0f;
+            wp->pInfoOut[nP].spinDot[1] = 0.0f;
+            wp->pInfoOut[nP].spinDot[2] = 0.0f;
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;

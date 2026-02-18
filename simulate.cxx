@@ -288,6 +288,7 @@ void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
     else if (DoGravity() || SSDEM()) {
         SPHOptions SPHoptions = initializeSPHOptions(dTime, dDelta);
         SPHoptions.doGravity = parameters.get_bDoGravity();
+        if (SSDEM()) PredictDEMValues(0, dTime, dDelta, iStartStep, 0, bKickOpen, SPHoptions);
         uRungMax = Gravity(0, MAX_RUNG, ROOT, 0, dTime, dDelta, iStartStep, dTheta, 0, bKickOpen, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
         MemStatus();
     }
@@ -388,6 +389,7 @@ void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
                     if (parameters.get_bDoGravity() || SSDEM()) {
                         SPHOptions SPHoptions = initializeSPHOptions(dTime, dDelta);
                         SPHoptions.doGravity = parameters.get_bDoGravity();
+                        if (SSDEM()) PredictDEMValues(0, ddTime, dDelta, diStep, 0, 1, SPHoptions);
                         uRungMax =
                             Gravity(0, MAX_RUNG, ROOT, 0, ddTime, dDelta, diStep, dTheta, 0, 1, bEwald, bGravStep, nPartRhoLoc, iTimeStepCrit, SPHoptions);
                     }

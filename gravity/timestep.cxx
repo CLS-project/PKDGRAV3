@@ -222,6 +222,10 @@ void pkdContext::Drift(int iRoot, double dTime, double dDelta, double dDeltaVPre
                 }
 
                 r0 = p.position();
+                if (particles.present(PKD_FIELD::oSSDEM)) { // Update lastPos to compute nOld in the next step.
+                    auto& ssdem = p.ssdem();
+                    ssdem.lastPos = r0;
+                }
                 p.set_position(rfinal = r0 + dDelta * v);
                 assert(isfinite(rfinal[0]));
                 assert(isfinite(rfinal[1]));
