@@ -121,8 +121,7 @@ INCLUDE(CheckCSourceCompiles)
 check_c_source_compiles("
 #include <features.h>
 #ifdef __GNU_LIBRARY__
-  int main() {
-    return 0;}
+  int main() {return 0;}
 #endif
 " _GNU_SOURCE)
 if (_GNU_SOURCE)
@@ -259,8 +258,7 @@ add_custom_command(
     VERBATIM
 )
 
-add_executable(${
-    PROJECT_NAME} "")
+add_executable(${PROJECT_NAME} "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_EXTENSIONS NO)
 
@@ -417,8 +415,7 @@ foreach(flag_var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
    if(${flag_var} MATCHES "-DNDEBUG")
-      string(REPLACE "-DNDEBUG" "" ${
-    flag_var} "${${flag_var}}")
+      string(REPLACE "-DNDEBUG" "" ${flag_var} "${${flag_var}}")
    endif(${flag_var} MATCHES "-DNDEBUG")
 endforeach(flag_var)
 
