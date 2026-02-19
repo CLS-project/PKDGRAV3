@@ -567,6 +567,7 @@ class pkdContext : public Integerize, private DataRegistryOwner {
 
     void InitializeEOS();
     void UpdateGasValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions);
+    void PredictDEMValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions);
     void ResetCOM(blitz::TinyVector<double, 3> r_com, blitz::TinyVector<double, 3> v_com);
     void CalcEandL(double& T, double& U, double& Eth, blitz::TinyVector<double, 3>& L, blitz::TinyVector<double, 3>& F, double& W);
     void PhysicalSoft(double dSoftMax, double dFac, bool bSoftMaxMul);

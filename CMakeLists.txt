@@ -13,32 +13,32 @@ include(CheckLanguage)
 include(CheckFunctionExists)
 include(CheckCXXCompilerFlag)
 
-# cmake uses -isysroot to specify the SDK, but this removes /usr/local/lib
-# from consideration. We need this for the dependant libraries of Python3,
-# most specifically libintl.
+#cmake uses - isysroot to specify the SDK, but this removes / usr / local / lib
+#from consideration.We need this for the dependant libraries of Python3,
+#most specifically libintl.
 if (APPLE)
   link_directories(/usr/local/lib)
 endif(APPLE)
 
 option(ENABLE_CLANG_TIDY "Run clang-tidy during builds" OFF)
 if(ENABLE_CLANG_TIDY)
-  # Common names + Homebrew path
+#Common names + Homebrew path
   find_program(CLANG_TIDY_EXE
     NAMES clang-tidy clang-tidy-19 clang-tidy-18 clang-tidy-17
     PATHS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin
     NO_DEFAULT_PATH
   )
-  # Fallback to system PATH as well
+#Fallback to system PATH as well
   if(NOT CLANG_TIDY_EXE)
     find_program(CLANG_TIDY_EXE NAMES clang-tidy clang-tidy-19 clang-tidy-18 clang-tidy-17)
   endif()
 
   if(CLANG_TIDY_EXE)
     message(STATUS "clang-tidy found: ${CLANG_TIDY_EXE}")
-    # Make sure compile_commands.json exists (handy for IDEs and manual runs too)
+#Make sure compile_commands.json exists(handy for IDEs and manual runs too)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-    # Treat selected diagnostics as errors; also pass the build dir for compile flags
+#Treat selected diagnostics as errors; also pass the build dir for compile flags
     set(CLANG_TIDY_ARGS
       -p=${CMAKE_BINARY_DIR}
       -quiet
@@ -46,7 +46,7 @@ if(ENABLE_CLANG_TIDY)
       -warnings-as-errors=clang-analyzer-deadcode.DeadStores
       -extra-arg=-Wno-unknown-warning-option
     )
-    # Apply globally to all C++ targets (CMake 3.6+)
+#Apply globally to all C++ targets(CMake 3.6 +)
     set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} ${CLANG_TIDY_ARGS})
   else()
     message(WARNING "ENABLE_CLANG_TIDY=ON but clang-tidy was not found")
@@ -116,12 +116,13 @@ find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
 find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter Development NumPy)
 set(PYTHON ${Python3_EXECUTABLE})
-# _GNU_SOURCE gives us more options
+#_GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
 check_c_source_compiles("
 #include <features.h>
 #ifdef __GNU_LIBRARY__
-  int main() {return 0;} 
+  int main() {
+    return 0;}
 #endif
 " _GNU_SOURCE)
 if (_GNU_SOURCE)
@@ -149,8 +150,8 @@ else()
   target_link_libraries(pkdgrav3_boost INTERFACE Boost::headers Boost::unordered)
 endif()
 
-# Check for restrict keyword
-# Builds the macro A_C_RESTRICT form automake
+#Check for restrict keyword
+#Builds the macro A_C_RESTRICT form automake
 foreach(ac_kw __restrict __restrict__ _Restrict restrict)
   check_c_source_compiles(
   "
@@ -160,7 +161,7 @@ foreach(ac_kw __restrict __restrict__ _Restrict restrict)
   }
   int main(){
     int s[1];
-    int * ${ac_kw} t = s;
+    int* ${ac_kw} t = s;
     t[0] = 0;
     return foo(t);
   }
@@ -258,7 +259,8 @@ add_custom_command(
     VERBATIM
 )
 
-add_executable(${PROJECT_NAME} "")
+add_executable(${
+    PROJECT_NAME} "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_EXTENSIONS NO)
 
@@ -280,6 +282,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
 	core/ignoresigbus.cxx
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx SPH/gasvalues.cxx SPH/resetcom.cxx
+  DEM/DEMvalues.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 
@@ -287,7 +290,7 @@ if(INSTRUMENT_MPI)
     target_sources(${PROJECT_NAME} PRIVATE core/cachestats.cxx)
 endif()
 add_executable(tostd utility/tostd.c io/fio.c)
-#add_executable(psout utility/psout.c cosmo.c)
+#add_executable(psout utility / psout.c cosmo.c)
 
 target_link_libraries(${PROJECT_NAME} m)
 target_link_libraries(tostd m)
@@ -381,12 +384,12 @@ if (HDF5_FOUND)
   set(USE_HDF5 TRUE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${HDF5_INCLUDE_DIRS})
   target_link_libraries(${PROJECT_NAME} ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
-  #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS ${HDF5_DEFINITIONS})
-  #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
+#set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS ${HDF5_DEFINITIONS})
+#set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
   target_include_directories(tostd PUBLIC ${HDF5_INCLUDE_DIRS})
   target_link_libraries(tostd ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
-  #target_include_directories(psout PUBLIC ${HDF5_INCLUDE_DIRS})
-  #target_link_libraries(psout ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+#target_include_directories(psout PUBLIC ${HDF5_INCLUDE_DIRS})
+#target_link_libraries(psout ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 endif(HDF5_FOUND)
 if (Python3_Development_FOUND)
   set(USE_PYTHON TRUE)
@@ -403,9 +406,9 @@ endif(Python3_Development_FOUND)
 
 set(USE_SIMD "yes" CACHE STRING "Should SIMD be used.")
 if(USE_SIMD)
-   #if USE_SIMD_FMM
+#if USE_SIMD_FMM
    target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
-   #endif
+#endif
 endif()
 
 foreach(flag_var
@@ -414,11 +417,12 @@ foreach(flag_var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
    if(${flag_var} MATCHES "-DNDEBUG")
-      string(REPLACE "-DNDEBUG" "" ${flag_var} "${${flag_var}}")
+      string(REPLACE "-DNDEBUG" "" ${
+    flag_var} "${${flag_var}}")
    endif(${flag_var} MATCHES "-DNDEBUG")
 endforeach(flag_var)
 
-# The header files for rockstar conflict with C++ so make symbolic links
+#The header files for rockstar conflict with C++ so make symbolic links
 set(ROCKSTAR_PATH CACHE STRING "Path to the Rockstar source code")
 if(ROCKSTAR_PATH)
     set(HAVE_ROCKSTAR TRUE)
@@ -426,7 +430,7 @@ if(ROCKSTAR_PATH)
     make_directory(${CMAKE_CURRENT_BINARY_DIR}/rockstar)
     make_directory(${CMAKE_CURRENT_BINARY_DIR}/rockstar/io)
     foreach(file particle.h halo.h io/io_internal.h)
-        #find_file(rs_src ${file} PATHS ${rdir} NO_DEFAULT_PATH NO_CACHE REQUIRED)
+#find_file(rs_src ${file} PATHS ${rdir} NO_DEFAULT_PATH NO_CACHE REQUIRED)
         add_custom_command(
             OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rockstar/${file}
             MAIN_DEPENDENCY ${rdir}/${file}
@@ -440,7 +444,7 @@ if(ROCKSTAR_PATH)
     target_sources(${PROJECT_NAME} PRIVATE analysis/rshaloloadids.cxx analysis/rshalocount.cxx)
 endif()
 
-# Meshless hydrodynamics
+#Meshless hydrodynamics
 target_sources(${PROJECT_NAME} PRIVATE  meshless/hydro/hydro.cxx meshless/hydro/density.cxx
               meshless/hydro/gradient.cxx meshless/hydro/flux.cxx meshless/hydro/step.cxx meshless/hydro/endstep.cxx)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/meshless)

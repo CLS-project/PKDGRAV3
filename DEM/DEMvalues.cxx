@@ -20,18 +20,18 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void_v<ServiceUpdateDEMValues::input> || std::is_trivial_v<ServiceUpdateDEMValues::input>);
-static_assert(std::is_void_v<ServiceUpdateDEMValues::output> || std::is_trivial_v<ServiceUpdateDEMValues::output>);
+static_assert(std::is_void_v<ServicePredictDEMValues::input> || std::is_trivial_v<ServicePredictDEMValues::input>);
+static_assert(std::is_void_v<ServicePredictDEMValues::output> || std::is_trivial_v<ServicePredictDEMValues::output>);
 
-int ServiceUpdateDEMValues::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
+int ServicePredictDEMValues::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) {
     auto in = reinterpret_cast</*const*/ input*>(vin.data());
     static_assert(std::is_void_v<output>);
     auto pkd = pst->pkd();
-    pkd->UpdateDEMValues(&in->kick, &in->SPHoptions);
+    pkd->PredictDEMValues(&in->kick, &in->SPHoptions);
     return 0;
 }
 
-void pkdContext::UpdateDEMValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions) {
+void pkdContext::PredictDEMValues(struct pkdKickParameters* kick, SPHOptions* SPHoptions) {
     for (auto& p : particles) {
         DEMpredict(this, p, kick, SPHoptions->nPredictRung, SPHoptions);
     }

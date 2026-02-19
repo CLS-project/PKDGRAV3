@@ -108,6 +108,8 @@
 #include "SPH/gasvalues.h"
 #include "SPH/resetcom.h"
 
+#include "DEM/DEMvalues.h"
+
 #include "meshless/hydro/hydro.h"
 #include "meshless/hydro/wakeup.h"
 #include "meshless/hydro/endstep.h"
@@ -305,6 +307,7 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<OldDD::ServiceOrdWeight>(pst);
     mdl->AddService<OldDD::ServiceActiveOrder>(pst);
     mdl->AddService<ServiceUpdateGasValues>(pst);
+    mdl->AddService<ServicePredictDEMValues>(pst);
     mdl->AddService<ServiceLightConeOpen>(pst);
     mdl->AddService<ServiceLightConeClose>(pst);
     mdl->AddService<ServiceLightConeVel>(pst);
