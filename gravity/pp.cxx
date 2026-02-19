@@ -281,10 +281,11 @@ template <typename BLOCK> struct ilist::EvalBlock<ResultSSDEMForces<fvec>, BLOCK
         result_type result;
         result.zero();
         for (auto i = 0; i < n; ++i) {
-            result += EvalSSDEMForces<fvec, fmask>(
-                fx, fy, fz, fBall, vx, vy, vz, spinx, spiny, spinz, fMass, lastPosx, lastPosy, lastPosz, blk.dx.v[i], blk.dy.v[i], blk.dz.v[i], blk.fBall.v[i],
-                blk.vx.v[i], blk.vy.v[i], blk.vz.v[i], blk.spinx.v[i], blk.spiny.v[i], blk.spinz.v[i], blk.m.v[i], blk.lastPosx.v[i], blk.lastPosy.v[i],
-                blk.lastPosz.v[i], (float)dDelta, SPHoptions->Kn, SPHoptions->MuS, SPHoptions->MuR, SPHoptions->MuT, SPHoptions->CnPrefactor, SPHoptions->CtPrefactor, SPHoptions->betaShape);
+            result += EvalSSDEMForces<fvec, fmask>(fx, fy, fz, fBall, vx, vy, vz, spinx, spiny, spinz, fMass, lastPosx, lastPosy, lastPosz, blk.dx.v[i],
+                                                   blk.dy.v[i], blk.dz.v[i], blk.fBall.v[i], blk.vx.v[i], blk.vy.v[i], blk.vz.v[i], blk.spinx.v[i],
+                                                   blk.spiny.v[i], blk.spinz.v[i], blk.m.v[i], blk.lastPosx.v[i], blk.lastPosy.v[i], blk.lastPosz.v[i],
+                                                   (float)dDelta, SPHoptions->Kn, SPHoptions->MuS, SPHoptions->MuR, SPHoptions->MuT, SPHoptions->CnPrefactor,
+                                                   SPHoptions->CtPrefactor, SPHoptions->betaShape);
         }
         return result;
     }

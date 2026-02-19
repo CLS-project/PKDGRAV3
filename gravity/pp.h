@@ -474,24 +474,23 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
                                                   F PlastPosx, F PlastPosy, F PlastPosz,                                     // Last position of the particle
                                                   F Idx, F Idy, F Idz, F Ir, F Ivx, F Ivy, F Ivz, F Iwx, F Iwy, F Iwz, F Im, // Interaction
                                                   F IlastPosx, F IlastPosy, F IlastPosz, // Last position of the interaction partner
-                                                  float dDelta, float Kn, float MuS, float MuR, float MuT, float CnPrefactor,
-                                                  float CtPrefactor, float beta) {
-                                                    
+                                                  float dDelta, float Kn, float MuS, float MuR, float MuT, float CnPrefactor, float CtPrefactor, float beta) {
+
     ResultSSDEMForces<F> result;
 
-     // Calculate position of interaction relative to particle
-    F dx = -(Idx + Pdx);    // Idx is already negative
+    // Calculate position of interaction relative to particle
+    F dx = -(Idx + Pdx); // Idx is already negative
     F dy = -(Idy + Pdy);
     F dz = -(Idz + Pdz);
 
     // Calculate relevant distances
-    F dist = sqrt(dx*dx + dy*dy + dz*dz);
+    F dist = sqrt(dx * dx + dy * dy + dz * dz);
     F overlap = Pr + Ir - dist;
-    M overlap_gt_zero = overlap > 0.0f;                     
+    M overlap_gt_zero = overlap > 0.0f;
 
     if (!testz(overlap_gt_zero)) { // If there is an overlap, we have a contact and need to calculate forces
         // Calculate Kt & restitution coefficient prefactors
-        F Kt = Kn * 2.0f/7.0f;
+        F Kt = Kn * 2.0f / 7.0f;
 
         // Calculate lever arms (Particle COM to contact point) & reduced mass
         F sqrtReducedMass = sqrt(Pm * Im / (Pm + Im));
@@ -517,7 +516,7 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
         F Isz = (Iwx * ny - Iwy * nx) * (PlenToOvlp - dist);
 
         // Relative velocities at contact point (linear + spin)
-        F vtotx = Ivx - Pvx + Isx - Psx;    // Iv is NOT already negative
+        F vtotx = Ivx - Pvx + Isx - Psx; // Iv is NOT already negative
         F vtoty = Ivy - Pvy + Isy - Psy;
         F vtotz = Ivz - Pvz + Isz - Psz;
 
@@ -529,7 +528,7 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
         F vtx = vtotx - vnx;
         F vty = vtoty - vny;
         F vtz = vtotz - vnz;
-        F vtMag = sqrt(vtx*vtx + vty*vty + vtz*vtz);
+        F vtMag = sqrt(vtx * vtx + vty * vty + vtz * vtz);
 
         /* Need to review vShear & vRoll calcs to see if we need to carry around more info than LastPos
         // Calculate if there was an overlap on the previous step; if so, the normal
@@ -549,8 +548,8 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
             // Get rotation angle
             F sinRot, cosRot;
             F NormSumMagInv = 1.0f / sqrt((nx + nxLast) * (nx + nxLast) + (ny + nyLast) * (ny + nyLast) + (nz + nzLast) * (nz + nzLast));
-            F rotAngle = 0.5f * dDelta * ((nxLast + nx) * NormSumMagInv * (Pwx + Iwx) + (nyLast + ny) * NormSumMagInv * (Pwy + Iwy) + (nzLast + nz) * NormSumMagInv * (Pwz + Iwz));
-            sincosf(rotAngle, sinRot, cosRot);
+            F rotAngle = 0.5f * dDelta * ((nxLast + nx) * NormSumMagInv * (Pwx + Iwx) + (nyLast + ny) * NormSumMagInv * (Pwy + Iwy) + (nzLast + nz) *
+        NormSumMagInv * (Pwz + Iwz)); sincosf(rotAngle, sinRot, cosRot);
 
             // Find Shear and Roll directions
             SdotSpinSum
@@ -567,17 +566,17 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
         F Fnx = -Kn * overlap * nx + Cn * vnx;
         F Fny = -Kn * overlap * ny + Cn * vny;
         F Fnz = -Kn * overlap * nz + Cn * vnz;
-        F Ftx = Kt * (vtx * dDelta) - Ct * vtx; // vt * dDelta = shear displacement 
+        F Ftx = Kt * (vtx * dDelta) - Ct * vtx; // vt * dDelta = shear displacement
         F Fty = Kt * (vty * dDelta) - Ct * vty;
         F Ftz = Kt * (vtz * dDelta) - Ct * vtz;
 
         // Frictional torques
-        F dwx = Iwx - Pwx;  // Relative spin at contact point; Iw is NOT already negative
+        F dwx = Iwx - Pwx; // Relative spin at contact point; Iw is NOT already negative
         F dwy = Iwy - Pwy;
         F dwz = Iwz - Pwz;
 
         F reducedLenToOvlp = 0.5f * (dist - 2.0f * PlenToOvlp / (PlenToOvlp * (dist - PlenToOvlp)));
-        F negPmomentInv = 1.0f / (0.4f * Pm * Pr * Pr);    // Negative Inverse moment of inertia for a sphere
+        F negPmomentInv = 1.0f / (0.4f * Pm * Pr * Pr); // Negative Inverse moment of inertia for a sphere
 
         // Rolling & Twisting force coefficients
         F shapeFactor2 = beta * beta * reducedRadius * reducedRadius;
@@ -597,7 +596,7 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
         F rRelx = dwx - qRelx + (ny * vtotz - nz * vtoty) * reducedLenToOvlp;
         F rRely = dwy - qRely + (nz * vtotx - nx * vtotz) * reducedLenToOvlp;
         F rRelz = dwz - qRelz + (nx * vtoty - ny * vtotx) * reducedLenToOvlp;
-        //Roll[i] = rRel[i] * dDelta;
+        // Roll[i] = rRel[i] * dDelta;
 
         // Sliding friction limit
         F N = sqrt(Fnx * Fnx + Fny * Fny + Fnz * Fnz);
@@ -616,8 +615,8 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
         // Tangential torques: Ftn_i = Ft x n
 
         // Rolling and Twisting friction limits
-        F rCrit = MuR * beta * reducedRadius * N;    // Rolling friction limit
-        F qCrit = MuT * beta * reducedRadius * MuS * N;    // Twisting friction limit
+        F rCrit = MuR * beta * reducedRadius * N;       // Rolling friction limit
+        F qCrit = MuT * beta * reducedRadius * MuS * N; // Twisting friction limit
         F qCriterion = 2.0f * Kt * shapeFactor2 * Twist;
 
         // Rolling torque initial guess and correction
@@ -648,8 +647,6 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
         result.ax = maskz_mov(overlap_gt_zero, (Fnx + Ftx) / Pm);
         result.ay = maskz_mov(overlap_gt_zero, (Fny + Fty) / Pm);
         result.az = maskz_mov(overlap_gt_zero, (Fnz + Ftz) / Pm);
-
-
     }
     else result.zero();
     return result;

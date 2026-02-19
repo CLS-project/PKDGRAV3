@@ -554,6 +554,7 @@ int MSR::ValidateParameters() {
     case HYDRO_MODEL::SPH:
     case HYDRO_MODEL::MFM:
     case HYDRO_MODEL::MFV:
+    case HYDRO_MODEL::SSDEM:
         break;
     default:
         print_error("ERROR: Unknown hydro_model\n");

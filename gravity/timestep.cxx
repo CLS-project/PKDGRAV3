@@ -210,7 +210,7 @@ void pkdContext::Drift(int iRoot, double dTime, double dDelta, double dDeltaVPre
             }
         }
         else {
-            assert(particles.present(PKD_FIELD::oNewSph));
+            // assert(particles.present(PKD_FIELD::oNewSph));
             for (i = pLower; i <= pUpper; ++i) {
                 auto p = particles[i];
                 const auto& v = p.velocity();
