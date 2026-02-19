@@ -4199,8 +4199,11 @@ auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
     SPHoptions.MuS = parameters.get_MuS();
     SPHoptions.MuR = parameters.get_MuR();
     SPHoptions.MuT = parameters.get_MuT();
-    SPHoptions.EpsN = parameters.get_EpsN();
-    SPHoptions.EpsT = parameters.get_EpsT();
+    float lnEpsN = log(parameters.get_EpsN());
+    float lnEpsT = log(parameters.get_EpsT());
+    SPHoptions.CnPrefactor = -2.0f * lnEpsN * sqrt(SPHoptions.Kn / (M_PI * M_PI + lnEpsN * lnEpsN));
+    SPHoptions.CtPrefactor = -2.0f * lnEpsT * sqrt(SPHoptions.Kn / (M_PI * M_PI + lnEpsT * lnEpsT));
+    SPHoptions.betaShape = parameters.get_betaShape();
     return SPHoptions;
 }
 

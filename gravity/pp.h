@@ -474,13 +474,184 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
                                                   F PlastPosx, F PlastPosy, F PlastPosz,                                     // Last position of the particle
                                                   F Idx, F Idy, F Idz, F Ir, F Ivx, F Ivy, F Ivz, F Iwx, F Iwy, F Iwz, F Im, // Interaction
                                                   F IlastPosx, F IlastPosy, F IlastPosz, // Last position of the interaction partner
-                                                  float dDelta, float Kn, float MuS, float MuR, float MuT, float EpsN,
-                                                  float EpsT) { // TODO Add beta for direction-constant rolling friction
-
+                                                  float dDelta, float Kn, float MuS, float MuR, float MuT, float CnPrefactor,
+                                                  float CtPrefactor, float beta) {
+                                                    
     ResultSSDEMForces<F> result;
 
-    result.zero();
+     // Calculate position of interaction relative to particle
+    F dx = -(Idx + Pdx);    // Idx is already negative
+    F dy = -(Idy + Pdy);
+    F dz = -(Idz + Pdz);
 
+    // Calculate relevant distances
+    F dist = sqrt(dx*dx + dy*dy + dz*dz);
+    F overlap = Pr + Ir - dist;
+    M overlap_gt_zero = overlap > 0.0f;                     
+
+    if (!testz(overlap_gt_zero)) { // If there is an overlap, we have a contact and need to calculate forces
+        // Calculate Kt & restitution coefficient prefactors
+        F Kt = Kn * 2.0f/7.0f;
+
+        // Calculate lever arms (Particle COM to contact point) & reduced mass
+        F sqrtReducedMass = sqrt(Pm * Im / (Pm + Im));
+        F reducedRadius = Pr * Ir / (Pr + Ir);
+        F PlenToOvlp = (Pr * Pr - Ir * Ir + dist * dist) / (2.0f * dist);
+
+        // Damping coefficients. TODO: Precalculate prefactors
+        F Cn = CnPrefactor * sqrtReducedMass;
+        F Ct = CtPrefactor * sqrtReducedMass;
+
+        // Unit normal vector (from P to I)
+        F distInv = 1.0f / dist;
+        F nx = dx * distInv;
+        F ny = dy * distInv;
+        F nz = dz * distInv;
+
+        // Spin component of velocity at contact point s_i = l_i * (w_i x n)
+        F Psx = (Pwy * nz - Pwz * ny) * PlenToOvlp;
+        F Psy = (Pwz * nx - Pwx * nz) * PlenToOvlp;
+        F Psz = (Pwx * ny - Pwy * nx) * PlenToOvlp;
+        F Isx = (Iwy * nz - Iwz * ny) * (PlenToOvlp - dist);
+        F Isy = (Iwz * nx - Iwx * nz) * (PlenToOvlp - dist);
+        F Isz = (Iwx * ny - Iwy * nx) * (PlenToOvlp - dist);
+
+        // Relative velocities at contact point (linear + spin)
+        F vtotx = Ivx - Pvx + Isx - Psx;    // Iv is NOT already negative
+        F vtoty = Ivy - Pvy + Isy - Psy;
+        F vtotz = Ivz - Pvz + Isz - Psz;
+
+        // Calculate relative velocity in the normal & tangential directions
+        F vnMag = nx * vtotx + ny * vtoty + nz * vtotz;
+        F vnx = vnMag * nx;
+        F vny = vnMag * ny;
+        F vnz = vnMag * nz;
+        F vtx = vtotx - vnx;
+        F vty = vtoty - vny;
+        F vtz = vtotz - vnz;
+        F vtMag = sqrt(vtx*vtx + vty*vty + vtz*vtz);
+
+        /* Need to review vShear & vRoll calcs to see if we need to carry around more info than LastPos
+        // Calculate if there was an overlap on the previous step; if so, the normal
+        F dxLast = -(IlastPosx + PlastPosx);    // ILastPosx is already negative
+        F dyLast = -(IlastPosy + PlastPosy);
+        F dzLast = -(IlastPosz + PlastPosz);
+        F distLast = sqrt(dxLast*dxLast + dyLast*dyLast + dzLast*dzLast);
+        F overlapLast = Pr + Ir - distLast;
+        M overlapLast_gt_zero = overlapLast > 0.0f;
+        if (!testz(overlapLast_gt_zero)) {
+            // Unit normal of previous step
+            F distLastInv = 1.0f / distLast;
+            F nxLast = dxLast * distLastInv;
+            F nyLast = dyLast * distLastInv;
+            F nzLast = dzLast * distLastInv;
+
+            // Get rotation angle
+            F sinRot, cosRot;
+            F NormSumMagInv = 1.0f / sqrt((nx + nxLast) * (nx + nxLast) + (ny + nyLast) * (ny + nyLast) + (nz + nzLast) * (nz + nzLast));
+            F rotAngle = 0.5f * dDelta * ((nxLast + nx) * NormSumMagInv * (Pwx + Iwx) + (nyLast + ny) * NormSumMagInv * (Pwy + Iwy) + (nzLast + nz) * NormSumMagInv * (Pwz + Iwz));
+            sincosf(rotAngle, sinRot, cosRot);
+
+            // Find Shear and Roll directions
+            SdotSpinSum
+
+
+        }
+        else {
+
+        }
+        */
+        // Tangential displacement directions: Shear & Roll
+
+        // Normal and tangential spring forces
+        F Fnx = -Kn * overlap * nx + Cn * vnx;
+        F Fny = -Kn * overlap * ny + Cn * vny;
+        F Fnz = -Kn * overlap * nz + Cn * vnz;
+        F Ftx = Kt * (vtx * dDelta) - Ct * vtx; // vt * dDelta = shear displacement 
+        F Fty = Kt * (vty * dDelta) - Ct * vty;
+        F Ftz = Kt * (vtz * dDelta) - Ct * vtz;
+
+        // Frictional torques
+        F dwx = Iwx - Pwx;  // Relative spin at contact point; Iw is NOT already negative
+        F dwy = Iwy - Pwy;
+        F dwz = Iwz - Pwz;
+
+        F reducedLenToOvlp = 0.5f * (dist - 2.0f * PlenToOvlp / (PlenToOvlp * (dist - PlenToOvlp)));
+        F negPmomentInv = 1.0f / (0.4f * Pm * Pr * Pr);    // Negative Inverse moment of inertia for a sphere
+
+        // Rolling & Twisting force coefficients
+        F shapeFactor2 = beta * beta * reducedRadius * reducedRadius;
+        // kr = Kn * shapeFactor2;    // Rolling stiffness
+        // kq = 2.0f * Kt * shapeFactor2;   // Twisting "stiffness"
+        // Cr = Cn * shapefactor2;   // Rolling damping
+        // Cq = 2.0f * Ct * shapeFactor2;   // Twisting damping
+
+        // Spin contribution to twisting
+        F qMag = nx * dwx + ny * dwy + nz * dwz;
+        F qRelx = qMag * nx;
+        F qRely = qMag * ny;
+        F qRelz = qMag * nz;
+        F Twist = qMag * dDelta;
+
+        // Spin contribution to relative rolling (dw_i - qRel_i + (n x v)_i * reducedLen)
+        F rRelx = dwx - qRelx + (ny * vtotz - nz * vtoty) * reducedLenToOvlp;
+        F rRely = dwy - qRely + (nz * vtotx - nx * vtotz) * reducedLenToOvlp;
+        F rRelz = dwz - qRelz + (nx * vtoty - ny * vtotx) * reducedLenToOvlp;
+        //Roll[i] = rRel[i] * dDelta;
+
+        // Sliding friction limit
+        F N = sqrt(Fnx * Fnx + Fny * Fny + Fnz * Fnz);
+        F Ft = sqrt(Ftx * Ftx + Fty * Fty + Ftz * Ftz);
+        M sliding_lt_Ft = N * N * MuS * MuS < Ftx * Ftx + Fty * Fty + Ftz * Ftz;
+
+        // Tangential force scaling based on sliding friction
+        F vtScaleFac = min(N * MuS / vtMag, Ct); // Includes division by vtMag (happens in next steps)
+        // If sliding friction is not exceeded, use the previously calculated Ft
+        // If sliding friction is exceeded, scale Ft back to sliding friction limit, provided there is a tangential velocity
+        // If all else fails (e.g. no tangential velocity), set Ft to 0
+        Ftx = mask_mov(Ftx, sliding_lt_Ft, maskz_mov(vtMag > 0.0f, vtScaleFac * vtx));
+        Fty = mask_mov(Fty, sliding_lt_Ft, maskz_mov(vtMag > 0.0f, vtScaleFac * vty));
+        Ftz = mask_mov(Ftz, sliding_lt_Ft, maskz_mov(vtMag > 0.0f, vtScaleFac * vtz));
+
+        // Tangential torques: Ftn_i = Ft x n
+
+        // Rolling and Twisting friction limits
+        F rCrit = MuR * beta * reducedRadius * N;    // Rolling friction limit
+        F qCrit = MuT * beta * reducedRadius * MuS * N;    // Twisting friction limit
+        F qCriterion = 2.0f * Kt * shapeFactor2 * Twist;
+
+        // Rolling torque initial guess and correction
+        F Trx = Kn * shapeFactor2 * rRelx * dDelta;
+        F Try = Kn * shapeFactor2 * rRely * dDelta;
+        F Trz = Kn * shapeFactor2 * rRelz * dDelta;
+        M Tr2_gt_rCrit2 = Trx * Trx + Try * Try + Trz * Trz > rCrit * rCrit;
+        F TrMagInv = rsqrt(Trx * Trx + Try * Try + Trz * Trz);
+        // mask_mov = ternary operator: if Tr2 < rCrit2, Tr += Cn * beta2 * rRel
+        // else if Tr2 >= rCrit2, scale back to rCrit
+        Trx = mask_mov(Trx + Cn * shapeFactor2 * rRelx, Tr2_gt_rCrit2, Trx * rCrit * TrMagInv);
+        Try = mask_mov(Try + Cn * shapeFactor2 * rRely, Tr2_gt_rCrit2, Try * rCrit * TrMagInv);
+        Trz = mask_mov(Trz + Cn * shapeFactor2 * rRelz, Tr2_gt_rCrit2, Trz * rCrit * TrMagInv);
+
+        // Twisting torques
+        M qCriterion2_gt_qCrit2 = qCriterion * qCriterion > qCrit * qCrit;
+        qCrit = mask_mov(qCrit, qCriterion2_gt_qCrit2 & qCriterion < 0.0f, -qCrit);
+        F Tqx = mask_mov(qCriterion * nx + 2.0f * Ct * shapeFactor2 * qRelx, qCriterion2_gt_qCrit2, qCrit * nx);
+        F Tqy = mask_mov(qCriterion * ny + 2.0f * Ct * shapeFactor2 * qRely, qCriterion2_gt_qCrit2, qCrit * ny);
+        F Tqz = mask_mov(qCriterion * nz + 2.0f * Ct * shapeFactor2 * qRelz, qCriterion2_gt_qCrit2, qCrit * nz);
+
+        // Update torques
+        result.spinDotx = maskz_mov(overlap_gt_zero, negPmomentInv * (PlenToOvlp * (Fty * nz - Ftz * ny) - Trx - Tqx));
+        result.spinDoty = maskz_mov(overlap_gt_zero, negPmomentInv * (PlenToOvlp * (Ftz * nx - Ftx * nz) - Try - Tqy));
+        result.spinDotz = maskz_mov(overlap_gt_zero, negPmomentInv * (PlenToOvlp * (Ftx * ny - Fty * nx) - Trz - Tqz));
+
+        // Update accelerations
+        result.ax = maskz_mov(overlap_gt_zero, (Fnx + Ftx) / Pm);
+        result.ay = maskz_mov(overlap_gt_zero, (Fny + Fty) / Pm);
+        result.az = maskz_mov(overlap_gt_zero, (Fnz + Ftz) / Pm);
+
+
+    }
+    else result.zero();
     return result;
 }
 #undef PP_CUDA_BOTH

@@ -1653,6 +1653,12 @@ flag="EpsT"
 default=0.0
 help="Coefficient of restitution in the tangential direction"
 
+["SSDEM".betaShape]
+flag="betaShape"
+default=0.0
+help="Shape parameter for direcitonal-constant rolling friction"
+
+
 ################################################################################
 ########## Star formation
 ################################################################################

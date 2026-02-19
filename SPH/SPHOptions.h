@@ -138,8 +138,9 @@ struct SPHOptions {
     float MuS;
     float MuR;
     float MuT;
-    float EpsN;
-    float EpsT;
+    float CnPrefactor;
+    float CtPrefactor;
+    float betaShape;
 };
 
 struct SPHOptionsGPU {
