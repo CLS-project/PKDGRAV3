@@ -179,12 +179,9 @@ void DEMpredict(PKD pkd, particleStore::ParticleReference& p, struct pkdKickPara
     ssdem.vPred[0] = v[0] + dtPredDrift * ap[0] * p.accFac();
     ssdem.vPred[1] = v[1] + dtPredDrift * ap[1] * p.accFac();
     ssdem.vPred[2] = v[2] + dtPredDrift * ap[2] * p.accFac();
-    printf("Predicted velocity: %.5e, %.5e, %.5e\n", ssdem.vPred[0], ssdem.vPred[1], ssdem.vPred[2]);
     ssdem.spinPred[0] = ssdem.spin[0] + dtPredDrift * ssdem.spinDot[0] * p.accFac();
     ssdem.spinPred[1] = ssdem.spin[1] + dtPredDrift * ssdem.spinDot[1] * p.accFac();
     ssdem.spinPred[2] = ssdem.spin[2] + dtPredDrift * ssdem.spinDot[2] * p.accFac();
-    printf("Predicted spin: %.5e, %.5e, %.5e\tSpinDot = %.5e, %.5e, %.5e\n", ssdem.spinPred[0], ssdem.spinPred[1], ssdem.spinPred[2], ssdem.spinDot[0],
-           ssdem.spinDot[1], ssdem.spinDot[2]);
 
     if (SPHoptions->VelocityDamper > 0.0) {
         double dampingTimestep = std::max(kick->dtOpen[p.rung()], kick->dtClose[p.rung()]);
