@@ -486,7 +486,16 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
     // Calculate relevant distances
     F dist = sqrt(dx * dx + dy * dy + dz * dz);
     F overlap = Pr + Ir - dist;
+    overlap = mask_mov(overlap, dist == 0.0f, -1e14f); // A particle can't overlap itself (guard)
     M overlap_gt_zero = overlap > 0.0f;
+
+    /* An example of some print debugging
+    for (int index = 0; index < overlap.width(); index++) {
+        printf("overlap = %.5e, dist = %.5e, Pr = %.5e, Ir = %.5e\n", overlap[index], dist[index], Pr[index], Ir[index]);
+    }
+    */
+
+    assert(testz(overlap >= Pr));
 
     if (!testz(overlap_gt_zero)) { // If there is an overlap, we have a contact and need to calculate forces
         // Calculate Kt & restitution coefficient prefactors
