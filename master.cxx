@@ -1278,7 +1278,8 @@ void MSR::AllNodeWrite(std::string_view FileName, double dTime, double dvFac, in
 
     if (!in.bHDF5 && fmt::format(in.achOutFile, fmt::arg("i", 0)) == in.achOutFile) {
         FIO fio;
-        fio = fioTipsyCreate(in.achOutFile, in.mFlags & FIO_FLAG_CHECKPOINT, in.bStandard, NewSPH() ? in.dTime : in.dExp, in.nGas, in.nDark, in.nStar);
+        fio = fioTipsyCreate(in.achOutFile, in.mFlags & FIO_FLAG_CHECKPOINT, in.bStandard, (NewSPH() || SSDEM()) ? in.dTime : in.dExp, in.nGas, in.nDark,
+                             in.nStar);
         fioClose(fio);
     }
     in.iLower = 0;
@@ -4202,7 +4203,7 @@ auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
     float lnEpsN = log(parameters.get_EpsN());
     float lnEpsT = log(parameters.get_EpsT());
     SPHoptions.CnPrefactor = -2.0f * lnEpsN * sqrt(SPHoptions.Kn / (M_PI * M_PI + lnEpsN * lnEpsN));
-    SPHoptions.CtPrefactor = -2.0f * lnEpsT * sqrt(SPHoptions.Kn / (M_PI * M_PI + lnEpsT * lnEpsT));
+    SPHoptions.CtPrefactor = -2.0f * lnEpsT * sqrt(SPHoptions.Kn * 2.0f / 7.0f / (M_PI * M_PI + lnEpsT * lnEpsT));
     SPHoptions.betaShape = parameters.get_betaShape();
     return SPHoptions;
 }

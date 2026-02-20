@@ -54,7 +54,8 @@ auto ServiceWrite::Service(PST pst, std::span<std::byte> vin, std::span<std::byt
             auto nWriteStart = plcl->data<ServiceSetWriteStart::InfoLCL>().nWriteStart;
             if (achOutFile != makeName(in->achOutFile, in->iIndex + 1)) {
                 fio = fioTipsyCreatePart(achOutFile.c_str(), 0, in->mFlags & FIO_FLAG_CHECKPOINT, in->bStandard,
-                                         pkd->particles.present(PKD_FIELD::oNewSph) ? in->dTime : in->dExp, in->nGas, in->nDark, in->nStar, nWriteStart);
+                                         (pkd->particles.present(PKD_FIELD::oNewSph) || pkd->particles.present(PKD_FIELD::oSSDEM)) ? in->dTime : in->dExp,
+                                         in->nGas, in->nDark, in->nStar, nWriteStart);
             }
             else {
                 fio = fioTipsyAppend(achOutFile.c_str(), in->mFlags & FIO_FLAG_CHECKPOINT, in->bStandard);
