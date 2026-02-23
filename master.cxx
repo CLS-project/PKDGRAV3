@@ -498,15 +498,16 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
     ps.nBucket = parameters.get_nBucket();
 
 #define SHOW(m) ((ps.mMemoryModel & PKD_MODEL_##m) ? " " #m : "")
-    print(
-        "Memory Models:{position}{unordered}{velocity}{acceleration}{potential}{groups}{mass}{density}{ball}{new_rung}{softening}{velsmooth}{mfm}{mfv}{new_sph}"
-        "{star}{particle_id}{bh}{globalgid}{node_moment}{node_accel}{node_vel}{node_sphbnds}{node_bnd}{node_vbnd}{node_bob}\n",
-        "position"_a = parameters.get_bMemIntegerPosition() ? " INTEGER_POSITION" : " DOUBLE_POSITION", "unordered"_a = SHOW(UNORDERED),
-        "velocity"_a = SHOW(VELOCITY), "acceleration"_a = SHOW(ACCELERATION), "potential"_a = SHOW(POTENTIAL), "groups"_a = SHOW(GROUPS), "mass"_a = SHOW(MASS),
-        "density"_a = SHOW(DENSITY), "new_rung"_a = SHOW(NEWRUNG), "ball"_a = SHOW(BALL), "softening"_a = SHOW(SOFTENING), "velsmooth"_a = SHOW(VELSMOOTH),
-        "mfm"_a = SHOW(MFM), "mfv"_a = SHOW(MFV), "new_sph"_a = SHOW(NEW_SPH), "star"_a = SHOW(STAR), "particle_id"_a = SHOW(PARTICLE_ID), "bh"_a = SHOW(BH),
-        "globalgid"_a = SHOW(GLOBALGID), "node_moment"_a = SHOW(NODE_MOMENT), "node_accel"_a = SHOW(NODE_ACCEL), "node_vel"_a = SHOW(NODE_VEL),
-        "node_sphbnds"_a = SHOW(NODE_SPHBNDS), "node_bnd"_a = SHOW(NODE_BND), "node_vbnd"_a = SHOW(NODE_VBND), "node_bob"_a = SHOW(NODE_BOB));
+    print("Memory Models:"
+          "{position}{unordered}{velocity}{acceleration}{potential}{groups}{mass}{density}{ball}{new_rung}{softening}{velsmooth}{mfm}{mfv}{new_sph}"
+          "{ssdem}{star}{particle_id}{bh}{globalgid}{node_moment}{node_accel}{node_vel}{node_sphbnds}{node_bnd}{node_vbnd}{node_bob}\n",
+          "position"_a = parameters.get_bMemIntegerPosition() ? " INTEGER_POSITION" : " DOUBLE_POSITION", "unordered"_a = SHOW(UNORDERED),
+          "velocity"_a = SHOW(VELOCITY), "acceleration"_a = SHOW(ACCELERATION), "potential"_a = SHOW(POTENTIAL), "groups"_a = SHOW(GROUPS),
+          "mass"_a = SHOW(MASS), "density"_a = SHOW(DENSITY), "new_rung"_a = SHOW(NEWRUNG), "ball"_a = SHOW(BALL), "softening"_a = SHOW(SOFTENING),
+          "velsmooth"_a = SHOW(VELSMOOTH), "mfm"_a = SHOW(MFM), "mfv"_a = SHOW(MFV), "new_sph"_a = SHOW(NEW_SPH), "ssdem"_a = SHOW(SSDEM),
+          "star"_a = SHOW(STAR), "particle_id"_a = SHOW(PARTICLE_ID), "bh"_a = SHOW(BH), "globalgid"_a = SHOW(GLOBALGID), "node_moment"_a = SHOW(NODE_MOMENT),
+          "node_accel"_a = SHOW(NODE_ACCEL), "node_vel"_a = SHOW(NODE_VEL), "node_sphbnds"_a = SHOW(NODE_SPHBNDS), "node_bnd"_a = SHOW(NODE_BND),
+          "node_vbnd"_a = SHOW(NODE_VBND), "node_bob"_a = SHOW(NODE_BOB));
 #undef SHOW
 
     // Calculate the Ephemeris memory requirements
