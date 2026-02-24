@@ -584,8 +584,8 @@ PP_CUDA_BOTH ResultSSDEMForces<F> EvalSSDEMForces(F Pdx, F Pdy, F Pdz, F Pr, F P
         F dwy = Iwy - Pwy;
         F dwz = Iwz - Pwz;
 
-        F reducedLenToOvlp = 0.5f * (dist - 2.0f * PlenToOvlp / (PlenToOvlp * (dist - PlenToOvlp)));
-        F negPmomentInv = 1.0f / (0.4f * Pm * Pr * Pr); // Negative Inverse moment of inertia for a sphere
+        F reducedLenToOvlp = 0.5f * (dist - 2.0f * PlenToOvlp) / (PlenToOvlp * (dist - PlenToOvlp));
+        F negPmomentInv = -1.0f / (0.4f * Pm * Pr * Pr); // Negative Inverse moment of inertia for a sphere
 
         // Rolling & Twisting force coefficients
         F shapeFactor2 = beta * beta * reducedRadius * reducedRadius;
