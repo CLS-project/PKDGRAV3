@@ -813,7 +813,7 @@ MSR::ReadCheckpoint(const char* filename, PyObject* kwargs, PyObject* species, P
         /*
         ** Initialize kernel target with nSmooth
         */
-        SetSPHoptions();
+        SetSPHoptions(dTime, dDelta);
         InitializeEOS();
     }
     if (parameters.get_bAddDelete()) CountSpecies();
@@ -3757,7 +3757,7 @@ double MSR::Read(std::string_view achInFile) {
         /*
         ** Initialize kernel target with nSmooth
         */
-        SetSPHoptions();
+        SetSPHoptions(dTime, SwitchDelta(dTime, parameters.get_iStartStep()));
         InitializeEOS();
 
         if (parameters.has_dSoft()) SetSoft(Soft());
@@ -4193,8 +4193,8 @@ auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
     return SPHoptions;
 }
 
-void MSR::SetSPHoptions() {
-    ServiceSetSPHoptions::input in = initializeSPHOptions(0.0, 0.0);
+void MSR::SetSPHoptions(double dTime, double dDelta) {
+    ServiceSetSPHoptions::input in = initializeSPHOptions(dTime, dDelta);
     mdl->RunService<ServiceSetSPHoptions>(in);
 }
 
