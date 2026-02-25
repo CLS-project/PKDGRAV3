@@ -333,7 +333,7 @@ static auto processCheckList(PKD pkd, smContext* smx, std::shared_ptr<SmoothHelp
                                     r = p.position();
                                     fMass = p.mass();
                                     fSoft = p.soft();
-                                    if (p.have_newsph()) {
+                                    if (p.have_newsph() || p.have_ssdem()) {
                                         float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
                                         float limitedBallSize = std::min(SPHoptions->ballSizeLimit, fBallFactor * p.ball());
                                         clNew.append(blk.iCache[jTile], id, -1 - pj, 0, 0, 0, 0, 1, 0.0, fMass, 4.0f * fSoft * fSoft,
