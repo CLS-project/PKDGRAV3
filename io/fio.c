@@ -2056,7 +2056,7 @@ FIO fioGadgetCreate(const char* fileName, int mFlags, double dTime, double Lbox,
     hdr.Time = dTime;
     hdr.Redshift = 1.0 / dTime - 1.0;
     hdr.NumFiles = nFiles;
-    hdr.BoxSize = Lbox;
+    hdr.BoxSize = Lbox * 1000.0; /* GADGET2 uses kpc/h */
     hdr.Omega0 = Omega0;
     hdr.OmegaLambda = OmegaLambda;
     hdr.HubbleParam = HubbleParam / 100.0;
@@ -2066,8 +2066,8 @@ FIO fioGadgetCreate(const char* fileName, int mFlags, double dTime, double Lbox,
         double pi = 4.0 * atan(1.0);
         gio->pos_fac = gio->hdr.BoxSize;
         gio->pos_off = 0.5;
-        gio->vel_fac = (gio->hdr.BoxSize * 100.0 * sqrt(gio->hdr.Time)) / sqrt(8.0 / 3.0 * pi);
-        gio->mass_fac = (pow(gio->hdr.BoxSize, 3.0) * 3.0e3) / (8.0 * pi * 4.30172);
+        gio->vel_fac = (Lbox * 100.0 * sqrt(gio->hdr.Time)) / sqrt(8.0 / 3.0 * pi);
+        gio->mass_fac = (pow(Lbox, 3.0) * 3.0e3) / (8.0 * pi * 4.30172);
     }
     else {
         gio->pos_fac = 1.0;
@@ -2384,6 +2384,7 @@ static FIO gadgetOpenOne(const char* fname, int iFile) {
 
     if (gio->hdr.BoxSize > 0.0) {
         double pi = 4.0 * atan(1.0);
+        double Lmpc = gio->hdr.BoxSize / 1000.0;
         /*
         ** Cosmological coordinates
         ** G = 4.30172e-9 Mpc/M. (km/s)^2
@@ -2410,8 +2411,8 @@ static FIO gadgetOpenOne(const char* fname, int iFile) {
 
         gio->pos_fac = 1.0 / gio->hdr.BoxSize;
         gio->pos_off = -0.5;
-        gio->vel_fac = sqrt(8.0 / 3.0 * pi) / (gio->hdr.BoxSize * 100.0 * sqrt(gio->hdr.Time));
-        gio->mass_fac = 8.0 * pi * 4.30172 / (pow(gio->hdr.BoxSize, 3.0) * 3.0e3);
+        gio->vel_fac = sqrt(8.0 / 3.0 * pi) / (Lmpc * 100.0 * sqrt(gio->hdr.Time));
+        gio->mass_fac = 8.0 * pi * 4.30172 / (pow(Lmpc, 3.0) * 3.0e3);
     }
     else {
         gio->pos_fac = 1.0;
