@@ -294,8 +294,8 @@ static auto processCheckList(PKD pkd, smContext* smx, std::shared_ptr<SmoothHelp
                                             }
                                             else if (pkd->particles.present(PKD_FIELD::oSSDEM)) {
                                                 const auto& ssdem = p.ssdem();
-                                                pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], blk.m[jTile],
-                                                                blk.fourh2[jTile], ssdem.vPred[0], ssdem.vPred[1], ssdem.vPred[2],
+                                                pkd->ilp.append(r[0] + blk.xOffset[jTile], r[1] + blk.yOffset[jTile], r[2] + blk.zOffset[jTile], fMass,
+                                                                4 * fSoft * fSoft, ssdem.vPred[0], ssdem.vPred[1], ssdem.vPred[2],
                                                                 pkdIsGas(pkd, &p) ? p.ball() : 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, p.species(), p.rung(),
                                                                 p.imaterial(), 0.0f, 0.0f, pkdIsGas(pkd, &p) ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                                                 ssdem.spinPred[0], ssdem.spinPred[1], ssdem.spinPred[2], ssdem.lastPos[0], ssdem.lastPos[1],
