@@ -408,7 +408,6 @@ class MSR {
     int CheckForOutput(int iStep, int nSteps, double dTime, int* pbDoCheckpoint, int* pbDoOutput);
     auto GetClasses() -> std::vector<PARTCLASS>;
     void SetClasses();
-    void SwapClasses(int id);
     void AllNodeWrite(std::string_view FileName, double dTime, double dvFac, int bDouble);
     auto SetTotal() -> uint64_t;
     auto CalcWriteStart() -> uint64_t;

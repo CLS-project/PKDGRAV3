@@ -1162,11 +1162,6 @@ void MSR::SetClasses() {
     mdl->RunService<ServiceSetClasses>(classes);
 }
 
-void MSR::SwapClasses(int id) {
-    auto pkd = pst->pkd();
-    pkd->swap_classes(id);
-}
-
 double MSR::SwitchDelta(double dTime, int iStep) {
     while (iStep_list.size() && iStep_list.front() <= iStep) {
         iStep_list.erase(iStep_list.begin());
