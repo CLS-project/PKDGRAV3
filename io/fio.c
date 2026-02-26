@@ -1010,7 +1010,6 @@ static int tipsyReadNativeSph(FIO fio, uint64_t* piParticleID, double* pdPos, do
     if (rc != 1) return 0;
     rc = fread(pfTemp, sizeof(float), 1, tio->fp);
     if (rc != 1) return 0;
-    *pfTemp = -(*pfTemp);
     rc = fread(pfSoft, sizeof(float), 1, tio->fp);
     if (rc != 1) return 0;
     rc = fread(pfMetals, sizeof(float), 1, tio->fp);
@@ -1092,7 +1091,6 @@ static int tipsyReadStandardSph(FIO fio, uint64_t* piParticleID, double* pdPos, 
     }
     if (!xdr_float(&tio->xdr, pfDen)) return 0;
     if (!xdr_float(&tio->xdr, pfTemp)) return 0;
-    *(pfTemp) = -(*pfTemp);
     if (!xdr_float(&tio->xdr, pfSoft)) return 0;
     if (!xdr_float(&tio->xdr, pfMetals)) return 0;
     if (!xdr_float(&tio->xdr, pfPot)) return 0;

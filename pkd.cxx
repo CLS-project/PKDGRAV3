@@ -535,7 +535,7 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
             p.set_density(fDensity);
             if (p.have_newsph()) {
                 auto& NewSph = p.newsph();
-                NewSph.u = -u; /* Can't do conversion until density known */
+                NewSph.u = u; /* Can't do conversion until density known */
             }
             else {
                 assert(dTuFac > 0.0);
@@ -548,8 +548,8 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
 #ifdef HAVE_METALLICITY
                     Sph.fMetalMass = afSphOtherData[1] * fMass;
 #endif
-                    // If the value is negative, means that it is a temperature
-                    u = (u < 0.0) ? -u * dTuFac : u;
+                    // If the value is positive, means that it is a temperature
+                    u = (u < 0.0) ? -u : u * dTuFac;
                     Sph.Frho = 0.0;
                     Sph.Fmom = 0.0;
                     Sph.Fene = 0.0;
