@@ -2111,17 +2111,31 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, d
     a = csmTime2Exp(csm, dTime);
 
     if (parameters.get_bVStep()) {
-        if (SPHoptions.doDensity && SPHoptions.useDensityFlags) print("Calculating Density using FastGas, Step:{:f} (rung {})", dStep, uRungLo);
-        if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) print("Calculating Density without FastGas, Step:{:f} (rung {})", dStep, uRungLo);
-        if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags)
-            print("Calculating Density Correction using FastGas, Step:{:f} (rung {})", dStep, uRungLo);
-        if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags)
-            print("Calculating Density Correction without FastGas, Step:{:f} (rung {})", dStep, uRungLo);
-        if (SPHoptions.doGravity && SPHoptions.doSPHForces) print("Calculating Gravity and SPH forces, Step:{:f} (rung {})", dStep, uRungLo);
-        if (SPHoptions.doGravity && !SPHoptions.doSPHForces) print("Calculating Gravity, Step:{:f} (rung {})", dStep, uRungLo);
-        if (!SPHoptions.doGravity && SPHoptions.doSPHForces) print("Calculating SPH forces, Step:{:f} (rung {})", dStep, uRungLo);
-        if (SPHoptions.doSetDensityFlags) print("Marking Neighbors for FastGas, Step:{:f} (rung {})", dStep, uRungLo);
-        if (SPHoptions.doSetNNflags) print("Marking Neighbors of Neighbors for FastGas, Step:{:f} (rung {})", dStep, uRungLo);
+        if (SPHoptions.doSetDensityFlags) {
+            print("Marking Neighbors for FastGas");
+        }
+        else if (SPHoptions.doSetNNflags) {
+            print("Marking Neighbors of Neighbors for FastGas");
+        }
+        else {
+            print("Calculating ");
+            if (SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
+                if (SPHoptions.doDensity) print("Density");
+                if (SPHoptions.doDensityCorrection) print("Density Correction");
+                if (SPHoptions.useDensityFlags) {
+                    print(" using FastGas");
+                }
+                else {
+                    print(" without FastGas");
+                }
+            }
+            if (SPHoptions.doGravity) print("Gravity");
+            if (SPHoptions.doSPHForces) {
+                if (SPHoptions.doGravity) print(" and ");
+                print("SPH forces");
+            }
+        }
+        print(", Step:{:f} (rung {})", dStep, uRungLo);
         if (csm->val.bComove) print(", Redshift:{:.6f}\n", 1. / a - 1.);
         else print(", Time:{:.6f}\n", dTime);
     }
@@ -2244,12 +2258,12 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, d
         dTotFlop = outr.sFlop.dSum;
         if (dsec > 0.0) {
             double dGFlops = dTotFlop / dsec;
-            print("Gravity Calculated, Wallclock: {:.5} secs, Gflops:{:.1f}, Total Gflop:{:.3g}\n", dsec, dGFlops, dTotFlop);
+            print("Interactions Calculated, Wallclock: {:.5} secs, Gflops:{:.1f}, Total Gflop:{:.3g}\n", dsec, dGFlops, dTotFlop);
             print("  Gflops: CPU:{:.1f},{:.1f} GPU:{:.1f},{:.1f}", outr.dFlopSingleCPU / dsec, outr.dFlopDoubleCPU / dsec, outr.dFlopSingleGPU / dsec,
                   outr.dFlopDoubleGPU / dsec);
         }
         else {
-            print("Gravity Calculated, Wallclock: {:.5} secs, Gflops:unknown, Total Gflop:{:.3g}\n", dsec, dTotFlop);
+            print("Interactions Calculated, Wallclock: {:.5} secs, Gflops:unknown, Total Gflop:{:.3g}\n", dsec, dTotFlop);
         }
         print("  Gflop: CPU:{:.3g},{:.3g} GPU:{:.3g},{:.3g}\n", outr.dFlopSingleCPU, outr.dFlopDoubleCPU, outr.dFlopSingleGPU, outr.dFlopDoubleGPU);
         PrintStat(outr.sLocal, "  particle  load:", 0);
