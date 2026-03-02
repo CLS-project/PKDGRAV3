@@ -35,11 +35,11 @@ struct arg {
         }
         else if constexpr (std::is_floating_point<DecayedT>::value) return PyFloat_FromDouble(val);
         else if constexpr (std::is_same_v<DecayedT, std::string_view> || std::is_same_v<DecayedT, std::string>) {
-            if (val.data() == nullptr) return Py_None;
+            if (val.data() == nullptr) return Py_NewRef(Py_None);
             return PyUnicode_FromStringAndSize(val.data(), val.size());
         }
         else if constexpr (std::is_convertible_v<DecayedT, const char*>) {
-            return (val != nullptr) ? PyUnicode_FromString(val) : Py_None;
+            return (val != nullptr) ? PyUnicode_FromString(val) : Py_NewRef(Py_None);
         }
         else {
             static_assert(std::is_same_v<DecayedT, void>, "Unsupported type in convert_to_pyobject");
