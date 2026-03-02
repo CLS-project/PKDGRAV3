@@ -6,7 +6,7 @@
 auto ServiceGravity::Service(PST pst, std::span<std::byte> vin, std::span<std::byte> vout) -> int {
     auto pkd = pst->pkd();
     auto in = reinterpret_cast<input*>(vin.data());
-    auto outr = reinterpret_cast<output*>(vout.data());
+    auto outr = new (vout.data()) output; // placement new to construct the output in the provided memory
 
     double dPart, dPartNumAccess, dPartMissRatio, dCell, dCellNumAccess, dCellMissRatio, dFlop;
     pkdGravAll(pkd, &in->kick, &in->lc, &in->ts, in->dTime, in->nReps, in->bPeriodic, in->bGPU, in->bEwald, in->iRoot1, in->iRoot2, in->dEwCut, in->dEwhCut,
