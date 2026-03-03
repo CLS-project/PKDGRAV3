@@ -323,7 +323,7 @@ void pkdParticleWorkDone(workParticle* wp) {
                 ssdem.spinDot[2] = wp->pInfoOut[i].spinDot[2];
             }
 
-            if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces || wp->SPHoptions->doDEMForces) {
+            if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces || wp->SPHoptions->doSSDEMForces) {
                 auto r = p.position();
                 auto m = p.mass();
 #ifdef EXTERNAL_POTENTIAL
@@ -504,7 +504,7 @@ void pkdParticleWorkDone(workParticle* wp) {
                                 }
                             }
                         }
-                        else if (wp->SPHoptions->doDEMForces) {
+                        else if (wp->SPHoptions->doSSDEMForces) {
                             auto& ssdem = p.ssdem();
                             ssdem.spin[0] += wp->kick->dtClose[p.rung()] * ssdem.spinDot[0] * p.accFac();
                             ssdem.spin[1] += wp->kick->dtClose[p.rung()] * ssdem.spinDot[1] * p.accFac();
@@ -545,7 +545,7 @@ void pkdParticleWorkDone(workParticle* wp) {
                                 NewSphStr.strainJ2 += wp->kick->dtOpen[p.rung()] * wp->pInfoOut[i].strainJ2Dot;
                             }
                         }
-                        else if (wp->SPHoptions->doDEMForces) {
+                        else if (wp->SPHoptions->doSSDEMForces) {
                             auto& ssdem = p.ssdem();
                             if (wp->SPHoptions->VelocityDamper > 0.0f) {
                                 ssdem.spin[0] *= exp(-wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
@@ -1102,7 +1102,7 @@ int pkdGravInteract(PKD pkd, struct pkdKickParameters* kick, struct pkdLightcone
         }
     }
 
-    if (SPHoptions->doDEMForces) {
+    if (SPHoptions->doSSDEMForces) {
         /*
         ** Evaluate the SSDEM forces on the P-P interactions
         */

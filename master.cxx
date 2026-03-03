@@ -2132,6 +2132,10 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi, int iRoot1, int iRoot2, d
                 if (SPHoptions.doGravity) print(" and ");
                 print("SPH forces");
             }
+            if (SPHoptions.doSSDEMForces) {
+                if (SPHoptions.doGravity) print(" and ");
+                print("SSDEM forces");
+            }
         }
         print(", Step:{:f} (rung {})", dStep, uRungLo);
         if (csm->val.bComove) print(", Redshift:{:.6f}\n", 1. / a - 1.);
@@ -4205,7 +4209,7 @@ auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
     SPHoptions.maxGroupSize = parameters.get_nGroup();
     SPHoptions.lowerGroupSizeThreshold = parameters.get_iLowerGroupSizeThreshold();
     SPHoptions.upperGroupSizeThreshold = parameters.get_iUpperGroupSizeThreshold();
-    SPHoptions.doDEMForces = SSDEM();
+    SPHoptions.doSSDEMForces = SSDEM();
     SPHoptions.Kn = parameters.get_Kn();
     SPHoptions.MuS = parameters.get_MuS();
     SPHoptions.MuR = parameters.get_MuR();

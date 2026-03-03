@@ -160,7 +160,7 @@ void iOpenOutcomeBlock(PKD pkd, treeStore::NodePointer k, int n, clBlock& blk, f
 
                 bIntersectSink = bIntersectSinkBall & bIntersectSinkBox;
             }
-            if (SPHoptions->doDEMForces) {
+            if (SPHoptions->doSSDEMForces) {
                 // Ball-ball intersection
                 distc2 = 0.0f;
                 dx = blk.fBoBxCenter.v[i] + blk.xOffset.v[i] - SPHbob.fBoBCenter[0]; // Distance between centers
