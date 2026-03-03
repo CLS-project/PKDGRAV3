@@ -554,7 +554,7 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
             p.set_density(fDensity);
             if (p.have_newsph()) {
                 auto& NewSph = p.newsph();
-                NewSph.u = -u; /* Can't do conversion until density known */
+                NewSph.u = u; /* Can't do conversion until density known */
             }
             else if (!p.have_ssdem()) {
                 assert(dTuFac > 0.0);
