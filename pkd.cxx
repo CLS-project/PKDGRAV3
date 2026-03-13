@@ -935,7 +935,7 @@ static void writeParticle(PKD pkd, FIO fio, double dvFac, double dvFacGas, Bound
          *  However, we save both as \dot x such that
          *  they can be be directly compared at the output
          */
-        v = p.velocity() * (p.is_gas() ? dvFacGas : dvFac);
+        v = p.velocity() * (p.is_gas() && ! p.has_newsph() ? dvFacGas : dvFac);
     }
     else v = 0.0;
 
