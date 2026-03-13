@@ -643,7 +643,7 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
 
         if (p.have_velocity()) {
             auto& v = p.velocity();
-            if (!p.is_gas()) {
+            if (!p.is_gas() || p.have_newsph()) {
                 // IA: dvFac = a*a, and for the gas we already provide
                 // the peculiar velocity in the IC
                 v = vel * dvFac;
