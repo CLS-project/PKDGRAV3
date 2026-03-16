@@ -662,7 +662,7 @@ void pkdReadFIO(PKD pkd, FIO fio, uint64_t iFirst, int nLocal, double dvFac, dou
 
         if (p.have_velocity()) {
             auto& v = p.velocity();
-            if (!p.is_gas()) {
+            if (!p.is_gas() || p.have_newsph()) {
                 // IA: dvFac = a*a, and for the gas we already provide
                 // the peculiar velocity in the IC
                 v = vel * dvFac;
@@ -954,7 +954,7 @@ static void writeParticle(PKD pkd, FIO fio, double dvFac, double dvFacGas, Bound
          *  However, we save both as \dot x such that
          *  they can be be directly compared at the output
          */
-        v = p.velocity() * (p.is_gas() ? dvFacGas : dvFac);
+        v = p.velocity() * (p.is_gas() && !p.have_newsph() ? dvFacGas : dvFac);
     }
     else v = 0.0;
 
