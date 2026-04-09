@@ -14,111 +14,144 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-/*
-** Generic List Management
-**
-*/
-
-#ifndef LST_H
-#define LST_H
+#pragma once
 #include "pkd_config.h"
-#include <stdlib.h>
-#include <stdint.h>
 
+#include <boost/intrusive/list.hpp>
 #include <cstdint>
 #include <cstring>
-// #include <memory>
-// #include <cmath>
 #include <type_traits>
 #include <array>
 #include <tuple>
 
 #include "blitz/array.h"
-#include <boost/intrusive/list.hpp>
-#include <boost/fusion/include/algorithm.hpp>
-#include <boost/fusion/include/adapt_struct.hpp>
-#include <boost/fusion/include/adapt_assoc_struct.hpp>
-#include <boost/preprocessor/seq.hpp>
-#include <boost/fusion/include/map.hpp>
-#include <boost/fusion/include/at_key.hpp>
-
 #include "core/simd.h"
 
-// ILIST_FIELD_VALUES: comma separated list of field values, e.g., "dx, dy, dz, ..., u" or "float, float, ..."
-#define ILIST_FIELD_VALUE_(r, data, elem) BOOST_PP_TUPLE_ELEM(2, data, elem),
-#define ILIST_FIELD_VALUES(seq, j)                                                                                                                             \
-    BOOST_PP_SEQ_FOR_EACH(ILIST_FIELD_VALUE_, j, BOOST_PP_SEQ_POP_BACK(seq)) BOOST_PP_TUPLE_ELEM(j, BOOST_PP_SEQ_HEAD(BOOST_PP_SEQ_REVERSE(seq)))
+/*
+** Generic List Management
+** A list consists of a number of fields orgainized in way that they can be efficiently accessed and processed on a CPU or GPU.
+** Each field has a type (e.g., float, int32_t, etc.) and a name (e.g., dx, dy, dz, etc.). The fields are stored in blocks of "n" elements (e.g., 32).
+** Several blocks are stored contiguously in "tiles" of "m" blocks (e.g., 8), and the tiles are linked together in a list.
+**
+*/
 
-// ILIST_FIELD_PROTOS: function prototype parameters, e.g., "float dx, float dy, ..., float u"
-#define ILIST_PROTO_(t) BOOST_PP_TUPLE_ELEM(2, 0, t) BOOST_PP_TUPLE_ELEM(2, 1, t)
-#define ILIST_FIELD_PROTO_(r, data, elem) ILIST_PROTO_(elem),
-#define ILIST_FIELD_PROTOS(seq)                                                                                                                                \
-    BOOST_PP_SEQ_FOR_EACH(ILIST_FIELD_PROTO_, _, BOOST_PP_SEQ_POP_BACK(seq)) ILIST_PROTO_(BOOST_PP_SEQ_HEAD(BOOST_PP_SEQ_REVERSE(seq)))
+/*
+   FIELD-LIST MEMORY LAYOUT (CPU/GPU FRIENDLY)
 
-#define ILIST_BLK_KEY_(r, data, elem) struct BOOST_PP_TUPLE_ELEM(2, 1, elem);
-#define ILIST_BLK_KEYS(seq) BOOST_PP_SEQ_FOR_EACH(ILIST_BLK_KEY_, _, seq)
+   - The LIST is a boost::intrusive::list of TILE objects.
+   - Each TILE is a std::array<Block, M>.
+   - Each BLOCK stores fields as ilBlock<T, N> (SoA layout).
 
-// Structure with all fields as blocks, e.g.,
-//   ilist::ilBlock<float,SIZE::value> dx;
-//   ilist::ilBlock<float,SIZE::value> dy;
-//   ...
-#define ILIST_BLK_FIELD_(r, data, elem) ilist::ilBlock<BOOST_PP_TUPLE_ELEM(2, 0, elem), SIZE::value> BOOST_PP_TUPLE_ELEM(2, 1, elem);
-#define ILIST_BLK_FIELDS(seq) BOOST_PP_SEQ_FOR_EACH(ILIST_BLK_FIELD_, _, seq)
 
-#define ILIST_FIELD_KEY_(r, data, elem) (auto, BOOST_PP_TUPLE_ELEM(2, 1, elem), Keys##data::BOOST_PP_TUPLE_ELEM(2, 1, elem))
-#define ILIST_FIELD_KEYS(seq, NAME) BOOST_PP_SEQ_FOR_EACH(ILIST_FIELD_KEY_, NAME, seq)
+   LIST (boost::intrusive::list<Tile>)
+   ─────────────────────────────────────────────────────────
+
+   [TILE] <--> [TILE] <--> [TILE] <--> ...   (doubly-linked, intrusive)
+
+
+   TILE STRUCTURE
+   ─────────────────────────────────────────────────────────
+
+   +------------------------------------------------------+
+   | TILE                                                 |
+   |------------------------------------------------------|
+   | intrusive hooks (prev / next pointers)               |
+   |                                                      |
+   | std::array<Block, M> blocks                          |
+   +------------------------------------------------------+
+
+
+   BLOCK STRUCTURE
+   ─────────────────────────────────────────────────────────
+
+   +------------------------------------------------------+
+   | BLOCK                                                |
+   |------------------------------------------------------|
+   | ilBlock<float, N> dx  : dx0 dx1 ... dx(N-1)          |
+   | ilBlock<float, N> dy  : dy0 dy1 ... dy(N-1)          |
+   | ilBlock<float, N> dz  : dz0 dz1 ... dz(N-1)          |
+   | ... (other fields: int32_t, float, etc.)             |
+   +------------------------------------------------------+
+
+
+   ilBlock<T, N>
+   ─────────────────────────────────────────────────────────
+
+   +------------------------------------------------------+
+   | ilBlock<T, N>                                        |
+   |------------------------------------------------------|
+   | T [N] : v0 v1 v2 ... v(N-1)                          |
+   +------------------------------------------------------+
+
+
+   Notes:
+   - Intrusive list: no external node allocation (TILE contains links).
+   - Excellent locality inside TILE (std::array of BLOCKS).
+   - SoA inside BLOCK enables SIMD + GPU coalescing.
+   - Scales dynamically by linking/unlinking TILEs.
+*/
+
+// We use __VA_ARGS__ in case the type of the field contains a comma (e.g., when using a template definition).
+#define ILIST_PROTO_BLOCK_(name, ...) ilist::ilBlock<__VA_ARGS__, width> name; // Definition inside the block structure
+#define ILIST_PROTO_ITEMS_(name, ...) __VA_ARGS__ name;                        // Definition inside the items structure
+#define ILIST_ASSIGN_ITEM_(name, ...) b->name[i] = value.name;                 // Assignment from items to block when appending
+#define ILIST_DEFINE(NAME, FIELD_LIST)                                                                                                                         \
+    struct Items##NAME {                                                                                                                                       \
+        FIELD_LIST(ILIST_PROTO_ITEMS_)                                                                                                                         \
+    };                                                                                                                                                         \
+    template <std::size_t N>                                                                                                                                   \
+    struct Block##NAME {                                                                                                                                       \
+        static constexpr std::size_t width = N;                                                                                                                \
+        FIELD_LIST(ILIST_PROTO_BLOCK_)                                                                                                                         \
+    };                                                                                                                                                         \
+    template <int N, int M>                                                                                                                                    \
+    class List##NAME : public ilist::List<Block##NAME<N>, M> {                                                                                                 \
+      public:                                                                                                                                                  \
+        using block_type = Block##NAME<N>;                                                                                                                     \
+        using items_type = Items##NAME;                                                                                                                        \
+        using base_type = ilist::List<block_type, M>;                                                                                                          \
+        List##NAME() = default;                                                                                                                                \
+        List##NAME(typename ilist::List<Block##NAME<N>, M>::list_type& freeList) : ilist::List<Block##NAME<N>, M>(freeList) {}                                 \
+        void append(const items_type& value) {                                                                                                                 \
+            auto [b, i] = this->create();                                                                                                                      \
+            FIELD_LIST(ILIST_ASSIGN_ITEM_)                                                                                                                     \
+        }                                                                                                                                                      \
+    };
+
+#if defined(__CUDACC__)
+    #define LST_GPU_HD __host__ __device__
+#else
+    #define LST_GPU_HD
+#endif
 
 namespace ilist {
+// This class maintains a center reference for the interaction list, which allows us to store relative positions as float in the list while avoiding precision
+// issues. The center reference is typically set to the position of the first particle we encounter when we are building the interaction list.
 class ilCenterReference {
-    typedef blitz::TinyVector<double, 3> double3;
-    typedef blitz::TinyVector<float, 3> float3;
+    using double3 = blitz::TinyVector<double, 3>;
+    using float3 = blitz::TinyVector<float, 3>;
     double3 dCenter = 0.0;
 
   public:
-    auto getReference() const { return dCenter; }
-    auto getReference(int i) const { return dCenter[i]; }
+    [[nodiscard]] auto getReference() const { return dCenter; }
+    [[nodiscard]] auto getReference(int i) const { return dCenter[i]; }
     void setReference(double3 r) { dCenter = r; }
-    auto get_dr(double3 r) const { return float3(r - dCenter); }
+    [[nodiscard]] auto get_dr(const double3& r) const { return float3(r - dCenter); }
 };
 
-// template<typename SCALAR,typename VECTOR,int N> struct ilBlockBase;
-// template<typename SCALAR,typename VECTOR,int N>
-// class ilBlockElement {
-//     struct ilBlockBase<SCALAR,VECTOR,N> &base;
-//     std::size_t i;
-// public:
-//     typedef SCALAR scalar_t;
-//     typedef VECTOR vector_t;
-//     operator SCALAR() const {return base.s[i];}
-//     operator VECTOR() const {return base.v[i];}
-//     struct ilBlockBase<SCALAR,VECTOR,N> &operator=(SCALAR s) {base.s[i]=s; return base;}
-//     struct ilBlockBase<SCALAR,VECTOR,N> &operator=(VECTOR v) {base.v[i]=v; return base;}
-//     ilBlockElement() = default;
-//     explicit ilBlockElement(ilBlockBase<SCALAR,VECTOR,N> &base,std::size_t i) : base(base), i(i) {}
-// };
-
+// This defines a block of "n" elements (e.g., 32) for each field in the interaction list
 template <typename SCALAR, typename VECTOR, int N>
 struct alignas(fvec::width() * sizeof(float)) ilBlockBase {
+    using scalar_t = SCALAR;
+    using vector_t = VECTOR;
     static constexpr int scalar_count = N;
-#if defined(__CUDACC__) || defined(__METAL_VERSION__)
-    typedef SCALAR scalar_t;
-    scalar_t s[N];
-    __host__ __device__ auto& operator[](std::size_t i) { return s[i]; }
-    __host__ __device__ const auto& operator[](std::size_t i) const { return s[i]; }
-#else
-    typedef SCALAR scalar_t;
-    typedef VECTOR vector_t;
     static constexpr int vector_count = N * sizeof(scalar_t) / (sizeof(vector_t));
     union {
-        scalar_t s[scalar_count];
-        vector_t v[vector_count];
+        scalar_t s[scalar_count]; // NOLINT(modernize-avoid-c-arrays)
+        vector_t v[vector_count]; // NOLINT(modernize-avoid-c-arrays)
     };
-    auto& operator[](std::size_t i) { return s[i]; }
-    const auto& operator[](std::size_t i) const { return s[i]; }
-        // auto operator[](std::size_t i) {return ilBlockElement(*this,i);}
-        // const auto operator[](std::size_t i) const {return ilBlockElement(*this,i);}
-#endif
+    LST_GPU_HD auto operator[](std::size_t i) -> auto& { return s[i]; }
+    LST_GPU_HD auto operator[](std::size_t i) const -> const auto& { return s[i]; }
 };
 
 // CAREFUL: the iBlockBase structure above must be properly aligned for this to work.
@@ -135,39 +168,6 @@ template <int N> struct ilBlock<double, N> : public ilBlockBase<double, dvec, N>
 template <int N> struct ilBlock<int32_t, N> : public ilBlockBase<int32_t, i32v, N> {};
 template <int N> struct ilBlock<int64_t, N> : public ilBlockBase<int64_t, i64v, N> {};
 #endif
-namespace {
-// Here we memcpy a single field from source to destination, e.g.,
-//   dst.dx[ 0:31] = src.dx[0:31] (iteration 1)
-//   dst.dx[31:63] = src.dx[0:31] (iteration 2, with src pointing to next block)
-//   ... etc.
-template <typename NGPU, typename NCPU>
-struct copyone {
-    int i;
-    explicit copyone(int i) : i(i) {}
-    template <typename ZipView>
-    void operator()(const ZipView& t) const {
-        std::memcpy(boost::fusion::at_c<0>(t).s + i, boost::fusion::at_c<1>(t).s, sizeof(boost::fusion::at_c<1>(t)));
-    }
-};
-} // namespace
-
-// This function iterates over the fields of the block (dx, dy, dz, ...) and calls copyone to memcpy the
-// source (CPU) field into the appropriate destination (GPU) field. The destination size has to be at least
-// as large as the source, and an even multiple of the size. If the destination block size is larger than
-// the source then it iterates to fill up the destination.
-template <template <typename> class BLOCK, typename NGPU, typename NCPU>
-void copy(BLOCK<NGPU>* dst, BLOCK<NCPU>* src, std::enable_if_t<(NGPU::value > NCPU::value) && NGPU::value % NCPU::value == 0, bool> = true) {
-    typedef boost::fusion::vector<BLOCK<NGPU>&, BLOCK<NCPU>&> sequences;
-    for (auto i = 0; i < NGPU::value; i += NCPU::value) {
-        boost::fusion::for_each(boost::fusion::zip_view<sequences>(sequences(*dst, *src)), copyone<NGPU, NCPU>(i));
-        ++src;
-    }
-}
-
-template <template <typename> class BLOCK, typename NGPU, typename NCPU>
-void copy(BLOCK<NGPU>* dst, BLOCK<NCPU>* src, std::enable_if_t<NGPU::value == NCPU::value, bool> = true) {
-    std::memcpy(dst, src, sizeof(*src));
-}
 
 template <typename B, int N>
 class Tile : public boost::intrusive::list_base_hook<>, public std::array<B, N> {
@@ -178,16 +178,16 @@ class Tile : public boost::intrusive::list_base_hook<>, public std::array<B, N> 
 
   public:
     int nRefs = 0;
-    typedef B block_type;
+    using block_type = B;
     static constexpr int num_blocks = N;
     static constexpr int width = B::width;
     static constexpr int max_interactions = num_blocks * width;
     Tile() { memset(this->data(), 0, N * sizeof(B)); }
     void clear() { nInTile = 0; }
-    int count() const { return nInTile; }
-    auto full() { return count() == max_interactions; }
-    auto empty() { return count() == 0; }
-    auto create() {
+    [[nodiscard]] auto count() const -> int { return nInTile; }
+    [[nodiscard]] auto full() { return count() == max_interactions; }
+    [[nodiscard]] auto empty() { return count() == 0; }
+    [[nodiscard]] auto create() {
         auto iBlock = nInTile / width;
         auto iInter = nInTile % width;
         ++nInTile;
@@ -195,12 +195,13 @@ class Tile : public boost::intrusive::list_base_hook<>, public std::array<B, N> 
     }
 };
 
-template <typename B, int N = 32>
+// This will results tiles with "N" blocks of type "B".
+template <typename B, int N = 8>
 class List : public boost::intrusive::list<Tile<B, N>, boost::intrusive::constant_time_size<true>> {
   public:
-    typedef Tile<B, N> tile_type;
-    typedef typename tile_type::block_type block_type;
-    typedef boost::intrusive::list<Tile<B, N>, boost::intrusive::constant_time_size<true>> list_type;
+    using tile_type = Tile<B, N>;
+    using block_type = typename tile_type::block_type;
+    using list_type = boost::intrusive::list<Tile<B, N>, boost::intrusive::constant_time_size<true>>;
 
   protected:
     list_type freeListDefault; // In case we have a private "free list"
@@ -213,10 +214,10 @@ class List : public boost::intrusive::list<Tile<B, N>, boost::intrusive::constan
         explicit move_disposer(list_type& other) : other(other) {}
         void operator()(tile_type* tile) { other.push_back(*tile); }
     };
-    struct isref0 {
-        explicit isref0() {}
-        bool operator()(const Tile<B, N>& tile) const { return tile.nRefs == 0; }
-    };
+    // struct isref0 {
+    //     explicit isref0() = default;
+    //     auto operator()(const Tile<B, N>& tile) const -> bool { return tile.nRefs == 0; }
+    // };
     void newTile() {
         if (freeList->size()) { // Pull a tile from the free list if we have any
             auto& t = freeList->front();
@@ -231,8 +232,8 @@ class List : public boost::intrusive::list<Tile<B, N>, boost::intrusive::constan
   public:
     static constexpr int max_blocks = N;
     static constexpr int max_interactions = N * B::width;
-    std::size_t memory() { return (freeListDefault.size() + this->size()) * sizeof(tile_type); }
-    std::size_t count() { return this->size() ? this->back().count() + (this->size() - 1) * max_interactions : 0; }
+    [[nodiscard]] auto memory() -> std::size_t { return (freeListDefault.size() + this->size()) * sizeof(tile_type); }
+    [[nodiscard]] auto count() -> std::size_t { return this->size() ? this->back().count() + (this->size() - 1) * max_interactions : 0; }
     void clear() { this->clear_and_dispose(move_disposer(*freeList)); }
     void shrink_to_fit() { freeListDefault.clear_and_dispose(delete_disposer()); }
     List() : freeList(&freeListDefault) {}
@@ -250,7 +251,7 @@ class List : public boost::intrusive::list<Tile<B, N>, boost::intrusive::constan
     }
 
     // Copy assignment
-    List& operator=(const List& other) {
+    auto operator=(const List& other) -> List& {
         if (this != &other) {
             clear();
             clone(other);
@@ -271,7 +272,7 @@ class List : public boost::intrusive::list<Tile<B, N>, boost::intrusive::constan
     }
 
     // Move assignment. Safest here is to perform a swap of the active list, and the default free list.
-    List& operator=(List&& other) noexcept(std::is_nothrow_move_assignable_v<list_type>) {
+    auto operator=(List&& other) noexcept(std::is_nothrow_move_assignable_v<list_type>) -> List& {
         if (this != &other) this->swap(other);
         return *this;
     }
@@ -297,7 +298,7 @@ class List : public boost::intrusive::list<Tile<B, N>, boost::intrusive::constan
     // ADL-enabled non-member swap
     friend void swap(List& a, List& b) noexcept(noexcept(a.swap(b))) { a.swap(b); }
 
-    auto& clone(const list_type& rhs) {
+    auto clone(const list_type& rhs) -> auto& {
         clear();
         for (auto const& tile : rhs) {
             newTile();
@@ -314,7 +315,7 @@ class List : public boost::intrusive::list<Tile<B, N>, boost::intrusive::constan
 
 template <typename RESULT, typename BLOCK> struct EvalBlock;
 template <typename TILE, typename EVAL>
-typename EVAL::result_type EvalTile(TILE& tile, EVAL& eval) {
+auto EvalTile(TILE& tile, EVAL& eval) -> typename EVAL::result_type {
     typename EVAL::result_type result;
     result.zero();
 
@@ -328,36 +329,4 @@ typename EVAL::result_type EvalTile(TILE& tile, EVAL& eval) {
 }
 } // namespace ilist
 
-// Constructs: boost::fusion::at_key<KeysPC::dx>(*b)[i] = dx;
-#define ILIST_ASSIGN_FIELD_(r, data, elem)                                                                                                                     \
-    boost::fusion::at_key<BOOST_PP_TUPLE_ELEM(4, 0, data)::BOOST_PP_TUPLE_ELEM(2, 1, elem)>(                                                                   \
-        *BOOST_PP_TUPLE_ELEM(4, 1, data))[BOOST_PP_TUPLE_ELEM(4, 2, data)] = BOOST_PP_TUPLE_ELEM(4, 3, data) BOOST_PP_TUPLE_ELEM(2, 1, elem);
-#define ILIST_ASSIGN_FIELDS(seq, NAME, B, I, P) BOOST_PP_SEQ_FOR_EACH(ILIST_ASSIGN_FIELD_, (Keys##NAME, B, I, P), seq)
-
-#define ILIST_DECLARE(NAME, FIELDS_SEQ)                                                                                                                        \
-    template <typename SIZE> struct BLOCK##NAME {                                                                                                              \
-        static constexpr int width = SIZE::value;                                                                                                              \
-        ILIST_BLK_FIELDS(FIELDS_SEQ)                                                                                                                           \
-    };                                                                                                                                                         \
-    namespace Keys##NAME{ILIST_BLK_KEYS(FIELDS_SEQ)} BOOST_FUSION_ADAPT_ASSOC_TPL_STRUCT(                                                                      \
-        (SIZE), (BLOCK##NAME)(SIZE), /*ILIST_FIELD_VALUES(FIELDS_SEQ,1)*/                                                                                      \
-        ILIST_FIELD_KEYS(FIELDS_SEQ, NAME)) template <int N> using Block##NAME = BLOCK##NAME<boost::mpl::int_<N>>;                                             \
-    template <int N, int M> using Tile##NAME = ilist::Tile<Block##NAME<N>, M>;                                                                                 \
-    template <int N, int M>                                                                                                                                    \
-    class List##NAME : public ilist::List<Block##NAME<N>, M> {                                                                                                 \
-      public:                                                                                                                                                  \
-        List##NAME() = default;                                                                                                                                \
-        List##NAME(typename ilist::List<Block##NAME<N>, M>::list_type& freeList) : ilist::List<Block##NAME<N>, M>(freeList) {}                                 \
-        void append(ILIST_FIELD_PROTOS(FIELDS_SEQ)) {                                                                                                          \
-            Block##NAME<N>* b;                                                                                                                                 \
-            int i;                                                                                                                                             \
-            std::tie(b, i) = this->create();                                                                                                                   \
-            ILIST_ASSIGN_FIELDS(FIELDS_SEQ, NAME, b, i, )                                                                                                      \
-        }                                                                                                                                                      \
-    };                                                                                                                                                         \
-/**/
-// typedef boost::fusion::vector<ILIST_FIELD_VALUES(FIELDS_SEQ,0)> argvec;
-// typedef boost::fusion::vector<BLOCK##NAME<boost::mpl::int_<N>> &, argvec &> sequences;
-// argvec args(ILIST_FIELD_VALUES(FIELDS_SEQ,1));
-// boost::fusion::for_each(boost::fusion::zip_view<sequences>(sequences(*b,args)),ilist::saveone(i));
-#endif
+#undef LST_GPU_HD

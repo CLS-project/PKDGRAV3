@@ -25,37 +25,42 @@
     #define ILC_PART_PER_BLK 32 /* Don't mess with this: see CUDA */
 #endif
 
-// These are the fields and their types found in the interaction list
-#define ILC_FIELDS_PARAMS_SEQ ((float, dx))((float, dy))((float, dz))((float, u))
+// Moments are expanded around the center of mass and thus do not have a dipole term.
+// Exanding around the cell center was considered but was found to be less accurate.
 #ifdef USE_DIAPOLE
-    #define ILC_FIELDS_DIAPOLE_SEQ ((float, x))((float, y))((float, z))
+    #define ILC_FIELDS_DIAPOLE(X) X(x, float) X(y, float) X(z, float)
 #else
-    #define ILC_FIELDS_DIAPOLE_SEQ
+    #define ILC_FIELDS_DIAPOLE(X)
 #endif
-#define ILC_FIELDS_MOMENT_SEQ                                                                                                                                  \
-    ((float, xxxx))((float, xxxy))((float, xxxz))((float, xxyz))((float, xxyy))((float, yyyz))((float, xyyz))((float, xyyy))((float, yyyy))((float, xxx))(     \
-        (float, xyy))((float, xxy))((float, yyy))((float, xxz))((float, yyz))((float, xyz))((float, xx))((float, xy))((float, xz))((float, yy))(               \
-        (float, yz))ILC_FIELDS_DIAPOLE_SEQ((float, m))
-#define ILC_FIELDS_SEQ ILC_FIELDS_PARAMS_SEQ ILC_FIELDS_MOMENT_SEQ
+#define ILC_FIELDS_BASIC(X) X(dx, float) X(dy, float) X(dz, float) ILC_FIELDS_DIAPOLE(X)
+// clang-format off
+#define ILC_FIELDS_MOMENT(X)                                                                          \
+    X(xxxx, float) X(xxxy, float) X(xxxz, float) X(xxyz, float) X(xxyy, float)                        \
+    X(yyyz, float) X(xyyz, float) X(xyyy, float) X(yyyy, float)                                       \
+    X(xxx, float) X(xyy, float) X(xxy, float) X(yyy, float) X(xxz, float) X(yyz, float) X(xyz, float) \
+    X(xx, float) X(xy, float) X(xz, float) X(yy, float) X(yz, float) X(m, float)
+// clang-format on
 
-ILIST_DECLARE(PC, ILC_FIELDS_SEQ)
-#define ILC_FIELD_TYPES ILIST_FIELD_VALUES(ILC_FIELDS_SEQ, 0)
-#define ILC_FIELD_NAMES ILIST_FIELD_VALUES(ILC_FIELDS_SEQ, 1)
-#define ILC_FIELD_PROTOS ILIST_FIELD_PROTOS(ILC_FIELDS_SEQ)
+#define ILC_FIELDS(X) ILC_FIELDS_BASIC(X) ILC_FIELDS_MOMENT(X) ILC_FIELDS_DIAPOLE(X) X(u, float)
 
-using ilcBlock = BlockPC<ILC_PART_PER_BLK>;
-using ilcTile = TilePC<ILC_PART_PER_BLK, 8>;
+ILIST_DEFINE(PC, ILC_FIELDS)
+
+#define ILC_PROTO_TYPE(name, ...) __VA_ARGS__ name,
+#define ILC_ASSIGN_BASIC(name, ...) b->name[i] = name;
+#define ILC_ASSIGN_MOMENT(name, ...) b->name[i] = M->name;
 class ilcList : public ListPC<ILC_PART_PER_BLK, 8>, public ilist::ilCenterReference {
   public:
-    void append(float dx, float dy, float dz, const FMOMR* M, float u) {
-        BlockPC<ILC_PART_PER_BLK>* b;
-        int i;
-        std::tie(b, i) = ListPC<ILC_PART_PER_BLK, 8>::create();
-        ILIST_ASSIGN_FIELDS(ILC_FIELDS_PARAMS_SEQ, PC, b, i, )
-        ILIST_ASSIGN_FIELDS(ILC_FIELDS_MOMENT_SEQ, PC, b, i, M->)
+    void append(ILC_FIELDS_BASIC(ILC_PROTO_TYPE) const FMOMR* M, float u) {
+        auto [b, i] = this->create();
+        ILC_FIELDS_BASIC(ILC_ASSIGN_BASIC)
+        ILC_FIELDS_MOMENT(ILC_ASSIGN_MOMENT)
+        b->u[i] = u;
     }
     void append(double x, double y, double z, const FMOMR* M, float u) {
         append((float)(getReference(0) - x), (float)(getReference(1) - y), (float)(getReference(2) - z), M, u);
     }
 };
+using ilcTile = ilcList::tile_type;
+using ilcBlock = ilcList::block_type;
+
 #endif
