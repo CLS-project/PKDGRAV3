@@ -117,13 +117,13 @@ MAKE_STRUCTURE(PEAKPRESSUREFIELDS, SPH_PEAKPRESSURE_FIELDS)
 
 namespace ssdem {
 
-#define SSDEM_FIELDS1(X)                                                                                                                                       \
+#define SSDEM_FIELDS(X)                                                                                                                                        \
     X(spin, blitz::TinyVector<float, 3>)     /* Spin vector */                                                                                                 \
     X(spinDot, blitz::TinyVector<float, 3>)  /* Time derivative of the spin vector */                                                                          \
     X(spinPred, blitz::TinyVector<float, 3>) /* Predicted spin vector */                                                                                       \
     X(vPred, blitz::TinyVector<float, 3>)    /* Predicted velocity vector */                                                                                   \
     X(lastPos, blitz::TinyVector<double, 3>) /* Position at the last time step */
-MAKE_STRUCTURE(FIELDS, SSDEM_FIELDS1)
+MAKE_STRUCTURE(FIELDS, SSDEM_FIELDS)
 
 } // namespace ssdem
 
