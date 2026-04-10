@@ -25,46 +25,104 @@
     #define CL_PART_PER_BLK 16
 #endif
 
-// These are the fields and their types found in the interaction list
-#define CL_FIELDS_PARAMS_SEQ                                                                                                                                   \
-    ((int32_t, iCache))((int32_t, idCell))((int32_t, iCell))((int32_t, idLower))((int32_t, iLower))((int32_t, idUpper))((int32_t, iUpper))((int32_t, nc))(     \
-        (float, cOpen))((float, m))((float, fourh2))((float, x))((float, y))((float, z))((float, xOffset))((float, yOffset))((float, zOffset))(                \
-        (float, xCenter))((float, yCenter))((float, zCenter))((float, xMax))((float, yMax))((float, zMax))((int32_t, iOpen))
+// clang-format off
+#define CL_FIELDS_BASIC(X)                                                                                                                                     \
+    X(iCache, int32_t) X(idCell, int32_t) X(iCell, int32_t) X(idLower, int32_t) X(iLower, int32_t) X(idUpper, int32_t) X(iUpper, int32_t) X(nc, int32_t)       \
+    X(cOpen, float) X(m, float) X(fourh2, float) X(x, float) X(y, float) X(z, float) X(xOffset, float) X(yOffset, float) X(zOffset, float)                     \
+    X(xCenter, float) X(yCenter, float) X(zCenter, float) X(xMax, float) X(yMax, float) X(zMax, float) X(iOpen, int32_t)
+#define CL_FIELDS_BALLS(X)                                                                                                                                     \
+    X(fBoBr, float) X(fBoBxCenter, float) X(fBoByCenter, float) X(fBoBzCenter, float) X(fBoBxMin, float) X(fBoByMin, float) X(fBoBzMin, float)                 \
+    X(fBoBxMax, float) X(fBoByMax, float) X(fBoBzMax, float)
+// clang-format on
+#define CL_FIELDS(X) CL_FIELDS_BASIC(X) CL_FIELDS_BALLS(X)
+ILIST_DEFINE(CL, CL_FIELDS)
 
-#define CL_FIELDS_BALLS_SEQ                                                                                                                                    \
-    ((float, fBoBr))((float, fBoBxCenter))((float, fBoByCenter))((float, fBoBzCenter))((float, fBoBxMin))((float, fBoByMin))((float, fBoBzMin))(               \
-        (float, fBoBxMax))((float, fBoByMax))((float, fBoBzMax))
-
-#define CL_FIELDS_SEQ CL_FIELDS_PARAMS_SEQ CL_FIELDS_BALLS_SEQ
-
-ILIST_DECLARE(CL, CL_FIELDS_SEQ)
-#define CL_FIELD_TYPES ILIST_FIELD_VALUES(CL_FIELDS_SEQ, 0)
-#define CL_FIELD_NAMES ILIST_FIELD_VALUES(CL_FIELDS_SEQ, 1)
-#define CL_FIELD_PROTOS ILIST_FIELD_PROTOS(CL_FIELDS_SEQ)
-
-using clBlock = BlockCL<CL_PART_PER_BLK>;
-using clTile = TileCL<CL_PART_PER_BLK, 64>;
 class clList : public ListCL<CL_PART_PER_BLK, 64> {
   public:
     using ListCL<CL_PART_PER_BLK, 64>::append;
-    typedef ListCL<CL_PART_PER_BLK, 64> free_list;
+    using free_list = ListCL<CL_PART_PER_BLK, 64>;
     clList() = default;
     clList(List::list_type& freeList) : ListCL<CL_PART_PER_BLK, 64>(freeList) {}
 
-    void append(uint32_t iCache, uint32_t idCell, uint32_t iCell, uint32_t idLower, uint32_t iLower, uint32_t idUpper, uint32_t iUpper, uint32_t nc,
-                float cOpen, float m, float fourh2, blitz::TinyVector<float, 3> r, blitz::TinyVector<float, 3> fOffset, Bound bnd, SPHBOB bob) {
+    void append(int32_t iCache, int32_t idCell, int32_t iCell, int32_t idLower, int32_t iLower, int32_t idUpper, int32_t iUpper, int32_t nc, float cOpen,
+                float m, float fourh2, blitz::TinyVector<float, 3> r, blitz::TinyVector<float, 3> fOffset, Bound bnd, SPHBOB bob) {
         auto fCenter = bnd.center();
         auto fMax = bnd.apothem();
-        append(iCache, idCell, iCell, idLower, iLower, idUpper, iUpper, nc, cOpen, m, fourh2, r[0], r[1], r[2], fOffset[0], fOffset[1], fOffset[2], fCenter[0],
-               fCenter[1], fCenter[2], fMax[0], fMax[1], fMax[2], 0, bob.fBoBr, bob.fBoBCenter[0], bob.fBoBCenter[1], bob.fBoBCenter[2], bob.fBoBMin[0],
-               bob.fBoBMin[1], bob.fBoBMin[2], bob.fBoBMax[0], bob.fBoBMax[1], bob.fBoBMax[2]);
+        append(items_type{.iCache = iCache,
+                          .idCell = idCell,
+                          .iCell = iCell,
+                          .idLower = idLower,
+                          .iLower = iLower,
+                          .idUpper = idUpper,
+                          .iUpper = iUpper,
+                          .nc = nc,
+                          .cOpen = cOpen,
+                          .m = m,
+                          .fourh2 = fourh2,
+                          .x = r[0],
+                          .y = r[1],
+                          .z = r[2],
+                          .xOffset = fOffset[0],
+                          .yOffset = fOffset[1],
+                          .zOffset = fOffset[2],
+                          .xCenter = static_cast<float>(fCenter[0]),
+                          .yCenter = static_cast<float>(fCenter[1]),
+                          .zCenter = static_cast<float>(fCenter[2]),
+                          .xMax = static_cast<float>(fMax[0]),
+                          .yMax = static_cast<float>(fMax[1]),
+                          .zMax = static_cast<float>(fMax[2]),
+                          .iOpen = 0,
+                          .fBoBr = bob.fBoBr,
+                          .fBoBxCenter = bob.fBoBCenter[0],
+                          .fBoByCenter = bob.fBoBCenter[1],
+                          .fBoBzCenter = bob.fBoBCenter[2],
+                          .fBoBxMin = bob.fBoBMin[0],
+                          .fBoByMin = bob.fBoBMin[1],
+                          .fBoBzMin = bob.fBoBMin[2],
+                          .fBoBxMax = bob.fBoBMax[0],
+                          .fBoByMax = bob.fBoBMax[1],
+                          .fBoBzMax = bob.fBoBMax[2]});
     }
-    void append(clBlock& B, int Bi) {
-        append(B.iCache[Bi], B.idCell[Bi], B.iCell[Bi], B.idLower[Bi], B.iLower[Bi], B.idUpper[Bi], B.iUpper[Bi], B.nc[Bi], B.cOpen[Bi], B.m[Bi], B.fourh2[Bi],
-               B.x[Bi], B.y[Bi], B.z[Bi], B.xOffset[Bi], B.yOffset[Bi], B.zOffset[Bi], B.xCenter[Bi], B.yCenter[Bi], B.zCenter[Bi], B.xMax[Bi], B.yMax[Bi],
-               B.zMax[Bi], B.iOpen[Bi], B.fBoBr[Bi], B.fBoBxCenter[Bi], B.fBoByCenter[Bi], B.fBoBzCenter[Bi], B.fBoBxMin[Bi], B.fBoByMin[Bi], B.fBoBzMin[Bi],
-               B.fBoBxMax[Bi], B.fBoByMax[Bi], B.fBoBzMax[Bi]);
+    void append(block_type& B, int Bi) {
+
+        append(items_type{.iCache = B.iCache[Bi],
+                          .idCell = B.idCell[Bi],
+                          .iCell = B.iCell[Bi],
+                          .idLower = B.idLower[Bi],
+                          .iLower = B.iLower[Bi],
+                          .idUpper = B.idUpper[Bi],
+                          .iUpper = B.iUpper[Bi],
+                          .nc = B.nc[Bi],
+                          .cOpen = B.cOpen[Bi],
+                          .m = B.m[Bi],
+                          .fourh2 = B.fourh2[Bi],
+                          .x = B.x[Bi],
+                          .y = B.y[Bi],
+                          .z = B.z[Bi],
+                          .xOffset = B.xOffset[Bi],
+                          .yOffset = B.yOffset[Bi],
+                          .zOffset = B.zOffset[Bi],
+                          .xCenter = B.xCenter[Bi],
+                          .yCenter = B.yCenter[Bi],
+                          .zCenter = B.zCenter[Bi],
+                          .xMax = B.xMax[Bi],
+                          .yMax = B.yMax[Bi],
+                          .zMax = B.zMax[Bi],
+                          .iOpen = B.iOpen[Bi],
+                          .fBoBr = B.fBoBr[Bi],
+                          .fBoBxCenter = B.fBoBxCenter[Bi],
+                          .fBoByCenter = B.fBoByCenter[Bi],
+                          .fBoBzCenter = B.fBoBzCenter[Bi],
+                          .fBoBxMin = B.fBoBxMin[Bi],
+                          .fBoByMin = B.fBoByMin[Bi],
+                          .fBoBzMin = B.fBoBzMin[Bi],
+                          .fBoBxMax = B.fBoBxMax[Bi],
+                          .fBoByMax = B.fBoByMax[Bi],
+                          .fBoBzMax = B.fBoBzMax[Bi]});
     }
 };
+
+using clBlock = clList::block_type;
+using clTile = clList::tile_type;
 
 #endif

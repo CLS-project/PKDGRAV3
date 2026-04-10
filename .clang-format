@@ -22,5 +22,3 @@ UseCRLF: false
 IndentPPDirectives: BeforeHash
 SortIncludes: false
 IncludeBlocks: Preserve
-StatementMacros:
-  - BOOST_HANA_DEFINE_STRUCT

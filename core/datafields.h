@@ -19,7 +19,10 @@
 #define CORE_DATAFIELDS_H
 
 #include <cstddef>
+#include <tuple>
 #include <vector>
+#include <type_traits>
+#include <concepts>
 #include <algorithm>
 #include <string_view>
 #include "blitz/array.h"
@@ -295,5 +298,66 @@ class Fields : protected fields<FIELD> {
         return reinterpret_cast<DATA*>(v + ((uint64_t)i) * ElementSize());
     }
 };
+
+// Checks if a type is a std::tuple
+template <class>
+struct is_tuple : std::false_type {};
+template <class... Ts>
+struct is_tuple<std::tuple<Ts...>> : std::true_type {};
+template <class T>
+inline constexpr bool is_tuple_v = is_tuple<T>::value;
+
+// Checks if a type is a TinyVector
+template <class>
+struct is_tinyvector : std::false_type {};
+template <class T, int N>
+struct is_tinyvector<blitz::TinyVector<T, N>> : std::true_type {};
+template <class T>
+inline constexpr bool is_tinyvector_v = is_tinyvector<std::remove_cvref_t<T>>::value;
+
+// Concept that accepts a scalar type, a TinyVector, or a type with a tuple schema (e.g., a struct defined with MAKE_STRUCTURE)
+template <class T>
+concept ScalarOrHasTupleSchema = std::is_scalar_v<T> || is_tinyvector_v<T> || requires {
+    { std::remove_cvref_t<T>::schema };
+} && is_tuple_v<std::remove_cvref_t<decltype(std::remove_cvref_t<T>::schema)>>;
+
+template <ScalarOrHasTupleSchema T>
+struct Field {
+    std::string_view name; // Name of the field (the structure member name as a string)
+    std::size_t offset;    // Offset of the field within the structure (in bytes)
+    using type = T;
+};
+
 } // namespace datafields
+// For example:
+// #define DATA_FIELDS(X) X(x,float) X(y,float) X(i,int)
+// MAKE_STRUCTURE(DATA, DATA_FIELDS)
+// Results in:
+// namespace schema_details {
+//     struct DATA {
+//         float x;
+//         float y;
+//         int i;
+//    };
+// }
+// struct DATA : public schema_details::DATA {
+//     using base_type = schema_details::DATA;
+//     static constexpr auto schema = std::tuple{datafields::Field<float>{"x"}, datafields::Field<float>{"y"}, datafields::Field<int>{"i"},};
+// };
+// It is not an accident that the type comes second and that we use __VA_ARGS__.
+// This allows templated types (e.g., TinyVector) to be used as field types without needing to worry about commas (extra parameters technically)
+#define STRUCTURE_FIELD_(name, ...) __VA_ARGS__ name;
+#define STRUCTURE_FIELD_ELEM_(name, ...) datafields::Field<__VA_ARGS__>{#name, offsetof(base_type, name)},
+
+#define MAKE_STRUCTURE(NAME, FIELDS)                                                                                                                           \
+    namespace schema_details {                                                                                                                                 \
+    struct NAME {                                                                                                                                              \
+        FIELDS(STRUCTURE_FIELD_)                                                                                                                               \
+    };                                                                                                                                                         \
+    }                                                                                                                                                          \
+    struct NAME : public schema_details::NAME {                                                                                                                \
+        using base_type = schema_details::NAME;                                                                                                                \
+        static constexpr auto schema = std::tuple{FIELDS(STRUCTURE_FIELD_ELEM_)};                                                                              \
+    };                                                                                                                                                         \
+    static_assert(std::is_standard_layout_v<NAME>);
 #endif

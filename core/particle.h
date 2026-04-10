@@ -27,7 +27,6 @@
 #include <type_traits>
 #include <iterator>
 #include <tuple>
-#include <boost/hana/define_struct.hpp>
 #include "blitz/array.h"
 #include "datastore.h"
 #include "integerize.h"
@@ -73,55 +72,66 @@ typedef struct uparticle {
 static_assert(sizeof(UPARTICLE) == sizeof(uint32_t));
 
 namespace sph {
-namespace hana = boost::hana;
 
-struct FIELDS {
-    BOOST_HANA_DEFINE_STRUCT(FIELDS, (float, Omega),               // Correction factor
-                             (float, divv),                        // Divergence of v
-                             (float, u),                           // Thermodynamical variable, can be T, A(s) or u
-                             (float, uDot),                        // Derivative of the thermodynamical variable
-                             (float, cs),                          // Sound speed
-                             (float, P),                           // Pressure
-                             (float, oldRho),                      // Rho corresponding to where u is at
-                             (float, expImb2),                     // exp(-imbalance^2)
-                             (float, T),                           // Temperature
-                             (blitz::TinyVector<float, 3>, vpred), // predicted velocities
-                             (int, maxGroupSize)                   // Maximum group size for dynamic group sizes
-    );
-}; // FIELDS
+#define SPH_FIELDS(X)                                                                                                                                          \
+    X(Omega, float)                       /* Correction factor */                                                                                              \
+    X(divv, float)                        /* Divergence of v */                                                                                                \
+    X(u, float)                           /* Thermodynamical variable, can be T, A(s) or u */                                                                  \
+    X(uDot, float)                        /* Derivative of the thermodynamical variable */                                                                     \
+    X(cs, float)                          /* Sound speed */                                                                                                    \
+    X(P, float)                           /* Pressure */                                                                                                       \
+    X(oldRho, float)                      /* Rho corresponding to where u is at */                                                                             \
+    X(expImb2, float)                     /* exp(-imbalance^2) */                                                                                              \
+    X(T, float)                           /* Temperature */                                                                                                    \
+    X(vpred, blitz::TinyVector<float, 3>) /* predicted velocities */                                                                                           \
+    X(maxGroupSize, int)                  /* Maximum group size for dynamic group sizes */
+MAKE_STRUCTURE(FIELDS, SPH_FIELDS)
 
-struct STRENGTHFIELDS {
-    BOOST_HANA_DEFINE_STRUCT(STRENGTHFIELDS, (float, Sxx), // Deviatoric stress tensor (tracefree, symmetric)
-                             (float, Syy), (float, Sxy), (float, Sxz), (float, Syz),
-                             (float, SDotxx), // Time derivative of deviatoric stress tensor (tracefree, symmetric)
-                             (float, SDotyy), (float, SDotxy), (float, SDotxz), (float, SDotyz),
-                             (float, Spredxx), // Predicted deviatoric stress tensor (tracefree, symmetric)
-                             (float, Spredyy), (float, Spredxy), (float, Spredxz), (float, Spredyz),
-                             (float, strainJ2) // J2 tensor invariant of the strain tensor
-    );
-}; // STRENGTHFIELDS
+#define SPH_STRENGTH_FIELDS(X)                                                                                                                                 \
+    X(Sxx, float)      /* Deviatoric stress tensor (tracefree, symmetric) */                                                                                   \
+    X(Syy, float)      /**/                                                                                                                                    \
+    X(Sxy, float)      /**/                                                                                                                                    \
+    X(Sxz, float)      /**/                                                                                                                                    \
+    X(Syz, float)      /**/                                                                                                                                    \
+    X(SDotxx, float)   /* Time derivative of deviatoric stress tensor (tracefree, symmetric) */                                                                \
+    X(SDotyy, float)   /**/                                                                                                                                    \
+    X(SDotxy, float)   /**/                                                                                                                                    \
+    X(SDotxz, float)   /**/                                                                                                                                    \
+    X(SDotyz, float)   /**/                                                                                                                                    \
+    X(Spredxx, float)  /* Predicted deviatoric stress tensor (tracefree, symmetric) */                                                                         \
+    X(Spredyy, float)  /**/                                                                                                                                    \
+    X(Spredxy, float)  /**/                                                                                                                                    \
+    X(Spredxz, float)  /**/                                                                                                                                    \
+    X(Spredyz, float)  /**/                                                                                                                                    \
+    X(strainJ2, float) /* J2 tensor invariant of the strain tensor */
+MAKE_STRUCTURE(STRENGTHFIELDS, SPH_STRENGTH_FIELDS)
 
-struct PEAKPRESSUREFIELDS {
-    BOOST_HANA_DEFINE_STRUCT(PEAKPRESSUREFIELDS, (float, Ppeak), (float, TAtPpeak), (float, rhoAtPpeak), (float, tAtPpeak));
-}; // PEAKPRESSUREFIELDS
+#define SPH_PEAKPRESSURE_FIELDS(X)                                                                                                                             \
+    X(Ppeak, float)      /* Peak pressure */                                                                                                                   \
+    X(TAtPpeak, float)   /* Temperature at peak pressure */                                                                                                    \
+    X(rhoAtPpeak, float) /* Density at peak pressure */                                                                                                        \
+    X(tAtPpeak, float)   /* Time at peak pressure */
+MAKE_STRUCTURE(PEAKPRESSUREFIELDS, SPH_PEAKPRESSURE_FIELDS)
 
 } // namespace sph
 
 namespace ssdem {
-namespace hana = boost::hana;
-struct FIELDS {
-    BOOST_HANA_DEFINE_STRUCT(FIELDS, (blitz::TinyVector<float, 3>, spin), // Spin vector
-                             (blitz::TinyVector<float, 3>, spinDot),      // Time derivative of the spin vector
-                             (blitz::TinyVector<float, 3>, spinPred),     // Predicted spin vector
-                             (blitz::TinyVector<float, 3>, vPred),        // Predicted velocity vector
-                             (blitz::TinyVector<double, 3>, lastPos)      // Position at the last time step
-    );
-}; // FIELDS
+
+#define SSDEM_FIELDS1(X)                                                                                                                                       \
+    X(spin, blitz::TinyVector<float, 3>)     /* Spin vector */                                                                                                 \
+    X(spinDot, blitz::TinyVector<float, 3>)  /* Time derivative of the spin vector */                                                                          \
+    X(spinPred, blitz::TinyVector<float, 3>) /* Predicted spin vector */                                                                                       \
+    X(vPred, blitz::TinyVector<float, 3>)    /* Predicted velocity vector */                                                                                   \
+    X(lastPos, blitz::TinyVector<double, 3>) /* Position at the last time step */
+MAKE_STRUCTURE(FIELDS, SSDEM_FIELDS1)
+
 } // namespace ssdem
 
-struct VELSMOOTH {
-    BOOST_HANA_DEFINE_STRUCT(VELSMOOTH, (blitz::TinyVector<float, 3>, vmean), (float, divv), (float, veldisp2));
-};
+#define VELSMOOTH_FIELDS(X)                                                                                                                                    \
+    X(vmean, blitz::TinyVector<float, 3>) /* Smoothed velocity */                                                                                              \
+    X(divv, float)                        /* Divergence of v */                                                                                                \
+    X(veldisp2, float)                    /* Velocity dispersion squared */
+MAKE_STRUCTURE(VELSMOOTH, VELSMOOTH_FIELDS)
 
 //! \brief Enumerates all of the optional fields in a PARTICLE
 //!
