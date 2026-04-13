@@ -1492,6 +1492,11 @@ void pkdContext::CalcEandL(double& T, double& U, double& Eth, TinyVector<double,
             if (p.is_gas()) Eth += p.sph().E;
         }
     }
+    if (particles.present(PKD_FIELD::oNewSph)) {
+        for (auto& p : particles) {
+            if (p.is_gas()) Eth += p.newsph().u;
+        }
+    }
 }
 
 void pkdReorderDecorator(PKD pkd) {
