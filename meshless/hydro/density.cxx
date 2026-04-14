@@ -159,7 +159,7 @@ struct AcceptOnlyHydroDensity : smooth::policy::AcceptAll {
 };
 
 template <>
-void smContext::resmoothSinks<AcceptOnlyHydroDensity, smooth::policy::ball>(std::span<PARTICLE*> sinks, Bound bnd_node, AcceptOnlyHydroDensity info) {
+void smContext::resmoothSinks<AcceptOnlyHydroDensity, smooth::policy::ball>(std::span<PARTICLE*> sinks, Bound bnd_node, AcceptOnlyHydroDensity const& info) {
     for (auto& P : sinks) {
         auto partj = pkd->particles[P];
 #ifdef OPTIM_UNION_EXTRAFIELDS
