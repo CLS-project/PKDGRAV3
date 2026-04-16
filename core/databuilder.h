@@ -19,7 +19,9 @@
 #define CORE_DATABUILDER_H
 
 #include "datafields.h"
+#include "c_to_py.h" // get_numpy_dtype<T>, PyArray_Descr
 #include <algorithm> // std::max
+#include <array>
 #include <cassert>
 
 namespace datafields {
@@ -154,24 +156,26 @@ class Overlay : protected fields<FIELD> {
 // ---- FieldBuilder<DATA, FIELD> -------------------------------------------
 //! \brief Build class — computes the field layout and produces a Fields.
 //!
-//! Owns all build-time state (per-field sizes, overlay mapping).  It is NOT
-//! part of the dataStore / splitStore inheritance chain.  After commit() the
-//! result can be obtained via implicit conversion to layout_type, allowing
-//! direct use with store.set_layout():
+//! Owns all build-time state (per-field sizes, overlay mapping, and numpy
+//! dtype factories).  It is NOT part of the dataStore / splitStore
+//! inheritance chain.  After commit() the result can be used two ways:
+//!
+//!   store.set_layout(builder);           // C++ layout
+//!   PyObject* dt = builder.get_python_dtype(); // numpy structured dtype
+//!
+//! The numpy dtype reflects all present fields with their computed byte
+//! offsets and the total element size as itemsize.  Overlay groups produce
+//! overlapping offset ranges, mirroring a C union.
+//!
 //! @code
 //!   FieldBuilder<PARTICLE, PKD_FIELD> b;
-//!   b.set_header<PARTICLE>();          // optional: sets base element size
+//!   b.set_header<PARTICLE>();
 //!   b.add<double[3]>(PKD_FIELD::oPosition, "r");
 //!   b.add<float>(PKD_FIELD::oMass, "m");
 //!   b.commit();
 //!
-//!   particleStore.set_layout(b);        // implicit conversion to layout_type
-//!
-//!   // MPI / thread distribution — layout is a single flat array:
-//!   MPI_Bcast(b.build().get_layout().data(),
-//!             (PKD_FIELD::MAX_FIELD + 1) * sizeof(size_t), MPI_BYTE, 0, comm);
-//!   // on worker:
-//!   worker_store.set_layout(recv_layout);
+//!   particleStore.set_layout(b);
+//!   PyObject* dt = b.get_python_dtype(); // new reference
 //! @endcode
 template <typename DATA, typename FIELD>
 class FieldBuilder : protected fields<FIELD> {
@@ -183,10 +187,133 @@ class FieldBuilder : protected fields<FIELD> {
     static constexpr int field_count = static_cast<int>(FIELD::MAX_FIELD);
     static constexpr size_t NO_OVERLAY = std::numeric_limits<overlay_type>::max();
 
+    // Function pointer type for per-field dtype factories (no Python state needed
+    // at add() time; the factory is called at commit() when Python is live).
+    using dtype_factory_fn = PyArray_Descr* (*)();
+
     blitz::TinyVector<overlay_type, field_count> overlay_field; // Overlay master index, or NO_OVERLAY
     blitz::TinyVector<offset_type, field_count> overlay_offset; // Sub-field offset within overlay
 
-    Fields<DATA, FIELD> result; // Accumulates computed layout; valid after commit()
+    std::array<dtype_factory_fn, field_count> field_dtype_factory{}; // nullptr if not registered
+    std::array<std::string_view, field_count> field_names{};         // "" if not registered
+
+    Fields<DATA, FIELD> result;       // Accumulates computed layout; valid after commit()
+    PyObject* python_dtype = nullptr; // Assembled numpy dtype; valid after commit()
+
+    static constexpr size_t HEADER_SIZE_32 = 4;
+    static constexpr size_t HEADER_SIZE_64 = 8;
+
+    // Append one field entry to the three dtype lists.  Takes ownership of
+    // descr (always Py_DECREF'd before returning).  Returns false on error.
+    static auto append_field_entry(PyObject* names, PyObject* formats, PyObject* offsets, std::string_view name, PyArray_Descr* descr, size_t byte_offset)
+        -> bool {
+        PyObject* py_name = PyUnicode_FromStringAndSize(name.data(), static_cast<Py_ssize_t>(name.size()));
+        PyObject* py_offset = (py_name != nullptr) ? PyLong_FromSize_t(byte_offset) : nullptr;
+        bool appended = py_name != nullptr && py_offset != nullptr && PyList_Append(names, py_name) == 0 &&
+                        PyList_Append(formats, reinterpret_cast<PyObject*>(descr)) == 0 && PyList_Append(offsets, py_offset) == 0;
+        Py_XDECREF(py_name);
+        Py_XDECREF(py_offset);
+        Py_DECREF(reinterpret_cast<PyObject*>(descr));
+        return appended;
+    }
+
+    // Prepend a synthetic 'header' field at offset 0 when the smallest field
+    // offset reveals a fixed 4- or 8-byte header struct.  Returns false on error.
+    static auto prepend_header_field(PyObject* names, PyObject* formats, PyObject* offsets, size_t min_offset) -> bool {
+        if (min_offset != HEADER_SIZE_32 && min_offset != HEADER_SIZE_64) {
+            return true;
+        }
+        int typenum = (min_offset == HEADER_SIZE_32) ? NPY_UINT32 : NPY_UINT64;
+        PyArray_Descr* descr = PyArray_DescrFromType(typenum);
+        if (descr == nullptr) {
+            return false;
+        }
+        return append_field_entry(names, formats, offsets, "header", descr, 0);
+    }
+
+    // Build a numpy structured dtype from the computed layout and registered factories.
+    // Requires NumPy to be initialised (import_array() must have been called).
+    // Call build_dtype() explicitly after commit() when Python/NumPy is live.
+    [[nodiscard]] auto build_python_dtype() const -> PyObject* {
+        // Use empty lists and append as we go so that fields whose factory
+        // returns nullptr (unsupported types) are silently skipped.
+        PyObject* names = PyList_New(0);
+        PyObject* formats = PyList_New(0);
+        PyObject* offsets = PyList_New(0);
+        PyObject* spec = PyDict_New();
+
+        if (names == nullptr || formats == nullptr || offsets == nullptr || spec == nullptr) {
+            Py_XDECREF(names);
+            Py_XDECREF(formats);
+            Py_XDECREF(offsets);
+            Py_XDECREF(spec);
+            return nullptr;
+        }
+
+        // Find the smallest field offset to determine whether a fixed header
+        // precedes the optional fields (set via set_header<H>()).
+        auto min_offset = blitz::min(result.layout);
+        prepend_header_field(names, formats, offsets, min_offset);
+
+        bool success = true;
+        for (int i = 0; i < field_count && success; ++i) {
+            if (result.layout[i] == Fields<DATA, FIELD>::NO_OFFSET || field_dtype_factory[i] == nullptr) {
+                continue;
+            }
+            PyArray_Descr* subdescr = field_dtype_factory[i]();
+            if (subdescr == nullptr) {
+                continue;
+            } // unsupported type — skip silently
+            success = append_field_entry(names, formats, offsets, field_names[i], subdescr, result.layout[i]);
+        }
+
+        if (!success) {
+            Py_DECREF(names);
+            Py_DECREF(formats);
+            Py_DECREF(offsets);
+            Py_DECREF(spec);
+            return nullptr;
+        }
+
+        if (PyList_Size(names) == 0) {
+            // No numpy-representable fields — signal absence with None.
+            Py_DECREF(names);
+            Py_DECREF(formats);
+            Py_DECREF(offsets);
+            Py_DECREF(spec);
+            Py_RETURN_NONE;
+        }
+
+        PyObject* itemsize = PyLong_FromSize_t(result.layout[field_count]);
+        if (itemsize == nullptr) {
+            Py_DECREF(names);
+            Py_DECREF(formats);
+            Py_DECREF(offsets);
+            Py_DECREF(spec);
+            return nullptr;
+        }
+
+        bool dict_ok = PyDict_SetItemString(spec, "names", names) >= 0 && PyDict_SetItemString(spec, "formats", formats) >= 0 &&
+                       PyDict_SetItemString(spec, "offsets", offsets) >= 0 && PyDict_SetItemString(spec, "itemsize", itemsize) >= 0;
+
+        Py_DECREF(names);
+        Py_DECREF(formats);
+        Py_DECREF(offsets);
+        Py_DECREF(itemsize);
+
+        if (!dict_ok) {
+            Py_DECREF(spec);
+            return nullptr;
+        }
+
+        PyArray_Descr* out = nullptr;
+        if (!PyArray_DescrConverter(spec, &out)) {
+            Py_DECREF(spec);
+            return nullptr;
+        }
+        Py_DECREF(spec);
+        return reinterpret_cast<PyObject*>(out);
+    }
 
   public:
     using field = FIELD;
@@ -195,6 +322,31 @@ class FieldBuilder : protected fields<FIELD> {
     FieldBuilder() : overlay_field(NO_OVERLAY), overlay_offset(Fields<DATA, FIELD>::NO_OFFSET) {
         result.layout = Fields<DATA, FIELD>::NO_OFFSET;
         result.layout[field_count] = 0; // Caller must call set_header<H>() if there is a fixed header.
+    }
+
+    ~FieldBuilder() { Py_XDECREF(python_dtype); }
+
+    // Non-copyable (owns a PyObject* with reference count semantics).
+    // Move transfers ownership: the moved-from python_dtype is nulled out so that
+    // its destructor does not decrement the refcount of the new owner's object.
+    FieldBuilder(const FieldBuilder&) = delete;
+    auto operator=(const FieldBuilder&) -> FieldBuilder& = delete;
+    FieldBuilder(FieldBuilder&& other) noexcept
+        : fields<FIELD>(std::move(other)), overlay_field(std::move(other.overlay_field)), overlay_offset(std::move(other.overlay_offset)),
+          field_dtype_factory(std::move(other.field_dtype_factory)), field_names(std::move(other.field_names)), result(std::move(other.result)),
+          python_dtype(std::exchange(other.python_dtype, nullptr)) {}
+    auto operator=(FieldBuilder&& other) noexcept -> FieldBuilder& {
+        if (this != &other) {
+            Py_CLEAR(python_dtype);
+            fields<FIELD>::operator=(std::move(other));
+            overlay_field = std::move(other.overlay_field);
+            overlay_offset = std::move(other.overlay_offset);
+            field_dtype_factory = std::move(other.field_dtype_factory);
+            field_names = std::move(other.field_names);
+            result = std::move(other.result);
+            python_dtype = std::exchange(other.python_dtype, nullptr);
+        }
+        return *this;
     }
 
     //! Override the base element size (default is sizeof(DATA)).
@@ -208,6 +360,9 @@ class FieldBuilder : protected fields<FIELD> {
     template <typename T>
     void add(FIELD f, std::string_view name) {
         fields<FIELD>::template add<T>(f, name);
+        auto idx = static_cast<int>(f);
+        field_dtype_factory[idx] = &get_numpy_dtype<T>;
+        field_names[idx] = name;
     }
 
     //! Begin an overlay group rooted at master field f.
@@ -217,6 +372,8 @@ class FieldBuilder : protected fields<FIELD> {
 
     //! Finalise the layout.  Must be called exactly once, after all add() /
     //! overlay() calls.  Populates the internal Fields result.
+    //! Does NOT build the numpy dtype — call build_dtype() separately after
+    //! Python/NumPy has been initialised (import_array() called).
     void commit() {
         auto [size, alignment] = this->assign_offsets(result.layout, result.layout[field_count]);
         result.layout[field_count] += size;
@@ -233,6 +390,23 @@ class FieldBuilder : protected fields<FIELD> {
             }
         }
         result.swap_buffer.resize(result.layout[field_count]);
+        Py_CLEAR(python_dtype); // reset any previously built dtype
+    }
+
+    //! Build (or rebuild) the numpy structured dtype.
+    //! Must be called after commit() and only when NumPy is initialised
+    //! (i.e. import_array() has already been called in this process).
+    void build_dtype() {
+        Py_CLEAR(python_dtype);
+        python_dtype = build_python_dtype();
+    }
+
+    //! Returns the numpy dtype for the complete element layout (new reference).
+    //! Only valid after build_dtype() has been called.
+    //! Returns None if no fields are numpy-representable, nullptr on error.
+    [[nodiscard]] auto get_python_dtype() const -> PyObject* {
+        Py_XINCREF(python_dtype);
+        return python_dtype;
     }
 
     //! Access the completed layout (call after commit()).
@@ -258,14 +432,20 @@ template <typename DATA, typename FIELD>
 template <typename T>
 void Overlay<DATA, FIELD>::add(FIELD f, std::string_view name) {
     fields<FIELD>::template add<T>(f, name);
-    builder.overlay_field[static_cast<int>(f)] = master_idx;
+    auto idx = static_cast<int>(f);
+    builder.overlay_field[idx] = master_idx;
+    builder.field_dtype_factory[idx] = &get_numpy_dtype<T>;
+    builder.field_names[idx] = name;
 }
 
 template <typename DATA, typename FIELD>
 template <typename T>
 void Overlay<DATA, FIELD>::add(FIELD f, std::string_view name, size_t offset) {
-    builder.overlay_field[static_cast<int>(f)] = master_idx;
-    builder.overlay_offset[static_cast<int>(f)] = offset;
+    auto idx = static_cast<int>(f);
+    builder.overlay_field[idx] = master_idx;
+    builder.overlay_offset[idx] = offset;
+    builder.field_dtype_factory[idx] = &get_numpy_dtype<T>;
+    builder.field_names[idx] = name;
 }
 
 } // namespace datafields

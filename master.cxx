@@ -618,6 +618,15 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
     tbuilder.commit();
     ps.tree_layout = tbuilder;
 
+// Ensure that the NumPy C API is initialized before we call get_python_dtype()
+#if NPY_API_VERSION >= 0x00000012
+    PyArray_ImportNumPyAPI(); /* NumPy 2.0+ */
+#else
+    _import_array(); /* NumPy 1.x */
+#endif
+    pbuilder.build_dtype();                       // This must be called after commit() and before get_python_dtype()
+    particle_dtype = pbuilder.get_python_dtype(); // new reference
+
     ServiceInitializePStore::output pout;
     mdl->RunService<ServiceInitializePStore>(ps, pout);
     auto pkd = pst->pkd();
@@ -781,7 +790,7 @@ MSR::ReadCheckpoint(const char* filename, PyObject* kwargs, PyObject* species, P
     }
 
     auto version = restore<int>(pFile);
-    if (version < 1 || version > 2) {
+    if (version < 1 || version > 3) {
         PyErr_SetString(PyExc_ValueError, "Invalid checkpoint file version");
         PyErr_Print();
         abort();
@@ -825,7 +834,7 @@ MSR::ReadCheckpoint(const char* filename, PyObject* kwargs, PyObject* species, P
     this->dEcosmo = restore<double>(pFile, E);
     this->dUOld = restore<double>(pFile, U);
     this->dTimeOld = restore<double>(pFile, Utime);
-
+    if (version >= 3) this->particle_dtype = restore<PyObject*>(pFile);
     auto arguments = restore<PyObject*>(pFile);
     auto specified = restore<PyObject*>(pFile);
     parameters.merge(pkd_parameters(arguments, specified));
@@ -1034,19 +1043,20 @@ void MSR::writeParameters(const std::string& baseName, int iStep, int nSteps, do
     }
 
     // Checkpoint the important variables
-    persist(pFile, 2);             // checkpoint version
-    persist(pFile, species_list);  // 1: species
-    persist(pFile, classes_list);  // 1: classes
-    persist(pFile, iStep);         // 1: step
-    persist(pFile, nSteps);        // 1: steps
-    persist(pFile, dTime);         // 1: time
-    persist(pFile, dDelta);        // 1: delta
-    persist(pFile, dEcosmo);       // 1: E
-    persist(pFile, dUOld);         // 1: U
-    persist(pFile, dTimeOld);      // 1: Utime
-    persist(pFile, a);             // 1: arguments
-    persist(pFile, s);             // 1: specified
-    persist(pFile, analysis_list); // 2: analysis callbacks
+    persist(pFile, 3);              // checkpoint version
+    persist(pFile, species_list);   // 1: species
+    persist(pFile, classes_list);   // 1: classes
+    persist(pFile, iStep);          // 1: step
+    persist(pFile, nSteps);         // 1: steps
+    persist(pFile, dTime);          // 1: time
+    persist(pFile, dDelta);         // 1: delta
+    persist(pFile, dEcosmo);        // 1: E
+    persist(pFile, dUOld);          // 1: U
+    persist(pFile, dTimeOld);       // 1: Utime
+    persist(pFile, particle_dtype); // 3: particle dtype
+    persist(pFile, a);              // 1: arguments
+    persist(pFile, s);              // 1: specified
+    persist(pFile, analysis_list);  // 2: analysis callbacks
 
     // 1: Persist the interpreter state
     PyObject* args = PyTuple_Pack(3, pFile, Py_None, Py_True);
@@ -1223,6 +1233,7 @@ int MSR::CheckForStop(const char* achStopFile) {
 }
 
 MSR::MSR(MDL mdl, PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass*>(mdl)) {
+    Py_XDECREF(particle_dtype);
 }
 
 MSR::~MSR() {

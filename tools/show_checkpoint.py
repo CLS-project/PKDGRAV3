@@ -8,7 +8,7 @@ if len(argv) != 2:
 
 with open(argv[1],'rb') as fp:
     version = load(fp)
-    if not 1 <= version <= 2:
+    if not 1 <= version <= 3:
         print("Invalid checkpoint version")
         exit(1)
     print( f'version = {version}')
@@ -21,6 +21,8 @@ with open(argv[1],'rb') as fp:
     E = load(fp)
     U = load(fp)
     Told = load(fp)
+    if version >= 3:
+        print( f'dtype   = {load(fp)}')
     a = load(fp)
     s = load(fp)
     print(f"{'Parameters (explicitly set only):':<20}")
