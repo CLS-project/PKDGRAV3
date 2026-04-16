@@ -17,6 +17,7 @@
 
 #include "core/decorator.h"
 #include "core/decorator_fields.h"
+#include "core/databuilder.h"
 #ifdef HAVE_CONFIG_H
     #include "config.h"
 #else
