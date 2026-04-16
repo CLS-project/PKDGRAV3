@@ -26,6 +26,10 @@ class ServiceInitializePStore : public TraversePST {
         mdl::MPI_RECV_MODE mpi_recv_mode;
         int mpi_recv_count;
         bool mpi_RDMA;
+        // Field layouts computed on the master thread and distributed to workers.
+        datafields::Fields<decorators::FIELDS, DECORATOR_FIELD>::layout_type decorator_layout;
+        datafields::Fields<PARTICLE, PKD_FIELD>::layout_type particle_layout;
+        datafields::Fields<KDN, KDN_FIELD>::layout_type tree_layout;
     };
     struct output {
         size_t nSizeParticle;

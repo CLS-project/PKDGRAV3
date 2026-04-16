@@ -66,6 +66,8 @@
 #endif
 
 #include "master.h"
+#include "core/databuilder.h"
+#include "core/decorator_fields.h"
 using namespace fmt::literals;        // Gives us ""_a and ""_format literals
 using namespace pyrameters::literals; // Gives us ""_key literals
 
@@ -534,6 +536,87 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
     // Calculate constraint for generating initial conditions
     EphemeralMemory ic_memory(mdl, parameters.get_nGrid(), gridInfoLPT(parameters.get_iLPT()).nGrids);
     ps.nMinTotalStore = ic_memory.per_process;
+
+    // Build the three field layouts on the master thread.  Workers receive them
+    // via ps and call set_layout() without having to re-run the builder logic.
+    const bool bNoParticleOrder = (ps.mMemoryModel & PKD_MODEL_UNORDERED) != 0;
+    const bool bIntegerPosition = (ps.mMemoryModel & PKD_MODEL_INTEGER_POS) != 0;
+
+    datafields::FieldBuilder<decorators::FIELDS, DECORATOR_FIELD> dbuilder;
+    if (ps.mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_MFV)) {
+        auto gas = dbuilder.overlay(DECORATOR_FIELD::oMFM);
+        gas.add<decorators::MFM>(DECORATOR_FIELD::oMFM, "hydro");
+        if (ps.mMemoryModel & PKD_MODEL_MFV) gas.add<decorators::MFV>(DECORATOR_FIELD::oMFV, "mfv");
+    }
+    if (ps.mMemoryModel & PKD_MODEL_STAR) {
+        auto star = dbuilder.overlay(DECORATOR_FIELD::oMFM);
+        star.add<decorators::STAR>(DECORATOR_FIELD::oStar, "star");
+    }
+    if (ps.mMemoryModel & PKD_MODEL_BH) {
+        auto bh = dbuilder.overlay(DECORATOR_FIELD::oMFM);
+        bh.add<decorators::BLACKHOLE>(DECORATOR_FIELD::oBH, "bh");
+    }
+    dbuilder.commit();
+    ps.decorator_layout = dbuilder;
+
+    datafields::FieldBuilder<PARTICLE, PKD_FIELD> pbuilder;
+    if (bNoParticleOrder) pbuilder.set_header<UPARTICLE>();
+    else pbuilder.set_header<PARTICLE>();
+    if (ps.mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_MFV | PKD_MODEL_STAR | PKD_MODEL_BH)) {
+        pbuilder.add<decorators::FIELDS*>(PKD_FIELD::oDecorator, "decorator");
+    }
+    if (bIntegerPosition) pbuilder.add<int32_t[3]>(PKD_FIELD::oPosition, "r");
+    else pbuilder.add<double[3]>(PKD_FIELD::oPosition, "r");
+    if (ps.mMemoryModel & PKD_MODEL_VELOCITY) {
+        if (sizeof(vel_t) == sizeof(double)) pbuilder.add<double[3]>(PKD_FIELD::oVelocity, "v");
+        else pbuilder.add<float[3]>(PKD_FIELD::oVelocity, "v");
+    }
+    if (ps.mMemoryModel & PKD_MODEL_PARTICLE_ID) pbuilder.add<int64_t>(PKD_FIELD::oParticleID, "id");
+    if (ps.mMemoryModel & PKD_MODEL_GLOBALGID) pbuilder.add<int64_t>(PKD_FIELD::oGlobalGid, "gid");
+    if (ps.mMemoryModel & PKD_MODEL_NEW_SPH) pbuilder.add<sph::FIELDS>(PKD_FIELD::oNewSph, "hydro");
+    if (ps.mMemoryModel & PKD_MODEL_STRENGTH) pbuilder.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr, "strength");
+    if (ps.mMemoryModel & PKD_MODEL_PEAKPRESSURE) pbuilder.add<sph::PEAKPRESSUREFIELDS>(PKD_FIELD::oNewSphPeakPressure, "peakpressure");
+    if (ps.mMemoryModel & PKD_MODEL_VELSMOOTH) pbuilder.add<VELSMOOTH>(PKD_FIELD::oVelSmooth, "vsmooth");
+    if (ps.mMemoryModel & PKD_MODEL_ACCELERATION) pbuilder.add<float[3]>(PKD_FIELD::oAcceleration, "a");
+    if (ps.mMemoryModel & PKD_MODEL_MASS) pbuilder.add<float>(PKD_FIELD::oMass, "m");
+    if (ps.mMemoryModel & PKD_MODEL_SOFTENING) pbuilder.add<float>(PKD_FIELD::oSoft, "soft");
+    if (ps.mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_NEW_SPH | PKD_MODEL_BALL)) pbuilder.add<float>(PKD_FIELD::oBall, "ball");
+    if (ps.mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_NEW_SPH | PKD_MODEL_DENSITY)) pbuilder.add<float>(PKD_FIELD::oDensity, "rho");
+    if ((ps.mMemoryModel & PKD_MODEL_GROUPS) && !bNoParticleOrder) pbuilder.add<int32_t>(PKD_FIELD::oGroup, "group");
+    if ((ps.mMemoryModel & PKD_MODEL_NEWRUNG) && bNoParticleOrder) pbuilder.add<uint8_t>(PKD_FIELD::oNewRung, "newrung");
+    if (ps.mMemoryModel & PKD_MODEL_POTENTIAL) pbuilder.add<float>(PKD_FIELD::oPotential, "phi");
+    pbuilder.commit();
+    ps.particle_layout = pbuilder;
+
+    datafields::FieldBuilder<KDN, KDN_FIELD> tbuilder;
+    tbuilder.set_header<KDN>();
+    if (bIntegerPosition) tbuilder.add<int32_t[3]>(KDN_FIELD::oNodePosition, "r");
+    else tbuilder.add<double[3]>(KDN_FIELD::oNodePosition, "r");
+    if (ps.mMemoryModel & PKD_MODEL_NODE_BND) {
+        if (bIntegerPosition) tbuilder.add<IntegerBound>(KDN_FIELD::oNodeBnd, "bnd");
+        else tbuilder.add<Bound>(KDN_FIELD::oNodeBnd, "bnd");
+    }
+    if (ps.mMemoryModel & PKD_MODEL_NODE_VBND) tbuilder.add<Bound>(KDN_FIELD::oNodeVBnd, "vbnd");
+    if ((ps.mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double)) tbuilder.add<double[3]>(KDN_FIELD::oNodeVelocity, "v");
+#ifdef OPTIM_REORDER_IN_NODES
+    if (ps.mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_BH)) {
+        tbuilder.add<int32_t>(KDN_FIELD::oNodeNgas, "ngas");
+        tbuilder.add<int32_t>(KDN_FIELD::oNodeNstar, "nstar");
+        tbuilder.add<int32_t>(KDN_FIELD::oNodeNbh, "nbh");
+    }
+#endif
+    if (ps.mMemoryModel & PKD_MODEL_NODE_SPHBNDS) tbuilder.add<SPHBNDS>(KDN_FIELD::oNodeSphBounds, "sphbnd");
+    if (ps.mMemoryModel & PKD_MODEL_NODE_BOB) tbuilder.add<SPHBOB>(KDN_FIELD::oNodeBOB, "bob");
+    if (ps.mMemoryModel & PKD_MODEL_NODE_MOMENT) {
+        tbuilder.add<FMOMR>(KDN_FIELD::oNodeMom, "mom");
+        auto moment = tbuilder.overlay(KDN_FIELD::oNodeMom);
+        moment.add<mass_t>(KDN_FIELD::oNodeMass, "mass", offsetof(FMOMR, m));
+    }
+    else tbuilder.add<mass_t>(KDN_FIELD::oNodeMass, "mass");
+    if (ps.mMemoryModel & PKD_MODEL_NODE_ACCEL) tbuilder.add<float[3]>(KDN_FIELD::oNodeAcceleration, "a");
+    if ((ps.mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(float)) tbuilder.add<float[3]>(KDN_FIELD::oNodeVelocity, "v");
+    tbuilder.commit();
+    ps.tree_layout = tbuilder;
 
     ServiceInitializePStore::output pout;
     mdl->RunService<ServiceInitializePStore>(ps, pout);
