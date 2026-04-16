@@ -150,119 +150,132 @@ pkdContext::pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int 
     this->bNoParticleOrder = (mMemoryModel & PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel & PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
+    datafields::FieldBuilder<decorators::FIELDS, DECORATOR_FIELD> dbuilder;
+    // Decorators have no fixed header — element_size starts at 0.
+
+    datafields::FieldBuilder<PARTICLE, PKD_FIELD> pbuilder;
+    if (this->bNoParticleOrder) pbuilder.set_header<UPARTICLE>();
+    else pbuilder.set_header<PARTICLE>();
+
+    datafields::FieldBuilder<KDN, KDN_FIELD> tbuilder;
+    tbuilder.set_header<KDN>();
+
     if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_MFV | PKD_MODEL_STAR | PKD_MODEL_BH)) {
-        particles.add<decorators::FIELDS*>(PKD_FIELD::oDecorator, "decorator");
+        pbuilder.add<decorators::FIELDS*>(PKD_FIELD::oDecorator, "decorator");
     }
 
     if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_MFV)) {
-        auto gas = decorators.overlay(DECORATOR_FIELD::oMFM);
+        auto gas = dbuilder.overlay(DECORATOR_FIELD::oMFM);
         gas.add<decorators::MFM>(DECORATOR_FIELD::oMFM, "hydro");
         if (mMemoryModel & PKD_MODEL_MFV) gas.add<decorators::MFV>(DECORATOR_FIELD::oMFV, "mfv");
     }
 
     this->bStars = (mMemoryModel & PKD_MODEL_STAR) ? 1 : 0;
     if (mMemoryModel & PKD_MODEL_STAR) {
-        auto star = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the star field on the MFM field
+        auto star = dbuilder.overlay(DECORATOR_FIELD::oMFM); // Overlay the star field on the MFM field
         star.add<decorators::STAR>(DECORATOR_FIELD::oStar, "star");
     }
 
     this->bBlackholes = (mMemoryModel & PKD_MODEL_BH) ? 1 : 0;
     if (mMemoryModel & PKD_MODEL_BH) {
-        auto bh = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the blackhole field on the MFM field
+        auto bh = dbuilder.overlay(DECORATOR_FIELD::oMFM); // Overlay the blackhole field on the MFM field
         bh.add<decorators::BLACKHOLE>(DECORATOR_FIELD::oBH, "bh");
     }
 
-    decorators.commit();
+    dbuilder.commit();
+    decorators.set_layout(dbuilder);
 
     particles.initialize(this->bIntegerPosition, this->bNoParticleOrder, &decorators);
 
-    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition, "r");
-    else particles.add<double[3]>(PKD_FIELD::oPosition, "r");
+    if (this->bIntegerPosition) pbuilder.add<int32_t[3]>(PKD_FIELD::oPosition, "r");
+    else pbuilder.add<double[3]>(PKD_FIELD::oPosition, "r");
     if (mMemoryModel & PKD_MODEL_VELOCITY) {
-        if (sizeof(vel_t) == sizeof(double)) particles.add<double[3]>(PKD_FIELD::oVelocity, "v");
-        else particles.add<float[3]>(PKD_FIELD::oVelocity, "v");
+        if (sizeof(vel_t) == sizeof(double)) pbuilder.add<double[3]>(PKD_FIELD::oVelocity, "v");
+        else pbuilder.add<float[3]>(PKD_FIELD::oVelocity, "v");
     }
 
-    if (mMemoryModel & PKD_MODEL_PARTICLE_ID) particles.add<int64_t>(PKD_FIELD::oParticleID, "id");
+    if (mMemoryModel & PKD_MODEL_PARTICLE_ID) pbuilder.add<int64_t>(PKD_FIELD::oParticleID, "id");
     /*
     ** Add a global group id. This is used when outputing an array of particles with
-    ** one group assignment per particle.Usually only used in testing as it adds a
+    ** one group assignment per particle. Usually only used in testing as it adds a
     ** 64 bit integer.
     */
-    if (mMemoryModel & PKD_MODEL_GLOBALGID) particles.add<int64_t>(PKD_FIELD::oGlobalGid, "gid");
+    if (mMemoryModel & PKD_MODEL_GLOBALGID) pbuilder.add<int64_t>(PKD_FIELD::oGlobalGid, "gid");
 
-    if (mMemoryModel & PKD_MODEL_NEW_SPH) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph, "hydro");
-    if (mMemoryModel & PKD_MODEL_STRENGTH) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr, "strength");
-    if (mMemoryModel & PKD_MODEL_PEAKPRESSURE) particles.add<sph::PEAKPRESSUREFIELDS>(PKD_FIELD::oNewSphPeakPressure, "peakpressure");
+    if (mMemoryModel & PKD_MODEL_NEW_SPH) pbuilder.add<sph::FIELDS>(PKD_FIELD::oNewSph, "hydro");
+    if (mMemoryModel & PKD_MODEL_STRENGTH) pbuilder.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr, "strength");
+    if (mMemoryModel & PKD_MODEL_PEAKPRESSURE) pbuilder.add<sph::PEAKPRESSUREFIELDS>(PKD_FIELD::oNewSphPeakPressure, "peakpressure");
 
-    if (mMemoryModel & PKD_MODEL_VELSMOOTH) particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth, "vsmooth");
-    if (mMemoryModel & PKD_MODEL_ACCELERATION) particles.add<float[3]>(PKD_FIELD::oAcceleration, "a");
+    if (mMemoryModel & PKD_MODEL_VELSMOOTH) pbuilder.add<VELSMOOTH>(PKD_FIELD::oVelSmooth, "vsmooth");
+    if (mMemoryModel & PKD_MODEL_ACCELERATION) pbuilder.add<float[3]>(PKD_FIELD::oAcceleration, "a");
 
-    if (mMemoryModel & PKD_MODEL_MASS) particles.add<float>(PKD_FIELD::oMass, "m");
+    if (mMemoryModel & PKD_MODEL_MASS) pbuilder.add<float>(PKD_FIELD::oMass, "m");
 
-    if (mMemoryModel & PKD_MODEL_SOFTENING) particles.add<float>(PKD_FIELD::oSoft, "soft");
+    if (mMemoryModel & PKD_MODEL_SOFTENING) pbuilder.add<float>(PKD_FIELD::oSoft, "soft");
 
-    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_NEW_SPH | PKD_MODEL_BALL)) particles.add<float>(PKD_FIELD::oBall, "ball");
-    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_NEW_SPH | PKD_MODEL_DENSITY)) particles.add<float>(PKD_FIELD::oDensity, "rho");
+    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_NEW_SPH | PKD_MODEL_BALL)) pbuilder.add<float>(PKD_FIELD::oBall, "ball");
+    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_NEW_SPH | PKD_MODEL_DENSITY)) pbuilder.add<float>(PKD_FIELD::oDensity, "rho");
 
     if ((mMemoryModel & PKD_MODEL_GROUPS) && !this->bNoParticleOrder) {
-        particles.add<int32_t>(PKD_FIELD::oGroup, "group");
+        pbuilder.add<int32_t>(PKD_FIELD::oGroup, "group");
     }
     if ((mMemoryModel & PKD_MODEL_NEWRUNG) && this->bNoParticleOrder) {
         // If not bNoParticleOrder (i.e., ordered) the field
         // is already present
-        particles.add<uint8_t>(PKD_FIELD::oNewRung, "newrung");
+        pbuilder.add<uint8_t>(PKD_FIELD::oNewRung, "newrung");
     }
 
     if (mMemoryModel & PKD_MODEL_POTENTIAL) {
-        particles.add<float>(PKD_FIELD::oPotential, "phi");
+        pbuilder.add<float>(PKD_FIELD::oPotential, "phi");
     }
-    particles.commit();
+    pbuilder.commit();
+    particles.set_layout(pbuilder);
 
     /*
     ** Tree node memory models
     */
-    if (this->bIntegerPosition) tree.add<int32_t[3]>(KDN_FIELD::oNodePosition, "r");
-    else tree.add<double[3]>(KDN_FIELD::oNodePosition, "r");
+    if (this->bIntegerPosition) tbuilder.add<int32_t[3]>(KDN_FIELD::oNodePosition, "r");
+    else tbuilder.add<double[3]>(KDN_FIELD::oNodePosition, "r");
     if (mMemoryModel & PKD_MODEL_NODE_BND) {
-        if (this->bIntegerPosition) tree.add<IntegerBound>(KDN_FIELD::oNodeBnd, "bnd");
-        else tree.add<Bound>(KDN_FIELD::oNodeBnd, "bnd");
+        if (this->bIntegerPosition) tbuilder.add<IntegerBound>(KDN_FIELD::oNodeBnd, "bnd");
+        else tbuilder.add<Bound>(KDN_FIELD::oNodeBnd, "bnd");
     }
-    if (mMemoryModel & PKD_MODEL_NODE_VBND) tree.add<Bound>(KDN_FIELD::oNodeVBnd, "vbnd");
-    if ((mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double)) tree.add<double[3]>(KDN_FIELD::oNodeVelocity, "v");
+    if (mMemoryModel & PKD_MODEL_NODE_VBND) tbuilder.add<Bound>(KDN_FIELD::oNodeVBnd, "vbnd");
+    if ((mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double)) tbuilder.add<double[3]>(KDN_FIELD::oNodeVelocity, "v");
 #ifdef OPTIM_REORDER_IN_NODES
     if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_BH)) {
-        tree.add<int32_t>(KDN_FIELD::oNodeNgas, "ngas");
-        tree.add<int32_t>(KDN_FIELD::oNodeNstar, "nstar");
-        tree.add<int32_t>(KDN_FIELD::oNodeNbh, "nbh");
+        tbuilder.add<int32_t>(KDN_FIELD::oNodeNgas, "ngas");
+        tbuilder.add<int32_t>(KDN_FIELD::oNodeNstar, "nstar");
+        tbuilder.add<int32_t>(KDN_FIELD::oNodeNbh, "nbh");
 #endif
     }
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
-    if (mMemoryModel & PKD_MODEL_NODE_SPHBNDS) tree.add<SPHBNDS>(KDN_FIELD::oNodeSphBounds, "sphbnd");
+    if (mMemoryModel & PKD_MODEL_NODE_SPHBNDS) tbuilder.add<SPHBNDS>(KDN_FIELD::oNodeSphBounds, "sphbnd");
 
-    if (mMemoryModel & PKD_MODEL_NODE_BOB) tree.add<SPHBOB>(KDN_FIELD::oNodeBOB, "bob");
+    if (mMemoryModel & PKD_MODEL_NODE_BOB) tbuilder.add<SPHBOB>(KDN_FIELD::oNodeBOB, "bob");
 
     if (mMemoryModel & PKD_MODEL_NODE_MOMENT) {
-        tree.add<FMOMR>(KDN_FIELD::oNodeMom, "mom");
-        auto moment = tree.overlay(KDN_FIELD::oNodeMom);
+        tbuilder.add<FMOMR>(KDN_FIELD::oNodeMom, "mom");
+        auto moment = tbuilder.overlay(KDN_FIELD::oNodeMom);
         moment.add<mass_t>(KDN_FIELD::oNodeMass, "mass", offsetof(FMOMR, m));
-        // tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass",tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
     }
-    else tree.add<mass_t>(KDN_FIELD::oNodeMass, "mass");
+    else tbuilder.add<mass_t>(KDN_FIELD::oNodeMass, "mass");
 
     /* The acceleration is required for the new time step criteria */
-    if (mMemoryModel & PKD_MODEL_NODE_ACCEL) tree.add<float[3]>(KDN_FIELD::oNodeAcceleration, "a");
+    if (mMemoryModel & PKD_MODEL_NODE_ACCEL) tbuilder.add<float[3]>(KDN_FIELD::oNodeAcceleration, "a");
 
-    if ((mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(float)) tree.add<float[3]>(KDN_FIELD::oNodeVelocity, "v");
+    if ((mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(float)) tbuilder.add<float[3]>(KDN_FIELD::oNodeVelocity, "v");
+
+    tbuilder.commit();
+    tree.set_layout(tbuilder);
 
     assert(tree.ElementSize() > 0);
     if (tree.ElementSize() > pkdContext::MaxNodeSize()) {
         fprintf(stderr, "Node size is too large. Node size=%" PRIu64 ", max node size=%" PRIu64 "\n", (uint64_t)tree.ElementSize(), (uint64_t)MaxNodeSize());
     }
     assert(tree.ElementSize() <= MaxNodeSize());
-    tree.commit();
 
     /*
     ** We need to allocate one large chunk of memory for:

@@ -29,10 +29,19 @@
 #include "blitz/array.h"
 
 namespace datafields {
+
 static constexpr size_t log2(size_t n) {
     return (n <= 1) ? 0 : 1 + log2(n / 2);
 }
 
+// Forward declarations — Overlay method bodies need FieldBuilder complete (defined below).
+template <typename DATA, typename FIELD> class Fields;
+template <typename DATA, typename FIELD> class FieldBuilder;
+
+// ---- fields<FIELD> -------------------------------------------------------
+// Private build-time base: per-field sizes/alignments and the offset-packing
+// algorithm.  Only used by Overlay and FieldBuilder; never in the public
+// inheritance chain seen by dataStore / splitStore.
 template <typename FIELD>
 class fields {
   protected:
@@ -46,7 +55,7 @@ class fields {
     using field = FIELD;
     fields() : field_length(offset_type(0)), field_ialign(offset_type(0)) {}
 
-    // This will enlarge an overlay field if necessary
+    // Enlarge an overlay (master) field to fit the biggest sub-field.
     void enlarge(FIELD f, offset_type size, offset_type alignment) {
         auto ifield = static_cast<offset_type>(f);
         field_length[ifield] = std::max(field_length[ifield], size);
@@ -68,7 +77,9 @@ class fields {
         field_ialign[ifield] = log2(alignof(T));    // Alignment of the field in log2(align)
     }
 
-    std::tuple<offset_type, offset_type> assign_offsets(blitz::TinyVector<offset_type, field_count>& field_offset, offset_type start_offset = 0) {
+    template <int N>
+    std::tuple<offset_type, offset_type> assign_offsets(blitz::TinyVector<offset_type, N>& field_offset, offset_type start_offset = 0) {
+        static_assert(N >= field_count, "field_offset vector must have at least field_count entries");
         // Find the maximum alignment (the required alignment for the element storage)
         auto alignment = blitz::max(field_ialign);
         auto alignment_mask = (1 << alignment) - 1;
@@ -119,181 +130,257 @@ class fields {
     }
 };
 
-template <typename DATA, typename FIELD>
-class Fields;
-
+// ---- Overlay<DATA, FIELD> ------------------------------------------------
+// RAII helper returned by FieldBuilder::overlay().  Owns its own fields<FIELD>
+// instance to track sizes/alignments of the sub-fields within this overlay.
+// On destruction (or explicit commit()) it:
+//   1. Packs the sub-fields and stores their relative offsets in the builder.
+//   2. Resizes the overlay's master field in the builder to fit the largest variant.
+// Method bodies are defined after FieldBuilder because they read its private members.
 template <typename DATA, typename FIELD>
 class Overlay : protected fields<FIELD> {
     using fields<FIELD>::field_length;
-    Fields<DATA, FIELD>& dfields;
-    unsigned int overlay_field;
+    FieldBuilder<DATA, FIELD>& builder;
+    unsigned int master_idx;
 
   public:
     using field = FIELD;
-    Overlay(Fields<DATA, FIELD>& dfields, FIELD f) : dfields(dfields), overlay_field(static_cast<unsigned int>(f)) {}
+    Overlay(FieldBuilder<DATA, FIELD>& b, FIELD f) : builder(b), master_idx(static_cast<unsigned int>(f)) {}
     ~Overlay() { commit(); }
 
-    void commit() {
-        // This will assign offsets to the fields in the overlay starting at zero.
-        // We have already recorded the overlay field so that we can later adjust the offset.
-        auto [size, alignment] = this->assign_offsets(dfields.overlay_offset);
-        // Make sure that the overlay field is large enough for the largest overlay
-        dfields.enlarge(static_cast<FIELD>(overlay_field), size, alignment);
-        // We set the lengths to zero so that the overlay fields are not processed again
-        // We can "commit" the overlay, or it can be committed in the destructor (or both)
-        this->clear();
-    }
+    void commit();
 
+    // Add a sub-field; its offset within the overlay is computed at commit().
     template <typename T>
-    void add(FIELD f, std::string_view name) {
-        auto ifield = static_cast<int>(f);
-        fields<FIELD>::template add<T>(f, name);
-        dfields.overlay_field[ifield] = overlay_field;
-    }
+    void add(FIELD f, std::string_view name);
+
+    // Add a sub-field at an explicit byte offset within the overlay.
     template <typename T>
-    void add(FIELD f, std::string_view name, size_t offset) {
-        auto ifield = static_cast<int>(f);
-        dfields.overlay_field[ifield] = overlay_field;
-        dfields.overlay_offset[ifield] = offset;
-    }
+    void add(FIELD f, std::string_view name, size_t offset);
 };
 
-//! \brief Track offset of optional data fields
+// ---- Fields<DATA, FIELD> -------------------------------------------------
+//! \brief Lean access class — the runtime half of the field-layout system.
 //!
-//! The size of particles and tree nodes can vary depending on what
-//! features are enabled at run-time. This class tracks which fields
-//! are present, and their offset in the structure.
+//! Holds only the computed layout array and the swap buffer.  The layout is a
+//! single blitz::TinyVector<offset_type, field_count+1> where indices
+//! 0..field_count-1 are per-field byte offsets (NO_OFFSET if not present) and
+//! index field_count stores the total element size.
+//!
+//! No build-time state; no add() or commit().  This is the base class
+//! inherited by dataStore and splitStore.
+//!
+//! A Fields object can be initialised in two ways:
+//!
+//! (a) Implicit conversion from a completed FieldBuilder:
+//! @code
+//!   FieldBuilder<PARTICLE, PKD_FIELD> b;
+//!   b.add<double[3]>(PKD_FIELD::oPosition, "r");
+//!   b.commit();
+//!   particleStore ps;
+//!   static_cast<datafields::Fields<PARTICLE, PKD_FIELD>&>(ps) = b;
+//! @endcode
+//!
+//! (b) From a serialised layout (MPI broadcast / worker-thread init):
+//! @code
+//!   MPI_Bcast(b.build().get_layout().data(),
+//!             (PKD_FIELD::MAX_FIELD + 1) * sizeof(size_t), MPI_BYTE, 0, comm);
+//!   // on worker:
+//!   worker_store.set_layout(recv_layout);
+//! @endcode
 template <typename DATA, typename FIELD>
-class Fields : protected fields<FIELD> {
-    friend class Overlay<DATA, FIELD>;
+class Fields {
+    template <typename D, typename F> friend class FieldBuilder;
 
   public:
     using offset_type = size_t;
-    using overlay_type = size_t;
-    static constexpr auto field_count = static_cast<int>(FIELD::MAX_FIELD);
-    using field = FIELD;
-    static constexpr size_t NO_OVERLAY = std::numeric_limits<overlay_type>::max();
+    static constexpr int field_count = static_cast<int>(FIELD::MAX_FIELD);
     static constexpr offset_type NO_OFFSET = std::numeric_limits<offset_type>::max();
+    using field = FIELD;
+    //! Single flat array encoding the full layout: offsets[0..field_count-1]
+    //! are per-field byte offsets; layout[field_count] is the element size.
+    using layout_type = blitz::TinyVector<offset_type, field_count + 1>;
 
   protected:
-    using fields<FIELD>::field_length;
-    size_t max_align = log2(alignof(DATA));
-    size_t element_size = sizeof(DATA);
-    blitz::TinyVector<offset_type, field_count> field_offset;   // Offset to the field, or NO_OFFSET if not present
-    blitz::TinyVector<overlay_type, field_count> overlay_field; // Overlay index or NO_OVERLAY
-    blitz::TinyVector<offset_type, field_count> overlay_offset; // Offset within the overlay
-    std::vector<char> swap_buffer;                              // Buffer for swapping fields
+    layout_type layout;            // layout[0..field_count-1] = offsets; layout[field_count] = element size
+    std::vector<char> swap_buffer; // Buffer for element swapping
 
   public:
-    Fields() : field_offset(NO_OFFSET), overlay_field(NO_OVERLAY), overlay_offset(NO_OFFSET) {}
-    template <typename H>
-    void set_header() {
-        max_align = log2(alignof(H));
-        element_size = sizeof(H);
+    Fields() : layout(NO_OFFSET) { layout[field_count] = sizeof(DATA); }
+
+    //! Initialise from a serialised layout — used after MPI broadcast or to
+    //! set up worker threads from a layout computed on the main thread.
+    void set_layout(const layout_type& new_layout) {
+        layout = new_layout;
+        swap_buffer.resize(layout[field_count]);
     }
 
-    //! Make sure that elements are properly aligned.
-    //! This is called after all fields have been added. The size is adjusted to respect alignment.
-    void commit(void) {
-        auto [size, alignment] = this->assign_offsets(field_offset, element_size);
-        element_size += size;
-        // Adjust the offsets for overlay fields (but skip the "master" field)
-        for (auto i = 0; i < field_count; ++i) {
-            if (overlay_field[i] != NO_OVERLAY && overlay_field[i] != i) {
-                field_offset[i] = field_offset[overlay_field[i]] + overlay_offset[i];
-            }
-        }
-        // Now correct the "master" field
-        for (auto i = 0; i < field_count; ++i) {
-            if (overlay_field[i] == i) {
-                field_offset[i] += overlay_offset[i];
-            }
-        }
-        swap_buffer.resize(element_size);
+    //! Raw layout array for serialisation / MPI broadcast.
+    auto get_layout() const -> const layout_type& { return layout; }
+
+    //! Returns the offset (in bytes) of the specified field, or NO_OFFSET if not present.
+    auto offset(FIELD f) const noexcept { return layout[static_cast<unsigned int>(f)]; }
+    //! Returns true if the field is present, otherwise false.
+    auto present(FIELD f) const noexcept { return layout[static_cast<unsigned int>(f)] != NO_OFFSET; }
+
+    //! Returns a reference to the scalar field of type T within element *p.
+    template <typename T, std::enable_if_t<!std::is_array_v<T>, bool> = true>
+    const auto& get(const DATA* p, FIELD f) const noexcept {
+        auto v = reinterpret_cast<const char*>(p);
+        return *reinterpret_cast<const T*>(v + layout[static_cast<unsigned int>(f)]);
+    }
+    template <typename T, std::enable_if_t<!std::is_array_v<T>, bool> = true>
+    auto& get(DATA* p, FIELD f) const noexcept {
+        auto v = reinterpret_cast<char*>(p);
+        return *reinterpret_cast<T*>(v + layout[static_cast<unsigned int>(f)]);
+    }
+
+    //! Array-type get — returns a blitz++ TinyVector reference.
+    template <typename T, std::enable_if_t<std::rank_v<T> == 1, bool> = true>
+    const auto& get(const DATA* p, FIELD f) const noexcept {
+        return get<blitz::TinyVector<typename std::remove_extent<T>::type, std::extent_v<T>>>(p, f);
+    }
+    template <typename T, std::enable_if_t<std::rank_v<T> == 1, bool> = true>
+    auto& get(DATA* p, FIELD f) const noexcept {
+        return get<blitz::TinyVector<typename std::remove_extent<T>::type, std::extent_v<T>>>(p, f);
     }
 
     void swap(void* f1, void* f2) noexcept {
-        std::memcpy(swap_buffer.data(), f1, element_size);
-        std::memcpy(f1, f2, element_size);
-        std::memcpy(f2, swap_buffer.data(), element_size);
+        auto elem_size = layout[field_count];
+        std::memcpy(swap_buffer.data(), f1, elem_size);
+        std::memcpy(f1, f2, elem_size);
+        std::memcpy(f2, swap_buffer.data(), elem_size);
     }
 
-    //! Add a field to the store. A field of type T is added and the offset recorded. The size of the
-    //! element is increased to account for this. For types with multiple values use array syntax.
-    //! @code
-    //!   particles.add<double[3]>(PKD_FIELD::oPosition)
-    //!   particles.add<float>(PKD_FIELD::oMass)
-    //! @endcode
-    //! Overlaying fields is possible by specifying a type with the maximum size and alignment
-    //! for S. Normally this is done with a union. For example, to overlay a double[3] and a float[4]
-    //! @code
-    //!   union u {
-    //!       double d[3];
-    //!       float f[4];
-    //!   };
-    //!   particles.add<double[3],u>(PKD_FIELD::oPosition,"r")
-    //!   particles.add<float[4]>(PKD_FIELD::oWhatever,"q",particles.offset(PKD_FIELD::oPosition))
-    //! @endcode
-    //! \param f The field id
+    //! Returns the size (in bytes) of one element (base struct + all present fields).
+    auto ElementSize() const noexcept { return layout[field_count]; }
+
+    //! Returns a typed pointer to the i'th element starting at pBase.
+    DATA* Element(void* pBase, int i) const noexcept {
+        auto v = static_cast<char*>(pBase);
+        return reinterpret_cast<DATA*>(v + (static_cast<uint64_t>(i) * layout[field_count]));
+    }
+};
+
+// ---- FieldBuilder<DATA, FIELD> -------------------------------------------
+//! \brief Build class — computes the field layout and produces a Fields.
+//!
+//! Owns all build-time state (per-field sizes, overlay mapping).  It is NOT
+//! part of the dataStore / splitStore inheritance chain.  After commit() the
+//! result can be obtained as a Fields object:
+//! @code
+//!   FieldBuilder<PARTICLE, PKD_FIELD> b;
+//!   b.set_header<PARTICLE>();          // optional: sets base element size
+//!   b.add<double[3]>(PKD_FIELD::oPosition, "r");
+//!   b.add<float>(PKD_FIELD::oMass, "m");
+//!   b.commit();
+//!
+//!   // (a) implicit conversion — assign to the Fields base of a store:
+//!   static_cast<datafields::Fields<PARTICLE,PKD_FIELD>&>(particleStore) = b;
+//!
+//!   // (b) MPI / thread distribution — layout is a single flat array:
+//!   MPI_Bcast(b.build().get_layout().data(),
+//!             (PKD_FIELD::MAX_FIELD + 1) * sizeof(size_t), MPI_BYTE, 0, comm);
+//!   // on worker:
+//!   worker_store.set_layout(recv_layout);
+//! @endcode
+template <typename DATA, typename FIELD>
+class FieldBuilder : protected fields<FIELD> {
+    friend class Overlay<DATA, FIELD>;
+
+    using fields<FIELD>::field_length;
+    using offset_type = size_t;
+    using overlay_type = size_t;
+    static constexpr int field_count = static_cast<int>(FIELD::MAX_FIELD);
+    static constexpr size_t NO_OVERLAY = std::numeric_limits<overlay_type>::max();
+
+    blitz::TinyVector<overlay_type, field_count> overlay_field; // Overlay master index, or NO_OVERLAY
+    blitz::TinyVector<offset_type, field_count> overlay_offset; // Sub-field offset within overlay
+
+    Fields<DATA, FIELD> result; // Accumulates computed layout; valid after commit()
+
+  public:
+    using field = FIELD;
+
+    FieldBuilder() : overlay_field(NO_OVERLAY), overlay_offset(Fields<DATA, FIELD>::NO_OFFSET) {
+        result.layout = Fields<DATA, FIELD>::NO_OFFSET;
+        result.layout[field_count] = 0; // Caller must call set_header<H>() if there is a fixed header.
+    }
+
+    //! Override the base element size (default is sizeof(DATA)).
+    //! Must be called before any add() calls when the header type differs from DATA.
+    template <typename H>
+    void set_header() {
+        result.layout[field_count] = sizeof(H);
+    }
+
+    //! Register a field of type T.
     template <typename T>
     void add(FIELD f, std::string_view name) {
         fields<FIELD>::template add<T>(f, name);
     }
 
-    //! Overlay a field on top of another field. This is used to create a union of fields.
-    //! \param f The field id
+    //! Begin an overlay group rooted at master field f.
+    //! Returns an Overlay RAII object; the overlay is committed when that object
+    //! goes out of scope or when overlay.commit() is called explicitly.
     auto overlay(FIELD f) { return Overlay<DATA, FIELD>(*this, f); }
 
-  public:
-    //! Returns the offset (in bytes) of the specified field, or NO_OFFSET if not present.
-    //! \param f The field id
-    auto offset(FIELD f) const noexcept { return field_offset[static_cast<unsigned int>(f)]; }
-    //! Returns true if the field is present, otherwise false.
-    //! \param f The field id
-    auto present(FIELD f) const noexcept { return field_offset[static_cast<unsigned int>(f)] != NO_OFFSET; }
-    //! Returns a pointer to the field if present or nullptr if not.
-    //! \param p Pointer to an element
-    //! \param f The field id
-    template <typename T, std::enable_if_t<!std::is_array_v<T>, bool> = true>
-    const auto& get(const DATA* p, FIELD f) const noexcept {
-        auto v = reinterpret_cast<const char*>(p);
-        return *reinterpret_cast<const T*>(v + field_offset[static_cast<unsigned int>(f)]);
-    }
-    //! Returns a pointer to the field if present or nullptr if not.
-    //! \param p Pointer to an element
-    //! \param f The field id
-    template <typename T, std::enable_if_t<!std::is_array_v<T>, bool> = true>
-    auto& get(DATA* p, FIELD f) const noexcept {
-        auto v = reinterpret_cast<char*>(p);
-        return *reinterpret_cast<T*>(v + field_offset[static_cast<unsigned int>(f)]);
+    //! Finalise the layout.  Must be called exactly once, after all add() /
+    //! overlay() calls.  Populates the internal Fields result.
+    void commit() {
+        auto [size, alignment] = this->assign_offsets(result.layout, result.layout[field_count]);
+        result.layout[field_count] += size;
+        // Adjust sub-field offsets: absolute = master_absolute + relative_within_overlay
+        for (auto i = 0; i < field_count; ++i) {
+            if (overlay_field[i] != NO_OVERLAY && overlay_field[i] != static_cast<overlay_type>(i)) {
+                result.layout[i] = result.layout[overlay_field[i]] + overlay_offset[i];
+            }
+        }
+        // A field that is both the master and a sub-field gets its relative offset added.
+        for (auto i = 0; i < field_count; ++i) {
+            if (overlay_field[i] == static_cast<overlay_type>(i)) {
+                result.layout[i] += overlay_offset[i];
+            }
+        }
+        result.swap_buffer.resize(result.layout[field_count]);
     }
 
-    //! Returns the field as a blitz++ TinyVector.
-    //! \param p Pointer to an element
-    //! \param f The field id
-    template <typename T, std::enable_if_t<std::rank_v<T> == 1, bool> = true>
-    const auto& get(const DATA* p, FIELD f) const noexcept {
-        return get<blitz::TinyVector<typename std::remove_extent<T>::type, std::extent_v<T>>>(p, f);
-    }
+    using layout_type = typename Fields<DATA, FIELD>::layout_type;
 
-    //! Returns the field as a blitz++ TinyVector.
-    //! \param p Pointer to an element
-    //! \param f The field id
-    template <typename T, std::enable_if_t<std::rank_v<T> == 1, bool> = true>
-    auto& get(DATA* p, FIELD f) const noexcept {
-        return get<blitz::TinyVector<typename std::remove_extent<T>::type, std::extent_v<T>>>(p, f);
-    }
+    //! Access the completed layout (call after commit()).
+    const Fields<DATA, FIELD>& build() const { return result; }
 
-    //! Returns the size (in bytes) of an element (all fields).
-    auto ElementSize() const noexcept { return element_size; }
-    //! Returns a pointer to the i'th element at pBase.
-    //! \param pBase Pointer to the first element
-    //! \param i Index of the desired element
-    DATA* Element(void* pBase, int i) const noexcept {
-        auto v = static_cast<char*>(pBase);
-        return reinterpret_cast<DATA*>(v + ((uint64_t)i) * ElementSize());
-    }
+    //! Implicit conversion to layout_type — allows: store.set_layout(builder)
+    operator layout_type() const { return result.layout; } // NOLINT: conversion operators cannot use trailing return type
 };
+
+// ---- Overlay method bodies (FieldBuilder is now complete) ----------------
+
+template <typename DATA, typename FIELD>
+void Overlay<DATA, FIELD>::commit() {
+    // Pack sub-fields starting at offset 0 within the overlay.
+    auto [size, alignment] = this->assign_offsets(builder.overlay_offset);
+    // Ensure the master field in the builder is large enough for this overlay.
+    builder.fields<FIELD>::enlarge(static_cast<FIELD>(master_idx), size, alignment);
+    // Zero out so a redundant commit() (e.g., from the destructor) is a no-op.
+    this->clear();
+}
+
+template <typename DATA, typename FIELD>
+template <typename T>
+void Overlay<DATA, FIELD>::add(FIELD f, std::string_view name) {
+    fields<FIELD>::template add<T>(f, name);
+    builder.overlay_field[static_cast<int>(f)] = master_idx;
+}
+
+template <typename DATA, typename FIELD>
+template <typename T>
+void Overlay<DATA, FIELD>::add(FIELD f, std::string_view name, size_t offset) {
+    builder.overlay_field[static_cast<int>(f)] = master_idx;
+    builder.overlay_offset[static_cast<int>(f)] = offset;
+}
+
+// ---- Type trait helpers --------------------------------------------------
 
 // Checks if a type is a std::tuple
 template <class>
@@ -325,6 +412,7 @@ struct Field {
 };
 
 } // namespace datafields
+
 // For example:
 // #define DATA_FIELDS(X) X(x,float) X(y,float) X(i,int)
 // MAKE_STRUCTURE(DATA, DATA_FIELDS)
@@ -336,7 +424,7 @@ struct Field {
 //         int i;
 //    };
 // }
-// struct DATA : public schema_details::DATA {
+// struct DATA : public schema_details::NAME {
 //     using base_type = schema_details::DATA;
 //     static constexpr auto schema = std::tuple{datafields::Field<float>{"x"}, datafields::Field<float>{"y"}, datafields::Field<int>{"i"},};
 // };

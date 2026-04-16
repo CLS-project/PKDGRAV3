@@ -104,10 +104,9 @@ MAKE_STRUCTURE(GAS_PIN, GAS_PIN_FIELDS)
     X(bForceReposition, bool)
 MAKE_STRUCTURE(BLACKHOLE, BLACKHOLE_FIELDS)
 
-struct FIELDS {
-    unsigned char zero[0];
-};
-static_assert(sizeof(FIELDS) == 0);
+// Decorators have no fixed header — the element is composed entirely of
+// dynamic fields packed from offset 0 by FieldBuilder.
+struct FIELDS {};
 
 } // namespace decorators
 
