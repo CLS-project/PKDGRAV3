@@ -625,6 +625,7 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
     _import_array(); /* NumPy 1.x */
 #endif
     pbuilder.build_dtype();                       // This must be called after commit() and before get_python_dtype()
+    Py_XDECREF(particle_dtype);                   // Finish any existing type
     particle_dtype = pbuilder.get_python_dtype(); // new reference
 
     ServiceInitializePStore::output pout;
@@ -1233,11 +1234,11 @@ int MSR::CheckForStop(const char* achStopFile) {
 }
 
 MSR::MSR(MDL mdl, PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass*>(mdl)) {
-    Py_XDECREF(particle_dtype);
 }
 
 MSR::~MSR() {
     csmFinish(csm);
+    Py_XDECREF(particle_dtype);
     if (Py_IsInitialized()) Py_Finalize();
 }
 
