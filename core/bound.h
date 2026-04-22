@@ -26,7 +26,7 @@
 #include "blitz/array.h"
 #include "integerize.h"
 
-namespace {
+namespace detail {
 /// @brief Get the type needed to perform long operations (e.g., upper+lower)
 template <typename S> struct get_long_type;
 template <> struct get_long_type<double> {
@@ -42,25 +42,115 @@ template <> struct get_width_type<double> {
 template <> struct get_width_type<std::int32_t> {
     using type = std::uint32_t;
 };
-} // namespace
+} // namespace detail
+
+/// @brief CRTP base providing shared bounding box operations
+/// @tparam T Coordinate type (double or int32_t)
+/// @tparam Derived The derived bounding box class
+template <typename T, typename Derived>
+class BoundBase {
+  public:
+    using value_type = T;
+    using coord_type = blitz::TinyVector<value_type, 3>;
+    using size_value_type = typename detail::get_width_type<value_type>::type;
+    using size_coord_type = blitz::TinyVector<size_value_type, 3>;
+    using long_value_type = typename detail::get_long_type<value_type>::type;
+    using long_coord_type = blitz::TinyVector<long_value_type, 3>;
+
+  private:
+    BoundBase() = default;
+    friend Derived;
+
+    [[nodiscard]] auto derived() const -> const Derived& { return static_cast<const Derived&>(*this); }
+    [[nodiscard]] auto derived() -> Derived& { return static_cast<Derived&>(*this); }
+
+  public:
+    [[nodiscard]] auto minside() const -> size_value_type { return blitz::min(derived().width()); }
+    [[nodiscard]] auto maxside() const -> size_value_type { return blitz::max(derived().width()); }
+
+    /// @brief Returns the dimension (0, 1, or 2) with the largest width.
+    /// Ties are broken in favour of the lower index.
+    [[nodiscard]] auto maxdim() const -> int {
+        auto w = derived().width();
+        if (w[0] >= w[1] && w[0] >= w[2]) {
+            return 0;
+        }
+        if (w[1] >= w[2]) {
+            return 1;
+        }
+        return 2;
+    }
+    /// @brief Returns the dimension (0, 1, or 2) with the smallest width.
+    /// Ties are broken in favour of the lower index.
+    [[nodiscard]] auto mindim() const -> int {
+        auto w = derived().width();
+        if (w[0] <= w[1] && w[0] <= w[2]) {
+            return 0;
+        }
+        if (w[1] <= w[2]) {
+            return 1;
+        }
+        return 2;
+    }
+
+    [[nodiscard]] auto maxdist(coord_type r) const -> long_value_type {
+        long_coord_type x = blitz::abs(derived().center() - r) + derived().apothem();
+        return blitz::dot(x, x);
+    }
+    [[nodiscard]] auto mindist(coord_type r) const -> long_value_type {
+        long_coord_type x = blitz::abs(derived().center() - r) - derived().apothem();
+        x = blitz::where(x > long_value_type{0}, x, long_value_type{0});
+        return blitz::dot(x, x);
+    }
+
+    /// @brief Wrap the given coordinate so it lies in this bound
+    /// @param r position
+    /// @return new position
+    /// Note that this assumes that the coordinate will be only slightly
+    /// outside the bound, and will not work if it is more than width() away.
+    [[nodiscard]] auto wrap(coord_type r) const -> coord_type {
+        auto l = derived().lower(), u = derived().upper(), w = derived().width();
+        for (auto j = 0; j < 3; ++j) {
+            if (r[j] < l[j]) r[j] += w[j];
+            else if (r[j] >= u[j]) r[j] -= w[j];
+        }
+        return r;
+    }
+
+    /// @brief Combine two bounds to form a new bound containing both
+    /// @param rhs bound to combine with
+    /// @return a new bound containing both bounds
+    [[nodiscard]] auto combine(const Derived& rhs) const -> Derived {
+        return Derived(blitz::min(derived().lower(), rhs.lower()), blitz::max(derived().upper(), rhs.upper()));
+    }
+
+    /// @brief Split bound in the middle
+    /// @param d dimension to split
+    /// @return two new bounds
+    [[nodiscard]] auto split(int d) const -> std::pair<Derived, Derived> { return derived().split(d, derived().center(d)); }
+
+    friend auto operator<<(std::ostream& os, const Derived& b) -> std::ostream& {
+        os << "[" << b.lower() << "," << b.upper() << "]";
+        return os;
+    }
+};
+
+//****************************************************************************************************
 
 /// @brief Provides an implementation of a bounding box
 /// @tparam T Coordinate type (double or int32_t)
 /// This keeps track of box with a center coordinate and an apothem (fMax).
 template <typename T>
-class BoundBaseCenter {
-    using this_type = BoundBaseCenter<T>;
+class BoundBaseCenter : public BoundBase<T, BoundBaseCenter<T>> {
+    using Base = BoundBase<T, BoundBaseCenter<T>>;
 
   public:
-    // The scalar and vector types (double or int32_t)
-    using value_type = T;
-    using coord_type = blitz::TinyVector<value_type, 3>;
-    // Same but for sizes (double or uint32_t)
-    using size_value_type = typename get_width_type<value_type>::type;
-    using size_coord_type = blitz::TinyVector<size_value_type, 3>;
-    // Same but for squared values (double or uint64_t)
-    using long_value_type = typename get_long_type<value_type>::type;
-    using long_coord_type = blitz::TinyVector<long_value_type, 3>;
+    using typename Base::coord_type;
+    using typename Base::long_coord_type;
+    using typename Base::long_value_type;
+    using typename Base::size_coord_type;
+    using typename Base::size_value_type;
+    using typename Base::value_type;
 
   protected:
     coord_type fCenter;
@@ -73,88 +163,35 @@ class BoundBaseCenter {
     template <typename O>
     BoundBaseCenter(const BoundBaseCenter<O>& ibnd, const Integerize& i) : fCenter(i.convert(ibnd.center())), fMax(i.convert(ibnd.apothem())) {}
 
-    coord_type apothem() const { return fMax; }
-    value_type apothem(int d) const { return fMax[d]; }
-    size_coord_type width() const { return 2 * size_coord_type(fMax); }
-    size_value_type width(int d) const { return 2 * size_value_type(fMax[d]); }
-    coord_type lower() const { return fCenter - fMax; }
-    value_type lower(int d) const { return fCenter[d] - fMax[d]; }
-    coord_type upper() const { return fCenter + fMax; }
-    value_type upper(int d) const { return fCenter[d] + fMax[d]; }
-    coord_type center() const { return fCenter; }
-    value_type center(int d) const { return fCenter[d]; }
-    size_value_type minside() const { return 2 * size_value_type(blitz::min(apothem())); }
-    size_value_type maxside() const { return 2 * size_value_type(blitz::max(apothem())); }
-    /// @brief Returns the dimension (0, 1 or 2) in which the "width" of the bound is the largest.
-    int maxdim() const { return (fMax[0] > fMax[2]) ? (fMax[0] > fMax[1] ? 0 : 1) : (fMax[2] > fMax[1] ? 2 : 1); }
-    /// @brief Returns the dimension (0, 1 or 2) in which the "width" of the bound is the smallest.
-    int mindim() const { return (fMax[0] < fMax[2]) ? (fMax[0] < fMax[1] ? 0 : 1) : (fMax[2] < fMax[1] ? 2 : 1); }
+    [[nodiscard]] auto apothem() const -> coord_type { return fMax; }
+    [[nodiscard]] auto apothem(int d) const -> value_type { return fMax[d]; }
+    [[nodiscard]] auto width() const -> size_coord_type { return 2 * size_coord_type(fMax); }
+    [[nodiscard]] auto width(int d) const -> size_value_type { return 2 * size_value_type(fMax[d]); }
+    [[nodiscard]] auto lower() const -> coord_type { return fCenter - fMax; }
+    [[nodiscard]] auto lower(int d) const -> value_type { return fCenter[d] - fMax[d]; }
+    [[nodiscard]] auto upper() const -> coord_type { return fCenter + fMax; }
+    [[nodiscard]] auto upper(int d) const -> value_type { return fCenter[d] + fMax[d]; }
+    [[nodiscard]] auto center() const -> coord_type { return fCenter; }
+    [[nodiscard]] auto center(int d) const -> value_type { return fCenter[d]; }
 
-    long_value_type maxdist(coord_type r) const {
-        long_coord_type x = blitz::abs(center() - r) + apothem();
-        return blitz::dot(x, x);
-    }
-    long_value_type mindist(coord_type r) const {
-        long_coord_type x = blitz::abs(center() - r) - apothem();
-        x = blitz::where(x > 0.0, x, 0.0);
-        return blitz::dot(x, x);
-    }
-    /// @brief Wrap the given coordinate so it lies in this bound
-    /// @param r position
-    /// @return new position
-    /// Note that this assumes that the coordinate will be only slightly
-    /// outside the bound, and will not work if it is more than width() away.
-    coord_type wrap(coord_type r) {
-        auto l = lower(), u = upper(), w = width();
-        for (auto j = 0; j < 3; ++j) {
-            if (r[j] < l[j]) r[j] += w[j];
-            else if (r[j] >= u[j]) r[j] -= w[j];
-        }
-        return r;
-    }
     /// @brief Adjust the apothem of the box
     /// @param a the new apothem
     void shrink(coord_type a) { fMax = a; }
-    /// @brief Combine two bounds to form a new bound containing both
-    /// @tparam D The derived class
-    /// @param rhs bound to combine with
-    /// @return a new bound containing both bounds
-    template <typename D>
-    D combine(const D& rhs) const {
-        return D(blitz::min(lower(), rhs.lower()), blitz::max(upper(), rhs.upper()));
-    }
+
     /// @brief Split bound at a specific point
     /// @param d dimension to split
-    /// @param split where to split
+    /// @param at where to split
     /// @return two new bounds
-    std::pair<this_type, this_type> split(int d, double split) const {
-        this_type l = *this, r = *this;
-        l.fMax[d] = (split - lower(d)) / 2;
-        l.fCenter[d] = split / 2 + lower(d) / 2;
-        r.fMax[d] = (upper(d) - split) / 2;
-        r.fCenter[d] = upper(d) / 2 + split / 2;
+    [[nodiscard]] auto split(int d, value_type at) const -> std::pair<BoundBaseCenter, BoundBaseCenter> {
+        BoundBaseCenter l = *this, r = *this;
+        l.fMax[d] = (at - lower(d)) / 2;
+        l.fCenter[d] = at / 2 + lower(d) / 2;
+        r.fMax[d] = (upper(d) - at) / 2;
+        r.fCenter[d] = upper(d) / 2 + at / 2;
         return std::make_pair(l, r);
     }
-    /// @brief Split bound in the middle
-    /// @param d dimension to split
-    /// @return two new bounds
-    std::pair<this_type, this_type> split(int d) const {
-        this_type l = *this, r = *this;
-        r.fMax[d] = l.fMax[d] = fMax[d] / 2;
-        l.fCenter[d] = fCenter[d] - l.fMax[d];
-        r.fCenter[d] = fCenter[d] + r.fMax[d];
-        return std::make_pair(l, r);
-    }
-
-    template <typename D>
-    friend std::ostream& operator<<(std::ostream& os, const BoundBaseCenter<D>& b);
+    using Base::split;
 };
-
-template <typename D>
-inline std::ostream& operator<<(std::ostream& os, const BoundBaseCenter<D>& b) {
-    os << "[" << b.lower() << "," << b.upper() << "]";
-    return os;
-}
 
 //****************************************************************************************************
 
@@ -162,19 +199,16 @@ inline std::ostream& operator<<(std::ostream& os, const BoundBaseCenter<D>& b) {
 /// @tparam T Coordinate type (double or int32_t)
 /// This keeps track of box with a lower and upper coordinate.
 template <typename T>
-class BoundBaseMinMax {
-    using this_type = BoundBaseMinMax<T>;
+class BoundBaseMinMax : public BoundBase<T, BoundBaseMinMax<T>> {
+    using Base = BoundBase<T, BoundBaseMinMax<T>>;
 
   public:
-    // The scalar and vector types (double or int32_t)
-    using value_type = T;
-    using coord_type = blitz::TinyVector<value_type, 3>;
-    // Same but for sizes (double or uint32_t)
-    using size_value_type = typename get_width_type<value_type>::type;
-    using size_coord_type = blitz::TinyVector<size_value_type, 3>;
-    // Same but for squared values (double or uint64_t)
-    using long_value_type = typename get_long_type<value_type>::type;
-    using long_coord_type = blitz::TinyVector<long_value_type, 3>;
+    using typename Base::coord_type;
+    using typename Base::long_coord_type;
+    using typename Base::long_value_type;
+    using typename Base::size_coord_type;
+    using typename Base::size_value_type;
+    using typename Base::value_type;
 
   protected:
     coord_type fLower;
@@ -187,48 +221,17 @@ class BoundBaseMinMax {
     template <typename O>
     BoundBaseMinMax(const BoundBaseMinMax<O>& ibnd, const Integerize& i) : fLower(i.convert(ibnd.lower())), fUpper(i.convert(ibnd.upper())) {}
 
-    size_coord_type apothem() const { return (upper() - lower()) / 2; }
-    size_value_type apothem(int d) const { return (upper(d) - lower(d)) / 2; }
-    size_coord_type width() const { return size_coord_type(upper() - lower()); }
-    size_value_type width(int d) const { return size_value_type(upper(d) - lower(d)); }
-    coord_type lower() const { return fLower; }
-    value_type lower(int d) const { return fLower[d]; }
-    coord_type upper() const { return fUpper; }
-    value_type upper(int d) const { return fUpper[d]; }
-    coord_type center() const { return lower() / 2 + upper() / 2; }
-    value_type center(int d) const { return lower(d) / 2 + upper(d) / 2; }
-    size_value_type minside() const { return blitz::min(width()); }
-    size_value_type maxside() const { return blitz::max(width()); }
-    int maxdim() const {
-        auto fMax = width();
-        return (fMax[0] > fMax[2]) ? (fMax[0] > fMax[1] ? 0 : 1) : (fMax[2] > fMax[1] ? 2 : 1);
-    }
-    int mindim() const {
-        auto fMax = width();
-        return (fMax[0] < fMax[2]) ? (fMax[0] < fMax[1] ? 0 : 1) : (fMax[2] < fMax[1] ? 2 : 1);
-    }
-    long_value_type maxdist(coord_type r) const {
-        long_coord_type x = blitz::abs(center() - r) + apothem();
-        return blitz::dot(x, x);
-    }
-    long_value_type mindist(coord_type r) const {
-        long_coord_type x = blitz::abs(center() - r) - apothem();
-        x = blitz::where(x > 0.0, x, 0.0);
-        return blitz::dot(x, x);
-    }
-    /// @brief Wrap the given coordinate so it lies in this bound
-    /// @param r position
-    /// @return new position
-    /// Note that this assumes that the coordinate will be only slightly
-    /// outside the bound, and will not work if it is more than width() away.
-    coord_type wrap(coord_type r) {
-        auto l = lower(), u = upper(), w = width();
-        for (auto j = 0; j < 3; ++j) {
-            if (r[j] < l[j]) r[j] += w[j];
-            else if (r[j] >= u[j]) r[j] -= w[j];
-        }
-        return r;
-    }
+    [[nodiscard]] auto apothem() const -> size_coord_type { return (upper() - lower()) / 2; }
+    [[nodiscard]] auto apothem(int d) const -> size_value_type { return (upper(d) - lower(d)) / 2; }
+    [[nodiscard]] auto width() const -> size_coord_type { return size_coord_type(upper() - lower()); }
+    [[nodiscard]] auto width(int d) const -> size_value_type { return size_value_type(upper(d) - lower(d)); }
+    [[nodiscard]] auto lower() const -> coord_type { return fLower; }
+    [[nodiscard]] auto lower(int d) const -> value_type { return fLower[d]; }
+    [[nodiscard]] auto upper() const -> coord_type { return fUpper; }
+    [[nodiscard]] auto upper(int d) const -> value_type { return fUpper[d]; }
+    [[nodiscard]] auto center() const -> coord_type { return lower() / 2 + upper() / 2; }
+    [[nodiscard]] auto center(int d) const -> value_type { return lower(d) / 2 + upper(d) / 2; }
+
     /// @brief Adjust the apothem of the box
     /// @param a the new apothem
     void shrink(coord_type a) {
@@ -236,41 +239,19 @@ class BoundBaseMinMax {
         fLower = c - a;
         fUpper = c + a;
     }
-    /// @brief Combine two bounds to form a new bound containing both
-    /// @tparam D The derived class
-    /// @param rhs bound to combine with
-    /// @return a new bound containing both bounds
-    template <typename D>
-    D combine(const D& rhs) const {
-        return D(blitz::min(lower(), rhs.lower()), blitz::max(upper(), rhs.upper()));
-    }
+
     /// @brief Split bound at a specific point
     /// @param d dimension to split
-    /// @param split where to split
+    /// @param at where to split
     /// @return two new bounds
-    std::pair<this_type, this_type> split(int d, double split) const {
-        this_type l = *this, r = *this;
-        l.fUpper[d] = split;
-        r.fLower[d] = split;
+    [[nodiscard]] auto split(int d, value_type at) const -> std::pair<BoundBaseMinMax, BoundBaseMinMax> {
+        BoundBaseMinMax l = *this, r = *this;
+        l.fUpper[d] = at;
+        r.fLower[d] = at;
         return std::make_pair(l, r);
     }
-    /// @brief Split bound in the middle
-    /// @param d dimension to split
-    /// @return two new bounds
-    std::pair<this_type, this_type> split(int d) const {
-        this_type l = *this, r = *this;
-        return split(d, center(d));
-    }
-
-    template <typename D>
-    friend std::ostream& operator<<(std::ostream& os, const BoundBaseMinMax<D>& b);
+    using Base::split;
 };
-
-template <typename D>
-inline std::ostream& operator<<(std::ostream& os, const BoundBaseMinMax<D>& b) {
-    os << "[" << b.lower() << "," << b.upper() << "]";
-    return os;
-}
 
 //****************************************************************************************************
 
