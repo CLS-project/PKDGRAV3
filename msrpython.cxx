@@ -175,6 +175,7 @@ int MSR::Python(int argc, char* argv[]) {
     parameters.set_dynamic("msr", PyImport_ImportModule("PKDGRAV"));
     PyObject* script = PyObject_GetAttrString(arguments, "script");
 
+    int rc = 0; // sys.exit() with no arg means success
     // If a script was specified then we run it.
     if (script != Py_None) {
         char* filename;
@@ -190,17 +191,24 @@ int MSR::Python(int argc, char* argv[]) {
         auto fp = fopen(filename, "r");
         abort_false(1000, fp, filename);
         PyDict_SetItemString(locals, "__file__", script);
+        Py_DECREF(script);
         auto s = PyRun_FileEx(fp, filename, Py_file_input, globals, locals, 1); // fp is closed on return
         Py_XDECREF(s);
         if (PyErr_Occurred()) {
-            int rc = 1;
             if (PyErr_ExceptionMatches(PyExc_SystemExit)) {
                 PyObject *etype, *evalue, *etrace;
                 PyErr_Fetch(&etype, &evalue, &etrace);
-                if (auto o = PyNumber_Long(evalue)) {
-                    rc = PyLong_AsLong(o);
-                    Py_DECREF(o);
+                PyErr_NormalizeException(&etype, &evalue, &etrace);
+                PyObject* code = PyObject_GetAttrString(evalue, "code");
+                if (code && code != Py_None) {
+                    if (PyLong_Check(code)) {
+                        rc = (int)PyLong_AsLong(code);
+                    }
+                    else {
+                        rc = 1;
+                    }
                 }
+                Py_XDECREF(code);
                 Py_DECREF(etype);
                 Py_DECREF(evalue);
                 Py_DECREF(etrace);
@@ -209,7 +217,6 @@ int MSR::Python(int argc, char* argv[]) {
             return rc;
         }
     }
-    Py_DECREF(script);
 
     auto imported = is_PKDGRAV_imported(locals);
 

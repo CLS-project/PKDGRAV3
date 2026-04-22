@@ -257,7 +257,6 @@ class CACHE : private ARChelper {
 //*****************************************************************************
 
 class mdlClass : public mdlBASE {
-    int exit_code; // Only used by the worker thread
     friend class CACHE;
     friend class mpiClass;
 
@@ -358,7 +357,7 @@ class mdlClass : public mdlBASE {
     int mdl_MPI_Recv(void* buf, int count, int source, int tag, int* nBytes);
     virtual int checkMPI();
     void drainMPI();
-    void* WorkerThread();
+    void WorkerThread(int& exit_code);
     void combine_all_incoming();
 
     void bookkeeping();

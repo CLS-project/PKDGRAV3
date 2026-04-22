@@ -1968,7 +1968,7 @@ int mpiClass::Launch() {
             if (mpi_core) icpu = hwloc_bitmap_next(set_proc, icpu);
 #endif
             // Create the i-th worker thread
-            worker_threads.emplace_back([this, i
+            worker_threads.emplace_back([this, i, &exit_code
 #ifdef USE_HWLOC
                                          ,
                                          topology, icpu
@@ -1985,7 +1985,7 @@ int mpiClass::Launch() {
                 }
 #endif
                 barrier->arrive_and_wait();
-                pmdl[i]->WorkerThread();
+                pmdl[i]->WorkerThread(exit_code);
             });
             ++nActiveCores;
         }
@@ -2300,8 +2300,7 @@ int mdlClass::run_master() {
     return rc;
 }
 
-void* mdlClass::WorkerThread() {
-    void* result = NULL;
+void mdlClass::WorkerThread(int& exit_code) {
 #ifdef USE_ITT
     char szName[20];
     sprintf(szName, "ID %d", Core());
@@ -2314,7 +2313,6 @@ void* mdlClass::WorkerThread() {
         if (Self()) Handler();
         else {
             exit_code = run_master();
-            result = &exit_code;
         }
         (*fcnWorkerDone)(static_cast<MDL>(this), worker_ctx);
     }
@@ -2332,7 +2330,6 @@ void* mdlClass::WorkerThread() {
     else {
         drainMPI();
     }
-    return result;
 }
 
 /*
