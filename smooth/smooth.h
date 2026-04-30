@@ -208,14 +208,14 @@ struct smContext {
 // for node-based smoothing
 #ifdef OPTIM_SMOOTH_NODE
     template <RangePolicy TargetPolicy, double fBall_factor>
-    auto getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, TargetPolicy info = {}) -> Bound;
+    auto getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, TargetPolicy const& info = {}) -> Bound;
 
     template <AcceptPolicy AcceptPolicy, class BallPolicy>
-    void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, AcceptPolicy info = {});
+    void resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, AcceptPolicy const& info = {});
     template <RangePolicy SourcePolicy>
-    void buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, SourcePolicy info = {});
+    void buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, SourcePolicy const& info = {});
     template <RangePolicy SourcePolicy>
-    void buildInteractionList(Bound bnd_node, SourcePolicy info = {});
+    void buildInteractionList(Bound bnd_node, SourcePolicy const& info = {});
 #endif
   public:
     smContext(PKD pkdIn, int iSmoothType, bool bSymmetric, int nSmooth, bool bPeriodic);
@@ -236,35 +236,35 @@ struct smContext {
     auto ReSmoothSingle(particleStore::ParticleReference& p, double fBall) -> bool;
 
     template <RangePolicy TargetPolicy = smooth::policy::Everything, bool UpdateBall = false>
-    auto Smooth(TargetPolicy target = {}) -> uint64_t;
+    auto Smooth(TargetPolicy const& target = {}) -> uint64_t;
     template <RangePolicy TargetPolicy = smooth::policy::Everything>
-    auto ReSmooth(TargetPolicy target = {}) -> uint64_t;
+    auto ReSmooth(TargetPolicy const& target = {}) -> uint64_t;
 #ifdef OPTIM_SMOOTH_NODE
     template <RangePolicy TargetPolicy = smooth::policy::Everything, RangePolicy SourcePolicy = smooth::policy::Everything,
               AcceptPolicy AcceptPolicy = smooth::policy::AcceptAll, BallPolicy BallPolicy = smooth::policy::ball, double fBall_factor = 1.0>
-    auto ReSmoothNode(TargetPolicy info = {}, SourcePolicy sourceInfo = {}, AcceptPolicy accept = {}) -> uint64_t;
+    auto ReSmoothNode(TargetPolicy const& info = {}, SourcePolicy const& sourceInfo = {}, AcceptPolicy const& accept = {}) -> uint64_t;
 
     template <RangePolicy TargetPolicy, RangePolicy SourcePolicy, AcceptPolicy AcceptPolicy, double fBall_factor>
-    auto ReSmoothNode(TargetPolicy target = {}, SourcePolicy source = {}, AcceptPolicy accept = {}) -> uint64_t {
+    auto ReSmoothNode(TargetPolicy const& target = {}, SourcePolicy const& source = {}, AcceptPolicy const& accept = {}) -> uint64_t {
         return ReSmoothNode<TargetPolicy, SourcePolicy, AcceptPolicy, smooth::policy::ball, fBall_factor>(target, source, accept);
     }
     template <RangePolicy TargetPolicy, RangePolicy SourcePolicy, BallPolicy BallPolicy, double fBall_factor = 1.0>
-    auto ReSmoothNode(TargetPolicy target = {}, SourcePolicy source = {}) -> uint64_t {
+    auto ReSmoothNode(TargetPolicy const& target = {}, SourcePolicy const& source = {}) -> uint64_t {
         return ReSmoothNode<TargetPolicy, SourcePolicy, smooth::policy::AcceptAll, BallPolicy, fBall_factor>(target, source);
     }
     template <RangePolicy TargetPolicy, RangePolicy SourcePolicy, double fBall_factor>
-    auto ReSmoothNode(TargetPolicy target = {}, SourcePolicy source = {}) -> uint64_t {
+    auto ReSmoothNode(TargetPolicy const& target = {}, SourcePolicy const& source = {}) -> uint64_t {
         return ReSmoothNode<TargetPolicy, SourcePolicy, smooth::policy::AcceptAll, smooth::policy::ball, fBall_factor>(target, source);
     }
     template <RangePolicy RangePolicy, double fBall_factor>
-    auto ReSmoothNode(RangePolicy info = {}) -> uint64_t {
+    auto ReSmoothNode(RangePolicy const& info = {}) -> uint64_t {
         return ReSmoothNode<RangePolicy, RangePolicy, smooth::policy::AcceptAll, smooth::policy::ball, fBall_factor>(info, info);
     }
 #endif
 };
 
 template <RangePolicy TargetPolicy, bool UpdateBall>
-auto smContext::Smooth(TargetPolicy target) -> uint64_t {
+auto smContext::Smooth(TargetPolicy const& target) -> uint64_t {
     uint64_t nSmoothed = 0;
     create();
     for (auto& p : pkd->particles) {
@@ -280,7 +280,7 @@ auto smContext::Smooth(TargetPolicy target) -> uint64_t {
 }
 
 template <RangePolicy TargetPolicy>
-auto smContext::ReSmooth(TargetPolicy target) -> uint64_t {
+auto smContext::ReSmooth(TargetPolicy const& target) -> uint64_t {
     uint64_t nSmoothed = 0;
     for (auto& p : pkd->particles) {
         if (target.active(p)) {
@@ -302,7 +302,7 @@ auto smContext::ReSmooth(TargetPolicy target) -> uint64_t {
  * in an interaction list.
  */
 template <RangePolicy TargetPolicy, RangePolicy SourcePolicy, AcceptPolicy AcceptPolicy, BallPolicy BallPolicy, double fBall_factor>
-auto smContext::ReSmoothNode(TargetPolicy target, SourcePolicy source, AcceptPolicy accept) -> uint64_t {
+auto smContext::ReSmoothNode(TargetPolicy const& target, SourcePolicy const& source, AcceptPolicy const& accept) -> uint64_t {
     uint64_t nSmoothed = 0;
     // Here we store the pointers to the particles whose interaction need to be computed
     std::vector<PARTICLE*> sinks;
@@ -321,7 +321,7 @@ auto smContext::ReSmoothNode(TargetPolicy target, SourcePolicy source, AcceptPol
 }
 
 template <RangePolicy TargetPolicy, double fBall_factor>
-auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, TargetPolicy target) -> Bound {
+auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>& sinks, TargetPolicy const& target) -> Bound {
     sinks.clear();
     sinks.reserve(256); // At most, the bucket size
     auto bnd_node = node->bound();
@@ -340,7 +340,7 @@ auto smContext::getNodeSinks(treeStore::NodePointer node, std::vector<PARTICLE*>
 }
 
 template <RangePolicy SourcePolicy>
-void smContext::buildInteractionList(Bound bnd_node, SourcePolicy info) {
+void smContext::buildInteractionList(Bound bnd_node, SourcePolicy const& info) {
     auto r = bnd_node.center();
     nnList.clear();
     if (bPeriodic) {
@@ -363,7 +363,7 @@ void smContext::buildInteractionList(Bound bnd_node, SourcePolicy info) {
 }
 
 template <RangePolicy SourcePolicy>
-void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, SourcePolicy source) {
+void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3> r, SourcePolicy const& source) {
     auto mdl = pkd->mdl;
     int id, iCell;
 
@@ -447,7 +447,7 @@ void smContext::buildInteractionList(Bound bnd_node, blitz::TinyVector<double, 3
 //            no well-defined axis that could be used for projection
 //
 template <AcceptPolicy AcceptPolicy, class BallPolicy>
-void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, AcceptPolicy target) {
+void smContext::resmoothSinks(std::span<PARTICLE*> sinks, Bound bnd_node, AcceptPolicy const& target) {
     std::vector<NN> nnList_p;
     nnList_p.reserve(nnList.size());
 

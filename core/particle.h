@@ -543,8 +543,6 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
         this->bIntegerPosition = bIntegerPosition;
         this->bNoParticleOrder = bNoParticleOrder;
         this->decorator = decorator;
-        if (bNoParticleOrder) dataStore<PARTICLE, PKD_FIELD>::set_header<UPARTICLE>();
-        else dataStore<PARTICLE, PKD_FIELD>::set_header<PARTICLE>();
         ParticleClasses.reserve(PKD_MAX_CLASSES);
     }
     auto integerized() const { return bIntegerPosition; }

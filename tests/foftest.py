@@ -32,118 +32,6 @@ TGT_dtype = np.dtype([
 ], align=False)
 
 import numpy as np
-import itertools
-
-
-def align_structures(
-    reference,
-    generated,
-    *,
-    pos_field="rPot",
-    dist2_thresh=1e-6,
-    max_block=4,
-    verbose=False,
-):
-    """
-    Align `generated` to `reference` by:
-      1) sorting both by descending number of DM, ascending rMax
-      2) computing squared distances of aligned positions
-      3) fixing local mis-orderings (small contiguous blocks)
-      4) asserting remaining distances are small
-
-    Returns:
-        reference_sorted, generated_aligned
-    """
-
-    assert reference.dtype == generated.dtype
-    assert reference.shape == generated.shape
-
-    # ---- step 1: sort both by mass (descending)
-    order_s = np.lexsort((
-        reference["rMax"],
-        -reference["nDM"],
-    ))
-    order_p = np.lexsort((
-        generated["rMax"],
-        -generated["nDM"],
-    ))
-
-    reference_s   = reference[order_s]
-    generated_s = generated[order_p].copy()
-
-    # ---- helpers
-    def dist2(a, b):
-        d = a[pos_field] - b[pos_field]
-        return np.einsum("ij,ij->i", d, d)
-
-    def contiguous_blocks(mask):
-        idx = np.where(mask)[0]
-        if len(idx) == 0:
-            return []
-
-        blocks = []
-        start = prev = idx[0]
-        for i in idx[1:]:
-            if i == prev + 1:
-                prev = i
-            else:
-                blocks.append((start, prev + 1))
-                start = prev = i
-        blocks.append((start, prev + 1))
-        return blocks
-
-    # ---- step 2: detect bad alignments
-    d2 = dist2(reference_s, generated_s)
-    bad = d2 > dist2_thresh
-
-    if not np.any(bad):
-        return reference_s, generated_s
-
-    # ---- step 3: fix small local blocks
-    blocks = contiguous_blocks(bad)
-
-    for i, j in blocks:
-        size = j - i
-        if size > max_block:
-            raise AssertionError(
-                f"Alignment block too large ({size}) at [{i}:{j}); "
-                "likely a real mismatch"
-            )
-
-        S = reference_s[i:j]
-        P = generated_s[i:j]
-
-        best_perm = None
-        best_cost = np.inf
-
-        for perm in itertools.permutations(range(size)):
-            cost = 0.0
-            for k, p in enumerate(perm):
-                d = S[k][pos_field] - P[p][pos_field]
-                cost += np.dot(d, d)
-            if cost < best_cost:
-                best_cost = cost
-                best_perm = perm
-
-        if verbose:
-            print(f"Fixing block [{i}:{j}], best cost = {best_cost:.3e}")
-
-        generated_s[i:j] = P[list(best_perm)]
-
-    # ---- step 4: final validation
-    d2_final = dist2(reference_s, generated_s)
-
-    if np.any(d2_final > dist2_thresh):
-        idx = np.argmax(d2_final)
-        raise AssertionError(
-            "Unresolved mismatch after alignment\n"
-            f" index          : {idx}\n"
-            f" reference rPot : {serial_s[idx][pos_field]}\n"
-            f" generated rPot : {generated_s[idx][pos_field]}\n"
-            f" dist2          : {d2_final[idx]:.3e}"
-        )
-
-    return reference_s, generated_s
 
 def assert_structured_nearly_equal(a, b, *,
                                    rtol=1e-5,
@@ -193,8 +81,7 @@ def assert_structured_nearly_equal(a, b, *,
 
 @ddt
 @unittest.skipIf(not os.path.isfile('b0-final.std'), "missing b0-final.std")
-@unittest.skipIf(not os.path.isfile('b0-final-ref.grp.npy'), "missing b0-final-ref.grp.npy")
-@unittest.skipIf(not os.path.isfile('b0-final.fofstats.npy'), "missing b0-final.fofstats.npy")
+@unittest.skipIf(not os.path.isfile('b0-final-ref.npz'), "missing b0-final-ref.npz")
 class TestFof(unittest.TestCase):
     def testFof(self):
         # for the unit test these values are fixed!
@@ -209,15 +96,14 @@ class TestFof(unittest.TestCase):
         msr.gravity(time=time,theta=0.5)
         msr.group_stats()
 
-        reference = np.fromfile("b0-final.fofstats.npy", dtype=TGT_dtype)
+        b0ref = np.load("b0-final-ref.npz")
+        reference = b0ref['fofstats']
+        # reference = np.fromfile("b0-final-ref.fofstats.npz", dtype=TGT_dtype)
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
             base = tmpdir / "fof.gs"
             msr.write_group_stats(f"{base}.serial", parallel=False)
             serial = np.fromfile(f"{base}.serial", dtype=TGT_dtype)
-            # 
-            # serial.tofile("b0-final.fofstats.npy")
-            #
             msr.write_group_stats(f"{base}.parallel", parallel=4)
             parallel = np.concatenate([
                 np.fromfile(f"{base}.parallel.{i}", dtype=TGT_dtype)
@@ -227,23 +113,31 @@ class TestFof(unittest.TestCase):
         msr.reorder()
         b = msr.get_array(field=PKD_FIELD.FIELD_GLOBAL_GID,time=time) # 16 = GLOBAL Group id (oGlobalGid)
         unique_ids, counts = np.unique(b, return_counts=True)
-        a = np.load('b0-final-ref.grp.npy')
+        a = b0ref['fof']
         self.assertTrue(np.all(np.where(a == 0)[0]==np.where(b == 0)[0]))
         (ua,ia,ra) = np.unique(a,return_index=True,return_inverse=True)
         m = b[ia]
         x = m[ra]
 
         np.testing.assert_array_equal(x, b)
-        np.testing.assert_array_equal(serial, parallel)
         np.testing.assert_array_equal(serial['iGlobalGid'],unique_ids[1:])
         np.testing.assert_array_equal(serial['nDM'],counts[1:])
 
-        # The centre of mass is more stable, but is relative to rPot
-        reference['rcom'] += reference['rPot']
-        serial['rcom'] += serial['rPot']
+        # ua[i] -> m[i] = b[ia[i]]: old (reference grp) group ID to new (generated) group ID
+        gid_map = dict(zip(ua[1:].tolist(), m[1:].tolist()))
+        # new (generated) group ID -> index in serial/parallel stats
+        serial_id_to_pos   = {int(gid): i for i, gid in enumerate(serial['iGlobalGid'])}
+        parallel_id_to_pos = {int(gid): i for i, gid in enumerate(parallel['iGlobalGid'])}
+        serial_perm   = np.array([serial_id_to_pos[gid_map[int(gid)]]   for gid in reference['iGlobalGid']])
+        parallel_perm = np.array([parallel_id_to_pos[gid_map[int(gid)]] for gid in reference['iGlobalGid']])
 
-        reference,serial = align_structures(reference,serial)
-        assert_structured_nearly_equal(reference,serial)
+        # Convert rcom from rPot-relative to absolute before comparing
+        reference['rcom'] += reference['rPot']
+        serial['rcom']    += serial['rPot']
+        parallel['rcom']  += parallel['rPot']
+
+        assert_structured_nearly_equal(reference, serial[serial_perm])
+        assert_structured_nearly_equal(reference, parallel[parallel_perm])
 
 if __name__ == '__main__':
     print('Running test')

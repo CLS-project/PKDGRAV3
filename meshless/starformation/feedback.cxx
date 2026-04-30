@@ -7,7 +7,7 @@ struct SmoothSNFeedback : smooth::policy::OnlyStar {
     double dCCSNFBDelay;
     double dSNIaFBDelay;
 
-    inline auto active(particleStore::ParticleReference& p) -> bool {
+    inline auto active(particleStore::ParticleReference& p) const -> bool {
         if (p.is_star()) {
             auto& star = p.star();
             if (!star.bCCSNFBDone && ((dTime - star.fTimer) > dCCSNFBDelay)) return true;

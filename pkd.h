@@ -396,7 +396,10 @@ class pkdContext : public Integerize, private DataRegistryOwner {
     explicit pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int nBucket, uint64_t nMinTotalStore, uint64_t nMinEphemeral,
                         uint32_t nEphemeralBytes, int nTreeBitsLo, int nTreeBitsHi, int iCacheSize, int iCacheMaxInflight, int iWorkQueueSize,
                         mdl::MPI_RECV_MODE mpi_recv_mode, int mpi_recv_count, bool mpi_RDMA, const blitz::TinyVector<double, 3>& fPeriod, uint64_t nDark,
-                        uint64_t nGas, uint64_t nStar, uint64_t nBH, uint64_t mMemoryModel, uint32_t nIntegerFactor);
+                        uint64_t nGas, uint64_t nStar, uint64_t nBH, uint64_t mMemoryModel, uint32_t nIntegerFactor,
+                        const datafields::Fields<decorators::FIELDS, DECORATOR_FIELD>::layout_type& decorator_layout,
+                        const datafields::Fields<PARTICLE, PKD_FIELD>::layout_type& particle_layout,
+                        const datafields::Fields<KDN, KDN_FIELD>::layout_type& tree_layout);
     virtual ~pkdContext();
     using DataRegistryOwner::data;
     using DataRegistryOwner::data_emplace;

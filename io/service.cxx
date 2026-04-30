@@ -40,7 +40,7 @@ int ServiceFileSizes::Recurse(PST pst, std::span<std::byte> vin, std::span<std::
         hdr->nSimultaneous = nLower;
         hdr->iReaderWriter -= nLower;
         auto nBytes = Traverse(pst->lower(), vin, vout);
-        nOut = nBytes + mdl->GetReply(rID, nOut - nBytes, out + nBytes / sizeof(output));
+        nOut = nBytes + mdl->GetReply(rID, vout.size() - nBytes, out + nBytes / sizeof(output));
     }
     // Now calculate the file sizes
     else {

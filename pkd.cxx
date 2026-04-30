@@ -112,7 +112,10 @@ void pkdContext::set_factor(std::uint32_t factor) {
 pkdContext::pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int nBucket, uint64_t nMinTotalStore, uint64_t nMinEphemeral,
                        uint32_t nEphemeralBytes, int nTreeBitsLo, int nTreeBitsHi, int iCacheSize, int iCacheMaxInflight, int iWorkQueueSize,
                        mdl::MPI_RECV_MODE mpi_recv_mode, int mpi_recv_count, bool mpi_RDMA, const TinyVector<double, 3>& fPeriod, uint64_t nDark, uint64_t nGas,
-                       uint64_t nStar, uint64_t nBH, uint64_t mMemoryModel, uint32_t nIntegerFactor)
+                       uint64_t nStar, uint64_t nBH, uint64_t mMemoryModel, uint32_t nIntegerFactor,
+                       const datafields::Fields<decorators::FIELDS, DECORATOR_FIELD>::layout_type& decorator_layout,
+                       const datafields::Fields<PARTICLE, PKD_FIELD>::layout_type& particle_layout,
+                       const datafields::Fields<KDN, KDN_FIELD>::layout_type& tree_layout)
     : mdl(mdl), csm(nullptr) {
     PARTICLE* p;
     uint32_t pi;
@@ -141,130 +144,22 @@ pkdContext::pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int 
     this->fft = NULL;
 #endif
 
-    /*
-    ** Calculate the amount of memory (size) of each particle.  This is the
-    ** size of a base particle (PARTICLE), plus any extra fields as defined
-    ** by the current memory model.  Fields need to be added in order of
-    ** descending size (i.e., doubles & int64 and then float & int32)
-    */
     this->bNoParticleOrder = (mMemoryModel & PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel & PKD_MODEL_INTEGER_POS) ? 1 : 0;
-
-    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_MFV | PKD_MODEL_STAR | PKD_MODEL_BH)) {
-        particles.add<decorators::FIELDS*>(PKD_FIELD::oDecorator, "decorator");
-    }
-
-    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_MFV)) {
-        auto gas = decorators.overlay(DECORATOR_FIELD::oMFM);
-        gas.add<decorators::MFM>(DECORATOR_FIELD::oMFM, "hydro");
-        if (mMemoryModel & PKD_MODEL_MFV) gas.add<decorators::MFV>(DECORATOR_FIELD::oMFV, "mfv");
-    }
-
     this->bStars = (mMemoryModel & PKD_MODEL_STAR) ? 1 : 0;
-    if (mMemoryModel & PKD_MODEL_STAR) {
-        auto star = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the star field on the MFM field
-        star.add<decorators::STAR>(DECORATOR_FIELD::oStar, "star");
-    }
-
     this->bBlackholes = (mMemoryModel & PKD_MODEL_BH) ? 1 : 0;
-    if (mMemoryModel & PKD_MODEL_BH) {
-        auto bh = decorators.overlay(DECORATOR_FIELD::oMFM); // Overlay the blackhole field on the MFM field
-        bh.add<decorators::BLACKHOLE>(DECORATOR_FIELD::oBH, "bh");
-    }
 
-    decorators.commit();
-
+    // Layouts were computed on the master thread and distributed via ServiceInitializePStore.
+    decorators.set_layout(decorator_layout);
     particles.initialize(this->bIntegerPosition, this->bNoParticleOrder, &decorators);
-
-    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition, "r");
-    else particles.add<double[3]>(PKD_FIELD::oPosition, "r");
-    if (mMemoryModel & PKD_MODEL_VELOCITY) {
-        if (sizeof(vel_t) == sizeof(double)) particles.add<double[3]>(PKD_FIELD::oVelocity, "v");
-        else particles.add<float[3]>(PKD_FIELD::oVelocity, "v");
-    }
-
-    if (mMemoryModel & PKD_MODEL_PARTICLE_ID) particles.add<int64_t>(PKD_FIELD::oParticleID, "id");
-    /*
-    ** Add a global group id. This is used when outputing an array of particles with
-    ** one group assignment per particle.Usually only used in testing as it adds a
-    ** 64 bit integer.
-    */
-    if (mMemoryModel & PKD_MODEL_GLOBALGID) particles.add<int64_t>(PKD_FIELD::oGlobalGid, "gid");
-
-    if (mMemoryModel & PKD_MODEL_NEW_SPH) particles.add<sph::FIELDS>(PKD_FIELD::oNewSph, "hydro");
-    if (mMemoryModel & PKD_MODEL_STRENGTH) particles.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr, "strength");
-    if (mMemoryModel & PKD_MODEL_PEAKPRESSURE) particles.add<sph::PEAKPRESSUREFIELDS>(PKD_FIELD::oNewSphPeakPressure, "peakpressure");
-
-    if (mMemoryModel & PKD_MODEL_SSDEM) particles.add<ssdem::FIELDS>(PKD_FIELD::oSSDEM, "ssdem");
-
-    if (mMemoryModel & PKD_MODEL_VELSMOOTH) particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth, "vsmooth");
-    if (mMemoryModel & PKD_MODEL_ACCELERATION) particles.add<float[3]>(PKD_FIELD::oAcceleration, "a");
-
-    if (mMemoryModel & PKD_MODEL_MASS) particles.add<float>(PKD_FIELD::oMass, "m");
-
-    if (mMemoryModel & PKD_MODEL_SOFTENING) particles.add<float>(PKD_FIELD::oSoft, "soft");
-
-    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_NEW_SPH | PKD_MODEL_BALL)) particles.add<float>(PKD_FIELD::oBall, "ball");
-    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_NEW_SPH | PKD_MODEL_DENSITY)) particles.add<float>(PKD_FIELD::oDensity, "rho");
-
-    if ((mMemoryModel & PKD_MODEL_GROUPS) && !this->bNoParticleOrder) {
-        particles.add<int32_t>(PKD_FIELD::oGroup, "group");
-    }
-    if ((mMemoryModel & PKD_MODEL_NEWRUNG) && this->bNoParticleOrder) {
-        // If not bNoParticleOrder (i.e., ordered) the field
-        // is already present
-        particles.add<uint8_t>(PKD_FIELD::oNewRung, "newrung");
-    }
-
-    if (mMemoryModel & PKD_MODEL_POTENTIAL) {
-        particles.add<float>(PKD_FIELD::oPotential, "phi");
-    }
-    particles.commit();
-
-    /*
-    ** Tree node memory models
-    */
-    if (this->bIntegerPosition) tree.add<int32_t[3]>(KDN_FIELD::oNodePosition, "r");
-    else tree.add<double[3]>(KDN_FIELD::oNodePosition, "r");
-    if (mMemoryModel & PKD_MODEL_NODE_BND) {
-        if (this->bIntegerPosition) tree.add<IntegerBound>(KDN_FIELD::oNodeBnd, "bnd");
-        else tree.add<Bound>(KDN_FIELD::oNodeBnd, "bnd");
-    }
-    if (mMemoryModel & PKD_MODEL_NODE_VBND) tree.add<Bound>(KDN_FIELD::oNodeVBnd, "vbnd");
-    if ((mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double)) tree.add<double[3]>(KDN_FIELD::oNodeVelocity, "v");
-#ifdef OPTIM_REORDER_IN_NODES
-    if (mMemoryModel & (PKD_MODEL_MFM | PKD_MODEL_BH)) {
-        tree.add<int32_t>(KDN_FIELD::oNodeNgas, "ngas");
-        tree.add<int32_t>(KDN_FIELD::oNodeNstar, "nstar");
-        tree.add<int32_t>(KDN_FIELD::oNodeNbh, "nbh");
-#endif
-    }
-    /*
-    ** Three extra bounds are required by the fast gas SPH code.
-    */
-    if (mMemoryModel & PKD_MODEL_NODE_SPHBNDS) tree.add<SPHBNDS>(KDN_FIELD::oNodeSphBounds, "sphbnd");
-
-    if (mMemoryModel & PKD_MODEL_NODE_BOB) tree.add<SPHBOB>(KDN_FIELD::oNodeBOB, "bob");
-
-    if (mMemoryModel & PKD_MODEL_NODE_MOMENT) {
-        tree.add<FMOMR>(KDN_FIELD::oNodeMom, "mom");
-        auto moment = tree.overlay(KDN_FIELD::oNodeMom);
-        moment.add<mass_t>(KDN_FIELD::oNodeMass, "mass", offsetof(FMOMR, m));
-        // tree.add<mass_t>(KDN_FIELD::oNodeMass,"mass",tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
-    }
-    else tree.add<mass_t>(KDN_FIELD::oNodeMass, "mass");
-
-    /* The acceleration is required for the new time step criteria */
-    if (mMemoryModel & PKD_MODEL_NODE_ACCEL) tree.add<float[3]>(KDN_FIELD::oNodeAcceleration, "a");
-
-    if ((mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(float)) tree.add<float[3]>(KDN_FIELD::oNodeVelocity, "v");
+    particles.set_layout(particle_layout);
+    tree.set_layout(tree_layout);
 
     assert(tree.ElementSize() > 0);
     if (tree.ElementSize() > pkdContext::MaxNodeSize()) {
         fprintf(stderr, "Node size is too large. Node size=%" PRIu64 ", max node size=%" PRIu64 "\n", (uint64_t)tree.ElementSize(), (uint64_t)MaxNodeSize());
     }
     assert(tree.ElementSize() <= MaxNodeSize());
-    tree.commit();
 
     /*
     ** We need to allocate one large chunk of memory for:
@@ -300,7 +195,7 @@ pkdContext::pkdContext(mdl::mdlClass* mdl, int nStore, int nDecoratorStore, int 
 #ifdef FIXED_SIZE_TREES
     uint64_t nTreeNodes = (nStore + 1) / uint64_t(std::max(1.0, std::ceil(nBucket - std::sqrt(nBucket)))) * 3;
 #else
-uint64_t nTreeNodes = (nStore + 1) / nBucket * 2;
+    uint64_t nTreeNodes = (nStore + 1) / nBucket * 2;
 #endif
     static_assert(nSegments == 4);
     TinyVector<size_t, nSegments> nElements{uint64_t(nStore + 1), nEphemeral, uint64_t(nDecoratorStore + 1), nTreeNodes};
@@ -1517,6 +1412,11 @@ void pkdContext::CalcEandL(double& T, double& U, double& Eth, TinyVector<double,
     if (particles.present(PKD_FIELD::oSph)) {
         for (auto& p : particles) {
             if (p.is_gas()) Eth += p.sph().E;
+        }
+    }
+    if (particles.present(PKD_FIELD::oNewSph)) {
+        for (auto& p : particles) {
+            if (p.is_gas()) Eth += p.newsph().u;
         }
     }
 }

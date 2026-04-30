@@ -43,7 +43,7 @@ class SmoothHelperChemEnrich : public SmoothHelperPacked<stevPack, stevFlush> {
 
 struct SmoothChemEnrich : smooth::policy::OnlyGas {
     double dTime;
-    inline auto active(particleStore::ParticleReference& p) -> bool {
+    inline auto active(particleStore::ParticleReference& p) const -> bool {
         if (p.is_star()) {
             auto& star = p.star();
             return dTime > star.fNextEnrichTime;

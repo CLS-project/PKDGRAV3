@@ -262,6 +262,8 @@ class MSR {
     PyObject* pDill_dump = nullptr;        // The "dill.dump" function
     PyObject* pDill_load_module = nullptr; // The "dill.load_module" function
     PyObject* pDill_dump_module = nullptr; // The "dill.dump_module" function
+    PyObject* particle_dtype = nullptr;    // The numpy dtype for particles, built from the FieldBuilder
+
   public:
     struct CALC calc;
 
