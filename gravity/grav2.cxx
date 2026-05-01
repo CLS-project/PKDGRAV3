@@ -47,7 +47,8 @@
 #include "SPH/SPHpredict.h"
 #include "potential/potential.h"
 #include "../core/simd.h"
-
+//#include "SPH/sphcooling/SPHCoolingGrackle.h"
+#include "SPH/sphcooling/SPHCooling.h"
 #include <algorithm>
 #include <stack>
 
@@ -167,7 +168,7 @@ void pkdParticleWorkDone(workParticle* wp) {
     vel_t v2;
     float maga, dT, dtGrav;
     unsigned char uNewRung;
-
+    float T, uDot_cool; // reused cooling variables to reduce the number of calculations
     if (--wp->nRefs == 0) {
         if (wp->SPHoptions->doDensity) {
             float maxkerneldeviation = 0.0f;
@@ -405,6 +406,52 @@ void pkdParticleWorkDone(workParticle* wp) {
                         dT = std::min(dT, wp->SPHoptions->EtauDot * fabsf(NewSph.u / NewSph.uDot));
                     }
                 }
+          
+                
+
+                // Further timestep criteria go here
+                // Timestep criterion on cooling rate
+                // The timestep criterion is needed for the KWH implementation as well as for the equilibrium grackle
+                // implementation. The timestep criterion is not needed for grackle without equilibrium
+                // as it already does substepping internally.
+                // The cooling timescale is calculated as t_cool = |u_old / uDot_cool|
+                // uDot_cool from KWH can be used for further calculations in the opening and closing kick, as it
+                // is independent of the timestep. However for grackle, the cooling rate needs to be recalculated as
+                // it depends on the timestep size, which could be different (when this timestep criterion is not used).
+                if ((wp->SPHoptions->coolingModel == 1 ||
+                        wp->SPHoptions->coolingModel == 2 ||
+                        wp->SPHoptions->coolingModel == 3
+                    ) && p.have_newsph()) {
+                    // conversion to internal energy if isentropic
+                    float u_old;
+                    if (wp->SPHoptions->useIsentropic) {
+                        u_old = SPHEOSconvertEntropicFunctiontoInternalEnergy(p.density(), p.newsph().u, p.imaterial(), wp->SPHoptions);
+                    }
+                    else {
+                        u_old = p.newsph().u;
+                    }
+                    // Use the correct cooling model
+                    if (wp->SPHoptions->coolingModel == 1 || wp->SPHoptions->coolingModel == 2) {
+                        // use the unconverted u to calculate T as the EOS does the conversion
+                        T = SPHEOSTofRhoU(pkd, p.density(), p.newsph().u, p.imaterial(), wp->SPHoptions);
+                        uDot_cool = pkdSPHCooling(pkd, p, T, wp->SPHoptions);
+                    }
+                    else {
+                        //uDot_cool = pkdGrackleCooling(pkd, p, u_old, dT, wp->SPHoptions);
+                    }
+                    // Cooling timescale is calculated as a simple division of the internal energy by the cooling rate.
+                    float t_cool = fabsf(u_old / uDot_cool);
+                    // The timestep criterion defines the maximal timestep as a fraction of the cooling timescale.
+                    // This fraction can be controlled through this factor.
+                    float factor = wp->SPHoptions->dCoolingTimestepFactor;
+                    // Check, if there is any cooling, meaning uDot_cool is not zero and t_cool is finite (not NaN)
+                    if (std::isfinite(t_cool)) {
+                        dT = std::min(dT, factor * t_cool);
+                    }
+                }
+
+
+
 
                 // Timestep criterion on the deviatoric stress
                 if (wp->SPHoptions->EtaSdot > 0.0f && p.have_newsph() && pkdIsGas(pkd, wp->pPart[i])) {
@@ -472,6 +519,57 @@ void pkdParticleWorkDone(workParticle* wp) {
                                 NewSph.oldRho = p.density();
                             }
                             NewSph.u += wp->kick->dtClose[p.rung()] * NewSph.uDot;
+                
+
+
+
+                            /* COOLING */
+                            float u_old, u_new, du_cool, stepsize, t_cool;
+                            if (wp->SPHoptions->coolingModel != 0) {
+                                // Conversion of stored u to internal energy if isentropic
+                                if (wp->SPHoptions->useIsentropic) {
+                                    u_old = SPHEOSconvertEntropicFunctiontoInternalEnergy(p.density(), NewSph.u, p.imaterial(), wp->SPHoptions);
+                                }
+                                else {
+                                    u_old = NewSph.u;
+                                }
+                                // Calculate cooling rate based on the cooling model
+                                if (wp->SPHoptions->coolingModel == 3 || wp->SPHoptions->coolingModel == 4) {
+                                    //uDot_cool = pkdGrackleCooling(pkd, p, u_old, wp->kick->dtClose[p.rung()], wp->SPHoptions);
+                                }
+                                else {
+                                    // T and uDot_cool are already calculated in the timestep criterion
+                                    // and can be reused
+                                    /*
+                                      T = SPHEOSTofRhoU(pkd, p.density(), NewSph.u, p.imaterial(), wp->SPHoptions);
+                                      uDot_cool = pkdSPHCooling(pkd, p, T, wp->SPHoptions);
+                                     */
+                                }
+                                // Calculate the change in internal energy due to cooling
+                                du_cool = uDot_cool * wp->kick->dtClose[p.rung()];
+                                // Simulation stepsize used for the dampener/limiter
+                                stepsize = wp->kick->dtClose[p.rung()] / wp->ts->dDelta;
+                                // Damping of cooling rate to enforce numerical stability (according to Katz
+                                // et al. 1996). A particle cannot radiate more than half its internal/thermal energy
+                                // in a single global time step. As we are doing half steps no more than 25%
+                                // of a particles internal energy may radiate away.
+                                // The (half)stepsize is at most 0.5, so we have to multiply it by 0.5.
+                                if (-du_cool < 0.5 * stepsize * u_old) {
+                                    // std::cerr << "Applying Limiter at time" << wp->ts->dTime << std::endl;
+                                    u_new = u_old + du_cool;
+                                }
+                                else {
+                                    u_new = u_old - 0.5 * stepsize * u_old;
+                                }
+                                if (wp->SPHoptions->useIsentropic) {
+                                    u_new = SPHEOSconvertInternalEnergytoEntropicFunction(p.density(), u_new, p.imaterial(), wp->SPHoptions);
+                                }
+                                NewSph.u = u_new;
+                            }
+                            
+                            
+                            
+                            
                             if (!wp->SPHoptions->doOnTheFlyPrediction && !wp->SPHoptions->doConsistentPrediction) {
                                 NewSph.P = SPHEOSPCTofRhoU(pkd, p.density(), NewSph.u, &NewSph.cs, &NewSph.T, p.imaterial(), wp->SPHoptions);
                             }
@@ -522,7 +620,70 @@ void pkdParticleWorkDone(workParticle* wp) {
                         v[2] += wp->kick->dtOpen[p.rung()] * wp->pInfoOut[i].a[2] * p.accFac();
                         if (wp->SPHoptions->doSPHForces && pkdIsGas(pkd, wp->pPart[i])) {
                             auto& NewSph = p.newsph();
+
+
+                            /* COOLING */
+                            float u_old, u_new, P, du_cool, stepsize, t_cool;
+                            if (wp->SPHoptions->coolingModel != 0) {
+                                // Conversion to internal energy if isentropic
+                                if (wp->SPHoptions->useIsentropic) {
+                                    u_old = SPHEOSconvertEntropicFunctiontoInternalEnergy(p.density(), NewSph.u, p.imaterial(), wp->SPHoptions);
+                                }
+                                else {
+                                    u_old = NewSph.u;
+                                }
+                                // Calculate cooling rate based on the cooling model
+                                if (wp->SPHoptions->coolingModel == 3 || wp->SPHoptions->coolingModel == 4) {
+                                    //uDot_cool = pkdGrackleCooling(pkd, p, u_old, wp->kick->dtOpen[p.rung()], wp->SPHoptions);
+                                }
+                                else {
+                                    // T and uDot_cool are already calculated in the timestep criterion
+                                    // and can be reused
+                                    /*
+                                      T = SPHEOSTofRhoU(pkd, p.density(), NewSph.u, p.imaterial(), wp->SPHoptions);
+                                      uDot_cool = pkdSPHCooling(pkd, p, T, wp->SPHoptions);
+                                     */
+                                }
+                                // Calculate the change in internal energy due to cooling
+                                du_cool = uDot_cool * wp->kick->dtOpen[p.rung()];
+                                // Simulation stepsize used for the dampener/limiter
+                                stepsize = wp->kick->dtOpen[p.rung()] / wp->ts->dDelta;                                // Damping of cooling rate to enforce numerical stability (according to Katz                                // et al. 1996). A particle cannot radiate more than half its internal/thermal energy
+                                // in a single global time step. As we are doing half steps no more than 25%                                // of a particles internal energy may radiate away.                                // The (half)stepsize is at most 0.5, so we have to multiply it by 0.5.
+                                if (-du_cool < 0.5 * stepsize * u_old) {
+                                    // std::cerr << "Applying Limiter at time" << wp->ts->dTime << std::endl;
+                                    u_new = u_old + du_cool;
+                                }
+                                else {
+                                    u_new = u_old - 0.5 * stepsize * u_old;
+                                }
+                                // Convert back to entropic function if isentropic                                
+                                if (wp->SPHoptions->useIsentropic) {
+                                    u_new = SPHEOSconvertInternalEnergytoEntropicFunction(p.density(), u_new, p.imaterial(), wp->SPHoptions);
+                                }
+                                else {
+                                    u_new = u_new;
+                                }
+                                // Update the rate of change in internal energy by the contribution of the cooling uDot.
+                                // The old u from NewSph is used as u_old would need a conversion back
+                                // to the entropic function if isentropic.
+                                uDot_cool = (u_new - NewSph.u) / wp->kick->dtOpen[p.rung()];
+                                // Update the rate of change of the internal energy of the particle. The contribution
+                                // from cooling is added to the existing rate of change of the internal energy.
+                                // This applies cooling to the particle in the opening kick.                                // The internal energy itself is updated in the next step.
+                                NewSph.uDot += uDot_cool;
+                            }
+
+
                             NewSph.u += wp->kick->dtOpen[p.rung()] * NewSph.uDot;
+                        
+
+                                     
+
+
+
+
+
+
                             if (wp->SPHoptions->doShearStrengthModel) {
                                 auto& NewSphStr = p.newsphstr();
                                 NewSphStr.Sxx += wp->kick->dtOpen[p.rung()] * NewSphStr.SDotxx;

@@ -123,6 +123,9 @@
 #include "meshless/blackhole/drift.h"
 #include "meshless/blackhole/accretion.h"
 
+//give up grackle
+#include "SPH/sphcooling/initsphcooling.h"
+
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
 
@@ -308,6 +311,10 @@ void* worker_init(MDL vmdl) {
     mdl->AddService<ServiceLightConeOpen>(pst);
     mdl->AddService<ServiceLightConeClose>(pst);
     mdl->AddService<ServiceLightConeVel>(pst);
+
+    //mdl->AddService(std::make_unique<ServiceInitGrackleCooling>(pst));
+    mdl->AddService(std::make_unique<ServiceInitSPHCooling>(pst));
+    
 #ifdef INSTRUMENT_MPI
     mdl->AddService<ServiceCacheStats>(pst);
 #endif

@@ -121,6 +121,12 @@ MAKE_STRUCTURE(PEAKPRESSUREFIELDS, SPH_PEAKPRESSURE_FIELDS)
     X(veldisp2, float)                    /* Velocity dispersion squared */
 MAKE_STRUCTURE(VELSMOOTH, VELSMOOTH_FIELDS)
 
+#define METAL_FIELDS(X) \
+    X(fTotalMetallicity, float)
+MAKE_STRUCTURE(METAL, METAL_FIELDS)
+
+
+
 //! \brief Enumerates all of the optional fields in a PARTICLE
 //!
 //! The PARTICLE structure can be minimally only four or eight bytes.
@@ -147,7 +153,7 @@ enum PKD_FIELD {
     oParticleID,
     oGlobalGid, /* global group id, uint64 */
     oNewRung,
-
+    oMetal, /* Sph Cooling structure */
     oDecorator,
     MAX_FIELD
 };
@@ -348,6 +354,17 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
     auto& newsph(PARTICLE* p) const { return get<sph::FIELDS>(p, PKD_FIELD::oNewSph); }
     const auto& newsph(const PARTICLE* p) const { return get<sph::FIELDS>(p, PKD_FIELD::oNewSph); }
 
+
+    /* Metal variables */
+    auto &metal( PARTICLE *p ) const {
+        return get<METAL>(p,PKD_FIELD::oMetal);
+    }
+    const auto &metal( const PARTICLE *p ) const {
+        return get<METAL>(p,PKD_FIELD::oMetal);
+    }
+
+
+
     /* NewSphStrength variables */
     auto& newsphstr(PARTICLE* p) const { return get<sph::STRENGTHFIELDS>(p, PKD_FIELD::oNewSphStr); }
     const auto& newsphstr(const PARTICLE* p) const { return get<sph::STRENGTHFIELDS>(p, PKD_FIELD::oNewSphStr); }
@@ -403,6 +420,7 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
         bool have_newsphstr() const { return have(PKD_FIELD::oNewSphStr); }
         bool have_newsphpeakp() const { return have(PKD_FIELD::oNewSphPeakPressure); }
         bool have_star() const { return store().decorator->present(DECORATOR_FIELD::oStar); }
+        bool have_metal()      const {return have(PKD_FIELD::oMetal);}
         bool have_ball() const { return have(PKD_FIELD::oBall); }
         bool have_mass() const { return have(PKD_FIELD::oMass); }
         bool have_group() const { return have(PKD_FIELD::oGroup); }
@@ -468,6 +486,7 @@ class particleStore : public dataStore<PARTICLE, PKD_FIELD>, protected Integeriz
         auto& newsph() const { return store().newsph(p); }
         auto& newsphstr() const { return store().newsphstr(p); }
         auto& newsphpeakp() const { return store().newsphpeakp(p); }
+        auto &metal()     const { return store().metal(p); }
         auto& star() const { return store().star(p); }
         auto& BH() const { return store().BH(p); }
         auto Timer() const { return store().Timer(p); }

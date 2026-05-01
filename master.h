@@ -540,6 +540,9 @@ class MSR {
     void UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double dStep, int bKickClose, int bKickOpen, SPHOptions SPHoptions);
     void TreeUpdateFlagBounds(int bNeedEwald, uint32_t uRoot, uint32_t utRoot, SPHOptions SPHoptions);
 
+    void InitSPHCooling(struct UNITS);
+
+    
   public:
     void Profile(const PROFILEBIN** pBins, int* pnBins, blitz::TinyVector<double, 3> r, double dMinRadius, double dLogRadius, double dMaxRadius, int nPerBin,
                  int nBins, int nAccuracy);

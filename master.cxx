@@ -65,6 +65,11 @@
     #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
 
+
+//#include "SPH/sphcooling/initgracklecooling.h"
+#include "SPH/sphcooling/initsphcooling.h"
+
+
 #include "master.h"
 #include "core/databuilder.h"
 #include "core/decorator_fields.h"
@@ -573,6 +578,12 @@ std::tuple<int, int, int> MSR::InitializePStore(uint64_t* nSpecies, uint64_t mMe
     }
     if (ps.mMemoryModel & PKD_MODEL_PARTICLE_ID) pbuilder.add<int64_t>(PKD_FIELD::oParticleID, "id");
     if (ps.mMemoryModel & PKD_MODEL_GLOBALGID) pbuilder.add<int64_t>(PKD_FIELD::oGlobalGid, "gid");
+    
+    
+    //if ( mMemoryModel & PKD_MODEL_METAL ) particles.add<METAL>(PKD_FIELD::oMetal, "metal");
+    
+    
+    
     if (ps.mMemoryModel & PKD_MODEL_NEW_SPH) pbuilder.add<sph::FIELDS>(PKD_FIELD::oNewSph, "hydro");
     if (ps.mMemoryModel & PKD_MODEL_STRENGTH) pbuilder.add<sph::STRENGTHFIELDS>(PKD_FIELD::oNewSphStr, "strength");
     if (ps.mMemoryModel & PKD_MODEL_PEAKPRESSURE) pbuilder.add<sph::PEAKPRESSUREFIELDS>(PKD_FIELD::oNewSphPeakPressure, "peakpressure");
@@ -4285,6 +4296,8 @@ auto MSR::initializeSPHOptions(double dTime, double dDelta) -> SPHOptions {
     SPHoptions.CentrifugalT1 = parameters.get_dCentrifT1();
     SPHoptions.CentrifugalOmega0 = parameters.get_dCentrifOmega0();
     SPHoptions.doExtensiveILPTest = parameters.get_bGasDoExtensiveILPTest();
+    SPHoptions.coolingModel = (int)parameters.get_cooling_model();
+    SPHoptions.dCoolingTimestepFactor = parameters.get_dCoolingTimestepFactor();
     SPHoptions.doShearStrengthModel = parameters.get_bShearStrengthModel();
     SPHoptions.disableStressAtInterface = parameters.get_bDisableStressAtInterface();
     SPHoptions.evolveDensity = parameters.get_bGasEvolveDensity();
@@ -4544,6 +4557,39 @@ double MSR::countShell(double rInner, void* vctx) {
     }
     return 1.0 * nSelected - 1.0 * ctx->nTarget;
 }
+
+void MSR::InitSPHCooling(struct UNITS units) {
+    double sec,dsec;
+    sec = MSR::Time();
+    if (parameters.get_cooling_model() == COOLING_MODEL::GRACKLE_EQ) {
+        /*printf("Initialize SPH Cooling with Grackle ...\n");
+        printf("Using Cooling Table ...\n");
+        //ServiceInitGrackleCooling::input in;
+        //strcpy(in.achGrackleCoolingTable,parameters.get_achGrackleCoolingTable().data());
+        //in.primordial_chemistry = 0;
+        //in.units = units;
+        //mdl->RunService<ServiceInitGrackleCooling>(in);*/
+    }
+    else if (parameters.get_cooling_model() == COOLING_MODEL::GRACKLE) {
+        /*printf("Initialize SPH Cooling with Grackle ...\n");
+        printf("Using 6 species primordial network ...\n");
+        ServiceInitGrackleCooling::input in;
+        in.primordial_chemistry = 1;
+        in.units = units;
+        mdl->RunService<ServiceInitGrackleCooling>(in);*/
+    }
+    else if (parameters.get_cooling_model() == COOLING_MODEL::KWH ||
+             parameters.get_cooling_model() == COOLING_MODEL::KWH_HEAT) {
+        printf("Initialize SPH Cooling with KWH ...\n");
+        ServiceInitSPHCooling::input in;
+        in.units = units;
+        mdl->RunService<ServiceInitSPHCooling>(in);
+    }
+    dsec = MSR::Time() - sec;
+    printf("SPH Cooling initialized, Wallclock: %f secs\n\n",dsec);
+}
+
+
 
 /*
 ** Calculate a profile.

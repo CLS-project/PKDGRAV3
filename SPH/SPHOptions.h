@@ -103,6 +103,7 @@ struct SPHOptions {
     float CentrifugalT0;
     float CentrifugalT1;
     float CentrifugalOmega0;
+    float dCoolingTimestepFactor;
     float externalAccelerationX;
     float externalAccelerationY;
     float externalAccelerationZ;
@@ -127,6 +128,7 @@ struct SPHOptions {
     uint64_t kernelType : 3;
     uint64_t doCentrifugal : 1;
     uint64_t doExtensiveILPTest : 1;
+    uint64_t coolingModel : 3;
     uint64_t doShearStrengthModel : 1;
     uint64_t disableStressAtInterface : 1;
     uint64_t evolveDensity : 1;

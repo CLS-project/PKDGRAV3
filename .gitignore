@@ -17,3 +17,8 @@ test-reports
 .cache/
 run-tests/
 compile_commands.json
+pkdgrav3-build/
+pkdgrav3-build/
+pkdgrav3-build/
+.DS_Store
+.DS_Store

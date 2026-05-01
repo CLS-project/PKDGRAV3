@@ -46,6 +46,7 @@
 #include "core/treenode.h"
 #include "io/iomodule.h"
 #include "SPH/SPHOptions.h"
+#include "SPH/sphcooling/coolingdata.h"
 #ifdef HAVE_EOSLIB_H
     #include <EOSlib.h>
 #endif
@@ -57,9 +58,9 @@
 extern "C" {
 #endif
 
-#ifdef GRACKLE
-    #include <grackle.h>
-#endif
+//#ifdef GRACKLE
+//    #include <grackle.h>
+//#endif
 
 #ifdef __cplusplus
 }
@@ -126,6 +127,7 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_NODE_BOB (1 << 30)  /* Ball of Balls, or Box of Balls */
 
 #define PKD_MODEL_NEW_SPH (1ULL << 32) /* New Sph Fields */
+#define PKD_MODEL_METAL   (1ULL<<33) /* Metal Fields */
 /* P and c if not doing onthefly prediction */
 /* oldRho if doing ISPH */
 /* expImb2 if doing interface correction */
@@ -766,6 +768,7 @@ class pkdContext : public Integerize, private DataRegistryOwner {
 #endif
 
     SPHOptions SPHoptions;
+     CoolingData Coolingdata;
 #ifdef HAVE_EOSLIB_H
     EOSmaterial* materials[EOS_N_MATERIAL_MAX] = {NULL};
 #endif

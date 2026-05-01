@@ -152,6 +152,11 @@ void MSR::Simulate(double dTime, int iStartStep, bool bRestart) {
     const auto iTimeStepCrit = parameters.get_iTimeStepCrit();
 
     InitCosmology(csm);
+
+    if (parameters.get_cooling_model() != COOLING_MODEL::NONE) {
+        InitSPHCooling(units);
+    }
+
     auto dTheta = set_dynamic(iStartStep, dTime);
 
     if (parameters.has_dSoft()) SetSoft(Soft());

@@ -280,6 +280,9 @@ target_sources(${PROJECT_NAME} PRIVATE
 	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
 	core/ignoresigbus.cxx
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx SPH/gasvalues.cxx SPH/resetcom.cxx
+
+  SPH/sphcooling/initsphcooling.cxx SPH/sphcooling/SPHCooling.cxx
+
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 
@@ -488,17 +491,6 @@ else(FIXED_NSMOOTH_STRICT)
 endif(FIXED_NSMOOTH_STRICT)
 
 target_sources(${PROJECT_NAME} PRIVATE  meshless/cooling/cooling.cxx meshless/cooling/cooling_tables.cxx meshless/cooling/services.cxx )
-
-option(GRACKLE "Activate the cooling using grackle" OFF)
-if (GRACKLE)
-   find_package(GRACKLE REQUIRED)
-   target_include_directories(${PROJECT_NAME} PUBLIC ${GRACKLE_INCLUDE})
-   target_link_libraries(${PROJECT_NAME} ${GRACKLE_LIBRARY})
-   target_compile_options(${PROJECT_NAME} PRIVATE -DGRACKLE -DCONFIG_BFLOAT_8)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_METALLICITY)
-   target_sources(${PROJECT_NAME} PRIVATE  meshless/cooling_grackle/cooling_grackle.cxx )
-   message("-- GRACKLE is ACTIVE")
-endif(GRACKLE)
 
 target_sources(${PROJECT_NAME} PRIVATE  meshless/starformation/starformation.cxx meshless/starformation/init.cxx)
 

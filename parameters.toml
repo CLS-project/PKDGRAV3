@@ -1503,6 +1503,28 @@ flag="MaxPhysicalSoft"
 default=0.0
 help="maximum softening in physical coordinates"
 
+
+
+["Gas".achGrackleCoolingTable]
+flag="gracklecoolingtable"
+default=""
+help="Path to the cooling table"
+["Gas".cooling_model]
+flag="cooling_model"
+enum = { NONE=0, KWH=1, KWH_HEAT=2, GRACKLE_EQ=3, GRACKLE=4}
+default=0
+omitted="NONE"
+help="Cooling model to use: none, treesph from Katz Weinberg Hernquist, KWH with heating, grackle assuming ionization equilibrium (tabulated), grackle (solve chemistry)"
+["Gas".dCoolingTimestepFactor]
+flag="CoolingTimestepFactor"
+default=0.1
+help="used to limit timestep as a factor of cooling time"
+
+
+
+
+
+
 ["Gas".dExternalAcceleration]
 flag="externalAcceleration"
 default=[0.0, 0.0, 0.0]
